@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Felito · Tower Wars</title>
+<script>
+  // Start diagnostics: show script errors on the loading screen instead of hanging silently.
+  (function () {
+    var shown = [];
+    var en = true;
+    // English only for now (v0.09g)
+    function report(msg) {
+      shown.push(String(msg).slice(0, 300));
+      var el = document.getElementById("game-loader");
+      if (el) el.textContent = (en ? "Start error: " : "Startfehler: ") + shown.join(" | ");
+      else {
+        el = document.getElementById("error-strip") || document.body.appendChild(Object.assign(document.createElement("div"), { id: "error-strip" }));
+        el.style.cssText = "position:fixed;left:8px;right:8px;top:8px;z-index:9999;padding:6px 10px;border-radius:8px;background:#7a1620e6;color:#fff;font:12px/1.3 system-ui,sans-serif;pointer-events:none";
+        el.textContent = (en ? "Error: " : "Fehler: ") + shown.slice(-2).join(" | ");
+      }
+    }
+    window.addEventListener("error", function (e) {
+      report((e.message || (en ? "Script could not be loaded" : "Skript konnte nicht geladen werden")) + (e.filename ? " (" + e.filename.split("/").pop().split("?")[0] + ":" + e.lineno + ")" : e.target && e.target.src ? " (" + e.target.src.split("/").pop().split("?")[0] + ")" : ""));
+    }, true);
+    window.addEventListener("unhandledrejection", function (e) { report(e.reason && e.reason.message || e.reason); });
+  })();
+</script>
+<style>:root{color-scheme:dark}html,body{height:100%;background:#07141a}</style>
+<meta name="theme-color" content="#173d35">
+  <meta name="description" content="Felito Tower Wars – build towers, send creeps and win your duel.">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="icon" href="assets/app-icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="assets/app-icon-192.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="style.css?v=f10016">
+  <script type="importmap">{"imports":{"./src/music.js":"./src/music.js?v=f10016","./src/art.js":"./src/art.js?v=f10016","./src/soundtrack.js":"./src/soundtrack.js?v=f10016","./src/sfx.js":"./src/sfx.js?v=f10016","./src/app.js":"./src/app.js?v=f10016","./src/arena.js":"./src/arena.js?v=f10016","./src/content.js":"./src/content.js?v=f10016","./src/simulation.js":"./src/simulation.js?v=f10016","./src/multiplayer.js":"./src/multiplayer.js?v=f10016","./src/i18n.js":"./src/i18n.js?v=f10016","./src/b2d.js":"./src/b2d.js?v=f10016"}}</script>
+</head>
+<body>
+<main class="game-shell" data-page="build" aria-label="Felito Tower Wars">
+    <div class="mini-hud">
+      <header class="game-header">
+        <div class="player-plate own" role="button" tabindex="0" data-ta="Show your board" aria-label="Show your board" data-help="Your gold, income per round, lives and EXP. Tap to show your board.">
+          <div class="plate-face"><img class="portrait" src="assets/art/portrait-player.webp" alt=""><i class="plate-skull" aria-hidden="true"></i><span class="plate-lives"><img src="assets/art/icon-heart.webp" alt=""><strong id="own-lives">30</strong></span></div>
+          <div class="plate-body"><span class="plate-name" data-t="You">You</span><span class="plate-gold"><img src="assets/art/icon-coin.webp" alt="Gold"><b id="own-gold">0</b></span><em class="plate-inc" id="own-income">+0</em></div>
+          <div class="plate-exp" data-tt="Experience" title="Experience"><i id="own-exp"></i><span>Lv <b id="own-level">1</b></span></div>
+        </div>
+        <div class="round-plate" data-ta="Next income" aria-label="Next income" data-help="Round, countdown to your next income, and match time.">
+          <span class="round-label" id="round-label">Setup</span>
+          <div class="income-timer"><svg viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="17"></circle><circle id="income-ring" cx="20" cy="20" r="17"></circle></svg><span id="income-time">12</span></div>
+          <span class="match-time sr-only"><span id="match-clock">00:00</span><span id="speed-label" class="sr-only">Live</span></span>
+        </div>
+        <div class="player-plate rival" role="button" tabindex="0" data-ta="Show the enemy board" aria-label="Show the enemy board" data-help="Your enemy's gold, income, lives and level. Tap to show their board.">
+          <div class="plate-body"><span class="plate-name" id="rival-name">Enemy</span><small id="rival-sub" class="sr-only">Training</small><span class="plate-gold"><b id="rival-gold">0</b><img src="assets/art/icon-coin.webp" alt="Gold"></span><em class="plate-inc" id="rival-income">+0</em></div>
+          <div class="plate-face"><img class="portrait" src="assets/art/portrait-enemy.webp" alt=""><i class="plate-skull" aria-hidden="true"></i><span class="plate-lives"><strong id="rival-lives">30</strong><img src="assets/art/icon-heart.webp" alt=""></span></div>
+          <div class="plate-exp" data-tt="Experience" title="Experience"><i id="rival-exp"></i><span>Lv <b id="rival-level">1</b></span></div>
+          <div class="enemy-stack" id="enemy-stack" hidden></div>
+        </div>
+      </header>
+      <section class="resource-strip" hidden>
+        <div class="resource gold"><img src="assets/art/icon-coin.webp" alt=""><strong id="gold">0</strong><em id="gold-income" class="gold-income">+0</em><small class="sr-only">Gold</small></div>
+        <button id="faction-button" class="resource wood" aria-hidden="true"><img src="assets/art/icon-wood.webp" alt=""><strong id="wood">0</strong><small class="sr-only">Holz</small></button>
+        <div class="resource income" hidden><img src="assets/art/icon-income.webp" alt=""><strong id="income">+0</strong><small class="sr-only"></small></div>
+        <button id="view-button" class="view-button" data-ta="Switch view" aria-label="Switch view">Enemy</button>
+        <button id="speed-button" class="speed-button" data-ta="Change game speed" aria-label="Change game speed" hidden>1×</button>
+      </section>
+      <div id="wave-chip" class="wave-chip" role="status" data-help="Next neutral wave: type and countdown. It runs through both lanes." hidden><i aria-hidden="true"></i><span id="wave-text">Wave 1</span><b id="wave-time">0s</b></div>
+    </div>
+
+    <div class="page-body">
+      <div class="page-heading sr-only"><h1 id="page-title">Build</h1><p id="page-subtitle">Pick a tower. Tap a free field.</p></div>
+      <section id="arena" data-ta="Board: pick a tower card, then tap a free field" aria-label="Board: pick a tower card, then tap a free field">
+        <div id="game-loader" data-t="Preparing the arena …">Preparing the arena …</div>
+        <span id="arena-label" class="sr-only">Your arena</span>
+        <div id="arena-hint" class="sr-only"></div>
+        <div id="side-dock" class="side-dock" hidden><span class="side-label" id="auto-kicker">Auto</span><button id="auto-slot" class="auto-slot" type="button" aria-label="Auto-Spawn" data-help="Auto-spawn: in Send, drag a creep card here and it is sent automatically. Tap to pause, drag out to clear."><span class="auto-slot-empty">+</span></button><span id="tier-badge" class="tier-badge" data-help="Your send tier. Buying the boss unlocks the next tier.">T1</span></div>
+        <button id="level-button" class="level-button" type="button" data-ta="Choose a level reward" aria-label="Choose a level reward" data-help="Your level. It fills up with experience. With every level-up you pick one of three rewards here; when it glows, a reward is waiting." hidden><s class="level-fill" aria-hidden="true"></s><span>Lv</span><b id="level-number">1</b><i id="level-pending" hidden>1</i></button>
+        <button id="volley-button" class="volley-button" type="button" aria-label="Arrow Volley" data-help="Arrow Volley: tap it, then tap your field. Arrows rain on that area (cooldown 20 s)." hidden></button>
+      </section>
+      <section class="command-deck" data-ta="Your cards" aria-label="Your cards">
+        <div class="deck-heading sr-only"><h2 id="deck-title">Your towers</h2><select id="tier-select" hidden></select></div>
+        <div id="auto-send" class="auto-send" hidden><div><span class="auto-send-kicker">Auto</span><strong id="auto-send-label"></strong></div><button id="auto-send-toggle" type="button" aria-pressed="false" disabled></button></div>
+        <button id="deck-expand" class="deck-handle" type="button" aria-expanded="false" aria-controls="deck-sheet" hidden><span class="handle-chevron" aria-hidden="true"></span><span id="deck-count" data-t="All">All</span></button>
+        <div class="cards-wrap">
+          <button id="deck-prev" class="deck-arrow prev" type="button" data-ta="Previous cards" aria-label="Previous cards" hidden></button>
+          <div id="cards" class="cards" data-ta="Unit cards" aria-label="Unit cards"></div>
+          <button id="deck-next" class="deck-arrow next" type="button" data-ta="More cards" aria-label="More cards" hidden></button>
+        </div>
+        <p class="deck-tip sr-only" id="deck-tip" data-t="Swipe sideways for more cards.">Swipe sideways for more cards.</p>
+      </section>
+    </div>
+
+    <nav class="deck-tabs bottom-nav" data-ta="Game actions" aria-label="Game actions">
+      <button id="help-button" class="help-button side-button" type="button" aria-pressed="false" data-ta="Help: switch tooltips on and off" aria-label="Help: switch tooltips on and off" data-help="Help: switch tooltips on and off"><span aria-hidden="true">?</span></button>
+      <button data-tab="build" class="active tab-build" aria-current="page" data-help="Build: pick a tower and place it on a field. Tap towers to upgrade them."><img src="assets/art/icon-build.webp" alt=""><span data-t="Build">Build</span></button>
+      <button data-tab="send" class="tab-send" data-help="Send: send creeps to your enemy. Every purchase raises your income for good."><img src="assets/art/icon-attack.webp" alt=""><span data-t="Send">Send</span></button>
+      <button id="menu-button" class="icon-button menu-side side-button" data-ta="Open options" aria-label="Open options" data-help="Pause, options, language, card book and rules."><img src="assets/art/icon-gear.webp" alt=""></button>
+    </nav>
+    <div id="deck-backdrop" class="deck-backdrop" hidden></div>
+    <section id="deck-sheet" class="deck-sheet" data-ta="All cards" aria-label="All cards" hidden>
+      <div class="sheet-head"><strong id="sheet-title">All cards</strong><span id="sheet-sub" class="sheet-sub"></span><button id="sheet-close" class="close-modal" type="button" data-ta="Close the card overview" aria-label="Close the card overview">×</button></div>
+      <div id="sheet-cards" class="sheet-cards"></div>
+    </section>
+    <div id="toast" role="status" aria-live="polite"></div>
+    <div id="banner" class="banner" aria-live="polite" hidden></div>
+    <div id="coach" class="coach" role="status" aria-live="polite" hidden></div>
+    <img id="drag-ghost" class="drag-ghost" alt="" hidden>
+    <section id="tower-panel" class="tower-panel" hidden></section>
+  </main>
+  <dialog id="modal"><div id="modal-body"></div></dialog>
+  <script src="vendor/babylon-felito.js?v=f10016"></script>
+  <script type="module" src="src/app.js?v=f10016"></script>
+</body>
+</html>
