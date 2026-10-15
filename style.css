@@ -4348,3 +4348,26 @@ html:root {
 .enemy-stack[data-count="7"] .ec-level { display: none; }
 .enemy-stack[data-count="7"] .enemy-cell { font-size: 9px; padding: 1px 0; }
 .enemy-stack[data-count="7"] { gap: 2px; }
+
+/* ---- fill the whole screen (v0.10g) -------------------------------------------------------- */
+/* Mobile browsers (e.g. iOS Safari with its floating address bar) report a 100dvh that stops
+   above the bar, so the bottom of the screen stayed empty. The shell is now pinned to the
+   viewport edges instead; the bottom bar keeps its safe-area padding so the browser bar never
+   covers the buttons. */
+.game-shell {
+  position: fixed;
+  top: 0;
+  bottom: var(--lift, 0px);
+  left: 0;
+  right: 0;
+  margin: 0 auto;
+  height: auto;
+  max-height: none;
+  align-self: stretch; /* body is a grid: "start" would shrink the pinned shell to zero height */
+}
+dialog.welcome-modal {
+  position: fixed;
+  inset: 0;
+  height: auto;
+  max-height: none;
+}

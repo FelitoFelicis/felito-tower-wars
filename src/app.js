@@ -48,7 +48,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.10f",
+const APP_VERSION = "0.10g",
   APP_DATE = "16.10.2026";
 const WAVES_PREF = "felito.waves";
 const COACH_PREF = "felito.coach.v1";
@@ -74,7 +74,16 @@ let liftChoice = (() => {
   const v = Number(pref(LIFT_PREF, ""));
   if (pref(LIFT_PREF, "") !== "" && LIFTS.includes(v)) return v;
   try {
-    return matchMedia("(pointer: coarse)").matches ? 24 : 0; // v0.10d: back to 24 once the double safe-area gap was fixed
+    if (!matchMedia("(pointer: coarse)").matches) return 0;
+    // v0.10g: a normal mobile browser handles its bars through the safe area, so no gap; inside
+    // the Claude app (an embedded frame) a small gap stays.
+    let embedded = false;
+    try {
+      embedded = window.self !== window.top;
+    } catch {
+      embedded = true;
+    }
+    return embedded ? 24 : 0;
   } catch {
     return 0;
   }
