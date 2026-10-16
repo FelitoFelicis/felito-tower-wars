@@ -60,6 +60,7 @@ import {
   UNDEAD_SENDS,
   isHeavy,
   hasDeathrattle,
+  attackInfo,
 } from "./simulation.js";
 import { mountArena, artFor } from "./arena.js";
 import { artUrl, iconUrl, ELEMENT_ICON, ART_MANIFEST, registerTowerArt, TEAM_COLORS, recolorTeam } from "./art.js";
@@ -85,7 +86,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.17f",
+const APP_VERSION = "0.17g",
   APP_DATE = "17.10.2026";
 const WAVES_PREF = "felito.waves";
 const COACH_PREF = "felito.coach.v1";
@@ -161,17 +162,23 @@ const recommendedControls = () => {
   }
 };
 let controlMode = ["mobile", "pc"].includes(pref(CONTROL_PREF, "")) ? pref(CONTROL_PREF, "") : recommendedControls();
-/** Two buttons (Mobile / PC); the one that fits this device says "(recommended)". */
+/** v0.17g: one "Layout" row: PC, Mobile Default (layout A), Mobile Zoomed (layout B); the fitting one says "(recommended)". */
+const LAYOUT_CHOICES = [
+  ["pc", "PC"],
+  ["mobile", "Mobile Default"],
+  ["zoomed", "Mobile Zoomed"],
+];
+const layoutChoice = () => (controlMode === "pc" ? "pc" : mobileLayout === "B" ? "zoomed" : "mobile");
 const controlsRow = () =>
-  `<div class="choice-row" role="group" aria-label="${t("Version")}"><span>${t("Version")}</span>${["mobile", "pc"]
-    .map((m) => `<button type="button" class="choice-button${controlMode === m ? " active" : ""}" data-ctl="${m}" aria-pressed="${controlMode === m}">${t(m === "pc" ? "PC" : "Mobile")}${m === recommendedControls() ? ` <small>${t("(recommended)")}</small>` : ""}</button>`)
-    .join("")}</div>`;
+  `<div class="choice-row layout-row" role="group" aria-label="${t("Layout")}"><span>${t("Layout")}</span>${LAYOUT_CHOICES.map(
+    ([m, name]) =>
+      `<button type="button" class="choice-button${layoutChoice() === m ? " active" : ""}" data-ctl="${m}" aria-pressed="${layoutChoice() === m}">${t(name)}${m === recommendedControls() ? ` <small>${t("(recommended)")}</small>` : ""}</button>`,
+  ).join("")}</div>`;
 // v0.17d: two layouts for the mobile version: A (bottom bar, mini map; the v0.17c layout, "LayoutMobileA")
 // and B (no mini map, all buttons in one column right of the board, bigger board).
 const MOBILE_LAYOUT_PREF = "felito.mobileLayout";
 const MOBILE_LAYOUTS = ["A", "B"];
 let mobileLayout = MOBILE_LAYOUTS.includes(pref(MOBILE_LAYOUT_PREF, "A")) ? pref(MOBILE_LAYOUT_PREF, "A") : "A";
-const mobileLayoutText = () => `${t("Mobile Layout")}: ${mobileLayout}`;
 function applyControlMode() {
   const root = document.documentElement,
     b = controlMode === "mobile" && mobileLayout === "B";
@@ -191,7 +198,7 @@ let wavesOn = pref(WAVES_PREF, "true") !== "false";
 // v0.10c/f: number of AI enemies for Vs AI (1–7), chosen like the difficulty; 1 = classic duel.
 const AI_COUNT_PREF = "felito.aiCount";
 const AI_COUNTS = [1, 2, 3, 4, 5, 6, 7];
-let aiCount = AI_COUNTS.includes(Number(pref(AI_COUNT_PREF, "3"))) ? Number(pref(AI_COUNT_PREF, "3")) : 3;
+let aiCount = AI_COUNTS.includes(Number(pref(AI_COUNT_PREF, "1"))) ? Number(pref(AI_COUNT_PREF, "1")) : 1; // v0.17g: default 1 AI enemy
 let warnedWave = 0;
 const sfx = createSfx();
 sfx.setEnabled(soundEnabled);
@@ -308,7 +315,7 @@ function renderEnemyStack(force = false) {
     stack.innerHTML = seats
       .map(
         (q) =>
-          `<button class="enemy-cell" type="button" data-seat="${q.id}" style="--pc:${TEAM_COLORS[colors[q.id]]?.css || "#888"}"><span class="ec-top"><span class="ec-face"><img class="portrait" src="assets/art/portrait-enemy.webp" alt=""><i class="plate-skull" aria-hidden="true"></i><img class="ec-target" src="${iconUrl("attack")}" alt=""></span><span class="ec-stats"><span class="ec-lives"><img src="${iconUrl("heart")}" alt=""><b></b></span></span></span><span class="ec-gold"><img src="${iconUrl("coin")}" alt=""><b></b></span><em class="ec-inc"></em><span class="ec-level"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 1.2l2.6 5.6 6.1.7-4.5 4.2 1.2 6.1L10 14.8l-5.4 3 1.2-6.1-4.5-4.2 6.1-.7z" fill="#a35bff" stroke="#2a0f4f" stroke-width="1.4" stroke-linejoin="round"/></svg><b></b></span></button>`,
+          `<button class="enemy-cell" type="button" data-seat="${q.id}" style="--pc:${TEAM_COLORS[colors[q.id]]?.css || "#888"}"><span class="ec-top"><span class="ec-face"><img class="portrait" src="assets/art/portrait-enemy.webp" alt=""><i class="plate-skull" aria-hidden="true"></i><img class="ec-target" src="${iconUrl("attack")}" alt=""></span><span class="ec-stats"><span class="ec-lives"><img src="${iconUrl("heart")}" alt=""><b></b></span></span></span><span class="ec-gold"><img src="${iconUrl("coin")}" alt=""><b></b></span><em class="ec-inc"></em><span class="ec-level"><i class="ec-lv">Lv</i><b></b></span></button>`,
       )
       .join("");
   }
@@ -942,6 +949,7 @@ const ABILITY_DESC = {
   Evasion: "Chance to dodge an attack",
   "Arrow Resistance": "Takes 33% less damage from Archer-line towers",
   "Siege Resistance": "Takes 33% less damage from Bombard-line towers",
+  Deathrattle: "Summons 3 Skeletons on death",
   "Scale Armor": "Ignores a little damage from every hit",
   "Nerf Resistance": "Slows, stuns and curses last much shorter",
   "Magic Resistance": "Takes much less magic damage",
@@ -998,7 +1006,8 @@ const ABILITY_DESC = {
  */
 function valHtml(text) {
   // values only (no ordinals like "4th", no digits inside escaped entities like &#39;)
-  return esc(text).replace(/(^|[^&#\w])([+−-]?\d+(?:[.,]\d+)?(?!\d|st\b|nd\b|rd\b|th\b)(?:\s?(?:%|s\b|fields?\b|gold\b|EXP\b|×))?)/g, '$1<b class="val">$2</b>');
+  // v0.17g: EXP values in the EXP purple
+  return esc(text).replace(/(^|[^&#\w])([+−-]?\d+(?:[.,]\d+)?(?!\d|st\b|nd\b|rd\b|th\b)(?:\s?(?:%|s\b|fields?\b|gold\b|EXP\b|×))?)/g, (_, a, v) => `${a}<b class="val${/EXP$/.test(v) ? " exp" : ""}">${v}</b>`);
 }
 /** v0.16k: typos in the map data, fixed for display. */
 const ABILITY_RENAME = { Invisibillity: "Invisibility", "Mana Regenration Aura": "Mana Regeneration Aura" };
@@ -1054,12 +1063,17 @@ function statTip(item, action, towerId = null, who = own, bare = false) {
       air = item.targets?.includes("air"),
       ground = item.targets?.includes("ground");
     // v0.17c: "10 → 12" when upgrades raise the damage
+    const cu = game.grid.cellUnits,
+      ai = attackInfo(game, item.id);
     rows.push([t("Damage"), Math.abs(s.damage - item.damage) > 0.004 ? `${format(item.damage)} → ${format(s.damage)}` : format(s.damage)]);
-    rows.push([t("Range"), isMeleeTower(item) ? t("Melee") : `${format(s.range / game.grid.cellUnits)} ${t("fields")}`]);
+    rows.push([t("Damage/second"), s.cooldown > 0 ? format(s.damage / s.cooldown) : "–"]); // v0.16e, v0.17g: right below Damage
+    rows.push([t("Range"), isMeleeTower(item) ? t("Melee") : `${format(s.range / cu)} ${t("fields")}`]);
+    if (ai.splash) rows.push([t("Splash Radius"), `${format(ai.splash / cu)} ${t("fields")}`]); // v0.17g
+    if (ai.multi) rows.push([t("Multi Targets"), String(ai.multi)]);
+    if (ai.bounce) rows.push([t("Bouncing Targets"), String(ai.bounce)]);
     rows.push([t("Attacks every"), `${format(s.cooldown)} s`]);
-    rows.push([t("Damage/s"), s.cooldown > 0 ? format(s.damage / s.cooldown) : "–"]); // v0.16e
     rows.push([t("Targets"), ground && air ? t("ground and air") : air ? t("air only") : t("ground only")]);
-    if (!abilities.length) rows.push([t("Abilities"), t("none")]);
+    // v0.17g: towers without abilities show no Abilities line (like creeps)
   }
   const row = ([k, v, cls]) => `<div class="tip-row${cls ? " tip-" + cls : ""}"><span>${esc(k)}</span><b>${esc(v)}</b></div>`;
   return {
@@ -1146,7 +1160,9 @@ document.addEventListener("pointerover", (e) => {
   if (e.pointerType === "touch") return;
   if (!helpMode) {
     if (controlMode !== "pc") return;
-    const card = e.target.closest?.("dialog") ? null : e.target.closest?.("[data-card], [data-upgrade]");
+    let card = e.target.closest?.("dialog") ? null : e.target.closest?.("[data-card], [data-upgrade]");
+    // v0.17g: creep cards show their tooltip only with tooltips switched on (the ? button)
+    if (card?.dataset.card && catalog?.byId[card.dataset.card]?.kind === "send") card = null;
     clearTimeout(pcTipTimer);
     if (!card) return helpFor && hideHelp();
     if (card !== helpFor) pcTipTimer = setTimeout(() => card.isConnected && card.matches(":hover") && showHelp(card), 320);
@@ -1262,9 +1278,17 @@ function placeToast(el = $("toast")) {
 function note(message, kind = "") {
   if (tipsEnabled) toast(message, kind);
 }
+let lastToneAt = 0;
 function tone(name = "tap") {
+  lastToneAt = performance.now();
   sfx.play(name);
 }
+// v0.17g: every button in a menu or dialog clicks, unless its own handler already played a sound
+document.addEventListener("click", (e) => {
+  const b = e.target.closest?.("dialog button, dialog [role=button], dialog [role=radio]");
+  if (!b || b.disabled) return;
+  if (performance.now() - lastToneAt > 60) tone("tap");
+});
 /** v0.13b: one match = one key (online guests replace the `game` object with every state). */
 const gameKey = () => (game ? (room ? "net:" + room.code + ":" + game.seed : game) : null);
 /**
@@ -1582,6 +1606,8 @@ let shownRival = -1;
  * breaches, favourite creep (most gold spent on one send) and income; a tap on the income opens
  * a bar chart of the income per round with its absolute and percentage growth.
  */
+/** v0.17g: lives the favourite creep stole (its own creeps; a send that spawns another unit counts that unit). */
+const favStolen = (st, fav) => [...new Set([fav.id, ...(fav.spawnIds || [])])].reduce((sum, id) => sum + (st.stoleBy?.[id] || 0), 0);
 function matchSummary(me) {
   const st = me.stats || {},
     spent = Object.entries(st.spent || {}).sort((a, b) => b[1] - a[1])[0],
@@ -1591,7 +1617,7 @@ function matchSummary(me) {
     last = Math.max(me.income, log[log.length - 1]),
     growth = first > 0 ? Math.round(((last - first) / first) * 100) : 0;
   const favHtml = fav
-    ? `<span class="sum-fav"><img src="${towerArtUrl(artFor(fav))}" alt=""><b>${esc(itemName(fav))}</b><small>${resourceNumber(spent[1])} ${t("gold")}</small>${t("Favourite creep")}</span>`
+    ? `<span class="sum-fav"><img src="${towerArtUrl(artFor(fav))}" alt=""><b>${esc(itemName(fav))}</b><span class="fav-nums"><small>${resourceNumber(spent[1])} ${t("gold")}</small><small class="fav-lives" title="${t("Lives stolen")}"><img src="${iconUrl("heart")}" alt="">${format(favStolen(st, fav))} ${t("lives stolen")}</small></span>${t("Favourite creep")}</span>`
     : `<span class="sum-fav"><b>–</b>${t("Favourite creep")}</span>`;
   const html = `<div class="result-stats sum-stats"><span><b>${format(st.kills || 0)}</b>${t("Creeps killed")}</span><span><b>${format(st.creeps ?? st.sent ?? 0)}</b>${t("Creeps sent")}</span><span><b>${format(st.leaks || 0)}</b>${t("Breaches")}</span>${game.waves ? `<span><b>${game.wave}</b>${t("waves")}</span>` : ""}${favHtml}<button type="button" class="sum-income" id="sum-income" aria-expanded="false"><b>+${resourceNumber(last)}</b>${t("Income")}<i>${t("Tap for chart")}</i></button></div><div class="income-chart" id="income-chart" hidden></div>${nemesisHtml(me)}`;
   return {
@@ -1627,7 +1653,7 @@ function nemesisHtml(me) {
   }
   if (!best) return "";
   const color = TEAM_COLORS[seatColors()[best.q.id]]?.css || "#888";
-  return `<div class="nemesis" style="--nc:${color}"><img class="portrait" src="${portraitFor(best.q)}" alt=""><div><span>${t("Nemesis")}</span><b>${esc(seatName(best.q.id))}</b><small>${t("{a} lives taken from you · {b} taken by you", { a: best.lost, b: best.stole })}</small></div></div>`;
+  return `<div class="nemesis" style="--nc:${color}"><img class="portrait" src="${portraitFor(best.q)}" alt=""><div><span>${t("Nemesis")}</span><b>${esc(best.q.ai && !best.q.missionName ? `${t(AI_NAMES[best.q.aiLevel || game.aiLevel] || "")} ${t("AI")} ${seatName(best.q.id)}`.trim() : seatName(best.q.id))}</b><small>${t("{a} lives taken from you · {b} taken by you", { a: best.lost, b: best.stole })}</small></div></div>`;
 }
 const RULES_START_INCOME = 20;
 /** Bar chart of income per round (single series, green bars, hover/tap tooltip). */
@@ -1688,7 +1714,7 @@ function ownKnockedOut(place) {
   const me = game.players[own],
     summary = matchSummary(me);
   showModal(
-    `<div class="modal-kicker" style="text-align:center">${t("KNOCKED OUT")}</div><img class="modal-hero result-hero" src="${artUrl("creep-golem")}" alt=""><h2 class="welcome-title">${t("Place {n} of {m}", { n: place, m: game.players.length })}</h2>${summary.html}<button class="primary-button" id="ko-watch">${t("Keep watching")}</button><button class="secondary-button" id="ko-again">${t("Play again")}</button><button class="secondary-button" id="ko-menu">${t("Main menu")}</button>`,
+    `<div class="result-banner lose">${t("Defeat")}</div><p class="modal-copy result-place">${t("Place {n} of {m}", { n: place, m: game.players.length })}</p><img class="modal-hero result-hero" src="${artUrl("creep-golem")}" alt="">${summary.html}<button class="primary-button" id="ko-watch">${t("Keep watching")}</button><button class="secondary-button" id="ko-again">${t("Play again")}</button><button class="secondary-button" id="ko-menu">${t("Main menu")}</button>`,
     { pauseGame: false },
   );
   summary.wire();
@@ -2438,7 +2464,7 @@ function pickCard(o, i, p) {
   }
   if (o.type === "quest") {
     const q = QUESTS[o.id];
-    return `<button class="pick-card pick-quest quest-${q.kind}" data-pick="${i}"><i class="quest-ribbon">${t("Quest")}</i><img src="${questArt(o.id)}" alt=""><b>${esc(t(q.name))}</b><span>${esc(questText(o.id))}</span></button>`;
+    return `<button class="pick-card pick-quest quest-${q.kind}" data-pick="${i}"><i class="quest-ribbon">${t("Quest")}</i><img src="${questArt(o.id)}" alt=""><b>${esc(t(q.name))}</b><span>${valHtml(questText(o.id))}</span></button>`;
   }
   const [icon, title, note] =
     o.type === "gold"
@@ -2506,7 +2532,7 @@ function questSplat(won) {
   el.innerHTML = `${QUEST_SCROLL}<b>${won ? t("Quest finished") : t("Quest failed")}</b>`;
   host.querySelector(".quest-splat")?.remove();
   host.append(el);
-  setTimeout(() => el.remove(), 2600);
+  setTimeout(() => el.remove(), 1900);
 }
 /** v0.15: a reward option's display name (for granted quest rewards). */
 function optionName(o) {
@@ -3151,7 +3177,7 @@ function firstBlood(e) {
   pop.className = "first-blood";
   pop.innerHTML = `<svg viewBox="0 0 200 120" aria-hidden="true"><path d="M100 8c14 0 18 14 30 10s22-6 26 6-8 18 4 24 30 4 28 18-20 10-26 18 6 22-8 26-20-8-30-2-10 12-24 10-14-12-26-14-24 10-34 0 4-18-6-26-28-6-30-20 16-14 20-22-10-18 2-26 22 4 30-2S86 8 100 8Z" fill="#9e0b0b"/><circle cx="18" cy="30" r="5" fill="#9e0b0b"/><circle cx="186" cy="92" r="6" fill="#9e0b0b"/><circle cx="168" cy="14" r="3.5" fill="#9e0b0b"/><circle cx="34" cy="104" r="4" fill="#9e0b0b"/><path d="M60 100q2 14 0 18M128 104q3 10 1 14" stroke="#9e0b0b" stroke-width="5" stroke-linecap="round"/></svg><b>${t("First Blood!")}</b><small><span class="fb-name" style="--fb:${TEAM_COLORS[seatColors()[e.player]]?.css || "#ffd2c4"}">${esc(playerName(game.players[e.player]))}</span> · +${e.exp ?? 50} EXP</small>`; // v0.17: name larger, in the player's colour
   $("app")?.appendChild(pop) || document.body.appendChild(pop);
-  setTimeout(() => pop.remove(), 2400);
+  setTimeout(() => pop.remove(), 1900); // v0.17g: splats fade out after 1.5 s
   sfx.play("firstBlood");
   haptic([60, 40, 90]);
 }
@@ -3431,7 +3457,7 @@ function perkBookCard(e, p) {
   }
   if (e.type === "quest") {
     const q = QUESTS[e.id];
-    return `<div class="pick-card book-card pick-quest quest-${q.kind}"><i class="quest-ribbon">${t("Quest")}</i><img src="${questArt(e.id)}" alt=""><b>${esc(e.name)}</b><span>${esc(questText(e.id))}</span><small>${levelsText(q.avail)}</small></div>`;
+    return `<div class="pick-card book-card pick-quest quest-${q.kind}"><i class="quest-ribbon">${t("Quest")}</i><img src="${questArt(e.id)}" alt=""><b>${esc(e.name)}</b><span>${valHtml(questText(e.id))}</span><small>${levelsText(q.avail)}</small></div>`;
   }
   const d = PERKS[e.id],
     els = perkElements(e.id),
@@ -3561,25 +3587,21 @@ function audioModal(back) {
 }
 function graphicModal(back) {
   showModal(
-    `${subHeader(t("Graphic"))}<div id="menu-controls">${controlsRow()}</div><button class="secondary-button" id="menu-mlayout"${controlMode === "mobile" ? "" : " hidden"}>${mobileLayoutText()}</button><button class="secondary-button" id="menu-popnum">${t("Pop-up numbers")}: ${onOff(popNumbers)}</button><button class="secondary-button" id="menu-popnote">${t("Pop-up notifications")}: ${onOff(popNotes)}</button>`,
+    `${subHeader(t("Graphic"))}<div id="menu-controls">${controlsRow()}</div><button class="secondary-button" id="menu-popnum">${t("Pop-up numbers")}: ${onOff(popNumbers)}</button><button class="secondary-button" id="menu-popnote">${t("Pop-up notifications")}: ${onOff(popNotes)}</button>`,
   );
   $("sub-back").onclick = back;
   $("menu-controls").onclick = (e) => {
     const m = e.target.closest?.("[data-ctl]")?.dataset.ctl;
-    if (!m || m === controlMode) return;
-    controlMode = m;
+    if (!m || m === layoutChoice()) return;
+    controlMode = m === "pc" ? "pc" : "mobile";
+    if (m !== "pc") {
+      mobileLayout = m === "zoomed" ? "B" : "A";
+      savePref(MOBILE_LAYOUT_PREF, mobileLayout);
+    }
     savePref(CONTROL_PREF, controlMode);
     applyControlMode();
     $("menu-controls").innerHTML = controlsRow();
-    $("menu-mlayout").hidden = controlMode !== "mobile";
     toast(controlMode === "pc" ? "PC version: mouse hover shows tips, mouse wheel and arrow keys switch fields, B / S switch Build and Send." : "Mobile version: touch controls, tips only in help mode.");
-    tone("select");
-  };
-  $("menu-mlayout").onclick = () => {
-    mobileLayout = MOBILE_LAYOUTS[(MOBILE_LAYOUTS.indexOf(mobileLayout) + 1) % MOBILE_LAYOUTS.length];
-    savePref(MOBILE_LAYOUT_PREF, mobileLayout);
-    applyControlMode();
-    $("menu-mlayout").textContent = mobileLayoutText();
     tone("select");
   };
   $("menu-popnum").onclick = () => {

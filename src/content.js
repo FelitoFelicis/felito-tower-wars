@@ -501,6 +501,7 @@ export function configureContent(data) {
 export const CUSTOM_ABILITIES = [
   { id: "XA01", baseId: "Xlrs", custom: true, line: "h003", reduce: 0.33, fields: { anam: { 0: "Arrow Resistance" }, aub1: { 1: "Takes 33% less damage from Archer-line towers" } } },
   { id: "XA02", baseId: "Xlrs", custom: true, line: "h02R", reduce: 0.33, fields: { anam: { 0: "Siege Resistance" }, aub1: { 1: "Takes 33% less damage from Bombard-line towers" } } },
+  { id: "XA03", baseId: "Xinf", custom: true, fields: { anam: { 0: "Deathrattle" }, aub1: { 1: "Summons 3 Skeletons on death" } } }, // v0.17g: display only (the spawn runs through DEATH_PLANS)
 ];
 export const CREEP_TUNING = {
   n00E: { income: 1, cost: 5, stockMax: 18 }, // Goblin: income 1.17 → 1 (v0.07g), cost 6 → 5 (v0.07h); peon companion removed (v0.07i); stock 16 → 18 (v0.08b)
@@ -508,7 +509,7 @@ export const CREEP_TUNING = {
   n00K: { income: 3.5 }, // Gnoll: income 3 → 3.5 (v0.08d)
   n00M: { hp: 156, name: "[06] Orc", shortName: "Orc", abilities: ["A01A", "XA02"] }, // Grunt → Orc (v0.17b): hit points +30 %, 120 → 156 (v0.09s); Siege Resistance 33 % (v0.17b)
   n00R: { abilities: ["A01A", "XA01"] }, // Skeleton: Arrow Resistance now 33 % less damage from Archer-line towers (v0.17b, was: ignores 1 ranged damage)
-  n00N: { hp: 180 }, // Necromancer: hit points 170 → 180 (v0.17f)
+  n00N: { hp: 180, abilities: ["A01A", "XA03"] }, // Necromancer: hit points 170 → 180 (v0.17f); Unholy Aura removed, Deathrattle shown (v0.17g)
   n00P: { hp: 85, speed: 138.56 }, // Flying Sheep: hit points 80 → 85, speed 1.06 → 1.08 fields/s (v0.17b)
   n00L: { speed: 375 }, // Wolf: 25 % faster, 300 → 375 (v0.08d)
   n00S: { speed: 420 }, // Raider: 25 % faster (v0.07b)

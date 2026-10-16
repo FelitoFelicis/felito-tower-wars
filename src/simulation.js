@@ -520,6 +520,8 @@ export function available(game, playerIndex, type, id, towerId = null, viaPick =
     if (!item.isRoot) return { ok: false, reason: "Upgrade from the previous tower" };
     if (item.support === "farm") return { ok: false, reason: "Farm not available for now" };
     if (id === WALL_ID && !perkLevel(p, "fort")) return { ok: false, reason: "Needs the Fortifications perk" }; // v0.12
+    // v0.17g: one Hall of Elements per player (any of its levels); selling it frees the blueprint again
+    if (item.isHall && p.towers.some((t) => obj(t.typeId)?.isHall)) return { ok: false, reason: "Only one Hall of Elements" };
     if (id === "h003" && (p.freeArchers || 0) > 0) cost = { gold: 0, wood: 0 }; // Forest Patrol
   } else if (type === "upgrade") {
     const tower = p.towers.find((t) => t.id === towerId);
@@ -1227,6 +1229,25 @@ function footmanLine() {
     while (queue.length) for (const u of obj(queue.shift())?.upgrades || []) if (!FOOTMAN_LINE.has(u)) FOOTMAN_LINE.add(u) && queue.push(u);
   }
   return FOOTMAN_LINE;
+}
+/**
+ * v0.17g: attack facts for tooltips: splash radius (in game units, 0 = none), arrows per shot
+ * (Multi Shot, Fire Archer) and bounce targets (Glaive). Mirrors the attack code below.
+ */
+export function attackInfo(game, id) {
+  const item = obj(id);
+  if (!item?.attacks) return { splash: 0, multi: 0, bounce: 0 };
+  const skills = unitAbilities({ typeId: id }).map((a) => skillOf(a, Math.min(fval(a, "alev", 0, 1), Math.max(1, item.level || 1)))).filter(Boolean),
+    ms = skills.find((sk) => sk.type === "multishot"),
+    multi = ms ? ms.count : fireArcher(id) ? item.level || 1 : 0,
+    bounce = item.weapon === "mbounce" ? num(item.fields?.utc1, 1) : 0;
+  let splash = 0;
+  if (item.weapon !== "mbounce") {
+    if (isCannonTower(item)) splash = Math.max(item.splashSmall, item.splashMedium, CANNON_RING * game.grid.cellUnits) * BOMBARD_RADIUS;
+    else if (item.splashFull > 0 || item.splashMedium > 0 || item.splashSmall > 0)
+      splash = Math.max(item.splashFull, item.splashMedium, item.splashSmall) * (lineSet("h02R").has(id) ? BOMBARD_RADIUS : 1);
+  }
+  return { splash, multi: multi > 1 ? multi : 0, bounce: bounce > 1 ? bounce : 0 };
 }
 /** v0.16: Fire Archers fire one arrow per tower level at different creeps. */
 let FIRE_ARCHERS = null;
@@ -2480,7 +2501,7 @@ function skillOf(a, level = 1) {
   return sk;
 }
 /** Abilities whose effect the port now covers (shown as implemented in the card details). */
-const COVERED_BASES = new Set(["Xlrs", "AHfa", "Avul", "Aslo", "ANca", "Aroc", "Afra", "AIcf", "Afbt", "AHbh", "AHab", "Adtg", "Abof", "Amgl", "ACat", "AUau", "ACes", "Ansk", "AIsr", "Apiv", "Arsk", "Aspt", "Asal", "Aimp"]);
+const COVERED_BASES = new Set(["Xlrs", "Xinf", "AHfa", "Avul", "Aslo", "ANca", "Aroc", "Afra", "AIcf", "Afbt", "AHbh", "AHab", "Adtg", "Abof", "Amgl", "ACat", "AUau", "ACes", "Ansk", "AIsr", "Apiv", "Arsk", "Aspt", "Asal", "Aimp"]);
 const VISUAL_ONLY = (a) => (a.baseId === "Aasl" && fval(a, "Slo1", 1) === 0) || ["Aroa", "Aeth"].includes(a.baseId) || a.id === "A06Z";
 function towerSkills(player, tower) {
   return unitAbilities(tower)
@@ -3055,6 +3076,7 @@ function touchdown(game, p, c) {
   // v0.17: who took lives from whom (Nemesis in the match summary)
   (p.stats.lostTo ||= {})[sender.id] = (p.stats.lostTo[sender.id] || 0) + 1;
   (sender.stats.stoleFrom ||= {})[p.id] = (sender.stats.stoleFrom[p.id] || 0) + 1;
+  (sender.stats.stoleBy ||= {})[c.typeId] = (sender.stats.stoleBy[c.typeId] || 0) + 1; // v0.17g: lives stolen per creep type
   if (!sender.out) sender.lives++;
   sender.stats.leaks++;
   // v0.17: stealing a life cracks one of your rocks (missions with rocks)
@@ -3111,6 +3133,8 @@ function touchdown(game, p, c) {
   c.pathIndex = 0;
   c.prevNode = null;
 }
+/** v0.17g: how far (in fields) a creep may walk beside the centre line of the path. */
+const CREEP_SPREAD = 0.25;
 function moveCreep(game, p, c, dt) {
   if (c.dead) return;
   const shielded = divineShield(game, c);
@@ -3152,13 +3176,20 @@ function moveCreep(game, p, c, dt) {
   const boots = c.flying || c.owner < 0 ? 1 : bootsResist(game.players[c.owner]);
   const frozen = c.flying ? 1 : 1 - 0.04 * perkLevel(p, "permafrost") * boots; // v0.10o: Permafrost of the defender
   let remaining = clamp(c.speed * (1 - clamp(slow * boots, 0, 0.9)) * aura.speed * frozen, 24 * mobility, 1000 * mobility) * dt;
+  // v0.17g: every creep walks its own line inside the path (up to a quarter field off the centre),
+  // so packed groups spread out and splash damage hits fewer of them at once
+  if (c.ox === undefined) {
+    c.ox = (random(game) - 0.5) * 2 * CREEP_SPREAD / game.grid.cols;
+    c.oy = (random(game) - 0.5) * 2 * CREEP_SPREAD / game.grid.rows;
+  }
   while (remaining > EPS && game.running) {
-    const next = c.path[c.pathIndex];
-    if (!next) {
+    const way = c.path[c.pathIndex];
+    if (!way) {
       if (waterBlock(game, p, c)) break; // v0.10r
       touchdown(game, p, c);
       break;
     }
+    const next = { x: way.x + c.ox, y: way.y + c.oy };
     const distance = dist(game, c, next);
     if (distance <= remaining + EPS) {
       c.x = next.x;
