@@ -644,7 +644,7 @@ export const PERKS = Object.freeze({
   patrol: { name: "Forest Patrol", max: 5, text: "Next 2 archers are free" },
   militia: { name: "Militia", max: 5, text: "2 instant footmen on random fields" },
   evolution: { name: "Evolution", max: 5, text: "Instantly upgrades a random level 2 tower to level 3" },
-  gold: { name: "Gold", max: 5, text: "Instantly +{gold} gold" },
+  gold: { name: "Gold", max: 1, powerup: true, text: "Instantly +{gold} gold" }, // v0.10u: powerup = instant reward, no tile once taken
   novice: { name: "Novice", max: 5, text: "Gain experience 20% faster" },
   volley: { name: "Arrow Volley", max: 5, text: "Active ability: arrows rain on an area (20 s cooldown)" },
   wings: { name: "Wings of War", max: 5, element: "storm", text: "Your flying creeps: +6% hit points, +3% speed and +10% income per level" }, // v0.10p

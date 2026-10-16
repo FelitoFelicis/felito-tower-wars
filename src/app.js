@@ -51,7 +51,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.10t",
+const APP_VERSION = "0.10u",
   APP_DATE = "16.10.2026";
 const WAVES_PREF = "felito.waves";
 const COACH_PREF = "felito.coach.v1";
@@ -1631,7 +1631,7 @@ function ownedTiles(p, { names = false, label = true } = {}) {
     tiles.push(tile(el ? " el-" + el.id : "", el ? ` style="--el:${el.color}"` : "", itemName(r), artUrl(artFor(r)), level, cardHint(r)));
   }
   for (const [id, level] of Object.entries(p.perks || {}))
-    if (level && PERKS[id]) tiles.push(tile(` perk-${id}`, "", t(PERKS[id].name), PERK_ART[id](), level, perkText(id, p.level)));
+    if (level && PERKS[id] && !PERKS[id].powerup) tiles.push(tile(` perk-${id}`, "", t(PERKS[id].name), PERK_ART[id](), level, perkText(id, p.level)));
   return tiles.length ? `<div class="owned-row">${label ? `<span class="modal-label">${t("Already chosen")}</span>` : ""}<div class="owned-tiles${names ? " named" : ""}">${tiles.join("")}</div></div>` : "";
 }
 /** The level reward dialog: three choices, an element on the opening pick and at levels 10 and 25. */
