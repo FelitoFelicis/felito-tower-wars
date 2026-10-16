@@ -375,7 +375,7 @@ function burstPress() {
   tone("select");
   note("Tap your field where the arcane burst should strike.");
 }
-function refreshBurst(p, slot) {
+function refreshBurst(p) {
   const btn = $("burst-button");
   if (!btn) return;
   const has = begun && p.perks?.burst > 0;
@@ -387,15 +387,7 @@ function refreshBurst(p, slot) {
   btn.style.setProperty("--cd", ready ? 0 : Math.min(1, left / BURST.cooldown));
   const label = ready ? "" : String(Math.ceil(left));
   if ($("burst-time").textContent !== label) $("burst-time").textContent = label;
-  const z = arena?.geometry?.();
-  if (z?.side) {
-    const size = Math.round(z.side.w),
-      top = Math.round(z.side.y + 14 + (size + 14) * slot) + "px",
-      x = Math.round(z.side.x) + "px";
-    if (btn.style.left !== x) btn.style.left = x;
-    if (btn.style.top !== top) btn.style.top = top;
-    btn.style.setProperty("--slot", size + "px");
-  }
+  // v0.11b: like the volley, the button has its fixed slot in the tray (no board geometry)
   if (!ready && volleyAim && aimKind === "burst") setVolleyAim(false);
 }
 /** Fires the volley at a point of your field (x, y as shares of the board). */
@@ -1265,6 +1257,7 @@ function startLocal({ hotseat = false, ffa = false, seats = 4 } = {}) {
   selected = null;
   selectedTower = null;
   pending = null;
+  setVolleyAim(false); // v0.11b: aiming from the last match (volley or burst) does not carry over
   lastSendTime = -999;
   nudgeShown = 0;
   gameSpeed = 1;
@@ -2012,7 +2005,7 @@ function refreshUI() {
   }
   refreshLevelButton(p);
   refreshVolley(p);
-  refreshBurst(p, p.perks?.volley > 0 ? 2 : 1);
+  refreshBurst(p);
   bumpNumber("rival-lives", enemy.lives);
   renderEnemyStack();
   setPortrait(document.querySelector(".player-plate.rival .plate-face .portrait"), enemy);

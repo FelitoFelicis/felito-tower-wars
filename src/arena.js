@@ -737,6 +737,10 @@ export function mountArena({
     // ---- pooled floating text -----------------------------------------------------
     floatText(x, y, text, color = "#ffe27a", size = 15, rise = 34, life = 0.9) {
       if (this.floaters.length > 36) this.recycle(this.floaters.shift());
+      // v0.11: keep long texts inside the board (they used to be cut at the screen edge)
+      const z = this.geometry(),
+        half = Math.min(z.bw / 2 - 4, (String(text).length * size * 0.55) / 2 + 4);
+      x = clamp(x, z.left + half, z.left + z.bw - half);
       const t =
         this.textPool.pop() ||
         this.stage.text(0, 0, "", { fontFamily: FONT, stroke: "#14231e", strokeThickness: 5, resolution: DPR }).setOrigin(0.5, 1).setDepth(6000);
