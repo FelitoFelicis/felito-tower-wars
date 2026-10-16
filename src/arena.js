@@ -590,6 +590,8 @@ export function mountArena({
       f.fillStyle(0x0a1412, 0.7);
       f.fillRect(z.left - 2, z.top - z.strip - 2, z.bw + 4, z.bh + z.strip + 4);
       this.braziers = [];
+      // v0.11: the thin phone frame has no room for braziers
+      if (!z.compact)
       for (const yy of [1.5, 4.5, 7.5])
         for (const xx of [L + z.frame / 2, L + W - z.frame / 2]) {
           const y = z.top + yy * cell;
@@ -677,16 +679,19 @@ export function mountArena({
         top = z.top - sh,
         bottom = z.top + z.bh;
       g.clear();
-      g.fillStyle(0x1a0d2e, 1);
+      // v0.11: one glowing portal band instead of button-like pills (it shimmers in update())
+      g.fillStyle(0x160a26, 1);
       g.fillRect(z.left, top, z.bw, sh);
-      for (let x = 0; x < z.logicalCols; x++) {
-        const x0 = z.left + x * cell + 3;
-        g.fillStyle(0x3b1a63, 1);
-        g.fillRoundedRect(x0, top + 2, cell - 6, sh - 4, Math.min(6, sh / 2 - 1));
-        g.fillStyle(0x8a4dff, 0.55);
-        g.fillRoundedRect(x0 + cell * 0.18, top + sh * 0.35, cell * 0.64 - 6, sh * 0.3, sh * 0.15);
-        g.lineStyle(1.5, 0xc79bff, 0.7);
-        g.strokeRoundedRect(x0, top + 2, cell - 6, sh - 4, Math.min(6, sh / 2 - 1));
+      g.fillStyle(0x3a1766, 0.9);
+      g.fillRect(z.left, top + sh * 0.25, z.bw, sh * 0.5);
+      g.fillStyle(0x7d45e0, 0.55);
+      g.fillRect(z.left, top + sh * 0.42, z.bw, sh * 0.16);
+      g.lineStyle(1.5, 0xd2b0ff, 0.8);
+      g.lineBetween(z.left, top + sh - 0.75, z.left + z.bw, top + sh - 0.75);
+      for (let i = 0; i < z.logicalCols * 3; i++) {
+        const x = z.left + ((i + 0.5) / (z.logicalCols * 3)) * z.bw;
+        g.fillStyle(0xe6d2ff, 0.5 + 0.3 * hash(i, 31));
+        g.fillCircle(x + (hash(i, 32) - 0.5) * cell * 0.2, top + sh * (0.3 + 0.4 * hash(i, 33)), Math.max(0.8, sh * 0.07));
       }
       // v0.09: no goal line any more; creeps break through as they leave the board at the bottom
     }
@@ -1045,7 +1050,7 @@ export function mountArena({
         else sprite.clearTint();
         // team glow under the pedestal
         glow.fillStyle(team, 0.16);
-        glow.fillEllipse(cx, cy + tc * 0.06, tc * 1.0, tc * 0.5);
+        glow.fillEllipse(cx, cy + tc * 0.08, tc * 1.0, tc * 0.36); // v0.11: flatter, like the painted plates
         // immolation: a flickering fire ring at the aura radius
         const burn = this.immolation(def, catalog);
         if (burn && !building) {
@@ -1063,18 +1068,18 @@ export function mountArena({
             color = tier >= 7 ? hsvToColor(hue, 0.55, 1) : colors[tier],
             pulse = 0.5 + 0.5 * Math.sin(time * 0.004 + phase);
           glow.fillStyle(color, 0.12 + 0.1 * pulse);
-          glow.fillEllipse(cx, cy + tc * 0.04, tc * 1.12, tc * 0.6);
+          glow.fillEllipse(cx, cy + tc * 0.07, tc * 1.12, tc * 0.4);
           g.lineStyle(2, color, 0.55 + 0.3 * pulse);
-          g.strokeEllipse(cx, cy + tc * 0.05, tc * 1.02, tc * 0.54);
+          g.strokeEllipse(cx, cy + tc * 0.07, tc * 1.02, tc * 0.34);
           const sparks = tier >= 7 ? 4 : tier - 2;
           for (let k = 0; k < sparks; k++) {
             const a = time * 0.0018 + phase + (Math.PI * 2 * k) / sparks;
-            glow.fillStyle(color, 0.9);
-            glow.fillCircle(cx + Math.cos(a) * tc * 0.5, cy + tc * 0.05 + Math.sin(a) * tc * 0.27, tier >= 6 ? 2.6 : 2);
+            glow.fillStyle(color, 0.55);
+            glow.fillCircle(cx + Math.cos(a) * tc * 0.5, cy + tc * 0.07 + Math.sin(a) * tc * 0.17, tier >= 6 ? 1.9 : 1.5);
           }
         }
         g.fillStyle(0x07130f, 0.35);
-        g.fillEllipse(cx, cy + tc * 0.14, tc * 0.92, tc * 0.4);
+        g.fillEllipse(cx, cy + tc * 0.15, tc * 0.92, tc * 0.3);
         // Magic towers: a mana bar under the pedestal; a full bar glows before the empowered bolt.
         if (!building && isMagicTower(def)) {
           const maxMana = getStats(game, view, t.typeId).mana || 1,
@@ -1089,18 +1094,18 @@ export function mountArena({
           if (fill > 0) mb.fillRoundedRect(bx, by, Math.max(3, bw * fill), 3, 1.5);
           if (fill >= 1) {
             glow.fillStyle(0xa070ff, 0.18 + 0.1 * Math.sin(time * 0.012 + phase));
-            glow.fillEllipse(cx, cy + tc * 0.04, tc * 1.05, tc * 0.55);
+            glow.fillEllipse(cx, cy + tc * 0.07, tc * 1.05, tc * 0.38);
           }
         }
         if (building) {
           const total = t.buildTotal || 1,
             done = 1 - t.buildRemaining / total;
           g.lineStyle(4, 0x10201b, 0.75);
-          g.strokeEllipse(cx, cy + tc * 0.04, tc * 0.98, tc * 0.52);
+          g.strokeEllipse(cx, cy + tc * 0.07, tc * 0.98, tc * 0.32);
           g.lineStyle(4, 0xffd36a, 1);
           g.beginPath();
           const rx = tc * 0.49,
-            ry = tc * 0.26;
+            ry = tc * 0.16;
           for (let k = 0; k <= 40 * done; k++) {
             const a = -Math.PI / 2 + (Math.PI * 2 * k) / 40;
             const px = cx + Math.cos(a) * rx,
@@ -1110,7 +1115,8 @@ export function mountArena({
           g.strokePath();
         }
         const level = t.level || def.level || 1;
-        this.levelBadge(key, level, cx - tc * 0.36, cy + tc * 0.2, Math.floor(cy) + 101, BADGE_COLORS[def.element] || BADGE_COLORS.neutral);
+        // v0.11: badges above every tower (below creeps); legends and combos show a star
+        this.levelBadge(key, towerTier(def) >= 7 && !/\[level/i.test(def.name || "") ? "★" : level, cx - tc * 0.36, cy + tc * 0.2, 2900, BADGE_COLORS[def.element] || BADGE_COLORS.neutral);
       }
       // ---- disease clouds
       for (const cl of game.clouds || []) {
