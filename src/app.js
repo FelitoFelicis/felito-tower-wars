@@ -61,7 +61,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.13a",
+const APP_VERSION = "0.13b",
   APP_DATE = "16.10.2026";
 const WAVES_PREF = "felito.waves";
 const COACH_PREF = "felito.coach.v1";
@@ -949,26 +949,74 @@ function note(message, kind = "") {
 function tone(name = "tap") {
   sfx.play(name);
 }
+/** v0.13b: one match = one key (online guests replace the `game` object with every state). */
+const gameKey = () => (game ? (room ? "net:" + room.code + ":" + game.seed : game) : null);
+/**
+ * v0.13b: smooth creeps on the online guest. States arrive 3–8 times per second; between them the
+ * guest moves every creep on with the speed it had between the last two states (at most 0.5 s).
+ */
+const guestMotion = { at: 0, base: new Map(), vel: new Map() };
+function guestReceived(next) {
+  const now = performance.now(),
+    gap = (now - guestMotion.at) / 1000,
+    base = new Map(),
+    vel = new Map();
+  for (const p of next.players)
+    for (const c of p.creeps) {
+      const key = p.id + ":" + c.id,
+        before = guestMotion.base.get(key);
+      base.set(key, { x: c.x, y: c.y });
+      if (before && gap > 0.04 && gap < 1.2) {
+        const vx = (c.x - before.x) / gap,
+          vy = (c.y - before.y) / gap;
+        // no smoothing across jumps (knock-backs, teleports, a lane change)
+        if (Math.hypot(vx, vy) < 1.5) vel.set(key, { vx, vy });
+      }
+    }
+  guestMotion.at = now;
+  guestMotion.base = base;
+  guestMotion.vel = vel;
+}
+function guestExtrapolate() {
+  if (!game || room?.role !== "guest" || !guestMotion.at) return;
+  const tau = Math.min(0.5, (performance.now() - guestMotion.at) / 1000);
+  for (const p of game.players)
+    for (const c of p.creeps) {
+      const key = p.id + ":" + c.id,
+        b = guestMotion.base.get(key),
+        v = guestMotion.vel.get(key);
+      if (!b || !v || c.dead) continue;
+      c.x = Math.max(0, Math.min(1, b.x + v.vx * tau));
+      c.y = Math.max(-0.2, Math.min(1.2, b.y + v.vy * tau));
+    }
+}
+let lastSentEvent = 0;
+const r4 = (v) => (typeof v === "number" ? Math.round(v * 1e4) / 1e4 : v);
 function networkState() {
+  // v0.13b: smaller states: rounded positions, no AI-internal data, only events not sent yet
+  if ((game.eventId || 0) < lastSentEvent) lastSentEvent = 0; // a new match restarts the event numbers
+  const fresh = game.events.filter((e) => (e.seq || e.id || 0) > lastSentEvent).slice(-60);
+  if (fresh.length) lastSentEvent = fresh[fresh.length - 1].seq || fresh[fresh.length - 1].id || lastSentEvent;
+  const { adaptation, ...rest } = game;
   return {
-    ...game,
+    ...rest,
     commands: [],
     pendingSpawns: [],
-    events: game.events.slice(-40),
+    events: fresh,
     effects: [],
-    players: game.players.map((p) => ({
+    players: game.players.map(({ aiPersona, aiMaze, ...p }) => ({
       ...p,
       creeps: p.creeps.map((c) => ({
         id: c.id,
         typeId: c.typeId,
-        x: c.x,
-        y: c.y,
-        hp: c.hp,
+        x: r4(c.x),
+        y: r4(c.y),
+        hp: Math.round(c.hp * 10) / 10,
         maxHp: c.maxHp,
         owner: c.owner,
         defender: c.defender,
         flying: c.flying,
-        progress: c.progress,
+        progress: r4(c.progress),
         dead: c.dead,
       })),
     })),
@@ -1396,9 +1444,9 @@ function upgradeTap(tw, id) {
 let upHistory = [],
   upHistoryGame = null;
 function rememberUpgrade(id) {
-  if (upHistoryGame !== game) {
+  if (upHistoryGame !== gameKey()) {
     upHistory = [];
-    upHistoryGame = game;
+    upHistoryGame = gameKey();
   }
   upHistory = [id, ...upHistory.filter((x) => x !== id)].slice(0, 24);
 }
@@ -1432,7 +1480,7 @@ function doubleUpgrade(tw, advanced = false) {
     showTower(tw);
     return;
   }
-  if (upHistoryGame !== game) upHistory = [];
+  if (upHistoryGame !== gameKey()) upHistory = [];
   let chain = null;
   for (const target of upHistory) {
     const steps = upgradePath(from0, target);
@@ -2080,10 +2128,10 @@ function tryQueue(id, gridX, gridY, check) {
 }
 let queueTime = 0;
 function runQueue() {
-  if (queuedFor !== game) {
+  if (queuedFor !== gameKey()) {
     queued = [];
     upQueue = [];
-    queuedFor = game;
+    queuedFor = gameKey();
   }
   if (!begun) return;
   // queued upgrades first come, first served
@@ -2959,6 +3007,7 @@ function receiveNetwork(message) {
     message.game.players?.length === 2 &&
     isCompatibleGameGrid(message.game)
   ) {
+    guestReceived(message.game);
     game = message.game;
     own = 1;
     if (!begun) {
@@ -2981,6 +3030,7 @@ function tick(dt) {
   syncMusic();
   if (!game) return;
   if (begun && (!room || room.role === "host") && (!room || connected)) step(game, room ? dt : dt * gameSpeed);
+  else if (begun && room?.role === "guest") guestExtrapolate();
   uiTime += dt;
   queueTime += dt;
   if (queueTime >= 0.25) {
@@ -3071,7 +3121,7 @@ function tick(dt) {
     }
   }
   // v0.13a: through the relay servers the state goes out less often (data volume)
-  if (networkTime >= (room?.isRelay?.() ? 0.3 : 0.12)) {
+  if (networkTime >= (room?.isRelay?.() ? 0.2 : 0.12)) {
     networkTime = 0;
     if (room?.role === "host" && connected && begun) sendState();
   }
@@ -3192,8 +3242,8 @@ async function init() {
       getColors: seatColors,
       getPipPlayer: () => (view === own ? rivalIndex() : own),
       getPreview: currentPreview,
-      getQueued: () => (queuedFor === game ? queued : []),
-      getUpQueued: () => (queuedFor === game ? upQueue : []),
+      getQueued: () => (queuedFor === gameKey() ? queued : []),
+      getUpQueued: () => (queuedFor === gameKey() ? upQueue : []),
       onPip: () => {
         if (tab !== "build") setPage("build");
         else {
