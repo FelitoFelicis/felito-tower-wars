@@ -578,8 +578,11 @@ function statsFor(game, player, item) {
 }
 const INCOME_EXCLUDED = new Set(["n00Y", "n01H", "n01D", "n01R", "n01T", "n02P", "n02Q", "n02R"]);
 /** Income one purchase of a creep adds: whole part and hundredths (research R006, Feudality). */
+/** v0.10w: Treant: dies for 20 − (treants bought) EXP; after 20 purchases it burns (+10 % speed, income). */
+export const TREANT = { exp: 20, burnAfter: 20, income: 20, speed: 0.1 };
+export const burningTreant = (p) => (p?.treantCount || 0) >= TREANT.burnAfter;
 function sendIncomeParts(p, item) {
-  const base = INCOME_EXCLUDED.has(item.id) ? 0 : item.pointValue;
+  const base = item.id === "n00Y" && burningTreant(p) ? TREANT.income : INCOME_EXCLUDED.has(item.id) ? 0 : item.pointValue;
   let decimal = item.incomeHundredths || 0;
   const interest = (p.research.R006 || 0) * 250;
   if (item.decimalEligible && interest > 0) decimal += Math.trunc((item.pointValue * interest) / 100);
@@ -1230,10 +1233,7 @@ export function command(game, input) {
     p.incomeDecimal += decimal;
     p.income += Math.trunc(p.incomeDecimal / 100);
     p.incomeDecimal %= 100;
-    if (id === "n00Y" && p.treantCount <= 20) {
-      p.treantCount++;
-      gainExp(game, p, 20);
-    }
+    if (id === "n00Y") p.treantCount++; // v0.10w: EXP now on the treant's death, burning from purchase 21
     if (id === "n01D") {
       if (p.ghoulCount <= 25) {
         p.ghoulCount++;
@@ -1458,8 +1458,9 @@ function spawnCreep(game, ownerIndex, id, at = null, lane = null) {
     hp: s.hp,
     maxHp: s.hp,
     armor: s.armor,
-    speed: s.speed * (0.88 + random(game) * 0.24),
-    baseSpeed: s.speed,
+    speed: s.speed * (0.88 + random(game) * 0.24) * (id === "n00Y" && (owner?.treantCount || 0) > TREANT.burnAfter && !at ? 1 + TREANT.speed : 1),
+    baseSpeed: s.speed * (id === "n00Y" && (owner?.treantCount || 0) > TREANT.burnAfter && !at ? 1 + TREANT.speed : 1),
+    burning: id === "n00Y" && (owner?.treantCount || 0) > TREANT.burnAfter && !at ? true : undefined,
     regen: s.regen,
     flying: item.flying,
     invisible: (item.abilities || []).some((id) => getCatalog().abilities[id]?.baseId === "Apiv"),
@@ -2223,6 +2224,11 @@ function crowdControl(game, p) {
 function killCreep(game, p, c) {
   if (c.dead) return;
   c.dead = true;
+  // v0.10w: a killed treant gives its sender 20 − (treants bought this game) EXP
+  if (c.typeId === "n00Y" && !c.wave && c.owner >= 0) {
+    const sender = game.players[c.owner];
+    if (sender && !sender.out) gainExp(game, sender, Math.max(0, TREANT.exp - (sender.treantCount || 0)));
+  }
   const item = obj(c.typeId),
     tower = p.towers.find((t) => t.id === c.lastHit);
   let bounty = c.wave ? c.bounty : diceRoll(game, item.bountyBase, item.bountyDice, item.bountySides);

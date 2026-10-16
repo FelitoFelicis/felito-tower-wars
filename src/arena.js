@@ -1137,6 +1137,7 @@ export function mountArena({
           else if (slowed) sprite.setTint(0x9fd8ff);
           else if (poisoned) sprite.setTint(0xc4f59a);
           else if (c.immune) sprite.setTint(0xe2d2ff);
+          else if (c.burning) sprite.setTint(0xffa060); // v0.10w: Burning Treant
           else sprite.clearTint();
         }
         const flap = flying ? 1 + Math.sin(time * 0.03 + phase0) * 0.05 : 1;
@@ -1151,6 +1152,18 @@ export function mountArena({
         if (divineShield(game, c)) {
           glow.fillStyle(0xffe680, 0.18 + 0.08 * Math.sin(time * 0.01));
           glow.fillCircle(q.x, q.y - height * 0.45, height * 0.6);
+        }
+        if (c.burning) {
+          // v0.10w: Burning Treant: flickering flames on its crown
+          for (let k = 0; k < 4; k++) {
+            const fl = 0.5 + 0.5 * Math.sin(time * 0.02 + k * 1.9 + phase0),
+              fx = q.x + (k - 1.5) * height * 0.14,
+              fy = q.y + cell * 0.18 - lift - height * (0.72 + 0.12 * fl);
+            glow.fillStyle(0xff5a12, 0.35 + 0.25 * fl);
+            glow.fillCircle(fx, fy, height * (0.09 + 0.05 * fl));
+            glow.fillStyle(0xffd24a, 0.55 + 0.3 * fl);
+            glow.fillCircle(fx, fy + height * 0.03, height * (0.04 + 0.03 * fl));
+          }
         }
         if (neutral) {
           // Neutral wave monsters stand on a violet rune ring so they read apart from sends.

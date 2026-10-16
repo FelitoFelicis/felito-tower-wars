@@ -4422,3 +4422,8 @@ dialog.welcome-modal {
 @media (prefers-reduced-motion: reduce) {
   .round-plate.wave-next .income-timer { animation: none; box-shadow: 0 0 8px 2px #ff3b2a99; }
 }
+
+/* v0.10w: Burning Treant (after 20 treants bought) */
+.unit-card.burning .card-art img {
+  filter: sepia(1) saturate(4) hue-rotate(-28deg) brightness(1.05) drop-shadow(0 0 6px #ff6a12);
+}
