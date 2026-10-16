@@ -1,4 +1,4 @@
-import { getStats, divineShield, isMagicTower, isMeleeTower, towerAt, towerSize, footprintOf, STRIP } from "./simulation.js";
+import { getStats, divineShield, isMagicTower, isMeleeTower, towerAt, towerSize, footprintOf, STRIP, HELLFIRE } from "./simulation.js";
 import { ART_MANIFEST, ANIM_MANIFEST, animUrl, artFor, artUrl, towerTier, TOWER_ART, CREEP_ART, TEAM_COLORS, recolorTeam } from "./art.js";
 import { t } from "./i18n.js";
 import { Stage, BLEND, TINT, hsvToColor } from "./b2d.js";
@@ -697,7 +697,8 @@ export function mountArena({
     }
     drawPathTiles(player, z) {
       const path = player.path || [],
-        key = path.map((p) => p.gridX + "," + p.gridY).join(";") + "|" + this.terrainKey;
+        frozen = (player.perks?.permafrost || 0) > 0, // v0.10o: Permafrost turns the path to frozen ground
+        key = path.map((p) => p.gridX + "," + p.gridY).join(";") + "|" + this.terrainKey + (frozen ? "|ice" : "");
       if (key === this.pathKey) return;
       this.pathKey = key;
       const cell = z.cw;
@@ -714,9 +715,23 @@ export function mountArena({
           .setPosition(z.left + (p.gridX + 0.5) * cell, z.top + (p.gridY + 0.5) * cell)
           .setDisplaySize(cell + 0.6, cell + 0.6)
           .setAngle(Math.floor(hash(p.gridX, p.gridY, 7) * 4) * 90)
-          .setTint(0xffffff);
+          .setTint(frozen ? [0x8fc4f0, 0x9acbf2, 0x86bdea, 0x94c8f0][Math.floor(hash(p.gridX, p.gridY, 9) * 4)] : 0xffffff);
+        // v0.10o: Permafrost: a pale ice sheen over the same tile
+        let ice = this.iceTiles?.[i];
+        if (frozen && !ice) {
+          (this.iceTiles ||= [])[i] = ice = this.stage.image(0, 0, "tile-path").setDepth(3.5).setTintMode(TINT.FILL);
+        }
+        if (ice)
+          ice
+            .setVisible(frozen)
+            .setPosition(z.left + (p.gridX + 0.5) * cell, z.top + (p.gridY + 0.5) * cell)
+            .setDisplaySize(cell + 0.6, cell + 0.6)
+            .setAngle(Math.floor(hash(p.gridX, p.gridY, 7) * 4) * 90)
+            .setTint(0xc8ecff)
+            .setAlpha(0.26 + 0.1 * hash(p.gridX, p.gridY, 11));
         i++;
       }
+      for (let k = i; k < (this.iceTiles?.length || 0); k++) this.iceTiles[k]?.setVisible(false);
       for (; i < this.pathTiles.length; i++) this.pathTiles[i].setVisible(false);
     }
     // ---- pooled floating text -----------------------------------------------------
@@ -809,7 +824,14 @@ export function mountArena({
             this.floatText(tq.x, tq.y - cell * 0.9, t("MAGIC BURST"), "#d8b8ff", 13, 34, 1);
             this.ring(q.x, q.y, cell * 0.1, cell * 0.75, 0xb88cff, 0.75, 4);
             this.burst(q.x, q.y - cell * 0.2, 0xd0b0ff, 12, 100, 2.8, 0.5, 0, true);
-          } else if (e.kind === "miss") this.floatText(q.x, q.y - cell * 0.5, t("DODGED"), "#c9d4dc", 11, 26, 0.7);
+          } else if (e.kind === "waterblock") {
+            this.floatText(q.x, q.y - cell * 0.6, t("BLOCKED"), "#9ee0ff", 13, 34, 1.1);
+            this.ring(q.x, q.y, cell * 0.2, cell * 1.1, 0x7fd0ff, 0.8, 4);
+          } else if (e.kind === "pocks") {
+            this.floatText(q.x, q.y - cell * 0.6, t("POCKS"), "#b8ff6a", 12, 30, 1);
+            this.burst(q.x, q.y - cell * 0.3, 0x9cff4a, 10, 60, 2.4, 0.6, -20, true);
+          } else if (e.kind === "crowd") this.floatText(q.x, q.y - cell * 0.55, t("CULLED"), "#ff9a5a", 12, 30, 0.9);
+          else if (e.kind === "miss") this.floatText(q.x, q.y - cell * 0.5, t("DODGED"), "#c9d4dc", 11, 26, 0.7);
           else if (e.kind === "bloodlust") this.floatText(q.x, q.y - cell * 0.8, t("BLOODLUST"), "#ff8a7a", 11, 26, 0.9);
           else if (e.kind === "raise") this.floatText(q.x, q.y - cell * 0.8, t("+{n} INCOME", { n: e.amount }), "#b8ff8a", 12, 30, 1.1);
           else if (e.kind === "ultimate") {
@@ -828,6 +850,13 @@ export function mountArena({
           const to = this.point(e.x, e.y),
             drift = (hash(seq, 3) - 0.5) * cell * 0.6;
           this.projectiles.push({ x0: to.x + drift - cell * 0.5, y0: to.y - cell * 2.6, targetId: e.targetId, tx: to.x + drift * 0.2, ty: to.y - cell * 0.15, t: 0, dur: 0.26, color: 0xffe28a, size: 3.6, splash: false, glow: false, arc: 0, arrow: true });
+        } else if (e.type === "burst" && e.player === view) {
+          // v0.10p: Arcane Burst: violet shock ring over the whole area
+          const q = this.point(e.x, e.y);
+          this.ring(q.x, q.y, cell * 0.2, cell * e.radius, 0xc07aff, 0.85, 5);
+          this.ring(q.x, q.y, cell * 0.1, cell * e.radius * 0.7, 0xf0d8ff, 0.7, 3);
+          this.burst(q.x, q.y, 0xd8a8ff, 18, 140, 3, 0.6, 0, true);
+          if (e.hits) this.floatText(q.x, q.y - cell * 0.6, t("ARCANE BURST") + " " + e.damage, "#e2c2ff", 14, 38, 1.1);
         } else if (e.type === "volleyStart" && e.player === view) {
           const q = this.point(e.x, e.y);
           this.ring(q.x, q.y, cell * 0.3, cell * 1.5, 0xffe7a8, 0.6, 3);
@@ -959,6 +988,31 @@ export function mountArena({
         glow.fillStyle(0xf4ffc8, a);
         glow.fillCircle(x, y, 1.4);
       }
+      // ---- v0.10p: Hellfire (v0.10q: 6th row): free fields of the burning row glow like magma
+      if ((player.perks?.hellfire || 0) > 0) {
+        const y = HELLFIRE.row;
+        for (let col = 0; col < z.logicalCols; col++) {
+          if (towerAt(player, col, y)) continue;
+          const x0 = z.left + col * cell,
+            y0 = z.top + y * cell,
+            flick = 0.5 + 0.5 * Math.sin(time * 0.004 + col * 1.7);
+          pl.fillStyle(0x2a0802, 0.7);
+          pl.fillRect(x0 + 1, y0 + 1, cell - 2, cell - 2);
+          pl.fillStyle(0xff4a0a, 0.55 + 0.2 * flick);
+          pl.fillRoundedRect(x0 + cell * 0.12, y0 + cell * 0.12, cell * 0.76, cell * 0.76, cell * 0.22);
+          pl.fillStyle(0xffd24a, 0.6 + 0.3 * flick);
+          for (let k = 0; k < 3; k++) {
+            const bx = x0 + cell * (0.22 + 0.56 * hash(col, y, 20 + k)),
+              by = y0 + cell * (0.22 + 0.56 * hash(y, col, 30 + k)),
+              br = cell * (0.05 + 0.05 * hash(k, col, 40)) * (0.7 + 0.5 * Math.sin(time * 0.006 + k * 2 + col));
+            pl.fillCircle(bx, by, Math.max(1, br));
+          }
+          pl.lineStyle(2, 0xffe08a, 0.35 + 0.3 * flick);
+          pl.lineBetween(x0 + cell * 0.2, y0 + cell * 0.35, x0 + cell * 0.5, y0 + cell * 0.55);
+          pl.lineBetween(x0 + cell * 0.5, y0 + cell * 0.55, x0 + cell * 0.78, y0 + cell * 0.42);
+          pl.lineBetween(x0 + cell * 0.5, y0 + cell * 0.55, x0 + cell * 0.46, y0 + cell * 0.82);
+        }
+      }
       // ---- route flow on the dirt tiles
       const path = player.path || [];
       if (path.length) {
@@ -993,11 +1047,13 @@ export function mountArena({
           px = this.pointer.x,
           py = this.pointer.y,
           pulse = 0.5 + 0.5 * Math.sin(time * 0.01);
-        g.fillStyle(0xffd27a, 0.12 + 0.06 * pulse);
+        const ac = aim.arcane ? 0xc07aff : 0xffd27a,
+          al = aim.arcane ? 0xeacbff : 0xffe7a8; // v0.10p: violet for Arcane Burst
+        g.fillStyle(ac, 0.12 + 0.06 * pulse);
         g.fillCircle(px, py, r);
-        g.lineStyle(2.5, 0xffe7a8, 0.85);
+        g.lineStyle(2.5, al, 0.85);
         g.strokeCircle(px, py, r);
-        g.lineStyle(1.5, 0xffe7a8, 0.6);
+        g.lineStyle(1.5, al, 0.6);
         g.lineBetween(px - 8, py, px + 8, py);
         g.lineBetween(px, py - 8, px, py + 8);
       }
@@ -1216,6 +1272,7 @@ export function mountArena({
           else if (slowed) sprite.setTint(0x9fd8ff);
           else if (poisoned) sprite.setTint(0xc4f59a);
           else if (c.immune) sprite.setTint(0xe2d2ff);
+          else if (c.burning) sprite.setTint(0xffa060); // v0.10w: Burning Treant
           else sprite.clearTint();
         }
         const flap = flying ? 1 + Math.sin(time * 0.03 + phase0) * 0.05 : 1;
@@ -1230,6 +1287,18 @@ export function mountArena({
         if (divineShield(game, c)) {
           glow.fillStyle(0xffe680, 0.18 + 0.08 * Math.sin(time * 0.01));
           glow.fillCircle(q.x, q.y - height * 0.45, height * 0.6);
+        }
+        if (c.burning) {
+          // v0.10w: Burning Treant: flickering flames on its crown
+          for (let k = 0; k < 4; k++) {
+            const fl = 0.5 + 0.5 * Math.sin(time * 0.02 + k * 1.9 + phase0),
+              fx = q.x + (k - 1.5) * height * 0.14,
+              fy = q.y + cell * 0.18 - lift - height * (0.72 + 0.12 * fl);
+            glow.fillStyle(0xff5a12, 0.35 + 0.25 * fl);
+            glow.fillCircle(fx, fy, height * (0.09 + 0.05 * fl));
+            glow.fillStyle(0xffd24a, 0.55 + 0.3 * fl);
+            glow.fillCircle(fx, fy + height * 0.03, height * (0.04 + 0.03 * fl));
+          }
         }
         if (neutral) {
           // Neutral wave monsters stand on a violet rune ring so they read apart from sends.

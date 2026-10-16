@@ -1,7 +1,6 @@
 # Felito Tower Wars
 
-A Line Tower Wars game for phones, after the Warcraft III map "Felito". Runs entirely in the browser:
-build towers, lay out a maze, send creeps to your enemies and grow your income.
+A Line Tower Wars game for desktop and mobile,build towers, lay out a maze, send creeps to your enemies and grow your income.
 Play against 1–7 AI opponents or online against a friend.
 
 **Play:** https://felitofelicis.github.io/felito-tower-wars/

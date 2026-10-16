@@ -367,7 +367,7 @@ export function getPurchaseCost(game, playerIndex, id) {
   const p = game.players[playerIndex],
     item = obj(id);
   if (!p || !item) return null;
-  if (item.kind !== "research") return { gold: item.cost, wood: item.woodCost, time: item.buildTime };
+  if (item.kind !== "research") return { gold: bossDiscount(p, item, item.cost), wood: item.woodCost, time: item.buildTime };
   return getResearchCost(id, FACTIONS.some((f) => f.research === id) ? p.elementsPurchased : p.research[id] || 0);
 }
 /** Element upgrades locked until that element is owned (war3map.j SETUP + ELEMENT dialog). */
@@ -420,6 +420,7 @@ export function available(game, playerIndex, type, id, towerId = null, viaPick =
     if (item.bossTier && (p.bossBought?.[id] || p.tier >= item.bossTier)) return { ok: false, reason: "Boss already bought" };
     if (game.warmup) return { ok: false, reason: `Setup · ${Math.ceil(game.incomeRemaining)} s` };
     if ((p.stock[id]?.count ?? 0) < 1) return { ok: false, reason: "Restocking" };
+    cost = { gold: bossDiscount(p, item, item.cost), wood: 0 };
   } else if (type === "build") {
     if (!item.isBuildable) return { ok: false, reason: "Not a building" };
     if (!item.isRoot) return { ok: false, reason: "Upgrade from the previous tower" };
@@ -428,11 +429,15 @@ export function available(game, playerIndex, type, id, towerId = null, viaPick =
   } else if (type === "upgrade") {
     const tower = p.towers.find((t) => t.id === towerId);
     if (!tower) return { ok: false, reason: "Tower not found" };
-    if (tower.buildRemaining > EPS) return { ok: false, reason: "Still under construction" };
     if (!obj(tower.typeId).upgrades.includes(id)) return { ok: false, reason: "Not a valid upgrade" };
     // Ultimate elementals are limited to one per player (SETUP: SetPlayerTechMaxAllowed 1).
     if (UNIQUE_TOWERS.has(id) && p.towers.some((t) => t.typeId === id))
       return { ok: false, reason: "Only once per player" };
+    // v0.10q: missing technology wins over "under construction", so locked upgrades stay hidden
+    if (tower.buildRemaining > EPS) {
+      const req = meetRequirements(p, requirements);
+      return req.ok ? { ok: false, reason: "Still under construction" } : req;
+    }
   }
   const req = meetRequirements(p, requirements);
   if (!req.ok) return req;
@@ -557,6 +562,12 @@ function statsFor(game, player, item) {
     }
   }
   stats.hp *= 1 + hpPercent;
+  if (item.isSend && item.bossTier && perkLevel(player, "golem")) stats.hp *= 1 + GOLEM.hp; // v0.10n
+  if (item.isSend && item.flying && perkLevel(player, "wings")) {
+    // v0.10p: Wings of War
+    stats.hp *= 1 + WINGS.hp * perkLevel(player, "wings");
+    stats.speed *= 1 + WINGS.speed * perkLevel(player, "wings");
+  }
   stats.damageMultiplier *= 1 + damagePercent;
   if (perkLevel(player, "archery") && archerLine().has(item.id)) stats.damageMultiplier *= 1 + 0.05 * perkLevel(player, "archery");
   stats.damage = (stats.damage + stats.damageBonus) * stats.damageMultiplier;
@@ -567,8 +578,11 @@ function statsFor(game, player, item) {
 }
 const INCOME_EXCLUDED = new Set(["n00Y", "n01H", "n01D", "n01R", "n01T", "n02P", "n02Q", "n02R"]);
 /** Income one purchase of a creep adds: whole part and hundredths (research R006, Feudality). */
+/** v0.10w: Treant: dies for 20 − (treants bought) EXP; after 20 purchases it burns (+10 % speed, income). */
+export const TREANT = { exp: 20, burnAfter: 20, income: 20, speed: 0.1 };
+export const burningTreant = (p) => (p?.treantCount || 0) >= TREANT.burnAfter;
 function sendIncomeParts(p, item) {
-  const base = INCOME_EXCLUDED.has(item.id) ? 0 : item.pointValue;
+  const base = item.id === "n00Y" && burningTreant(p) ? TREANT.income : INCOME_EXCLUDED.has(item.id) ? 0 : item.pointValue;
   let decimal = item.incomeHundredths || 0;
   const interest = (p.research.R006 || 0) * 250;
   if (item.decimalEligible && interest > 0) decimal += Math.trunc((item.pointValue * interest) / 100);
@@ -576,6 +590,12 @@ function sendIncomeParts(p, item) {
   // Feudality: +1.5 % per level of the income this creep brings, in hundredths
   const feudal = perkLevel(p, "feudal");
   if (feudal) decimal += Math.round((base * 100 + (item.incomeHundredths || 0)) * 0.015 * feudal);
+  // v0.10p: Wings of War: +10 % income per level for flying creeps
+  const wings = item.flying ? perkLevel(p, "wings") : 0;
+  if (wings) decimal += Math.round((base * 100 + (item.incomeHundredths || 0)) * WINGS.income * wings);
+  // v0.10r: Red Boots: +1 % income per level for ground creeps
+  const boots = item.flying ? 0 : perkLevel(p, "boots");
+  if (boots) decimal += Math.round((base * 100 + (item.incomeHundredths || 0)) * BOOTS.income * boots);
   return { base, decimal };
 }
 /** v0.08d: the income a purchase really adds for this player, buffs included (for the cards). */
@@ -627,15 +647,134 @@ export const PERKS = Object.freeze({
   patrol: { name: "Forest Patrol", max: 5, text: "Next 2 archers are free" },
   militia: { name: "Militia", max: 5, text: "2 instant footmen on random fields" },
   evolution: { name: "Evolution", max: 5, text: "Instantly upgrades a random level 2 tower to level 3" },
-  gold: { name: "Gold", max: 5, text: "Instantly +{gold} gold" },
+  gold: { name: "Gold", max: 1, powerup: true, text: "Instantly +{gold} gold" }, // v0.10u: powerup = instant reward, no tile once taken
   novice: { name: "Novice", max: 5, text: "Gain experience 20% faster" },
   volley: { name: "Arrow Volley", max: 5, text: "Active ability: arrows rain on an area (20 s cooldown)" },
+  wings: { name: "Wings of War", max: 5, element: "storm", text: "Your flying creeps: +6% hit points, +3% speed and +10% income per level" }, // v0.10p
+  hellfire: { name: "Hellfire", max: 5, element: "fire", text: "Creeps in your 6th row take tier × level + 3 damage per second (+5 at level 4, +10 at level 5)" }, // v0.10p
+  burst: { name: "Arcane Burst", max: 5, element: "arcane", text: "Active ability: level × 200 × tier damage, split among the creeps in an area (40 s cooldown)" }, // v0.10p
+  treasure: { name: "Gold Treasure", max: 1, powerup: true, text: "Instantly +{treasure} gold and +25 income" }, // v0.10r
+  voltage: { name: "High Voltage", max: 3, element: "storm", text: "EXP generators give 50% more EXP per level" }, // v0.10r
+  boots: { name: "Red Boots", max: 3, element: "fire", text: "Your ground creeps: 25% / 33% / 40% less slowed and +1% income per level" }, // v0.10r
+  exhume: { name: "Exhumination", max: 3, element: "plague", text: "Undead creeps cost 20% / 35% / 50% less but restock 20% slower" }, // v0.10r
+  waterblock: { name: "Water Block", max: 3, element: "water", text: "Every 15/13/11 s the first breach is denied: the creep is frozen and pushed back 6/9/12 fields" }, // v0.10r
+  pocks: { name: "Giant's Pocks", max: 5, element: "plague", text: "Every 4 s the strongest creep in your field loses 5% of its health per level and is poisoned" }, // v0.10q
+  permafrost: { name: "Permafrost", max: 5, element: "water", text: "Ground creeps in your field are 4% slower per level" }, // v0.10o
+  golem: { name: "Golem Whisperer", max: 1, element: "earth", text: "Boss creeps cost 25% less and have +10% hit points" }, // v0.10n
+  crowd: { name: "Crowd Control", max: 3, text: "Above 50 creeps in your field: every 5 s the 3 weakest die per level" }, // v0.10l: 3 per level
+  pillage: { name: "Pillage", max: 5, text: "Steal 1% of a player's gold on each breakthrough" }, // v0.10k: 1 % per level
 });
 /** v0.09q: Arrow Volley: cooldown, area radius in fields, arrows per perk level, extra base damage. */
 export const VOLLEY = { cooldown: 20, radius: 1.5, perLevel: 3, bonus: 3, spread: 0.9 };
 /** Research that only an element unlocks: its element (for colour and frame in the dialog). */
 export const RESEARCH_ELEMENT = Object.freeze({ R002: "water", R000: "fire", R005: "earth", R006: "arcane", R00K: "storm", R00C: "plague", R00J: "fire", R00U: "earth", R00V: "fire", R00W: "storm", R00X: "plague", R001: "water", R00D: "arcane" });
 const perkLevel = (p, id) => p?.perks?.[id] || 0;
+/** v0.10n: Golem Whisperer (Earth): boss creeps 25 % cheaper and 10 % more hit points. */
+export const GOLEM = { discount: 0.25, hp: 0.1 };
+/** v0.10p: Wings of War (Storm), per level. */
+export const WINGS = { hp: 0.06, speed: 0.03, income: 0.1 };
+/** v0.10p: Hellfire (Fire): burning row (0-based, v0.10q: 6th row from the top) and damage per second. */
+export const HELLFIRE = { row: 5 };
+export const hellfireDps = (p) => {
+  const level = perkLevel(p, "hellfire");
+  return level ? (p.tier || 1) * level + 3 + (level >= 4 ? 5 : 0) + (level >= 5 ? 5 : 0) : 0;
+};
+/** v0.10p: Arcane Burst (Arcane): cooldown, radius in fields (base + per level), damage per level and tier. */
+export const BURST = { cooldown: 40, radius: 1.15, radiusPerLevel: 0.1, damage: 200 };
+export const burstRadius = (level) => BURST.radius + BURST.radiusPerLevel * level;
+/** v0.10q: Giant's Pocks (Plague), per perk level: share of remaining hp, poison seconds (×3 + 2), slow, dps × tier × 2. */
+export const POCKS = { interval: 4, hpShare: 0.05, slow: 0.03 };
+function tickPocks(game, p) {
+  const level = perkLevel(p, "pocks");
+  if (!level) return;
+  if (!(p.pocksNext > 0)) p.pocksNext = game.time + POCKS.interval;
+  if (game.time + EPS < p.pocksNext) return;
+  p.pocksNext = game.time + POCKS.interval;
+  let c = null;
+  for (const o of p.creeps) if (!o.dead && o.hp > 0 && (!c || o.hp > c.hp || (o.hp === c.hp && o.id < c.id))) c = o;
+  if (!c) return;
+  c.hp -= c.hp * POCKS.hpShare * level;
+  const tough = nerfClass(c) === "boss" || c.bossTier || obj(c.typeId)?.bossTier || c.defenseType === "large";
+  c.statuses.push({
+    abilityId: "pocks",
+    poison: true,
+    remaining: (level * 3 + 2) * (tough ? 0.5 : 1),
+    slow: POCKS.slow * level,
+    dps: level * (p.tier || 1) * 2,
+    owner: p.id,
+  });
+  emit(game, "skill", { player: p.id, kind: "pocks", x: c.x, y: c.y });
+  if (c.hp <= 0) killCreep(game, p, c);
+}
+function tickHellfire(game, p) {
+  const dps = hellfireDps(p);
+  if (!dps) return;
+  for (const c of p.creeps) {
+    if (c.dead || c.hp <= 0 || c.y < 0 || Math.floor(c.y * game.grid.rows) !== HELLFIRE.row) continue;
+    c.hp -= dps * TICK;
+    if (c.hp <= 0) killCreep(game, p, c);
+  }
+}
+function launchBurst(game, p, x, y) {
+  const level = perkLevel(p, "burst"),
+    r = burstRadius(level) * game.grid.cellUnits,
+    centre = { x, y },
+    inside = p.creeps.filter((c) => !c.dead && c.hp > 0 && dist(game, c, centre) <= r),
+    total = level * BURST.damage * (p.tier || 1),
+    share = inside.length ? total / inside.length : 0;
+  for (const c of inside) {
+    c.hp -= share;
+    if (c.hp <= 0) killCreep(game, p, c);
+  }
+  p.burstReady = game.time + BURST.cooldown;
+  emit(game, "burst", { player: p.id, x, y, radius: burstRadius(level), hits: inside.length, damage: Math.round(share) });
+}
+function bossDiscount(p, item, gold) {
+  if (!item?.isSend) return gold;
+  let share = 1;
+  if (item.bossTier && perkLevel(p, "golem")) share *= 1 - GOLEM.discount;
+  if (UNDEAD_SENDS.has(item.id) && perkLevel(p, "exhume")) share *= 1 - EXHUME.discount[Math.min(3, perkLevel(p, "exhume")) - 1]; // v0.10r/s
+  return share === 1 ? gold : Math.round(gold * share);
+}
+/** v0.10r: undead creeps (Exhumination). */
+export const UNDEAD_SENDS = new Set(["n00R", "n011", "n016", "n019", "n01B", "n01H", "n013", "n01D", "n02N", "n02E"]);
+export const EXHUME = { discount: [0.2, 0.35, 0.5], restock: 1.2 }; // v0.10s
+/** v0.10r: Red Boots (per level), High Voltage (per level), Water Block (per level 1-3), Gold Treasure. */
+export const BOOTS = { slow: [0.25, 0.33, 0.4], income: 0.01 }; // v0.10s: slow resistance by level
+export const VOLTAGE = { bonus: 0.5 };
+export const WATERBLOCK = { cooldown: [15, 13, 11], back: [6, 9, 12], frost: 5, slow: 0.5 };
+export const treasureGold = (game) => Math.max(1, game?.round || 0) * 25;
+/** Water Block: true when the breach was denied (creep frozen and pushed back up its path). */
+function bootsResist(p) {
+  const level = Math.min(3, perkLevel(p, "boots"));
+  return level ? 1 - BOOTS.slow[level - 1] : 1;
+}
+function waterBlock(game, p, c) {
+  const level = Math.min(3, perkLevel(p, "waterblock"));
+  if (!level || p.blockReady > game.time + EPS) return false;
+  p.blockReady = game.time + WATERBLOCK.cooldown[level - 1];
+  const back = WATERBLOCK.back[level - 1];
+  if (c.flying) {
+    const column = gridAt(game, c).x,
+      from = pos(game, column, Math.max(0, game.grid.rows - back));
+    c.path = [from, pos(game, column, game.grid.rows)];
+    c.pathIndex = 1;
+    c.x = from.x;
+    c.y = from.y;
+  } else if (c.path?.length) {
+    const i = Math.max(0, c.path.length - back);
+    c.x = c.path[i].x;
+    c.y = c.path[i].y;
+    c.pathIndex = i + 1;
+  }
+  const frost = c.statuses.find((st) => st.abilityId === "frost");
+  if (frost) {
+    frost.remaining += WATERBLOCK.frost;
+    frost.slow = Math.max(frost.slow, WATERBLOCK.slow);
+  } else c.statuses.push({ abilityId: "frost", remaining: WATERBLOCK.frost, slow: WATERBLOCK.slow, dps: 0, owner: p.id });
+  emit(game, "skill", { player: p.id, kind: "waterblock", x: c.x, y: c.y });
+  return true;
+}
 /** Archer (h003) and every tower that grows out of it. */
 let ARCHER_LINE = null;
 function archerLine() {
@@ -650,7 +789,8 @@ function archerLine() {
 export function stockRegenOf(p, s) {
   const level = perkLevel(p, "recruit"),
     first = level && !s.bossTier && tierSends(s.tier).slice(0, 3).some((x) => x.id === s.id);
-  return (s.stockRegen || 0) / (first ? 1 + 0.08 * level : 1);
+  const slower = UNDEAD_SENDS.has(s.id) && perkLevel(p, "exhume") ? EXHUME.restock : 1; // v0.10s: Exhumination
+  return ((s.stockRegen || 0) / (first ? 1 + 0.08 * level : 1)) * slower;
 }
 /** Highest stock of a send for this player (Recruitment adds to the first three of a tier). */
 export function stockMaxOf(p, s) {
@@ -698,11 +838,13 @@ function gainExp(game, p, amount) {
 export function grantExp(game, playerIndex, amount) {
   gainExp(game, game.players[playerIndex], amount);
 }
+/** Research never offered as a perk (v0.10o: Forged Arrows removed). */
+const REMOVED_PERKS = new Set(["R013", "R000"]);
 const ELEMENT_RESEARCH = new Set(FACTIONS.map((f) => f.research));
 /** Research levels a player may take as a level reward right now. */
 function upgradeOptions(game, p) {
   return getCatalog()
-    .research.filter((r) => r.playable && r.playerResearch && !ELEMENT_RESEARCH.has(r.id) && r.id !== "R013")
+    .research.filter((r) => r.playable && r.playerResearch && !ELEMENT_RESEARCH.has(r.id) && !REMOVED_PERKS.has(r.id))
     .filter((r) => available(game, p.id, "research", r.id, null, true).ok)
     .map((r) => ({ type: "research", id: r.id }));
 }
@@ -723,13 +865,25 @@ export const PERK_AVAILABILITY = {
   gold: "3-5",
   novice: "3-6",
   volley: "2-5",
+  pillage: "6+",
+  crowd: "6+",
+  golem: "3+",
+  permafrost: "3+",
+  wings: "3+",
+  hellfire: "3+",
+  burst: "3+",
+  pocks: "3+",
+  treasure: "9",
+  voltage: "6-19",
+  boots: "6+",
+  exhume: "3+",
+  waterblock: "3+",
   // research (needs the matching element)
   R00K: "1+", // Watcher Owl
   R00U: "1+", // Creep Armor
   R00V: "1+", // Leadership
   R00W: "1+", // Tailwind
   R00X: "1+", // Willpower
-  R000: "1+", // Forged Arrows
   R001: "1+", // Healing Power
   R002: "1+", // Sparring Lessons
   R005: "1+", // Heavy Weapons
@@ -789,6 +943,7 @@ function optionValid(game, p, o) {
     return !!f && !p.research[f.unlock];
   }
   if (o.type === "research") return available(game, p.id, "research", o.id, null, true).ok;
+  if (o.type === "perk" && PERKS[o.id]?.element && !p.research[FACTIONS.find((f) => f.id === PERKS[o.id].element)?.unlock]) return false;
   if (o.type === "perk") return perkLevel(p, o.id) < (PERKS[o.id]?.max || 0) && (o.id !== "evolution" || evolutionTargets(game, p).length > 0);
   return true;
 }
@@ -828,6 +983,13 @@ function resolvePick(game, p, index) {
       p.stats.goldEarned += gold;
     }
     if (option.id === "volley" && !(p.volleyReady > game.time)) p.volleyReady = game.time;
+    if (option.id === "burst" && !(p.burstReady > game.time)) p.burstReady = game.time;
+    if (option.id === "treasure") {
+      const gold = treasureGold(game);
+      p.gold += gold;
+      p.stats.goldEarned += gold;
+      p.income += 25;
+    }
     if (option.id === "recruit")
       for (const s of tierSends(p.tier).slice(0, 3)) if (p.stock[s.id]) p.stock[s.id].count = Math.min(stockMaxOf(p, s), p.stock[s.id].count + 1);
   }
@@ -1000,6 +1162,15 @@ export function command(game, input) {
   if (type === "pick") return resolvePick(game, p, input.index | 0);
   if (game.paused) return { ok: false, reason: "Game paused" };
   if (type === "sell") return sellTower(game, p, input.towerId);
+  if (type === "burst") {
+    if (!perkLevel(p, "burst")) return { ok: false, reason: "Arcane Burst not learned" };
+    if (p.burstReady > game.time + EPS) return { ok: false, reason: `Arcane Burst ready in ${Math.ceil(p.burstReady - game.time)} s` };
+    const x = Number(input.x),
+      y = Number(input.y);
+    if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || x > 1 || y < -0.1 || y > 1.1) return { ok: false, reason: "Outside the board" };
+    launchBurst(game, p, x, y);
+    return { ok: true };
+  }
   if (type === "volley") {
     if (!perkLevel(p, "volley")) return { ok: false, reason: "Arrow Volley not learned" };
     if (p.volleyReady > game.time + EPS) return { ok: false, reason: `Arrow Volley ready in ${Math.ceil(p.volleyReady - game.time)} s` };
@@ -1062,10 +1233,7 @@ export function command(game, input) {
     p.incomeDecimal += decimal;
     p.income += Math.trunc(p.incomeDecimal / 100);
     p.incomeDecimal %= 100;
-    if (id === "n00Y" && p.treantCount <= 20) {
-      p.treantCount++;
-      gainExp(game, p, 20);
-    }
+    if (id === "n00Y") p.treantCount++; // v0.10w: EXP now on the treant's death, burning from purchase 21
     if (id === "n01D") {
       if (p.ghoulCount <= 25) {
         p.ghoulCount++;
@@ -1290,8 +1458,9 @@ function spawnCreep(game, ownerIndex, id, at = null, lane = null) {
     hp: s.hp,
     maxHp: s.hp,
     armor: s.armor,
-    speed: s.speed * (0.88 + random(game) * 0.24),
-    baseSpeed: s.speed,
+    speed: s.speed * (0.88 + random(game) * 0.24) * (id === "n00Y" && (owner?.treantCount || 0) > TREANT.burnAfter && !at ? 1 + TREANT.speed : 1),
+    baseSpeed: s.speed * (id === "n00Y" && (owner?.treantCount || 0) > TREANT.burnAfter && !at ? 1 + TREANT.speed : 1),
+    burning: id === "n00Y" && (owner?.treantCount || 0) > TREANT.burnAfter && !at ? true : undefined,
     regen: s.regen,
     flying: item.flying,
     invisible: (item.abilities || []).some((id) => getCatalog().abilities[id]?.baseId === "Apiv"),
@@ -2035,9 +2204,31 @@ function secondWeapon(game, p, tower, item, stats, aura, dt, cursed) {
   tower.cooldown2 += Math.max(0.08, w.cooldown / aura.attack / Math.max(0.1, 1 - cursed));
   emit(game, "shot", { player: p.id, towerId: tower.id, targetId: target.id, from: { x: tower.x, y: tower.y }, to: { x: target.x, y: target.y }, damage: dealt, element: item.element, air: true });
 }
+/** v0.10l: Crowd Control: every 5 s, above 50 creeps in the field, the 3 (per level) with the least health die. */
+export const CROWD = { interval: 5, threshold: 50, perLevel: 3 };
+function crowdControl(game, p) {
+  const level = perkLevel(p, "crowd");
+  if (!level) return;
+  if (!(p.crowdNext > 0)) p.crowdNext = game.time + CROWD.interval;
+  if (game.time + EPS < p.crowdNext) return;
+  p.crowdNext = game.time + CROWD.interval;
+  const alive = p.creeps.filter((c) => !c.dead && c.hp > 0);
+  if (alive.length <= CROWD.threshold) return;
+  const victims = alive.sort((a, b) => a.hp - b.hp || a.id.localeCompare(b.id)).slice(0, CROWD.perLevel * level);
+  for (const c of victims) {
+    emit(game, "skill", { player: p.id, kind: "crowd", x: c.x, y: c.y });
+    c.hp = 0;
+    killCreep(game, p, c);
+  }
+}
 function killCreep(game, p, c) {
   if (c.dead) return;
   c.dead = true;
+  // v0.10w: a killed treant gives its sender 20 − (treants bought this game) EXP
+  if (c.typeId === "n00Y" && !c.wave && c.owner >= 0) {
+    const sender = game.players[c.owner];
+    if (sender && !sender.out) gainExp(game, sender, Math.max(0, TREANT.exp - (sender.treantCount || 0)));
+  }
   const item = obj(c.typeId),
     tower = p.towers.find((t) => t.id === c.lastHit);
   let bounty = c.wave ? c.bounty : diceRoll(game, item.bountyBase, item.bountyDice, item.bountySides);
@@ -2108,6 +2299,16 @@ function touchdown(game, p, c) {
   p.lives = Math.max(0, p.lives - 1);
   if (!sender.out) sender.lives++;
   sender.stats.leaks++;
+  // v0.10k: Pillage, 1 % of the leaked player's gold per perk level
+  const pillage = perkLevel(sender, "pillage");
+  if (pillage && !sender.out) {
+    const loot = Math.floor((p.gold * pillage) / 100);
+    if (loot > 0) {
+      p.gold -= loot;
+      sender.gold += loot;
+      emit(game, "pillage", { player: p.id, owner: sender.id, gold: loot, x: c.x, y: c.y });
+    }
+  }
   gainExp(game, sender, ["n00S", "n01C"].includes(c.typeId) ? 30 : RULES.touchdownWood);
   if (["n01R", "n02P"].includes(c.typeId)) {
     const stolen = Math.trunc(p.income / 100);
@@ -2180,10 +2381,14 @@ function moveCreep(game, p, c, dt) {
   // c.speed is already scaled once by statsFor; scale both clamp limits too.
   // This equals clamp(original speed with modifiers,24,1000)*modeMultiplier.
   const mobility = movementMultiplier(game);
-  let remaining = clamp(c.speed * (1 - clamp(slow, 0, 0.9)) * aura.speed, 24 * mobility, 1000 * mobility) * dt;
+  // v0.10r: Red Boots of the sender: ground creeps 25 % less slowed per level
+  const boots = c.flying || c.owner < 0 ? 1 : bootsResist(game.players[c.owner]);
+  const frozen = c.flying ? 1 : 1 - 0.04 * perkLevel(p, "permafrost") * boots; // v0.10o: Permafrost of the defender
+  let remaining = clamp(c.speed * (1 - clamp(slow * boots, 0, 0.9)) * aura.speed * frozen, 24 * mobility, 1000 * mobility) * dt;
   while (remaining > EPS && game.running) {
     const next = c.path[c.pathIndex];
     if (!next) {
+      if (waterBlock(game, p, c)) break; // v0.10r
       touchdown(game, p, c);
       break;
     }
@@ -2228,8 +2433,9 @@ function incomeTick(game) {
     }
     p.gold += p.income;
     p.stats.goldEarned += p.income;
-    gainExp(game, p, p.woodIncome);
-    emit(game, "income", { player: p.id, gold: p.income, exp: p.woodIncome });
+    const expGen = p.woodIncome * (1 + VOLTAGE.bonus * perkLevel(p, "voltage")); // v0.10r: High Voltage
+    gainExp(game, p, expGen);
+    emit(game, "income", { player: p.id, gold: p.income, exp: expGen });
   }
   if (game.round >= RULES.suddenDeathRound) {
     if (!game.suddenDeath) {
@@ -2843,6 +3049,17 @@ function think(game, p) {
     }
     if (best && (best.n >= 4 || best.c.progress > 0.75)) command(game, { type: "volley", player: p.id, x: best.c.x, y: best.c.y });
   }
+  // v0.10p: Arcane Burst on the densest group, or on a creep about to break through
+  if (perkLevel(p, "burst") && !(p.burstReady > game.time) && p.creeps.length) {
+    const r = burstRadius(perkLevel(p, "burst")) * game.grid.cellUnits,
+      live = p.creeps.filter((c) => !c.dead && c.hp > 0 && c.owner !== p.id);
+    let best = null;
+    for (const c of live) {
+      const n = live.filter((o) => dist(game, c, o) <= r).length;
+      if (!best || n > best.n) best = { c, n };
+    }
+    if (best && (best.n >= 3 || best.c.progress > 0.75)) command(game, { type: "burst", player: p.id, x: best.c.x, y: best.c.y });
+  }
   // ---- how much defence is needed right now
   // Need: the biggest group the opponent sends (towers chew through a group creep by creep),
   // a share of their whole round, the next neutral wave when it is close, and fresh leaks.
@@ -3237,6 +3454,9 @@ function fixedTick(game) {
         stock.next = game.time + Math.max(TICK, stockRegenOf(p, item));
       }
     }
+    crowdControl(game, p); // v0.10l
+    tickHellfire(game, p); // v0.10p
+    tickPocks(game, p); // v0.10q
     for (const q of p.researchQueue) {
       q.remaining -= TICK;
       if (q.remaining <= EPS) finishResearch(game, p, q.id);
