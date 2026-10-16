@@ -652,8 +652,8 @@ export const PERKS = Object.freeze({
   burst: { name: "Arcane Burst", max: 5, element: "arcane", text: "Active ability: level × 200 × tier damage, split among the creeps in an area (40 s cooldown)" }, // v0.10p
   treasure: { name: "Gold Treasure", max: 1, text: "Instantly +{treasure} gold and +25 income" }, // v0.10r
   voltage: { name: "High Voltage", max: 3, element: "storm", text: "EXP generators give 50% more EXP per level" }, // v0.10r
-  boots: { name: "Red Boots", max: 3, element: "fire", text: "Your ground creeps: 25% less slowed and +1% income per level" }, // v0.10r
-  exhume: { name: "Exhumination", max: 3, element: "plague", text: "Undead creeps cost 20% less per level" }, // v0.10r
+  boots: { name: "Red Boots", max: 3, element: "fire", text: "Your ground creeps: 25% / 33% / 40% less slowed and +1% income per level" }, // v0.10r
+  exhume: { name: "Exhumination", max: 3, element: "plague", text: "Undead creeps cost 20% / 35% / 50% less but restock 20% slower" }, // v0.10r
   waterblock: { name: "Water Block", max: 3, element: "water", text: "Every 15/13/11 s the first breach is denied: the creep is frozen and pushed back 6/9/12 fields" }, // v0.10r
   pocks: { name: "Giant's Pocks", max: 5, element: "plague", text: "Every 4 s the strongest creep in your field loses 5% of its health per level and is poisoned" }, // v0.10q
   permafrost: { name: "Permafrost", max: 5, element: "water", text: "Ground creeps in your field are 4% slower per level" }, // v0.10o
@@ -730,18 +730,22 @@ function bossDiscount(p, item, gold) {
   if (!item?.isSend) return gold;
   let share = 1;
   if (item.bossTier && perkLevel(p, "golem")) share *= 1 - GOLEM.discount;
-  if (UNDEAD_SENDS.has(item.id) && perkLevel(p, "exhume")) share *= Math.max(0, 1 - EXHUME.discount * perkLevel(p, "exhume")); // v0.10r
+  if (UNDEAD_SENDS.has(item.id) && perkLevel(p, "exhume")) share *= 1 - EXHUME.discount[Math.min(3, perkLevel(p, "exhume")) - 1]; // v0.10r/s
   return share === 1 ? gold : Math.round(gold * share);
 }
 /** v0.10r: undead creeps (Exhumination). */
 export const UNDEAD_SENDS = new Set(["n00R", "n011", "n016", "n019", "n01B", "n01H", "n013", "n01D", "n02N", "n02E"]);
-export const EXHUME = { discount: 0.2 };
+export const EXHUME = { discount: [0.2, 0.35, 0.5], restock: 1.2 }; // v0.10s
 /** v0.10r: Red Boots (per level), High Voltage (per level), Water Block (per level 1-3), Gold Treasure. */
-export const BOOTS = { slow: 0.25, income: 0.01 };
+export const BOOTS = { slow: [0.25, 0.33, 0.4], income: 0.01 }; // v0.10s: slow resistance by level
 export const VOLTAGE = { bonus: 0.5 };
 export const WATERBLOCK = { cooldown: [15, 13, 11], back: [6, 9, 12], frost: 5, slow: 0.5 };
 export const treasureGold = (game) => Math.max(1, game?.round || 0) * 25;
 /** Water Block: true when the breach was denied (creep frozen and pushed back up its path). */
+function bootsResist(p) {
+  const level = Math.min(3, perkLevel(p, "boots"));
+  return level ? 1 - BOOTS.slow[level - 1] : 1;
+}
 function waterBlock(game, p, c) {
   const level = Math.min(3, perkLevel(p, "waterblock"));
   if (!level || p.blockReady > game.time + EPS) return false;
@@ -782,7 +786,8 @@ function archerLine() {
 export function stockRegenOf(p, s) {
   const level = perkLevel(p, "recruit"),
     first = level && !s.bossTier && tierSends(s.tier).slice(0, 3).some((x) => x.id === s.id);
-  return (s.stockRegen || 0) / (first ? 1 + 0.08 * level : 1);
+  const slower = UNDEAD_SENDS.has(s.id) && perkLevel(p, "exhume") ? EXHUME.restock : 1; // v0.10s: Exhumination
+  return ((s.stockRegen || 0) / (first ? 1 + 0.08 * level : 1)) * slower;
 }
 /** Highest stock of a send for this player (Recruitment adds to the first three of a tier). */
 export function stockMaxOf(p, s) {
@@ -2371,7 +2376,7 @@ function moveCreep(game, p, c, dt) {
   // This equals clamp(original speed with modifiers,24,1000)*modeMultiplier.
   const mobility = movementMultiplier(game);
   // v0.10r: Red Boots of the sender: ground creeps 25 % less slowed per level
-  const boots = c.flying || c.owner < 0 ? 1 : Math.max(0, 1 - BOOTS.slow * perkLevel(game.players[c.owner], "boots"));
+  const boots = c.flying || c.owner < 0 ? 1 : bootsResist(game.players[c.owner]);
   const frozen = c.flying ? 1 : 1 - 0.04 * perkLevel(p, "permafrost") * boots; // v0.10o: Permafrost of the defender
   let remaining = clamp(c.speed * (1 - clamp(slow * boots, 0, 0.9)) * aura.speed * frozen, 24 * mobility, 1000 * mobility) * dt;
   while (remaining > EPS && game.running) {
