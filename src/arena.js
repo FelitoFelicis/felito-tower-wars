@@ -1,4 +1,4 @@
-import { getStats, divineShield, isMagicTower, isMeleeTower, towerAt, towerSize, footprintOf, STRIP } from "./simulation.js";
+import { getStats, divineShield, isMagicTower, isMeleeTower, towerAt, towerSize, footprintOf, STRIP, HELLFIRE } from "./simulation.js";
 import { ART_MANIFEST, ANIM_MANIFEST, animUrl, artFor, artUrl, towerTier, TOWER_ART, CREEP_ART, TEAM_COLORS, recolorTeam } from "./art.js";
 import { t } from "./i18n.js";
 import { Stage, BLEND, TINT, hsvToColor } from "./b2d.js";
@@ -727,6 +727,13 @@ export function mountArena({
           const to = this.point(e.x, e.y),
             drift = (hash(seq, 3) - 0.5) * cell * 0.6;
           this.projectiles.push({ x0: to.x + drift - cell * 0.5, y0: to.y - cell * 2.6, targetId: e.targetId, tx: to.x + drift * 0.2, ty: to.y - cell * 0.15, t: 0, dur: 0.26, color: 0xffe28a, size: 3.6, splash: false, glow: false, arc: 0, arrow: true });
+        } else if (e.type === "burst" && e.player === view) {
+          // v0.10p: Arcane Burst: violet shock ring over the whole area
+          const q = this.point(e.x, e.y);
+          this.ring(q.x, q.y, cell * 0.2, cell * e.radius, 0xc07aff, 0.85, 5);
+          this.ring(q.x, q.y, cell * 0.1, cell * e.radius * 0.7, 0xf0d8ff, 0.7, 3);
+          this.burst(q.x, q.y, 0xd8a8ff, 18, 140, 3, 0.6, 0, true);
+          if (e.hits) this.floatText(q.x, q.y - cell * 0.6, t("ARCANE BURST") + " " + e.damage, "#e2c2ff", 14, 38, 1.1);
         } else if (e.type === "volleyStart" && e.player === view) {
           const q = this.point(e.x, e.y);
           this.ring(q.x, q.y, cell * 0.3, cell * 1.5, 0xffe7a8, 0.6, 3);
@@ -841,6 +848,31 @@ export function mountArena({
         glow.fillStyle(0xf4ffc8, a);
         glow.fillCircle(x, y, 1.4);
       }
+      // ---- v0.10p: Hellfire: free fields of the burning column glow like magma
+      if ((player.perks?.hellfire || 0) > 0) {
+        const col = HELLFIRE.column;
+        for (let y = 0; y < z.logicalRows; y++) {
+          if (towerAt(player, col, y)) continue;
+          const x0 = z.left + col * cell,
+            y0 = z.top + y * cell,
+            flick = 0.5 + 0.5 * Math.sin(time * 0.004 + y * 1.7);
+          pl.fillStyle(0x2a0802, 0.7);
+          pl.fillRect(x0 + 1, y0 + 1, cell - 2, cell - 2);
+          pl.fillStyle(0xff4a0a, 0.55 + 0.2 * flick);
+          pl.fillRoundedRect(x0 + cell * 0.12, y0 + cell * 0.12, cell * 0.76, cell * 0.76, cell * 0.22);
+          pl.fillStyle(0xffd24a, 0.6 + 0.3 * flick);
+          for (let k = 0; k < 3; k++) {
+            const bx = x0 + cell * (0.22 + 0.56 * hash(col, y, 20 + k)),
+              by = y0 + cell * (0.22 + 0.56 * hash(y, col, 30 + k)),
+              br = cell * (0.05 + 0.05 * hash(k, y, 40)) * (0.7 + 0.5 * Math.sin(time * 0.006 + k * 2 + y));
+            pl.fillCircle(bx, by, Math.max(1, br));
+          }
+          pl.lineStyle(2, 0xffe08a, 0.35 + 0.3 * flick);
+          pl.lineBetween(x0 + cell * 0.2, y0 + cell * 0.35, x0 + cell * 0.5, y0 + cell * 0.55);
+          pl.lineBetween(x0 + cell * 0.5, y0 + cell * 0.55, x0 + cell * 0.78, y0 + cell * 0.42);
+          pl.lineBetween(x0 + cell * 0.5, y0 + cell * 0.55, x0 + cell * 0.46, y0 + cell * 0.82);
+        }
+      }
       // ---- route flow on the dirt tiles
       const path = player.path || [];
       if (path.length) {
@@ -875,11 +907,13 @@ export function mountArena({
           px = this.pointer.x,
           py = this.pointer.y,
           pulse = 0.5 + 0.5 * Math.sin(time * 0.01);
-        g.fillStyle(0xffd27a, 0.12 + 0.06 * pulse);
+        const ac = aim.arcane ? 0xc07aff : 0xffd27a,
+          al = aim.arcane ? 0xeacbff : 0xffe7a8; // v0.10p: violet for Arcane Burst
+        g.fillStyle(ac, 0.12 + 0.06 * pulse);
         g.fillCircle(px, py, r);
-        g.lineStyle(2.5, 0xffe7a8, 0.85);
+        g.lineStyle(2.5, al, 0.85);
         g.strokeCircle(px, py, r);
-        g.lineStyle(1.5, 0xffe7a8, 0.6);
+        g.lineStyle(1.5, al, 0.6);
         g.lineBetween(px - 8, py, px + 8, py);
         g.lineBetween(px, py - 8, px, py + 8);
       }

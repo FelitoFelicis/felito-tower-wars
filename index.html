@@ -34,8 +34,8 @@
   <link rel="icon" href="assets/app-icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="assets/app-icon-192.png">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="style.css?v=o10016">
-  <script type="importmap">{"imports":{"./src/music.js":"./src/music.js?v=o10016","./src/art.js":"./src/art.js?v=o10016","./src/soundtrack.js":"./src/soundtrack.js?v=o10016","./src/sfx.js":"./src/sfx.js?v=o10016","./src/app.js":"./src/app.js?v=o10016","./src/arena.js":"./src/arena.js?v=o10016","./src/content.js":"./src/content.js?v=o10016","./src/simulation.js":"./src/simulation.js?v=o10016","./src/multiplayer.js":"./src/multiplayer.js?v=o10016","./src/i18n.js":"./src/i18n.js?v=o10016","./src/b2d.js":"./src/b2d.js?v=o10016"}}</script>
+  <link rel="stylesheet" href="style.css?v=p10016">
+  <script type="importmap">{"imports":{"./src/music.js":"./src/music.js?v=p10016","./src/art.js":"./src/art.js?v=p10016","./src/soundtrack.js":"./src/soundtrack.js?v=p10016","./src/sfx.js":"./src/sfx.js?v=p10016","./src/app.js":"./src/app.js?v=p10016","./src/arena.js":"./src/arena.js?v=p10016","./src/content.js":"./src/content.js?v=p10016","./src/simulation.js":"./src/simulation.js?v=p10016","./src/multiplayer.js":"./src/multiplayer.js?v=p10016","./src/i18n.js":"./src/i18n.js?v=p10016","./src/b2d.js":"./src/b2d.js?v=p10016"}}</script>
 </head>
 <body>
 <main class="game-shell" data-page="build" aria-label="Felito Tower Wars">
@@ -77,6 +77,7 @@
         <div id="side-dock" class="side-dock" hidden><span class="side-label" id="auto-kicker">Auto</span><button id="auto-slot" class="auto-slot" type="button" aria-label="Auto-Spawn" data-help="Auto-spawn: in Send, drag a creep card here and it is sent automatically. Tap to pause, drag out to clear."><span class="auto-slot-empty">+</span></button><span id="tier-badge" class="tier-badge" data-help="Your send tier. Buying the boss unlocks the next tier.">T1</span></div>
         <button id="level-button" class="level-button" type="button" data-ta="Choose a level reward" aria-label="Choose a level reward" data-help="Your level. It fills up with experience. With every level-up you pick one of three rewards here; when it glows, a reward is waiting." hidden><s class="level-fill" aria-hidden="true"></s><span>Lv</span><b id="level-number">1</b><i id="level-pending" hidden>1</i></button>
         <button id="volley-button" class="volley-button" type="button" aria-label="Arrow Volley" data-help="Arrow Volley: tap it, then tap your field. Arrows rain on that area (cooldown 20 s)." hidden></button>
+        <button id="burst-button" class="volley-button burst-button" type="button" aria-label="Arcane Burst" data-help="Arcane Burst: tap it, then tap your field. The damage is split among all creeps in the area (cooldown 40 s)." hidden></button>
       </section>
       <section class="command-deck" data-ta="Your cards" aria-label="Your cards">
         <div class="deck-heading sr-only"><h2 id="deck-title">Your towers</h2><select id="tier-select" hidden></select></div>
@@ -109,7 +110,7 @@
     <section id="tower-panel" class="tower-panel" hidden></section>
   </main>
   <dialog id="modal"><div id="modal-body"></div></dialog>
-  <script src="vendor/babylon-felito.js?v=o10016"></script>
-  <script type="module" src="src/app.js?v=o10016"></script>
+  <script src="vendor/babylon-felito.js?v=p10016"></script>
+  <script type="module" src="src/app.js?v=p10016"></script>
 </body>
 </html>
