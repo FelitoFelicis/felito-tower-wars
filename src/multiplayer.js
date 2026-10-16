@@ -805,7 +805,7 @@ class Session {
       );
       return;
     }
-    const bytes = encoder.encode(raw).byteLength;
+    const bytes = raw.length; // v0.13b: no per-message re-encoding
     if (bytes > MAX_WIRE_BYTES || !this.inboundBytes(bytes)) {
       this.connectionFailure(error("traffic-limit", "The data channel exceeded its data limit."));
       return;
@@ -865,7 +865,9 @@ class Session {
       return;
     }
     try {
-      const payload = jsonPayload(packet.payload);
+      // v0.13b: the packet was parsed once already; no second validate/copy pass (it cost frames)
+      const payload = packet.payload;
+      if (!payload || typeof payload !== "object") throw error("invalid-payload", "Only valid JSON game data can be sent.");
       this.receivedSequence = packet.sequence;
       callback(this.callbacks, "onData", payload, this.room);
     } catch (err) {
@@ -897,19 +899,19 @@ class Session {
   send(data) {
     if (this.closed || !this.connected || !this.connection?.open) return false;
     try {
-      const payload = jsonPayload(data);
-      const wire = JSON.stringify({
-        protocol: PROTOCOL,
-        version: PROTOCOL_VERSION,
-        room: this.code,
-        type: "data",
-        sequence: this.sequence + 1,
-        payload,
-      });
+      // v0.13b: one serialization pass per message (was four)
+      const body = JSON.stringify(data);
+      if (!body || body[0] !== "{") throw error("invalid-payload", "Only valid JSON game data can be sent.");
+      if (body.length > MAX_PAYLOAD_BYTES) throw error("payload-too-large", "The game data is too large for one message.");
+      const wire =
+        JSON.stringify({ protocol: PROTOCOL, version: PROTOCOL_VERSION, room: this.code, type: "data", sequence: this.sequence + 1 }).slice(0, -1) +
+        ',"payload":' +
+        body +
+        "}";
       if ((this.connection.bufferSize || 0) > 16 || (this.connection.dataChannel?.bufferedAmount || 0) > 1024 * 1024) {
         throw error("backpressure", "The connection is busy. The next update will try again.");
       }
-      if (!this.outbound() || !this.outboundBytes(encoder.encode(wire).byteLength)) {
+      if (!this.outbound() || !this.outboundBytes(wire.length)) {
         throw error("send-limit", "Too many game messages. Please wait for the next update.");
       }
       this.connection.send(wire);

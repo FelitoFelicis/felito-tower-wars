@@ -3018,8 +3018,9 @@ function receiveNetwork(message) {
       lastEvent = 0;
       closeModal();
       setPage("build");
+      refreshUI();
     }
-    refreshUI();
+    // v0.13b: the regular UI refresh (every 0.15 s) shows the new state; no extra pass per packet
   } else if (message.kind === "result") {
     if (!message.result?.ok) toast(message.result?.reason || "Not possible");
     else tone("tap");
