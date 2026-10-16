@@ -143,7 +143,7 @@ export function pipGeometry(z) {
  * Towers draw 5 % smaller than their field. Levels 1–3 stay nearly the same size; from level 4 a
  * figure grows slowly (v0.08a: level 5 now has the size level 3 had, level 7 that of level 5 …).
  */
-const TOWER_SCALE = 0.95;
+const TOWER_SCALE = 0.92; // v0.11: plate metadata without the cast shadow; a level 6 plate fills about 0.93 of its field
 const LEVEL_SCALE = [0.92, 0.92, 0.925, 0.93, 0.965, 1, 1.04, 1.08, 1.12, 1.16];
 const levelScale = (level) => LEVEL_SCALE[Math.max(1, Math.min(9, level | 0))];
 /** Level badge colours: grey for neutral towers, the element's colour for elemental ones. */
