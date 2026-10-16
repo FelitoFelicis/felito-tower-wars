@@ -11,7 +11,7 @@ import { canBuild, findPath, towerAt, available } from "./simulation.js";
 import { t } from "./i18n.js";
 
 export const TUTORIAL_PREF = "felito.tutorial.v1";
-const DOTS = 7;
+const DOTS = 8;
 const TEXT = {
   pick: "Tap the Archer: your first one is free!",
   pickMore: "Build more: tap the Archer.",
@@ -22,6 +22,7 @@ const TEXT = {
   board: "Tap your gold and lives up here to see your own board.",
   sendTab: "Now tap SEND to attack.",
   send: "Send a monster: it attacks your enemy and raises your income.",
+  income: "+{n} = the gold you get every round. Sending monsters raises it.",
   back: "Tap BUILD to go back to your board.",
   tower: "Tap one of your towers to upgrade it.",
   upgrade: "Tap the upgrade to make it stronger.",
@@ -201,19 +202,27 @@ export function createTutorial(api) {
         target: sendCard(),
       };
     }
-    // 6: upgrade a tower (skipped when no tower can be upgraded)
+    // 6: what the green number up top means (v0.11b): shown for a few seconds after the first
+    // send, while play goes on; the overlay never takes taps
+    if (!s.incomeDone) {
+      s.sentAt ||= performance.now();
+      const at = shown("#own-income") || shown(".hud-gold");
+      if (at && performance.now() - s.sentAt < 5000) return { key: "income", n: 6, text: TEXT.income, vars: { n: Math.floor(p.income) }, target: at };
+      s.incomeDone = true;
+    }
+    // 7: upgrade a tower (skipped when no tower can be upgraded)
     const catalog = api.catalog(),
       upgradable = p.towers.filter((tw) => (catalog?.byId[tw.typeId]?.upgrades || []).some((id) => catalog.byId[id]));
     if (!s.upgraded && upgradable.length) {
-      if (tab !== "build") return { key: "back", n: 6, text: TEXT.back, target: shown('[data-tab="build"]') };
-      if (view !== me) return { key: "board6", n: 6, text: TEXT.board, target: shown(".player-plate.own") };
+      if (tab !== "build") return { key: "back", n: 7, text: TEXT.back, target: shown('[data-tab="build"]') };
+      if (view !== me) return { key: "board6", n: 7, text: TEXT.board, target: shown(".player-plate.own") };
       const up = api.selectedTower() ? shown("#cards [data-upgrade]") : null;
-      if (up) return { key: "upgrade", n: 6, text: TEXT.upgrade, target: up };
+      if (up) return { key: "upgrade", n: 7, text: TEXT.upgrade, target: up };
       const tw = upgradable.find((x) => x.typeId === "h003" && x.buildRemaining <= 0) || upgradable.find((x) => x.buildRemaining <= 0) || upgradable[0];
-      return { key: "tower", n: 6, text: TEXT.tower, target: { cell: { x: tw.gridX, y: tw.gridY, size: tw.size || 1 } } };
+      return { key: "tower", n: 7, text: TEXT.tower, target: { cell: { x: tw.gridX, y: tw.gridY, size: tw.size || 1 } } };
     }
-    // 7: done
-    return { key: "final", n: 7, text: TEXT.final, final: true, target: shown("#own-lives") || shown(".player-plate.own") };
+    // 8: done
+    return { key: "final", n: 8, text: TEXT.final, final: true, target: shown("#own-lives") || shown(".player-plate.own") };
   }
 
   /** The first matching element that is really on screen (not hidden, not covered). */
@@ -315,17 +324,18 @@ export function createTutorial(api) {
   }
 
   function render(step) {
-    const u = ui;
+    const u = ui,
+      text = t(step.text, step.vars);
     if (step.key !== s.key) {
       s.key = step.key;
-      u.text.textContent = t(step.text);
+      u.text.textContent = text;
       u.dots.forEach((d, i) => (d.className = i + 1 < step.n ? "done" : i + 1 === step.n ? "now" : ""));
       u.skip.hidden = !!step.final;
       u.go.hidden = !step.final;
       u.card.classList.remove("pop");
       void u.card.offsetWidth;
       u.card.classList.add("pop");
-    }
+    } else if (u.text.textContent !== text) u.text.textContent = text;
     const sub = step.sub || "";
     if (sub !== s.sub) {
       s.sub = sub;
@@ -371,8 +381,12 @@ export function createTutorial(api) {
       ex = fx - HAND_LEN * Math.sin(rad),
       ey = fy + HAND_LEN * Math.cos(rad),
       top = down ? ey - 10 - bh : ey + 10,
-      left = clamp(ex - bw / 2, 10, Math.max(10, vw - bw - 10)),
-      y = clamp(top, 8, Math.max(8, vh - bh - 8));
+      left = clamp(ex - bw / 2, 10, Math.max(10, vw - bw - 10));
+    let y = clamp(top, 8, Math.max(8, vh - bh - 8));
+    // v0.11b: for a button in the nav row the bubble waits above the card tray, so it never
+    // covers the cards (or puts Skip on top of one)
+    const tray = document.querySelector(".command-deck")?.getBoundingClientRect();
+    if (tray && tray.height > 0 && tg.kind === "el" && tg.rect.top >= tray.bottom - 4) y = Math.max(8, Math.min(y, tray.top - bh - 6));
     u.bubble.style.transform = `translate(${Math.round(left)}px, ${Math.round(y)}px)`;
     u.tail.classList.toggle("up", !down);
     u.tail.style.left = clamp(ex - left, 22, bw - 22) - 7 + "px";

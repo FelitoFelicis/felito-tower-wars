@@ -4574,3 +4574,801 @@ dialog:not(.welcome-modal) .surrender-flag {
     font-size: 15px;
   }
 }
+
+/* =================================================================================================
+   v0.11b: fixes after the phone play test and the layout test
+   ================================================================================================= */
+
+/* ---- card names: one line with an ellipsis, long names on two lines (never below 10 px; app.js
+   fitNames() steps a name down to 9 px only when it still overflows) ---------------------------- */
+.tcard .tc-name {
+  display: block;
+  line-height: 14px;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tcard .tc-name.long {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-size: 10px;
+  line-height: 10px;
+  padding: 2px 2px 1px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+}
+.tcard .tc-name.tc-income {
+  display: grid;
+  line-height: 1;
+}
+/* the selected tower's tile and the upgrade cards: long names wrap; badges below make room */
+.tcard.tc-up .tc-name.long {
+  border-radius: 8px 8px 3px 3px;
+}
+.tcard.tc-up:has(.tc-name.long) .tc-art {
+  inset: 26px 3px 24px;
+}
+.tcard.tc-up:has(.tc-name.long) .tc-arrow {
+  top: 27px;
+}
+.tcard.tc-up:has(.tc-name.long) .tc-lv {
+  top: 28px;
+}
+.tcard.tc-info:has(.tc-name.long) .tc-art {
+  inset: 14px 3px 24px;
+}
+
+/* ---- creep cards: the boss / flyer badge sits under the price, never on top of it -------------- */
+.tcard.card-send .tc-mark {
+  top: 24px;
+  right: 3px;
+  width: 18px;
+  height: 18px;
+}
+.tcard > .price {
+  max-width: calc(100% - 6px);
+  white-space: nowrap;
+}
+
+/* ---- sell button: big numbers get smaller, the free archer says FREE ---------------------------- */
+.sell-gold.mid {
+  font-size: 14px;
+}
+.sell-gold.long {
+  font-size: 12px;
+}
+.sell-gold.free {
+  font: 800 13px/1 var(--font-display);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #a4ff8e;
+}
+.tc-sell.free .sell-coin {
+  opacity: 0.45;
+  filter: grayscale(0.6) drop-shadow(0 2px 2px #000a);
+}
+
+/* ---- help mode: touch gets a sticky tip with a ×; the round timer and wave line answer too ------ */
+.game-shell.help-mode .mini-hud .round-plate,
+.game-shell.help-mode .mini-hud .wave-chip {
+  pointer-events: auto;
+}
+.help-tip.sticky {
+  pointer-events: auto;
+  padding-right: 38px;
+}
+.help-tip-close {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: #ffe27a;
+  font: 400 22px/1 var(--font-number);
+}
+.help-tip-close::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+}
+
+/* ---- notes: below the HUD at the top of the board (the bottom row is where creeps break through) - */
+.game-shell #toast,
+.game-shell:has(.auto-send:not([hidden])) #toast,
+.game-shell:has(.tower-panel:not([hidden])) #toast,
+.game-shell:has(.coach:not([hidden])) #toast,
+.game-shell:has(#zoom-reset:not([hidden])) #toast {
+  top: calc(env(safe-area-inset-top) + 96px);
+  bottom: auto;
+  left: 12px;
+  right: 12px;
+}
+.game-shell.top-band #toast {
+  top: calc(env(safe-area-inset-top) + 88px);
+}
+/* inside an open dialog (top layer) notes show at the top of the screen */
+.dialog-toast {
+  position: fixed;
+  z-index: 10;
+  left: 50%;
+  top: calc(env(safe-area-inset-top) + 12px);
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  padding: 7px 14px;
+  border-radius: 10px;
+  border: 1.5px solid #d9b45a;
+  background: #0a1822f2;
+  box-shadow: 0 6px 16px #000a;
+  color: #f4efe2;
+  font: 600 13px/1.3 var(--font-body);
+  text-align: center;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, -6px);
+  transition:
+    opacity 0.2s,
+    transform 0.2s;
+}
+.dialog-toast.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+/* ---- whose board: a small pill under the HUD ----------------------------------------------------- */
+.board-label {
+  --pc: #888;
+  position: absolute;
+  z-index: 2;
+  left: 0;
+  right: 0;
+  top: calc(100% + 1px);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: max-content;
+  max-width: calc(100% - 24px);
+  margin: 0 auto;
+  height: 22px;
+  min-height: 0;
+  padding: 0 10px 0 6px;
+  border: 0;
+  border-radius: 11px;
+  background: #0b0f14d9;
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--pc) 75%, #000), 0 2px 6px #0009;
+  color: #fff;
+  font: 800 11px/1 var(--font-display);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  pointer-events: auto;
+  animation: pop-in 0.2s ease-out;
+}
+.board-label[hidden] {
+  display: none;
+}
+.board-label i {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--pc);
+  box-shadow: 0 0 0 1.5px #000, 0 0 6px var(--pc);
+}
+.board-label b {
+  font-weight: 800;
+}
+.board-label span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font: 600 11px/1 var(--font-body);
+  letter-spacing: 0;
+  text-transform: none;
+  color: #c9d3dc;
+}
+.board-label span::before {
+  content: "· ";
+}
+.board-label.own {
+  opacity: 0.92;
+}
+
+/* ---- the HUD with many enemies: the ring stays centred; four or more enemies show the target and a
+   "+N" chip that opens a list ---------------------------------------------------------------------- */
+.game-header.hud-row:has(#enemy-stack[data-count="5"]),
+.game-header.hud-row:has(#enemy-stack[data-count="6"]),
+.game-header.hud-row:has(#enemy-stack[data-count="7"]) {
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+}
+.game-shell #enemy-stack.compact {
+  gap: 6px;
+}
+#enemy-stack.compact .foe-chip {
+  display: none;
+}
+#enemy-stack.compact .foe-chip.shown {
+  display: flex;
+  flex: none;
+  width: 38px;
+  max-width: none;
+}
+#enemy-stack.compact .fc-lives img {
+  display: block;
+}
+#enemy-stack.compact .fc-lives {
+  padding: 1px 4px 1px 3px;
+}
+#enemy-stack.compact .fc-target {
+  width: 17px;
+  height: 17px;
+  right: -6px;
+}
+.foe-more {
+  position: relative;
+  flex: none;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 1px;
+  width: 40px;
+  height: 40px;
+  min-height: 0;
+  padding: 0;
+  border-radius: 12px;
+  border: 2px solid var(--edge);
+  background: var(--stone);
+  box-shadow:
+    inset 0 0 0 1.5px var(--trim),
+    0 2px 0 #0b0805;
+  color: #fff3d2;
+}
+.foe-more b {
+  font: 400 17px/1 var(--font-number);
+  text-shadow: var(--outline);
+}
+.foe-more span {
+  font: 800 9.5px/1 var(--font-display);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--trim-hi);
+}
+.foe-more.open,
+.foe-more.viewing {
+  box-shadow:
+    inset 0 0 0 2px var(--trim-hi),
+    0 2px 0 #0b0805,
+    0 0 8px #ffcf4a99;
+}
+.enemy-list {
+  position: absolute;
+  z-index: 7;
+  top: calc(env(safe-area-inset-top) + 54px);
+  right: 8px;
+  display: grid;
+  gap: 4px;
+  width: min(250px, calc(100% - 16px));
+  max-height: calc(100% - var(--tray-h) - 70px - env(safe-area-inset-top));
+  overflow-y: auto;
+  padding: 8px;
+  border-radius: 14px;
+  border: 2px solid var(--edge);
+  background: linear-gradient(180deg, #4b5560 0%, #353d47 42%, #262c34 100%);
+  box-shadow:
+    inset 0 0 0 2px var(--trim),
+    0 10px 24px #000c;
+  animation: pop-in 0.18s ease-out;
+}
+.enemy-list[hidden] {
+  display: none;
+}
+.el-head {
+  padding: 0 4px 2px;
+  font: 800 11px/1.2 var(--font-display);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--trim-hi);
+}
+.el-row {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 46px;
+  padding: 4px 8px 4px 4px;
+  border-radius: 10px;
+  border: 0;
+  background: #10141acc;
+  box-shadow: inset 0 0 0 1px #ffffff14;
+  color: #fff;
+  text-align: left;
+}
+.el-row.viewing {
+  box-shadow: inset 0 0 0 2px #fff;
+}
+.el-row.out {
+  opacity: 0.55;
+}
+.el-row .portrait {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 2.5px solid var(--pc);
+  background: radial-gradient(circle at 50% 30%, #4b5563, #1a1f26);
+  object-fit: cover;
+}
+.el-row.out .portrait {
+  filter: grayscale(1) brightness(0.7);
+}
+.el-name {
+  display: grid;
+  min-width: 0;
+}
+.el-name b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 800 14px/1.1 var(--font-display);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.el-name small {
+  font: 600 11px/1.2 var(--font-body);
+  color: #dcc6ff;
+}
+.el-row em {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font: 800 10px/1 var(--font-display);
+  font-style: normal;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.el-target {
+  color: #ffd75a;
+}
+.el-target img {
+  width: 14px;
+  height: 14px;
+}
+.el-out {
+  color: #ff9a8a;
+}
+.el-lives {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font: 400 16px/1 var(--font-number);
+}
+.el-lives img {
+  width: 14px;
+  height: 14px;
+}
+
+/* ---- dialogs: clear of the notch and the home bar ------------------------------------------------ */
+dialog:not(.welcome-modal) {
+  /* centred inside the safe area: the fixed box starts below the notch and ends above the home bar */
+  top: env(safe-area-inset-top, 0px);
+  bottom: env(safe-area-inset-bottom, 0px);
+  max-height: calc(100dvh - 24px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+}
+
+/* ---- result dialogs: 4 tiles as 2 + 2, 5 tiles as 3 + 2, labels that fit ----------------------- */
+.result-stats {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+.result-stats span {
+  flex: 0 0 calc((100% - 12px) / 3);
+  min-width: 0;
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+}
+.result-stats[data-count="4"] span {
+  flex-basis: calc((100% - 6px) / 2);
+}
+.result-stats b {
+  font-size: 20px;
+}
+
+/* ---- tower and card details: hit points, attack speed, targets; upgrade vs. "see next level" ---- */
+.detail-stats {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.detail-stats[data-count="2"] {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.detail-stats span {
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+}
+.detail-stats span.txt b {
+  font: 800 15px/1.4 var(--font-display);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.detail-up {
+  display: grid;
+  justify-items: center;
+  gap: 1px;
+  width: 100%;
+  margin-top: 6px;
+}
+.detail-up .du-main {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.detail-up .cost {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.detail-up .cost img {
+  width: 18px;
+  height: 18px;
+}
+.detail-up .du-name {
+  font: 600 12px/1.2 var(--font-body);
+  letter-spacing: 0;
+  text-transform: none;
+  color: #c9d3dc;
+}
+.detail-up.poor .cost {
+  color: #ff9a8a;
+}
+.detail-up.unaffordable {
+  opacity: 0.6;
+}
+
+/* ---- pause menu: Resume on top, Leave match at the bottom --------------------------------------- */
+.menu-leave {
+  margin-top: 6px;
+  min-height: 46px;
+  font-size: 16px;
+}
+#menu-resume {
+  min-height: 50px;
+}
+
+/* ---- welcome: Ranked is marked "Soon"; colour swatches in two rows of 36 px ------------------- */
+#start-ranked.soon {
+  position: relative;
+  opacity: 0.75;
+}
+.soon-tag {
+  position: absolute;
+  top: -7px;
+  right: 6px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: linear-gradient(#ffe48f, #e8a52e);
+  color: #4c3510;
+  font: 800 10px/1 var(--font-display);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  box-shadow: 0 1px 0 #6b4a0a;
+}
+.ranked-note {
+  margin: 0;
+  text-align: center;
+  color: #ffe27a !important;
+}
+.color-picker {
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
+  padding: 6px;
+}
+.color-picker button,
+.color-picker button.active {
+  height: 36px;
+  border-radius: 9px;
+}
+
+/* ---- tap targets: small buttons get a hit area of at least 44 px --------------------------------- */
+.close-modal,
+.close-tower,
+.welcome-back {
+  position: relative;
+}
+.close-modal::after,
+.close-tower::after,
+.welcome-back::after {
+  content: "";
+  position: absolute;
+  inset: -5px;
+}
+.welcome-back {
+  width: 38px;
+  height: 38px;
+}
+.game-shell .tower-panel #tower-more {
+  min-height: 44px;
+}
+@media (max-width: 360px) {
+  .segmented.ai-levels button,
+  .welcome-modal .segmented.ai-levels button {
+    min-height: 44px;
+    font-size: 13px;
+    letter-spacing: 0.02em;
+  }
+  .segmented.ai-count button,
+  .welcome-modal .segmented.ai-count button {
+    min-height: 40px;
+  }
+}
+
+/* ---- tray: with the volley the left column fits the tray height ----------------------------------- */
+.game-shell .tray-left:has(#volley-button:not([hidden])) {
+  gap: 4px;
+}
+.game-shell .tray-left:has(#volley-button:not([hidden])) #level-button,
+.game-shell .tray-left:has(#volley-button:not([hidden])) #volley-button {
+  width: calc((var(--deck-h) - 13px) / 2);
+  height: calc((var(--deck-h) - 13px) / 2);
+}
+.game-shell .tray-left:has(#volley-button:not([hidden])) #level-button b {
+  font-size: 16px;
+}
+/* dragging a creep card: the AUTO slot lights up as the place to drop it */
+.game-shell #auto-slot.drop-hint {
+  border-style: solid;
+  border-color: #ffe27a;
+  box-shadow: 0 0 12px #ffcf4acc;
+}
+
+/* ---- upgrade bar on narrow phones: the level column steps aside so two upgrades fit ------------- */
+@media (max-width: 360px) {
+  .game-shell #tray:has(#cards.upgrade-mode) .tray-left {
+    display: none;
+  }
+  .game-shell #cards.upgrade-mode {
+    gap: 4px;
+    padding-left: 2px;
+    padding-right: 2px;
+  }
+  .game-shell #cards.upgrade-mode .tc-ups {
+    gap: 4px;
+  }
+  .tcard.tc-info {
+    width: 52px;
+  }
+  .tcard.tc-sell {
+    width: 54px;
+  }
+  .tc-gap {
+    flex-basis: 6px;
+  }
+}
+
+/* ---- desktop: the deck arrows get their own room beside the cards ------------------------------- */
+@media (hover: hover) and (pointer: fine) {
+  .game-shell #tray .cards-wrap:has(.deck-arrow:not([hidden])) {
+    padding: 0 26px;
+  }
+  .game-shell #tray .deck-arrow.prev {
+    left: 0;
+  }
+  .game-shell #tray .deck-arrow.next {
+    right: 0;
+  }
+}
+
+/* ---- small text grows a little ------------------------------------------------------------------- */
+.game-shell .round-plate .round-label {
+  font-size: 10px;
+}
+.hud-level {
+  font-size: 11px;
+}
+.pick-grid {
+  gap: 10px;
+}
+.tut-skip {
+  min-height: 44px;
+  margin: -10px -6px -10px 0;
+  padding: 10px 6px 10px 14px;
+}
+
+/* ---- short screens (16:9 phones, app views): every pixel goes to the board ----------------------
+   The wave line and the board label leave the HUD flow and sit on the board's top frame, the HUD,
+   the tray and the nav row get slimmer. */
+@media (max-height: 760px) {
+  .game-shell {
+    --deck-h: 82px;
+    --nav-h: 44px;
+  }
+  .game-shell:not(.top-band) .mini-hud .wave-chip {
+    position: absolute;
+    z-index: 1;
+    left: 0;
+    right: 0;
+    top: calc(100% + 1px);
+    margin: 0 auto;
+    white-space: nowrap;
+  }
+  .game-shell:not(.top-band).board-label-on .mini-hud .wave-chip {
+    visibility: hidden;
+  }
+  .game-shell .mini-hud {
+    padding-bottom: 1px;
+  }
+  .game-shell .hud-row,
+  .game-shell .mini-hud .player-plate.hud-own,
+  .game-shell .mini-hud .player-plate.hud-rival,
+  .game-shell .mini-hud .round-plate,
+  .game-shell #enemy-stack {
+    height: 42px;
+  }
+  .game-shell .mini-hud .player-plate.hud-own {
+    gap: 2px;
+  }
+  .hud-gold b {
+    font-size: 21px;
+  }
+  .hud-gold img {
+    width: 20px;
+    height: 20px;
+  }
+  .game-shell .round-plate .income-timer {
+    width: 36px;
+    height: 36px;
+  }
+  .game-shell .rival-chip .portrait {
+    width: 34px;
+    height: 34px;
+  }
+  .foe-chip {
+    height: 42px;
+  }
+  .game-shell .bottom-nav [data-tab],
+  .game-shell .bottom-nav .side-button {
+    height: 38px;
+    min-height: 38px;
+  }
+  .game-shell .bottom-nav {
+    padding-top: 2px;
+    padding-bottom: calc(4px + env(safe-area-inset-bottom));
+  }
+  .tray-row {
+    padding: 4px 0 2px;
+  }
+  .game-shell #cards {
+    padding: 3px 4px 2px;
+  }
+  .game-shell #level-button,
+  .game-shell #volley-button,
+  .game-shell #auto-slot {
+    width: 42px;
+    height: 42px;
+  }
+  .game-shell .enemy-list {
+    top: calc(env(safe-area-inset-top) + 48px);
+  }
+  .game-shell #toast,
+  .game-shell:has(.auto-send:not([hidden])) #toast,
+  .game-shell:has(.tower-panel:not([hidden])) #toast,
+  .game-shell:has(.coach:not([hidden])) #toast,
+  .game-shell:has(#zoom-reset:not([hidden])) #toast {
+    top: calc(env(safe-area-inset-top) + 76px);
+  }
+}
+@media (max-height: 640px) {
+  .game-shell {
+    --deck-h: 78px;
+    --nav-h: 42px;
+  }
+  .game-shell .bottom-nav [data-tab],
+  .game-shell .bottom-nav .side-button {
+    height: 36px;
+    min-height: 36px;
+  }
+}
+.tcard > .price::before {
+  flex: none;
+}
+
+/* short screens, part 2: the card row reaches 8 px above the tray box, over the board's bottom frame
+   (never over a field), so the board gets those pixels; HUD and nav lose a few more */
+@media (max-height: 760px) {
+  .game-shell {
+    --deck-h: 74px;
+    --nav-h: 42px;
+  }
+  .game-shell #tray .tray-row {
+    height: calc(100% + 8px);
+    margin-top: -8px;
+  }
+  #tray.command-deck::before {
+    top: -7px;
+  }
+  #tray.command-deck {
+    background: linear-gradient(180deg, #0a0e13a8 0, #0a0e13d9 100%);
+  }
+  .game-shell .hud-row,
+  .game-shell .mini-hud .player-plate.hud-own,
+  .game-shell .mini-hud .player-plate.hud-rival,
+  .game-shell .mini-hud .round-plate,
+  .game-shell #enemy-stack {
+    height: 40px;
+  }
+  .game-shell .mini-hud {
+    padding-top: calc(2px + env(safe-area-inset-top));
+  }
+  .game-shell .tray-left:has(#volley-button:not([hidden])) #level-button,
+  .game-shell .tray-left:has(#volley-button:not([hidden])) #volley-button {
+    width: calc((var(--deck-h) + 8px - 13px) / 2);
+    height: calc((var(--deck-h) + 8px - 13px) / 2);
+  }
+}
+@media (max-height: 640px) {
+  .game-shell {
+    --deck-h: 70px;
+    --nav-h: 42px;
+  }
+}
+@media (max-height: 760px) {
+  .game-shell {
+    --deck-h: 72px;
+    --nav-h: 40px;
+  }
+  .game-shell .bottom-nav [data-tab],
+  .game-shell .bottom-nav .side-button {
+    height: 36px;
+    min-height: 36px;
+  }
+  .game-shell .mini-hud {
+    padding-bottom: 0;
+  }
+}
+@media (max-height: 640px) {
+  .game-shell {
+    --deck-h: 70px;
+  }
+}
+@media (max-height: 760px) {
+  .game-shell .hud-row,
+  .game-shell .mini-hud .player-plate.hud-own,
+  .game-shell .mini-hud .player-plate.hud-rival,
+  .game-shell .mini-hud .round-plate,
+  .game-shell #enemy-stack {
+    height: 38px;
+  }
+  .game-shell .mini-hud {
+    padding-top: calc(1px + env(safe-area-inset-top));
+  }
+  .game-shell .mini-hud .player-plate.hud-own {
+    gap: 1px;
+  }
+}
+@media (max-width: 360px) {
+  .welcome-inline .segmented button {
+    min-height: 40px;
+  }
+}
+/* the element cards' corner ornaments reach past the card edge: keep them apart */
+.pick-grid {
+  gap: 14px;
+}
+/* narrow phones: creep cards are 62 px wide, so the price badge gets a smaller coin and figures */
+@media (max-width: 374px) {
+  .tcard > .price {
+    gap: 1px;
+    padding: 0 4px 0 2px;
+    font-size: 13px;
+  }
+  .tcard > .price::before {
+    width: 13px;
+    height: 13px;
+  }
+}

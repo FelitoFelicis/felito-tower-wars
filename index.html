@@ -69,7 +69,10 @@
         <button id="speed-button" class="speed-button" data-ta="Change game speed" aria-label="Change game speed" hidden>1×</button>
       </section>
       <div id="wave-chip" class="wave-chip" role="status" data-help="Next neutral wave: type and countdown. It runs through both lanes." hidden><i aria-hidden="true"></i><span id="wave-text">Wave 1</span><b id="wave-time">0s</b></div>
+      <!-- v0.11b: whose board is on screen; another player's board keeps it, tap leads back -->
+      <button id="board-label" class="board-label" type="button" hidden></button>
     </div>
+    <div id="enemy-list" class="enemy-list" role="dialog" aria-label="Enemies" hidden></div>
 
     <div class="page-body">
       <div class="page-heading sr-only"><h1 id="page-title">Build</h1><p id="page-subtitle">Pick a tower. Tap a free field.</p></div>
@@ -93,7 +96,7 @@
             <div id="cards" class="cards" data-ta="Unit cards" aria-label="Unit cards"></div>
             <button id="deck-next" class="deck-arrow next" type="button" data-ta="More cards" aria-label="More cards" hidden></button>
           </div>
-          <div id="side-dock" class="side-dock tray-side tray-right" hidden><span class="side-label" id="auto-kicker">Auto</span><button id="auto-slot" class="auto-slot" type="button" aria-label="Auto-Spawn" data-help="Auto-spawn: drag a creep card here and it is sent by itself. Tap to pause, drag out to clear."><span class="auto-slot-empty">+</span></button><span id="tier-badge" class="tier-badge" data-help="Your creep tier. Buying the boss unlocks the next tier.">T1</span></div>
+          <div id="side-dock" class="side-dock tray-side tray-right" hidden><span class="side-label" id="auto-kicker">Auto</span><button id="auto-slot" class="auto-slot" type="button" aria-label="Auto-Spawn" data-help="Auto-spawn: pull a creep card up and drag it here, then it is sent by itself. Tap to pause, drag it out to clear."><span class="auto-slot-empty">+</span></button><span id="tier-badge" class="tier-badge" data-help="Your creep tier. Buying the boss unlocks the next tier.">T1</span></div>
         </div>
         <p class="deck-tip sr-only" id="deck-tip" data-t="Swipe sideways for more cards.">Swipe sideways for more cards.</p>
       </section>

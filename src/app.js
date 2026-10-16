@@ -71,11 +71,23 @@ const savePref = (key, value) => {
 const LIFT_PREF = "felito.lift";
 // v0.09y: 96 px added for very tight views.
 const LIFTS = [0, 24, 48, 72, 96];
+/** A safe-area inset in CSS pixels ("top" or "bottom"). */
+function safeInset(side) {
+  const probe = document.createElement("div");
+  probe.style.cssText = `position:absolute;visibility:hidden;pointer-events:none;padding-${side}:env(safe-area-inset-${side})`;
+  document.body.appendChild(probe);
+  const inset = parseFloat(getComputedStyle(probe)[side === "top" ? "paddingTop" : "paddingBottom"]) || 0;
+  probe.remove();
+  return inset;
+}
 let liftChoice = (() => {
   const v = Number(pref(LIFT_PREF, ""));
   if (pref(LIFT_PREF, "") !== "" && LIFTS.includes(v)) return v;
   try {
-    return matchMedia("(pointer: coarse)").matches ? 24 : 0; // v0.10d: back to 24 once the double safe-area gap was fixed
+    // v0.10d: 24 px on touch screens. v0.11b: none on short screens (the board needs every pixel)
+    // and none when the phone reports a bottom safe area, which already keeps the home bar free.
+    if (!matchMedia("(pointer: coarse)").matches || innerHeight <= 700 || safeInset("bottom") > 0) return 0;
+    return 24;
   } catch {
     return 0;
   }
@@ -89,12 +101,7 @@ let dblMode = DBL_MODES.includes(pref(DBL_PREF, "upgrade")) ? pref(DBL_PREF, "up
 function applyTopBand() {
   const shell = document.querySelector(".game-shell");
   if (!shell) return;
-  const probe = document.createElement("div");
-  probe.style.cssText = "position:absolute;visibility:hidden;pointer-events:none;padding-top:env(safe-area-inset-top)";
-  document.body.appendChild(probe);
-  const inset = parseFloat(getComputedStyle(probe).paddingTop) || 0;
-  probe.remove();
-  shell.classList.toggle("top-band", inset >= 76);
+  shell.classList.toggle("top-band", safeInset("top") >= 76);
 }
 addEventListener("resize", applyTopBand);
 addEventListener("orientationchange", applyTopBand);
@@ -112,7 +119,22 @@ let wavesOn = pref(WAVES_PREF, "true") !== "false";
 // v0.10c/f: number of AI enemies for Vs AI (1–7), chosen like the difficulty; 1 = classic duel.
 const AI_COUNT_PREF = "felito.aiCount";
 const AI_COUNTS = [1, 2, 3, 4, 5, 6, 7];
-let aiCount = AI_COUNTS.includes(Number(pref(AI_COUNT_PREF, "3"))) ? Number(pref(AI_COUNT_PREF, "3")) : 3;
+// v0.11b: null until the player picks a number; then a plain duel (1 AI) until the tutorial has
+// been done once, three AIs after that.
+let aiCount = AI_COUNTS.includes(Number(pref(AI_COUNT_PREF, ""))) ? Number(pref(AI_COUNT_PREF, "")) : null;
+const aiCountNow = () => aiCount ?? (tutorial.done() ? 3 : 1);
+// v0.11b: a phone held sideways shows the "turn your phone" overlay (style.css); the match waits meanwhile.
+const rotateQuery = (() => {
+  try {
+    return matchMedia("(orientation: landscape) and (max-height: 500px) and (pointer: coarse)");
+  } catch {
+    return null;
+  }
+})();
+function syncRotatePause() {
+  if (begun && rotateQuery) setUiPause("rotate", rotateQuery.matches);
+}
+rotateQuery?.addEventListener?.("change", syncRotatePause);
 let warnedWave = 0;
 const sfx = createSfx();
 sfx.setEnabled(soundEnabled);
@@ -201,30 +223,38 @@ function setPortrait(img, q) {
  * Eliminated players keep their place, marked with a skull and faded.
  */
 let enemyStackKey = "";
+// v0.11b: from four enemies on, the HUD shows only your current target plus a "+N" chip that
+// opens a list of every enemy (the chips got too small to read and tap).
+const COMPACT_ENEMIES = 4;
 function renderEnemyStack(force = false) {
   const stack = $("enemy-stack"),
     plate = document.querySelector(".player-plate.rival"),
     multi = !!game && begun && isFfa();
   plate.classList.toggle("multi", multi);
   stack.hidden = !multi;
-  if (!multi) return;
+  if (!multi) return closeEnemyList();
   const colors = seatColors(),
     n = game.players.length,
     seats = [];
   for (let k = 1; k < n; k++) seats.push(game.players[(own + k) % n]);
-  const key = seats.map((q) => q.id + ":" + colors[q.id]).join(",");
+  const compact = seats.length >= COMPACT_ENEMIES,
+    key = seats.map((q) => q.id + ":" + colors[q.id]).join(",") + (compact ? "|c" : "");
   stack.dataset.count = String(seats.length);
+  stack.classList.toggle("compact", compact);
   if (force || key !== enemyStackKey) {
     enemyStackKey = key;
-    stack.innerHTML = seats
-      .map(
-        (q) =>
-          // v0.11: compact chip, portrait in the player's colour with the lives below it
-          `<button class="foe-chip" type="button" data-seat="${q.id}" style="--pc:${TEAM_COLORS[colors[q.id]]?.css || "#888"}"><span class="fc-face"><img class="portrait" src="assets/art/portrait-enemy.webp" alt=""><i class="plate-skull" aria-hidden="true"></i><img class="fc-target" src="${iconUrl("attack")}" alt=""></span><span class="fc-lives"><img src="${iconUrl("heart")}" alt=""><b></b></span></button>`,
-      )
-      .join("");
+    stack.innerHTML =
+      seats
+        .map(
+          (q) =>
+            // v0.11: compact chip, portrait in the player's colour with the lives below it
+            `<button class="foe-chip" type="button" data-seat="${q.id}" style="--pc:${TEAM_COLORS[colors[q.id]]?.css || "#888"}"><span class="fc-face"><img class="portrait" src="assets/art/portrait-enemy.webp" alt=""><i class="plate-skull" aria-hidden="true"></i><img class="fc-target" src="${iconUrl("attack")}" alt=""></span><span class="fc-lives"><img src="${iconUrl("heart")}" alt=""><b></b></span></button>`,
+        )
+        .join("") +
+      (compact ? `<button class="foe-more" type="button" data-more aria-haspopup="true"><b>+${seats.length - 1}</b><span>${t("All")}</span></button>` : "");
   }
-  const target = game.players[own].out ? -1 : targetOf(game, own).id;
+  const target = game.players[own].out ? -1 : targetOf(game, own).id,
+    shown = target >= 0 ? target : (seats.find((q) => !q.out) || seats[0]).id;
   for (const cell of stack.querySelectorAll("[data-seat]")) {
     const q = game.players[Number(cell.dataset.seat)],
       label = `${seatName(q.id)} · ${q.lives} ${t("Lives")} · Lv ${q.level || 1}${q.out ? " · " + t("out") : q.id === target ? " · " + t("your target") : ""}`;
@@ -232,6 +262,7 @@ function renderEnemyStack(force = false) {
     cell.classList.toggle("out", !!q.out);
     cell.classList.toggle("target", q.id === target && !q.out);
     cell.classList.toggle("viewing", q.id === view);
+    cell.classList.toggle("shown", q.id === shown);
     const lives = String(q.lives);
     if (cell.querySelector(".fc-lives b").textContent !== lives) cell.querySelector(".fc-lives b").textContent = lives;
     if (cell.getAttribute("aria-label") !== label) {
@@ -239,6 +270,51 @@ function renderEnemyStack(force = false) {
       cell.dataset.help = label;
     }
   }
+  const more = stack.querySelector("[data-more]");
+  if (more) {
+    const label = t("All {n} enemies: lives and boards", { n: seats.length });
+    more.classList.toggle("viewing", view !== own && view !== shown);
+    more.classList.toggle("open", !$("enemy-list").hidden);
+    if (more.getAttribute("aria-label") !== label) {
+      more.setAttribute("aria-label", label);
+      more.dataset.help = label;
+    }
+  }
+  if (!$("enemy-list").hidden) renderEnemyList();
+}
+/** The list behind the "+N" chip: every enemy with lives and level; a row shows that board. */
+let enemyListHtml = "";
+function renderEnemyList() {
+  const list = $("enemy-list"),
+    colors = seatColors(),
+    n = game.players.length,
+    target = game.players[own].out ? -1 : targetOf(game, own).id,
+    rows = [];
+  for (let k = 1; k < n; k++) rows.push(game.players[(own + k) % n]);
+  const html = rows
+    .map((q) => {
+      const tags = q.out ? `<em class="el-out">${t("Out")}</em>` : q.id === target ? `<em class="el-target"><img src="${iconUrl("attack")}" alt="">${t("Target")}</em>` : "";
+      return `<button class="el-row${q.out ? " out" : ""}${q.id === view ? " viewing" : ""}" type="button" data-seat="${q.id}" style="--pc:${TEAM_COLORS[colors[q.id]]?.css || "#888"}"><img class="portrait" src="${portraitFor(q)}" alt=""><span class="el-name"><b>${esc(seatName(q.id))}</b><small>Lv ${q.level || 1}</small></span>${tags}<span class="el-lives"><img src="${iconUrl("heart")}" alt="">${q.lives}</span></button>`;
+    })
+    .join("");
+  if (enemyListHtml !== html) {
+    enemyListHtml = html;
+    list.innerHTML = `<div class="el-head">${t("Enemies · tap one to see its board")}</div>${html}`;
+  }
+}
+function openEnemyList() {
+  if (!game || !isFfa()) return;
+  $("enemy-list").hidden = false;
+  enemyListHtml = "";
+  renderEnemyList();
+  renderEnemyStack();
+  tone("tap");
+}
+function closeEnemyList() {
+  const list = $("enemy-list");
+  if (!list || list.hidden) return;
+  list.hidden = true;
+  document.querySelector("#enemy-stack [data-more]")?.classList.remove("open");
 }
 // ---- v0.09q: Arrow Volley — an active ability button beside the board ----------------------
 let volleyAim = false;
@@ -476,11 +552,14 @@ function cardHint(item) {
 const isFreeLabel = (label) => String(label).startsWith(t("Free"));
 /** Income a send adds for you right now, buffs included (Feudality, research), at most 2 decimals. */
 const incomeFor = (item) => (game ? sendIncome(game, own, item.id) : item.income);
-function priceLabel(item) {
+/** v0.11b: card price badges stay short: 12,500 → 12.5k, 100,000 → 100k (full number in tooltips). */
+const shortPrice = (n) => (n >= 10000 ? num(Math.floor(n / 100) / 10, { maximumFractionDigits: n >= 100000 ? 0 : 1 }) + "k" : format(n));
+function priceLabel(item, short = true) {
   const free = item.id === "h003" && item.kind !== "send" ? game?.players[own]?.freeArchers || 0 : 0;
   if (free > 0) return free > 1 ? t("Free ×{n}", { n: free }) : t("Free");
-  const c = itemPrice(item);
-  return item.kind === "research" ? `${format(c.wood || c.gold)}` : `${format(c.gold)}`;
+  const c = itemPrice(item),
+    n = item.kind === "research" ? c.wood || c.gold : c.gold;
+  return short ? shortPrice(n) : format(n);
 }
 function stockCount(item) {
   return Math.max(0, Math.floor(game.players[own].stock[item.id]?.count ?? 0));
@@ -553,7 +632,7 @@ function refreshAutoSend() {
   slot.classList.toggle("filled", !!item);
   slot.classList.toggle("off", !!item && !on);
   slot.innerHTML = item ? `<img src="${artUrl(artFor(item))}" alt="">${on ? "" : `<span class="auto-slot-off">${t("Off")}</span>`}` : '<span class="auto-slot-empty">+</span>';
-  slot.setAttribute("aria-label", item ? t(on ? "Auto-spawn {name}: on. Tap to switch, drag out to clear." : "Auto-spawn {name}: off. Tap to switch, drag out to clear.", { name: itemName(item) }) : t("Auto-spawn: drag a creep here"));
+  slot.setAttribute("aria-label", item ? t(on ? "Auto-spawn {name}: on. Tap to switch, drag out to clear." : "Auto-spawn {name}: off. Tap to switch, drag out to clear.", { name: itemName(item) }) : t("Auto-spawn: pull a creep card up and drag it here"));
   slot.title = slot.getAttribute("aria-label");
 }
 // ---- help mode: the "?" button switches tooltips on for every button ---------------------
@@ -564,15 +643,26 @@ let helpMode = pref(HELP_PREF, "false") === "true",
 const helpTip = Object.assign(document.createElement("div"), { id: "help-tip", className: "help-tip", hidden: true });
 helpTip.setAttribute("role", "tooltip");
 document.body.append(helpTip);
+// v0.11b: the kind of pointer used last (touch gets sticky tips, a mouse gets hover tips)
+let lastPointer = (() => {
+  try {
+    return matchMedia("(hover: none)").matches ? "touch" : "mouse";
+  } catch {
+    return "mouse";
+  }
+})();
+document.addEventListener("pointerdown", (e) => (lastPointer = e.pointerType || lastPointer), true);
 function setHelpMode(on, announce = false) {
   helpMode = on;
   savePref(HELP_PREF, on);
   const b = $("help-button");
   b?.classList.toggle("active", on);
   b?.setAttribute("aria-pressed", String(on));
+  document.querySelector(".game-shell")?.classList.toggle("help-mode", on);
   if (!on) hideHelp();
   if (announce) {
-    toast(on ? "Tooltips on: point at a button with the mouse." : "Tooltips off.");
+    const touch = lastPointer !== "mouse";
+    toast(on ? (touch ? "Help on: tap a button to see what it does. Tap ? again to stop." : "Tooltips on: point at a button with the mouse.") : "Help off.");
     tone("tap");
   }
 }
@@ -591,7 +681,7 @@ function abilityNames(item) {
 }
 function statTip(item, action, towerId = null) {
   const a = available(game, own, action, item.id, towerId),
-    price = action === "build" ? priceLabel(item) : format(itemPrice(item).gold),
+    price = action === "build" ? priceLabel(item, false) : format(itemPrice(item).gold),
     rows = [];
   if (item.kind === "send") {
     const unit = catalog.byId[item.spawnIds?.[0]] || item,
@@ -635,7 +725,7 @@ function helpText(el) {
   }
   return el.getAttribute("aria-label") || el.title || "";
 }
-function showHelp(el) {
+function showHelp(el, sticky = false) {
   const text = helpText(el);
   if (!text) return hideHelp();
   helpFor = el;
@@ -645,6 +735,17 @@ function showHelp(el) {
   } else {
     helpTip.textContent = text;
     helpTip.classList.remove("stats");
+  }
+  // v0.11b: on touch the tip stays until its × (or another tap) closes it
+  helpTip.classList.toggle("sticky", sticky);
+  if (sticky) {
+    const close = Object.assign(document.createElement("button"), { type: "button", className: "help-tip-close", textContent: "×" });
+    close.setAttribute("aria-label", t("Close"));
+    close.onclick = (e) => {
+      e.stopPropagation();
+      hideHelp();
+    };
+    helpTip.prepend(close);
   }
   helpTip.hidden = false;
   const r = el.getBoundingClientRect(),
@@ -660,25 +761,48 @@ function hideHelp() {
   helpTip.hidden = true;
   clearTimeout(helpTimer);
 }
-const helpTarget = (e) => (e.target.closest?.("dialog") ? null : e.target.closest?.("[data-help], button, [role=button], [data-card], [data-upgrade]"));
+const helpTarget = (e) =>
+  e.target.closest?.("dialog, .tut, #help-tip") ? null : e.target.closest?.("[data-help], button, [role=button], [data-card], [data-upgrade]");
 document.addEventListener("pointerover", (e) => {
-  if (!helpMode || e.pointerType === "touch") return;
+  if (!helpMode || e.pointerType !== "mouse") return;
   const el = helpTarget(e);
   if (el && el !== helpFor) showHelp(el);
   else if (!el) hideHelp();
 });
 document.addEventListener("pointerout", (e) => {
+  // touch fires pointerout right after lifting the finger: the sticky tip must survive it
+  if (e.pointerType !== "mouse") return;
   if (helpMode && helpFor && !helpFor.contains(e.relatedTarget)) hideHelp();
 });
-// Touch has no hover: in help mode a tap also shows the tip for a moment.
-document.addEventListener("pointerdown", (e) => {
-  if (!helpMode || e.pointerType !== "touch") return;
-  const el = helpTarget(e);
-  if (!el) return hideHelp();
-  showHelp(el);
-  clearTimeout(helpTimer);
-  helpTimer = setTimeout(hideHelp, 2600);
-});
+// v0.11b: touch has no hover. In help mode a tap on a button shows its tip (with a ×) and does
+// not press the button; the "?" itself still switches help off. Taps elsewhere close the tip.
+let helpBlock = null;
+document.addEventListener(
+  "pointerdown",
+  (e) => {
+    if (!helpMode || e.pointerType === "mouse" || e.target.closest?.("#help-tip")) return;
+    const el = helpTarget(e);
+    if (!el || el.closest("#help-button")) return hideHelp();
+    e.stopImmediatePropagation();
+    e.preventDefault();
+    helpBlock = { el, until: performance.now() + 2000 };
+    showHelp(el, true);
+  },
+  true,
+);
+document.addEventListener(
+  "click",
+  (e) => {
+    if (!helpBlock) return;
+    const block = helpBlock;
+    if (performance.now() > block.until) return (helpBlock = null);
+    if (!block.el.contains(e.target)) return;
+    helpBlock = null;
+    e.stopImmediatePropagation();
+    e.preventDefault();
+  },
+  true,
+);
 // ---- v0.09: tooltips for chosen abilities inside the level dialog ([data-tip]) -------------
 // Dialogs sit in the browser's top layer, so this tip lives inside the open dialog.
 const dialogTip = Object.assign(document.createElement("div"), { className: "help-tip stats dialog-tip", hidden: true });
@@ -744,7 +868,22 @@ function applyStaticTexts() {
   document.querySelectorAll("[data-tt]").forEach((el) => (el.title = t(el.dataset.tt)));
 }
 applyStaticTexts();
+// v0.11b: an open dialog sits in the browser's top layer above #toast, so notes then show inside it
+const dialogToast = Object.assign(document.createElement("div"), { className: "dialog-toast" });
+dialogToast.setAttribute("role", "status");
+let dialogToastTimer = 0;
 function toast(message, kind = "", ms = 2200) {
+  const modal = $("modal");
+  if (modal?.open) {
+    if (dialogToast.parentNode !== modal) modal.append(dialogToast);
+    dialogToast.textContent = t(message);
+    dialogToast.classList.remove("show");
+    void dialogToast.offsetWidth;
+    dialogToast.classList.add("show");
+    clearTimeout(dialogToastTimer);
+    dialogToastTimer = setTimeout(() => dialogToast.classList.remove("show"), ms);
+    return;
+  }
   const el = $("toast");
   el.textContent = t(message); // literal German messages and simulation reasons translate here
   el.dataset.kind = kind;
@@ -818,17 +957,28 @@ function pause(value) {
     if (room && connected) sendState();
   }
 }
-function showModal(body, { pauseGame = true, welcome = false } = {}) {
+/**
+ * One <dialog> shows everything. `back` (v0.11b): × and [data-close] return to the dialog this
+ * one was opened from (menu → card book → card) instead of closing. `locked`: no ×, no Escape.
+ */
+let modalBack = null,
+  modalLocked = false;
+function showModal(body, { pauseGame = true, welcome = false, back = null, locked = false } = {}) {
   closeSheet();
   hideDialogTip();
   if (pauseGame && begun) setUiPause("modal", true);
+  modalBack = back;
+  modalLocked = locked;
   $("modal").classList.toggle("welcome-modal", welcome);
   $("modal").classList.remove("with-flag");
   $("modal-body").innerHTML = body;
   if (!$("modal").open) $("modal").showModal();
+  // a new page of the dialog starts at its top, not where the last one was scrolled to
+  $("modal").scrollTop = 0;
+  $("modal-body").scrollTop = 0;
   $("modal-body")
     .querySelectorAll("[data-close]")
-    .forEach((b) => (b.onclick = closeModal));
+    .forEach((b) => (b.onclick = back ? () => back() : closeModal));
 }
 function closeModal() {
   if (!begun && catalog) {
@@ -845,15 +995,17 @@ $("modal").addEventListener("close", () => {
 });
 $("modal").addEventListener("cancel", (e) => {
   e.preventDefault();
-  if (begun) closeModal();
+  if (modalLocked) return;
+  if (modalBack) modalBack();
+  else if (begun) closeModal();
 });
-const modalHeader = (title) =>
-  `<div class="modal-header"><h2>${esc(title)}</h2><button class="close-modal" data-close aria-label="${t("Close")}">×</button></div>`;
+const modalHeader = (title, { close = true } = {}) =>
+  `<div class="modal-header"><h2>${esc(title)}</h2>${close ? `<button class="close-modal" data-close aria-label="${t("Close")}">×</button>` : ""}</div>`;
 
 function welcome() {
   const saved = unusableSave ? null : localStorage.getItem(SAVE);
   showModal(
-    `<div class="welcome-art" aria-hidden="true"></div><button class="welcome-options" id="welcome-options" type="button" aria-label="${t("Options")}"><img src="${iconUrl("gear")}" alt=""></button><span class="app-version">v${APP_VERSION} · ${APP_DATE}</span><img class="welcome-logo" src="assets/art/ui-logo.webp" alt="Felito Tower Wars"><div class="welcome-panel" id="welcome-panel" data-view="home"><div class="welcome-home">${saved ? `<button class="secondary-button welcome-continue" id="resume-game">${t("Continue")}</button>` : ""}<span class="modal-label">${t("Your color")}: <b id="color-name">${t(TEAM_COLORS[colorChoice].name)}</b></span><div class="color-picker" role="radiogroup" aria-label="${t("Your color")}">${Object.entries(TEAM_COLORS).map(([id, c]) => `<button role="radio" data-color="${id}" aria-checked="${id === colorChoice}" aria-label="${t(c.name)}" title="${t(c.name)}" class="${id === colorChoice ? "active" : ""}" style="--c:${c.css}"></button>`).join("")}</div><div class="welcome-modes"><button class="primary-button big welcome-mode" data-open="ai">${t("Vs AI")}</button><button class="primary-button big welcome-mode alt" data-open="player">${t("Vs Player")}</button></div></div><section class="welcome-group" data-sub="ai" aria-label="${t("Vs AI")}"><h3 class="welcome-group-title"><button class="welcome-back" type="button" data-back aria-label="${t("Back")}">‹</button>${t("Vs AI")}</h3><div class="segmented ai-levels" role="radiogroup" aria-label="${t("Difficulty")}">${Object.entries(AI_NAMES).map(([id, name]) => `<button role="radio" data-ai="${id}" aria-checked="${id === aiChoice}" class="${id === aiChoice ? "active" : ""}">${t(name)}</button>`).join("")}</div><div class="welcome-inline"><span class="modal-label">${t("Neutral waves")}</span><div class="segmented" role="radiogroup" aria-label="${t("Neutral waves")}">${[["on", "On"], ["off", "Off"]].map(([id, name]) => `<button role="radio" data-waves="${id}" aria-checked="${(id === "on") === wavesOn}" class="${(id === "on") === wavesOn ? "active" : ""}">${t(name)}</button>`).join("")}</div></div><span class="modal-label">${t("Number of AI enemies")}</span><div class="segmented ai-count" role="radiogroup" aria-label="${t("Number of AI enemies")}">${AI_COUNTS.map((n) => `<button role="radio" data-aicount="${n}" aria-checked="${n === aiCount}" class="${n === aiCount ? "active" : ""}">${n}</button>`).join("")}</div><button class="primary-button big" id="start-training">${t("Start")}</button></section><section class="welcome-group" data-sub="player" aria-label="${t("Vs Player")}"><h3 class="welcome-group-title"><button class="welcome-back" type="button" data-back aria-label="${t("Back")}">‹</button>${t("Vs Player")}</h3><div class="welcome-row pvp-row"><button class="secondary-button" id="start-online">${t("Play a friend")}</button><button class="secondary-button" id="start-ranked">${t("Ranked match")}</button></div></section></div>`,
+    `<div class="welcome-art" aria-hidden="true"></div><button class="welcome-options" id="welcome-options" type="button" aria-label="${t("Options")}"><img src="${iconUrl("gear")}" alt=""></button><span class="app-version">v${APP_VERSION} · ${APP_DATE}</span><img class="welcome-logo" src="assets/art/ui-logo.webp" alt="Felito Tower Wars"><div class="welcome-panel" id="welcome-panel" data-view="home"><div class="welcome-home">${saved ? `<button class="secondary-button welcome-continue" id="resume-game">${t("Continue")}</button>` : ""}<span class="modal-label">${t("Your color")}: <b id="color-name">${t(TEAM_COLORS[colorChoice].name)}</b></span><div class="color-picker" role="radiogroup" aria-label="${t("Your color")}">${Object.entries(TEAM_COLORS).map(([id, c]) => `<button role="radio" data-color="${id}" aria-checked="${id === colorChoice}" aria-label="${t(c.name)}" title="${t(c.name)}" class="${id === colorChoice ? "active" : ""}" style="--c:${c.css}"></button>`).join("")}</div><div class="welcome-modes"><button class="primary-button big welcome-mode" data-open="ai">${t("Vs AI")}</button><button class="primary-button big welcome-mode alt" data-open="player">${t("Vs Player")}</button></div></div><section class="welcome-group" data-sub="ai" aria-label="${t("Vs AI")}"><h3 class="welcome-group-title"><button class="welcome-back" type="button" data-back aria-label="${t("Back")}">‹</button>${t("Vs AI")}</h3><div class="segmented ai-levels" role="radiogroup" aria-label="${t("Difficulty")}">${Object.entries(AI_NAMES).map(([id, name]) => `<button role="radio" data-ai="${id}" aria-checked="${id === aiChoice}" class="${id === aiChoice ? "active" : ""}">${t(name)}</button>`).join("")}</div><div class="welcome-inline"><span class="modal-label">${t("Neutral waves")}</span><div class="segmented" role="radiogroup" aria-label="${t("Neutral waves")}">${[["on", "On"], ["off", "Off"]].map(([id, name]) => `<button role="radio" data-waves="${id}" aria-checked="${(id === "on") === wavesOn}" class="${(id === "on") === wavesOn ? "active" : ""}">${t(name)}</button>`).join("")}</div></div><span class="modal-label">${t("Number of AI enemies")}</span><div class="segmented ai-count" role="radiogroup" aria-label="${t("Number of AI enemies")}">${AI_COUNTS.map((n) => `<button role="radio" data-aicount="${n}" aria-checked="${n === aiCountNow()}" class="${n === aiCountNow() ? "active" : ""}">${n}</button>`).join("")}</div><button class="primary-button big" id="start-training">${t("Start")}</button></section><section class="welcome-group" data-sub="player" aria-label="${t("Vs Player")}"><h3 class="welcome-group-title"><button class="welcome-back" type="button" data-back aria-label="${t("Back")}">‹</button>${t("Vs Player")}</h3><div class="welcome-row pvp-row"><button class="secondary-button" id="start-online">${t("Play a friend")}</button><button class="secondary-button soon" id="start-ranked" aria-disabled="true">${t("Ranked match")}<small class="soon-tag">${t("Soon")}</small></button></div><p class="modal-note ranked-note" id="ranked-note" hidden>${t("Ranked matches are coming soon. Play a friend for now.")}</p></section></div>`,
     { pauseGame: false, welcome: true },
   );
   $("modal-body")
@@ -938,7 +1090,7 @@ function welcome() {
           tone("tap");
         }),
     );
-  $("start-training").onclick = () => (aiCount === 1 ? startLocal() : startLocal({ ffa: true, seats: aiCount + 1 }));
+  $("start-training").onclick = () => (aiCountNow() === 1 ? startLocal() : startLocal({ ffa: true, seats: aiCountNow() + 1 }));
   $("welcome-options").onclick = optionsModal;
   $("start-online").onclick = () => onlineMenu();
   // Start menu pages (v0.10a): home with colour and the two mode buttons; Vs AI and Vs Player open
@@ -950,9 +1102,10 @@ function welcome() {
   $("modal-body").querySelectorAll("[data-open]").forEach((b) => (b.onclick = () => welcomeView(b.dataset.open)));
   $("modal-body").querySelectorAll("[data-back]").forEach((b) => (b.onclick = () => welcomeView("home")));
   // Ranked matches (v0.09z): button is in place, matchmaking follows later.
+  // v0.11b: marked "Soon"; the note shows inside the menu (a toast would sit under the dialog)
   $("start-ranked").onclick = () => {
     tone("tap");
-    toast(t("Ranked matches are coming soon."));
+    $("ranked-note").hidden = false;
   };
   if (saved)
     $("resume-game").onclick = () => {
@@ -968,6 +1121,7 @@ function welcome() {
         applyColors();
         closeModal();
         setPage("build");
+        syncRotatePause();
       } catch {
         unusableSave = true;
         toast(t("This save doesn't fit the new arena and stays stored."));
@@ -987,6 +1141,17 @@ function disconnectRoom() {
   old?.close();
 }
 let shownRival = -1;
+/** v0.11b: the stat tiles of the result dialogs; 4 tiles as 2 + 2, 5 as 3 + 2 (see style.css). */
+function resultStats(me, waves = null) {
+  const tiles = [
+    [me.stats.kills, t("Stopped")],
+    [me.stats.sent, t("Sent")],
+    [me.stats.leaks, t("Leaks")],
+    ["+" + resourceNumber(me.income), t("Income")],
+    ...(waves === null ? [] : [[waves, t("Waves")]]),
+  ];
+  return `<div class="result-stats" data-count="${tiles.length}">${tiles.map(([v, k]) => `<span><b>${v}</b>${k}</span>`).join("")}</div>`;
+}
 /** Four players: you are out. Keep watching, play again or back to the menu. */
 function ownKnockedOut(place) {
   if (shownResult) return;
@@ -997,7 +1162,7 @@ function ownKnockedOut(place) {
   tone("defeat");
   const me = game.players[own];
   showModal(
-    `<div class="modal-kicker" style="text-align:center">${t("KNOCKED OUT")}</div><img class="modal-hero result-hero" src="${artUrl("creep-golem")}" alt=""><h2 class="welcome-title">${t("Place {n} of {m}", { n: place, m: game.players.length })}</h2><div class="result-stats"><span><b>${me.stats.kills}</b>${t("stopped")}</span><span><b>${me.stats.sent}</b>${t("sent")}</span><span><b>${me.stats.leaks}</b>${t("breakthroughs")}</span><span><b>+${resourceNumber(me.income)}</b>${t("Income")}</span></div><button class="primary-button" id="ko-watch">${t("Keep watching")}</button><button class="secondary-button" id="ko-again">${t("Play again")}</button><button class="secondary-button" id="ko-menu">${t("Main menu")}</button>`,
+    `<div class="modal-kicker" style="text-align:center">${t("KNOCKED OUT")}</div><img class="modal-hero result-hero" src="${artUrl("creep-golem")}" alt=""><h2 class="welcome-title">${t("Place {n} of {m}", { n: place, m: game.players.length })}</h2>${resultStats(me)}<button class="primary-button" id="ko-watch">${t("Keep watching")}</button><button class="secondary-button" id="ko-again">${t("Play again")}</button><button class="secondary-button" id="ko-menu">${t("Main menu")}</button>`,
     { pauseGame: false },
   );
   $("ko-watch").onclick = () => {
@@ -1044,6 +1209,7 @@ function startLocal({ hotseat = false, ffa = false, seats = 4 } = {}) {
   closeModal();
   setPage("build");
   tone("select");
+  syncRotatePause();
   // v0.10g: the first local game against the AI starts the guided tutorial; otherwise a short hint
   tutorial.stop();
   if (!tutorial.start()) coach("start");
@@ -1110,16 +1276,33 @@ function sendFx(id, count, auto = false) {
   card.classList.remove("sent-pulse");
   void card.offsetWidth;
   card.classList.add("sent-pulse");
-  const r = card.getBoundingClientRect(),
+  // v0.11b: one counter per card that counts up and starts its rise again, instead of a new
+  // number on top of the last one; the auto counter rises beside the AUTO label, not over it
+  const r = card.getBoundingClientRect();
+  let pop = sendPops.get(key);
+  if (!pop?.isConnected) {
     pop = document.createElement("span");
-  pop.className = "send-count";
+    pop.className = "send-count";
+    document.body.appendChild(pop);
+    sendPops.set(key, pop);
+    pop.addEventListener("animationend", () => {
+      pop.remove();
+      if (sendPops.get(key) === pop) sendPops.delete(key);
+    });
+  }
   pop.textContent = "×" + n;
-  pop.style.left = `${r.left + r.width / 2 + (Math.random() - 0.5) * r.width * 0.3}px`;
-  pop.style.top = `${r.top + 4}px`;
-  document.body.appendChild(pop);
-  pop.addEventListener("animationend", () => pop.remove(), { once: true });
-  setTimeout(() => pop.remove(), 1500);
+  pop.style.left = `${auto ? r.left - 6 : r.left + r.width / 2}px`;
+  pop.style.top = `${auto ? r.top + r.height / 2 : r.top + 4}px`;
+  pop.style.animation = "none";
+  void pop.offsetWidth;
+  pop.style.animation = "";
+  clearTimeout(pop.timer);
+  pop.timer = setTimeout(() => {
+    pop.remove();
+    if (sendPops.get(key) === pop) sendPops.delete(key);
+  }, 1500);
 }
+const sendPops = new Map();
 
 function deckItems() {
   if (tab === "build") {
@@ -1278,7 +1461,7 @@ function upgradeDeck(tw) {
   // (figure, green arrow, price) in their own swipe row, and the sell button apart at the right edge.
   const keepScroll = $("cards").querySelector(".tc-ups")?.scrollLeft || 0;
   $("cards").innerHTML =
-    `<button class="tcard tc-info" id="up-info" type="button" aria-label="${esc(t("{name}, level {n}: show tower info", { name: itemName(item), n: item.level || 1 }))}"><span class="tc-art"><img src="${towerArtUrl(artFor(item))}" alt=""></span><span class="tc-lv">Lv ${item.level || 1}</span><span class="tc-i" aria-hidden="true">i</span><span class="tc-name">${esc(itemName(item))}</span>${tw.buildRemaining > 0 ? `<span class="tc-busy">${t("Building")}</span>` : ""}</button>` +
+    `<button class="tcard tc-info" id="up-info" type="button" aria-label="${esc(t("{name}, level {n}: show tower info", { name: itemName(item), n: item.level || 1 }))}"><span class="tc-art"><img src="${towerArtUrl(artFor(item))}" alt=""></span><span class="tc-lv">Lv ${item.level || 1}</span><span class="tc-i" aria-hidden="true">i</span><span class="tc-name${itemName(item).length > 7 ? " long" : ""}">${esc(itemName(item))}</span>${tw.buildRemaining > 0 ? `<span class="tc-busy">${t("Building")}</span>` : ""}</button>` +
     `<div class="tc-ups">` +
     ups
       .map((u) => {
@@ -1286,11 +1469,11 @@ function upgradeDeck(tw) {
           waiting = upQueue.some((q) => q.towerId === tw.id && q.id === u.id),
           name = `${itemName(u)} Level ${u.level || 1}`;
         const afterBuild = /Still under construction/.test(a.reason || "");
-        return `<button class="tcard tc-up${a.ok || afterBuild ? "" : " unaffordable"}${isPoor(a) ? " poor" : ""}${waiting ? " queued" : ""}" type="button" data-upgrade="${u.id}" aria-label="${esc(t("Upgrade to {name}, {cost} gold", { name, cost: format(u.cost) }))}${a.ok ? "" : ", " + esc(t(a.reason))}" title="${esc(a.ok ? name : t(a.reason))}"><span class="tc-name">${esc(itemName(u))}</span><span class="tc-art"><img src="${towerArtUrl(artFor(u))}" alt=""></span><i class="tc-arrow" aria-hidden="true"></i><span class="tc-lv">Lv ${u.level || 1}</span><span class="tc-cost"><span class="price">${format(u.cost)}</span></span>${waiting ? '<span class="tc-queued" aria-hidden="true">⏳</span>' : ""}</button>`;
+        return `<button class="tcard tc-up${a.ok || afterBuild ? "" : " unaffordable"}${isPoor(a) ? " poor" : ""}${waiting ? " queued" : ""}" type="button" data-upgrade="${u.id}" aria-label="${esc(t("Upgrade to {name}, {cost} gold", { name, cost: format(u.cost) }))}${a.ok ? "" : ", " + esc(t(a.reason))}" title="${esc(a.ok ? name : t(a.reason))}"><span class="tc-name${itemName(u).length > 10 ? " long" : ""}">${esc(itemName(u))}</span><span class="tc-art"><img src="${towerArtUrl(artFor(u))}" alt=""></span><i class="tc-arrow" aria-hidden="true"></i><span class="tc-lv">Lv ${u.level || 1}</span><span class="tc-cost"><span class="price">${format(u.cost)}</span></span>${waiting ? '<span class="tc-queued" aria-hidden="true">⏳</span>' : ""}</button>`;
       })
       .join("") +
     (ups.length ? "" : `<div class="tc-empty">${t("Highest level reached")}</div>`) +
-    `</div><span class="tc-gap" aria-hidden="true"></span><button class="tcard tc-sell" id="up-sell" type="button" aria-label="${esc(t("Sell {name} for {gold} gold", { name: itemName(item), gold: format(refund) }))}"><span class="sell-label">${t("Sell")}</span><img class="sell-coin" src="${iconUrl("coin")}" alt=""><span class="sell-gold">+${format(refund)}</span></button>`;
+    `</div><span class="tc-gap" aria-hidden="true"></span>${sellButton(item, refund)}`;
   $("up-info").onclick = () => itemDetail(tw.typeId, tw.id, own);
   const row = $("cards").querySelector(".tc-ups"),
     more = () => row.classList.toggle("more", row.scrollLeft < row.scrollWidth - row.clientWidth - 4);
@@ -1306,12 +1489,37 @@ function upgradeDeck(tw) {
   $("deck-expand").hidden = true;
   $("deck-count").textContent = "";
   deckSignature = deckSig();
+  fitNames($("cards"));
   requestAnimationFrame(updateDeckArrows);
 }
-let deckClosed = { at: 0, towerId: null };
-function closeUpgradeDeck() {
+/** The sell button of the upgrade bar; the free archer says "Free" instead of "+0" (v0.11b). */
+function sellButton(item, refund) {
+  const free = refund <= 0,
+    gold = "+" + resourceNumber(refund),
+    size = gold.length > 6 ? " long" : gold.length > 5 ? " mid" : "";
+  return `<button class="tcard tc-sell${free ? " free" : ""}" id="up-sell" type="button" aria-label="${esc(free ? t("Sell {name}: it was free, so no gold back", { name: itemName(item) }) : t("Sell {name} for {gold} gold", { name: itemName(item), gold: format(refund) }))}"><span class="sell-label">${t("Sell")}</span><img class="sell-coin" src="${iconUrl("coin")}" alt="">${free ? `<span class="sell-gold free">${t("Free")}</span>` : `<span class="sell-gold${size}">${gold}</span>`}</button>`;
+}
+/**
+ * v0.11b: card names that still overflow their banner (long names, narrow cards) step down in
+ * size, at most to 9 px; past that the line ends in an ellipsis.
+ */
+function fitNames(root) {
+  for (const el of root.querySelectorAll(".tc-name:not(.tc-income)")) {
+    el.style.fontSize = "";
+    let size = parseFloat(getComputedStyle(el).fontSize) || 11;
+    while ((el.scrollWidth > el.clientWidth + 0.5 || el.scrollHeight > el.clientHeight + 1) && size > 9) {
+      size -= 0.5;
+      el.style.fontSize = size + "px";
+    }
+  }
+}
+// v0.11b: the press that closes the upgrade bar is remembered by its pointer, and its release
+// never counts as a tap on the board (a slow tap used to build the selected tower too).
+let deckClosed = { at: 0, towerId: null, pointerId: null },
+  closingTap = false;
+function closeUpgradeDeck(pointerId = null) {
   if (!selectedTower) return;
-  deckClosed = { at: performance.now(), towerId: selectedTower };
+  deckClosed = { at: performance.now(), towerId: selectedTower, pointerId };
   selectedTower = null;
   renderCards();
 }
@@ -1321,10 +1529,22 @@ document.addEventListener(
   (e) => {
     if (!upgradeTower()) return;
     if (e.target.closest?.(".command-deck") || e.target.closest?.("dialog")) return;
-    closeUpgradeDeck();
+    closeUpgradeDeck(e.pointerId);
   },
   true,
 );
+for (const type of ["pointerup", "pointercancel"])
+  document.addEventListener(
+    type,
+    (e) => {
+      if (deckClosed.pointerId === null || e.pointerId !== deckClosed.pointerId) return;
+      deckClosed.pointerId = null;
+      // the board handles this release right after us, in the same event
+      closingTap = type === "pointerup";
+      setTimeout(() => (closingTap = false), 0);
+    },
+    true,
+  );
 /** Tapping a tower opens its upgrade bar; tapping the same tower again shows its details. */
 let lastTowerTap = { id: null, at: 0 };
 function onTowerTap(tower, at = performance.now(), point = null) {
@@ -1337,7 +1557,7 @@ function onTowerTap(tower, at = performance.now(), point = null) {
     doubleUpgrade(tower);
     return;
   }
-  const again = selectedTower === tower.id || (deckClosed.towerId === tower.id && performance.now() - deckClosed.at < 600);
+  const again = selectedTower === tower.id || (deckClosed.towerId === tower.id && closingTap);
   if (view === own && again && !(double && dblMode === "off")) {
     deckClosed = { at: 0, towerId: null };
     selectedTower = null;
@@ -1358,8 +1578,8 @@ function cardMarkup(item) {
   // their income on the banner instead, plus stock, cooldown and a boss/flyer badge.
   return `<button class="tcard ${kindClass}${mark ? " mark-" + mark : ""}${selected === item.id && tab === "build" ? " selected" : ""}${a.ok ? "" : " unaffordable"}${isPoor(a) ? " poor" : ""}" type="button" data-kind="${item.kind}" data-card="${item.id}" aria-label="${esc(name)}, ${esc(label)} Gold, ${esc(cardHint(item))}${a.ok ? "" : ", " + esc(t(a.reason))}"><span class="tc-art"><img src="${send ? artUrl(artFor(item)) : towerArtUrl(artFor(item))}" alt="" draggable="false"></span><span class="price${item.kind === "research" && itemPrice(item).wood ? " wood-price" : ""}${isFreeLabel(label) ? " free" : ""}">${label}</span>${
     send
-      ? `<span class="tc-name tc-income"><span class="card-note${incomeFor(item) > item.income + 0.004 ? " buffed" : ""}">+${formatInc(incomeFor(item))}</span></span><span class="card-stock">${stockCount(item)}</span>${mark ? `<i class="tc-mark tc-${mark}" aria-hidden="true"></i>` : ""}`
-      : `<span class="tc-name${name.length > 10 ? " long" : ""}">${esc(name)}</span>`
+      ? `<span class="tc-name tc-income"><span class="card-note${incomeFor(item) > item.income + 0.004 ? " buffed" : ""}">+${formatInc(incomeFor(item))}</span></span><span class="card-stock">${stockCount(item)}</span>${mark ? `<i class="tc-mark tc-${mark}" aria-hidden="true" title="${t(mark === "boss" ? "Boss" : "Flying")}"></i>` : ""}`
+      : `<span class="tc-name${name.length > 9 ? " long" : ""}">${esc(name)}</span>`
   }<span class="card-status">${cardStatus(item)}</span></button>`;
 }
 function renderCards() {
@@ -1383,8 +1603,11 @@ function renderCards() {
   $("cards")
     .querySelectorAll("[data-card]")
     .forEach((b) => {
-      b.onclick = () => {
+      b.onclick = (e) => {
         if (performance.now() < suppressClickUntil) return;
+        // v0.11b: creep cards handle pointer taps on release (startSendHold); only a keyboard
+        // click (detail 0) sends from here, so a late click after a slow release never sends twice
+        if (tab === "send" && e.detail > 0) return;
         selectCard(b.dataset.card);
       };
       if (tab === "build") b.addEventListener("pointerdown", startCardDrag);
@@ -1392,7 +1615,8 @@ function renderCards() {
     });
   if (sendHold) $("cards").querySelector(`[data-card="${sendHold.id}"]`)?.classList.add("holding");
   $("deck-tip").hidden = tab !== "build";
-  $("deck-tip").textContent = "Elementhalle →";
+  $("deck-tip").textContent = t("Swipe sideways for more cards.");
+  fitNames($("cards"));
   $("deck-expand").hidden = true; // v0.11: one swipeable row, no "All" sheet
   $("deck-count").textContent = t("All {n}", { n: list.length });
   if (!$("deck-sheet").hidden) renderSheet(list);
@@ -1578,10 +1802,12 @@ function pickModal() {
   const p = game?.players[own],
     pick = p?.picks[0];
   if (!pick) return abilitiesModal();
-  const title = pick.kind === "element" ? (pick.level <= 1 ? t("Choose your first element") : t("Level {n}: new element", { n: pick.level })) : t("Level {n}: choose a reward", { n: pick.level });
+  const first = pick.kind === "element" && pick.level <= 1,
+    title = pick.kind === "element" ? (first ? t("Choose your first element") : t("Level {n}: new element", { n: pick.level })) : t("Level {n}: choose a reward", { n: pick.level });
+  // v0.11b: the first element has to be chosen (no ×): closing it used to lose the choice
   showModal(
-    `${modalHeader(title)}<div class="pick-grid">${pick.options.map((o, i) => pickCard(o, i, p)).join("")}</div>${ownedTiles(p)}<p class="modal-note">${p.picks.length > 2 ? t("{n} more rewards after this.", { n: p.picks.length - 1 }) : p.picks.length > 1 ? t("One more reward after this.") : t("EXP comes from breakthroughs, EXP generators and boss purchases.")}</p>`,
-    { pauseGame: sessionMode !== "online" },
+    `${modalHeader(title, { close: !first })}<div class="pick-grid">${pick.options.map((o, i) => pickCard(o, i, p)).join("")}</div>${ownedTiles(p)}<p class="modal-note">${first ? t("Pick one to start. Its towers and upgrades become yours.") : p.picks.length > 2 ? t("{n} more rewards after this.", { n: p.picks.length - 1 }) : p.picks.length > 1 ? t("One more reward after this.") : t("EXP comes from breakthroughs, EXP generators and boss purchases.")}</p>`,
+    { pauseGame: sessionMode !== "online", locked: first },
   );
   $("modal-body")
     .querySelectorAll("[data-pick]")
@@ -1648,6 +1874,36 @@ function refreshWaveChip(p) {
 }
 const matchClock = () =>
   game ? `${String(Math.floor(game.time / 60)).padStart(2, "0")}:${String(Math.floor(game.time % 60)).padStart(2, "0")}` : "00:00";
+/**
+ * v0.11b: a small label under the HUD says whose board is on screen: another player's board
+ * keeps it ("Red's board · tap your gold to return"), your own shows "Your board" for a moment
+ * after coming back.
+ */
+let boardLabelView = 0,
+  ownBoardUntil = 0,
+  boardLabelKey = "";
+function refreshBoardLabel() {
+  const el = $("board-label");
+  if (!el) return;
+  const now = performance.now();
+  if (begun && view === own && boardLabelView !== own) ownBoardUntil = now + 1800;
+  boardLabelView = view;
+  const other = begun && view !== own,
+    show = other || (begun && now < ownBoardUntil);
+  el.hidden = !show;
+  document.querySelector(".game-shell")?.classList.toggle("board-label-on", show);
+  if (!show) return;
+  const color = TEAM_COLORS[seatColors()[view]]?.css || "#888",
+    key = `${view}|${color}|${other}`;
+  if (key === boardLabelKey) return;
+  boardLabelKey = key;
+  el.style.setProperty("--pc", color);
+  el.classList.toggle("own", !other);
+  el.innerHTML = other
+    ? `<i aria-hidden="true"></i><b>${esc(t("{name}'s board", { name: seatName(view) }))}</b><span>${t("tap your gold to return")}</span>`
+    : `<i aria-hidden="true"></i><b>${t("Your board")}</b>`;
+  el.setAttribute("aria-label", other ? t("{name}'s board. Tap to return to your board.", { name: seatName(view) }) : t("Your board"));
+}
 function refreshUI() {
   if (!game) return;
   const p = game.players[own],
@@ -1698,6 +1954,7 @@ function refreshUI() {
         : t(own === 0 ? "Player 2" : "Player 1");
   $("rival-sub").textContent = t(sessionMode === "training" || sessionMode === "ffa" ? "AI" : sessionMode === "hotseat" ? "Local" : connected ? "Connected" : "Connecting …");
   $("arena-label").textContent = view === own ? t("Your arena") : isFfa() ? seatName(view) : t("Enemy");
+  refreshBoardLabel();
   $("view-button").textContent = t(tab !== "build" ? "Back" : view === own ? "Enemy" : "Back");
   $("view-button").classList.toggle("active", view !== own);
   $("round-label").textContent = game.warmup ? t("Setup") : t("Round {n}", { n: game.round });
@@ -1745,7 +2002,7 @@ function anchorFor(id, gridX, gridY) {
 function onCell(tapped) {
   if (volleyAim && view === own) return fireVolley(tapped.fx ?? (tapped.gridX + 0.5) / game.grid.cols, tapped.fy ?? (tapped.gridY + 0.5) / game.grid.rows);
   if (tab !== "build") return;
-  if (performance.now() - deckClosed.at < 600) return;
+  if (closingTap) return; // this tap only closed the upgrade bar
   if (view !== own) {
     if (selected) toast("Switch to your arena.");
     return;
@@ -1769,8 +2026,8 @@ function onCell(tapped) {
   const check = canBuild(game, own, cell.gridX, cell.gridY, selected);
   if (tryQueue(selected, cell.gridX, cell.gridY, check)) return;
   if (!check.ok) {
-    pending = { gridX: cell.gridX, gridY: cell.gridY, until: performance.now() + 1400 };
-    toast(check.reason);
+    // v0.11b: the reason shows as the red label on the field itself, no second note
+    pending = { gridX: cell.gridX, gridY: cell.gridY, until: performance.now() + 1800 };
     tone("error");
     return;
   }
@@ -1889,9 +2146,13 @@ function currentPreview() {
 let sendHold = null,
   lastQuietTone = 0;
 const SEND_HOLD_RATE = 15,
-  SEND_HOLD_DELAY = 250;
-// A tap sends once (on release), holding sends 15 per second, dragging moves the creep into the
-// auto-spawn slot. The same pointer logic lets you drag the slot's creep out to clear it.
+  SEND_HOLD_DELAY = 400, // v0.11b: a still finger this long starts the repeat (was 250 ms)
+  SEND_STILL = 6, // px: more movement than this is no tap and stops a running repeat
+  SEND_LIFT = 12; // px: a creep card pulled this far up (or down) lifts out of the strip
+// v0.11b: a tap sends once (on release); a still press of 400 ms sends 15 per second until the
+// finger lets go or moves. Sideways the strip just scrolls and never sends. Pulling a card up
+// lifts it out of the strip; it then follows the finger anywhere, also sideways onto the AUTO
+// slot. With a mouse any drag lifts the card. The slot's creep can be dragged out to clear it.
 let sendPress = null;
 function startSendHold(e) {
   if (tab !== "send" || (e.button ?? 0) > 0 || !begun) return;
@@ -1899,49 +2160,55 @@ function startSendHold(e) {
   stopSendHold();
   e.preventDefault();
   suppressClickUntil = Infinity; // the click after a press is handled here, not by onclick
-  sendPress = { id, x0: e.clientX, y0: e.clientY, pointerId: e.pointerId, mode: "tap", fromSlot: false };
-  sendHold = { id, interval: null };
-  sendHold.timer = setTimeout(() => {
-    if (!sendHold || sendPress?.mode !== "tap") return;
-    sendPress.mode = "hold";
-    $("cards").querySelector(`[data-card="${id}"]`)?.classList.add("holding");
-    const fire = () => {
-      if (!sendHold || tab !== "send" || !begun) return stopSendHold();
-      if (!available(game, own, "send", sendHold.id).ok) return;
-      lastSendCards[own] = sendHold.id;
-      dispatch({ type: "send", id: sendHold.id }, { quiet: true });
-    };
-    fire();
-    sendHold.interval = setInterval(fire, 1000 / SEND_HOLD_RATE);
+  sendPress = { id, x0: e.clientX, y0: e.clientY, pointerId: e.pointerId, mouse: e.pointerType === "mouse", mode: "tap", fromSlot: false };
+  const hold = (sendHold = { id, interval: null });
+  hold.timer = setTimeout(() => {
+    if (sendHold !== hold || sendPress?.mode !== "tap") return;
+    // a busy phone may still have finger moves queued: they come before the next frame, so the
+    // repeat starts there, and only if the finger really stayed still
+    requestAnimationFrame(() => {
+      if (sendHold !== hold || sendPress?.mode !== "tap") return;
+      sendPress.mode = "hold";
+      $("cards").querySelector(`[data-card="${id}"]`)?.classList.add("holding");
+      const fire = () => {
+        if (sendHold !== hold) return clearInterval(hold.interval);
+        if (tab !== "send" || !begun) return stopSendHold();
+        if (!available(game, own, "send", hold.id).ok) return;
+        lastSendCards[own] = hold.id;
+        dispatch({ type: "send", id: hold.id }, { quiet: true });
+      };
+      fire();
+      hold.interval = setInterval(fire, 1000 / SEND_HOLD_RATE);
+    });
   }, SEND_HOLD_DELAY);
 }
 function startSlotPress(e) {
   if ((e.button ?? 0) > 0 || !begun) return;
   const id = game.players[own].autoSend;
   e.preventDefault();
-  sendPress = { id, x0: e.clientX, y0: e.clientY, pointerId: e.pointerId, mode: "tap", fromSlot: true };
+  // v0.11b: the tap toggles on release; the click that follows must not toggle it back
+  suppressClickUntil = Infinity;
+  sendPress = { id, x0: e.clientX, y0: e.clientY, pointerId: e.pointerId, mouse: e.pointerType === "mouse", mode: "tap", fromSlot: true };
 }
 function overSlot(x, y) {
   const r = $("auto-slot").getBoundingClientRect();
   return x >= r.left - 8 && x <= r.right + 8 && y >= r.top - 8 && y <= r.bottom + 8;
+}
+/** Ends a running hold-to-send repeat (the press itself goes on). */
+function stopRepeat() {
+  clearTimeout(sendHold?.timer);
+  clearInterval(sendHold?.interval);
+  if (sendHold) sendHold.timer = sendHold.interval = null;
+  document.querySelectorAll("#cards .holding").forEach((b) => b.classList.remove("holding"));
 }
 document.addEventListener(
   "pointermove",
   (e) => {
     const sp = sendPress;
     if (!sp || e.pointerId !== sp.pointerId || !sp.id) return;
-    const moved = Math.hypot(e.clientX - sp.x0, e.clientY - sp.y0);
-    // A slow drag start may already have turned into a hold; pulling clearly away still drags.
-    if ((sp.mode === "tap" && moved > 10) || (sp.mode === "hold" && moved > 28)) {
-      sp.mode = "drag";
-      clearTimeout(sendHold?.timer);
-      clearInterval(sendHold?.interval);
-      document.querySelectorAll("#cards .holding").forEach((b) => b.classList.remove("holding"));
-      const ghost = $("drag-ghost");
-      ghost.src = artUrl(artFor(catalog.byId[sp.id]));
-      ghost.hidden = false;
-      ghost.classList.add("creep-ghost");
-    }
+    const dx = e.clientX - sp.x0,
+      dy = e.clientY - sp.y0,
+      moved = Math.hypot(dx, dy);
     if (sp.mode === "drag") {
       // the creep sits centred under the finger or pointer
       const ghost = $("drag-ghost"),
@@ -1951,24 +2218,48 @@ document.addEventListener(
       ghost.style.top = "0px";
       ghost.style.transform = `translate(${e.clientX - box.left - half}px, ${e.clientY - box.top - half}px)`;
       $("auto-slot").classList.toggle("drop-target", overSlot(e.clientX, e.clientY));
+      return;
+    }
+    if (sp.mode === "cancel") return;
+    // any real movement ends the tap and a running repeat
+    if (moved > SEND_STILL && (sp.mode === "tap" || sp.mode === "hold")) {
+      stopRepeat();
+      sp.mode = "moved";
+    }
+    const lift = sp.mouse || sp.fromSlot ? moved > SEND_LIFT : Math.abs(dy) > SEND_LIFT && Math.abs(dy) > Math.abs(dx) * 1.1;
+    if (sp.mode === "moved" && lift) {
+      sp.mode = "drag";
+      const ghost = $("drag-ghost");
+      ghost.src = artUrl(artFor(catalog.byId[sp.id]));
+      ghost.hidden = false;
+      ghost.classList.add("creep-ghost");
+      ghost.style.left = "0px";
+      ghost.style.top = "0px";
+      const box = document.querySelector(".game-shell").getBoundingClientRect(),
+        half = (ghost.offsetWidth || 56) / 2;
+      ghost.style.transform = `translate(${e.clientX - box.left - half}px, ${e.clientY - box.top - half}px)`;
+      if (!sp.fromSlot) $("auto-slot").classList.add("drop-hint");
     }
   },
   { passive: true },
 );
 function stopSendHold(e) {
   const sp = sendPress;
+  // another finger's release does not end this press
+  if (sp && e?.pointerId !== undefined && e.pointerId !== sp.pointerId) return;
   sendPress = null;
   if (sp && (!e || e.type !== "blur")) {
     const ghost = $("drag-ghost");
     if (sp.mode === "drag") {
       ghost.hidden = true;
       ghost.classList.remove("creep-ghost");
-      $("auto-slot").classList.remove("drop-target");
-      const inside = e && overSlot(e.clientX, e.clientY);
+      $("auto-slot").classList.remove("drop-target", "drop-hint");
+      // a cancelled gesture (the browser took it over) never drops anything
+      const inside = e?.type === "pointerup" && overSlot(e.clientX, e.clientY);
       if (!sp.fromSlot && inside) {
         dispatch({ type: "autoSend", id: sp.id, active: true });
         tone("select");
-      } else if (sp.fromSlot && !inside) {
+      } else if (sp.fromSlot && !inside && e?.type === "pointerup") {
         dispatch({ type: "autoSend", id: null, active: false });
         tone("sell");
       }
@@ -1976,24 +2267,23 @@ function stopSendHold(e) {
       if (sp.fromSlot) {
         const p = game.players[own];
         if (p.autoSend) dispatch({ type: "autoSend", active: p.autoSendActive === false });
+        else toast("Pull a creep card up and drop it here: it is then sent by itself.");
       } else selectCard(sp.id);
     }
   }
   if (!sendHold) {
-    if (suppressClickUntil === Infinity) suppressClickUntil = performance.now() + 60;
+    if (suppressClickUntil === Infinity) suppressClickUntil = performance.now() + 400;
     refreshAutoSend();
     return;
   }
-  clearTimeout(sendHold.timer);
-  clearInterval(sendHold.interval);
+  stopRepeat();
   sendHold = null;
-  suppressClickUntil = performance.now() + 60;
-  document.querySelectorAll("#cards .holding").forEach((b) => b.classList.remove("holding"));
+  suppressClickUntil = performance.now() + 400;
   refreshAutoSend();
 }
 document.addEventListener("pointerup", stopSendHold);
 document.addEventListener("pointercancel", (e) => {
-  if (sendPress) sendPress.mode = sendPress.mode === "drag" ? "drag" : "cancel";
+  if (sendPress && e.pointerId === sendPress.pointerId) sendPress.mode = sendPress.mode === "drag" ? "drag" : "cancel";
   stopSendHold(e);
 });
 window.addEventListener("blur", stopSendHold);
@@ -2050,7 +2340,9 @@ function endCardDrag(e, cancelled = false) {
   const check = canBuild(game, own, at.gridX, at.gridY, d.id);
   if (tryQueue(d.id, at.gridX, at.gridY, check)) return;
   if (!check.ok) {
-    toast(check.reason);
+    // the red label on the field gives the reason (the dragged card stays selected)
+    if (selected === d.id) pending = { gridX: at.gridX, gridY: at.gridY, until: performance.now() + 1800 };
+    else toast(check.reason);
     tone("error");
     return;
   }
@@ -2163,6 +2455,11 @@ function coach(key) {
   const step = COACH_STEPS[key];
   if (!tipsEnabled || !step || coachSeen.has(key) || sessionMode === "online" || tutorial.active()) return;
   if (step.requires && !coachSeen.has(step.requires)) return;
+  // v0.11b: wait for the opening element choice (or any dialog) to close first
+  if ($("modal").open) {
+    if (begun) setTimeout(() => coach(key), 600);
+    return;
+  }
   coachSeen.add(key);
   savePref(COACH_PREF, JSON.stringify([...coachSeen]));
   $("coach").hidden = true;
@@ -2243,31 +2540,55 @@ function researchDetail(id) {
     `${modalHeader(itemName(item))}<img class="modal-hero" src="${artUrl(artFor(item))}" alt=""><p class="modal-copy">${esc(cardHint(item))}</p><div class="rule-row"><strong>${t(owned ? "Already unlocked" : "Level reward")}</strong>${t(owned ? "Active in this match." : "Upgrades come with level-ups: collect EXP from breakthroughs, creeps and EXP generators.")}</div><details class="info-disclosure"><summary>${t("Exact values")}</summary><p class="modal-copy">${esc(item.description).replace(/\n/g, "<br>")}</p></details><button class="primary-button" data-close>${t("Back")}</button>`,
   );
 }
-function itemDetail(id, towerId, detailPlayer = own) {
+function itemDetail(id, towerId, detailPlayer = own, back = null) {
   const item = catalog.byId[id],
     stats = item.kind === "research" ? null : getStats(game, detailPlayer, id),
-    canAct = detailPlayer === own;
+    canAct = detailPlayer === own,
+    tower = towerId && canAct ? game.players[own].towers.find((x) => x.id === towerId) : null,
+    send = item.kind === "send";
+  // v0.11b: "Hit points" (not "Lives", which beginners read as their own lives); towers also show
+  // their attack speed and what they can hit
+  const tile = (value, label, cls = "") => `<span${cls ? ` class="${cls}"` : ""}><b>${value}</b>${t(label)}</span>`,
+    targets = item.targets || [],
+    hits = targets.includes("ground") && targets.includes("air") ? "Ground + air" : targets.includes("air") ? "Air only" : "Ground only",
+    statTiles = !stats
+      ? ""
+      : send
+        ? tile(format(stats.hp), "Hit points") + tile(format(stats.speed / game.grid.cellUnits), "fields / s")
+        : tile(format(stats.damage), "Damage") +
+          tile(isMeleeTower(item) ? 1 : format(stats.range / game.grid.cellUnits), isMeleeTower(item) ? "field around (melee)" : "fields range") +
+          tile(format(stats.hp), "Hit points") +
+          (item.attacks || stats.damage > 0 ? tile(`${format(stats.cooldown)} s`, "Attacks every") + tile(t(hits), "Can hit", "txt") : "");
+  // v0.11b: in a tower's own details the button upgrades at once ("Upgrade to Lv 2"); everywhere
+  // else it only opens the next level's card ("See Lv 2 →")
+  const upButton = (uid) => {
+    const u = catalog.byId[uid],
+      lv = u.level || 1;
+    if (tower) {
+      const a = available(game, own, "upgrade", uid, tower.id);
+      return `<button class="secondary-button detail-up${a.ok ? "" : isPoor(a) ? " poor" : " unaffordable"}" data-detail-upgrade="${uid}"><span class="du-main">${t("Upgrade to Lv {n}", { n: lv })} · <span class="cost"><img src="${iconUrl("coin")}" alt="Gold">${format(u.cost)}</span></span><small class="du-name">${esc(itemName(u))}</small></button>`;
+    }
+    return `<button class="secondary-button detail-up" data-detail-upgrade="${uid}"><span class="du-main">${t("See Lv {n} →", { n: lv })}</span><small class="du-name">${esc(itemName(u))}</small></button>`;
+  };
   showModal(
-    `${modalHeader(itemName(item))}<img class="modal-hero" src="${artUrl(artFor(item))}" alt=""><p class="modal-copy">${esc(cardHint(item))}</p>${stats ? `<div class="detail-stats"><span><b>${format(stats.damage)}</b>${t("Damage")}</span><span><b>${isMeleeTower(item) ? 1 : format(stats.range / game.grid.cellUnits)}</b>${t(isMeleeTower(item) ? "field around (melee)" : "fields range")}</span><span><b>${format(stats.hp)}</b>${t("Lives")}</span>${item.kind === "send" ? `<span><b>${format(stats.speed / game.grid.cellUnits)}</b>${t("fields / s")}</span>` : ""}</div>` : ""}${
-      item.upgrades?.length
-        ? `<div class="rule-row"><strong>${t("Upgrade")}</strong>${item.upgrades
-            .map((uid) => {
-              const u = catalog.byId[uid];
-              return `<button class="secondary-button" data-detail-upgrade="${uid}">${esc(itemName(u))} · <span class="cost"><img src="${iconUrl("coin")}" alt="Gold">${format(u.cost)}</span></button>`;
-            })
-            .join("")}</div>`
-        : ""
+    `${modalHeader(itemName(item))}<img class="modal-hero" src="${artUrl(artFor(item))}" alt=""><p class="modal-copy">${esc(cardHint(item))}</p>${stats ? `<div class="detail-stats" data-count="${(statTiles.match(/<span/g) || []).length}">${statTiles}</div>` : ""}${
+      item.upgrades?.length ? `<div class="rule-row"><strong>${t(tower ? "Upgrade this tower" : "Next levels")}</strong>${item.upgrades.filter((uid) => catalog.byId[uid]).map(upButton).join("")}</div>` : ""
     }`,
+    { back },
   );
+  const self = () => itemDetail(id, towerId, detailPlayer, back);
   $("modal-body")
     .querySelectorAll("[data-detail-upgrade]")
     .forEach(
       (b) =>
         (b.onclick = () => {
-          if (towerId && canAct) {
+          const uid = b.dataset.detailUpgrade,
+            tw = tower && game.players[own].towers.find((x) => x.id === towerId);
+          if (tw) {
             closeModal();
-            dispatch({ type: "upgrade", id: b.dataset.detailUpgrade, towerId });
-          } else itemDetail(b.dataset.detailUpgrade, undefined, detailPlayer);
+            // same path as the upgrade bar: remembered for the double tap, queued without gold
+            upgradeTap(tw, uid);
+          } else itemDetail(uid, undefined, detailPlayer, self);
         }),
     );
   if (!towerId && canAct && (item.kind === "send" || item.kind === "research" || item.isRoot)) {
@@ -2282,11 +2603,14 @@ function itemDetail(id, towerId, detailPlayer = own) {
     $("modal-body").append(action);
   }
 }
-function catalogModal() {
+/** The card book. v0.11b: opened from the pause menu, × returns there; a card returns to the book. */
+function catalogModal(back = null, keep = { filter: "tower", q: "" }) {
   showModal(
-    `${modalHeader(t("All cards"))}<input class="catalog-search" id="catalog-search" placeholder="${t("Name or original ID …")}" aria-label="${t("Search the catalog")}"><div class="pills"><button class="active" data-filter="tower">${t("Towers")}</button><button data-filter="send">${t("Creeps")}</button><button data-filter="research">${t("Upgrades")}</button></div><div id="catalog-grid" class="catalog-grid"></div>`,
+    `${modalHeader(t("All cards"))}<input class="catalog-search" id="catalog-search" placeholder="${t("Name or original ID …")}" aria-label="${t("Search the catalog")}"><div class="pills">${[["tower", "Towers"], ["send", "Creeps"], ["research", "Upgrades"]].map(([f, label]) => `<button class="${f === keep.filter ? "active" : ""}" data-filter="${f}">${t(label)}</button>`).join("")}</div><div id="catalog-grid" class="catalog-grid"></div>`,
+    { back },
   );
-  let filter = "tower";
+  let filter = keep.filter;
+  $("catalog-search").value = keep.q || "";
   const draw = () => {
     const q = $("catalog-search").value.toLowerCase();
     const list = (filter === "tower" ? catalog.towers : filter === "send" ? catalog.sends : catalog.research).filter(
@@ -2298,7 +2622,8 @@ function catalogModal() {
       .forEach((el) => el.classList.remove("unaffordable", "poor", "selected"));
     $("catalog-grid")
       .querySelectorAll("[data-card]")
-      .forEach((b) => (b.onclick = () => itemDetail(b.dataset.card)));
+      .forEach((b) => (b.onclick = () => itemDetail(b.dataset.card, undefined, own, () => catalogModal(back, { filter, q: $("catalog-search")?.value || "" }))));
+    fitNames($("catalog-grid"));
   };
   $("catalog-search").oninput = draw;
   $("modal-body")
@@ -2316,20 +2641,22 @@ function catalogModal() {
   draw();
 }
 const RULES_DE = [
-  ["Your goal", "Bring your enemy's 30 lives to zero. Creeps you send run through the enemy's defence. Survivors cost a life and then run on through the next player's field (in a duel, the same one again)."],
+  ["Your goal", "Bring your enemy's 30 lives to zero. Creeps you send run through the enemy's defence. Survivors cost a life and then run on through the next player's field (in a duel, the same one again). Against several AIs your creeps go to one target at a time (it has a sword on its portrait, and it changes during the match); the last player standing wins."],
   ["The economy", "30 gold and a free archer to start. After 12 seconds of setup: 20 income, then every 15 seconds. Buying creeps raises your income."],
-  ["Experience & levels", "The purple bar shows your EXP. Breakthroughs, some creeps and EXP generators give experience. With every level-up you choose one of three rewards from the level button beside the board."],
+  ["Experience & levels", "The purple bar shows your EXP. Breakthroughs, some creeps and EXP generators give experience. With every level-up you choose one of three rewards: tap the Lv button left of your cards. It glows when a reward is waiting."],
   ["No juggling", "A new tower may lengthen the way of walking creeps but never force them to turn back. Sold towers open shortcuts only for the next creeps."],
-  ["Building & upgrading", "Pick a tower card and tap a field: you see the new path and how many fields longer it gets, a second tap builds. Faster: drag the card straight onto the board. Every row can be built on. Creeps appear at the purple portal strip at the top and break through as soon as they leave the board at the bottom. Towers shape the path; blocking it completely is not allowed. Tap towers to upgrade or sell them. Without enough gold an upgrade is queued and starts by itself."],
-  ["Auto-spawn", "Drag a creep card into the frame left of the board: that creep is sent automatically. Tap to switch it off and on, drag it out to clear it."],
+  ["Building & upgrading", "Pick a tower card and tap a free field: one tap builds it. With “Build with preview” switched on in the options, the first tap shows the new path and how many fields longer it gets, and a second tap builds. Faster: pull the card up onto the board. Every row can be built on. Creeps appear at the purple portal strip at the top and break through as soon as they leave the board at the bottom. Towers shape the path; blocking it completely is not allowed. Tap a tower to upgrade or sell it in the bar below, tap it again for its details; a double tap repeats your last upgrade. Without enough gold an upgrade is queued and starts by itself."],
+  ["Auto-spawn", "On the SEND page the AUTO slot sits right of the creep cards. Pull a creep card up, then drag it onto the slot: that creep is sent by itself from then on. Tap the slot to pause or resume it, drag the creep out of the slot to clear it."],
   ["Six elements", "Water, fire, storm, earth, arcane and plague. At the start you choose one of three elements; levels 10 and 25 add one more each. All other levels offer upgrades."],
   ["Neutral waves", "From round 3, every two rounds a neutral wave runs through both lanes on top of the creeps sent. Every wave has a trait: swarm, fast, armored, flyers (only anti-air hits), regeneration, magic immune, splitting, mixed, and every tenth is a boss that costs 3 lives. Waves keep getting stronger. A breakthrough costs lives but gives nobody a life. Can be switched on and off in the main menu."],
   ["Stronger creeps", "Buying a boss unlocks the next tier. Armor, damage types, flyers, restocking and groups shape the duel."],
-  ["Current port status", "This is a playable 1v1 development build with extracted original data. The mobile board, the AI and some missing Warcraft base values are new. Not every special spell and JASS trigger works exactly like the original yet. Details are on every card and in the project documentation."],
+  ["Current port status", "Play against 1 to 7 AI enemies, or online against a friend. The towers, creeps and values come from the original map; the mobile board, the AI and some missing Warcraft base values are new. Not every special spell works exactly like the original yet. Details are on every card."],
 ];
-function rulesModal() {
+/** The rulebook; `back` returns to the menu it was opened from (pause menu or main-menu options). */
+function rulesModal(back = null) {
   showModal(
-    `${modalHeader(t("The rulebook"))}${RULES_DE.map(([h, text]) => `<div class="rule-row"><strong>${t(h)}</strong>${t(text)}</div>`).join("")}<button class="primary-button" data-close>${t("Back to the arena")}</button>`,
+    `${modalHeader(t("The rulebook"))}${RULES_DE.map(([h, text]) => `<div class="rule-row"><strong>${t(h)}</strong>${t(text)}</div>`).join("")}<button class="primary-button" data-close>${t(back ? "Back" : begun ? "Back to the arena" : "Back to the main menu")}</button>`,
+    { back },
   );
 }
 /** Shared settings, used by the in-game menu and the main-menu options. */
@@ -2395,7 +2722,7 @@ function wireSettings(reopen) {
       $("menu-tutorial").textContent = t("Tutorial starts next game");
     }
   };
-  $("menu-rules").onclick = rulesModal;
+  $("menu-rules").onclick = () => rulesModal(reopen);
 }
 /** In-game menu: settings only, rulebook at the bottom. */
 const FLAG_SVG = `<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M8 4v25" stroke="#c9b48a" stroke-width="2.6" stroke-linecap="round"/><path d="M9 5.5c4-2 7 1.5 11 0s5-1.5 7-.5v11c-2-1-3.5-1-7 .5s-7-2-11 0z" fill="#fff" stroke="#9aa6ae" stroke-width="1.2" stroke-linejoin="round"/></svg>`;
@@ -2406,22 +2733,38 @@ function surrender() {
   if (result && result.ok === false) return;
   closeModal();
 }
-/** In-game menu: settings only, rulebook at the bottom. The red × closes it. */
+/**
+ * In-game menu. v0.11b: a clear "Resume" on top and "Leave match" at the bottom; leaving gives up
+ * the match after a confirmation inside the dialog (the flag in the corner does the same: "Give up").
+ */
 function menu() {
+  const leave = canSurrender(),
+    spectating = !leave && begun;
   showModal(
-    `${canSurrender() ? `<button class="surrender-flag" id="menu-surrender" type="button" aria-label="${t("Surrender")}" title="${t("Surrender")}">${FLAG_SVG}</button>` : ""}${modalHeader(t("Paused"))}<div id="surrender-confirm" class="surrender-confirm" hidden><b>${t("Really surrender?")}</b><span>${t(isFfa() ? "You drop out of this match." : "Your opponent wins the duel.")}</span><div class="surrender-row"><button class="danger-button" id="surrender-yes" type="button">${t("Surrender")}</button><button class="secondary-button" id="surrender-no" type="button">${t("Resume")}</button></div></div><div class="menu-clock"><img src="${iconUrl("hourglass")}" alt=""><span>${t("Match time")}</span><b id="menu-clock">${matchClock()}</b></div>${sessionMode === "hotseat" ? `<button class="secondary-button" id="switch-player">${t("Switch player")}</button>` : ""}${settingsButtons()}<button class="secondary-button" id="menu-catalog">${t("Card book")}</button><button class="secondary-button" id="menu-rules">${t("Rules & development status")}</button><p class="modal-note">${t("Training is saved automatically.")}</p>`,
+    `${leave ? `<button class="surrender-flag" id="menu-surrender" type="button" aria-label="${t("Give up")}" title="${t("Give up")}">${FLAG_SVG}</button>` : ""}${modalHeader(t("Paused"))}<div class="menu-clock"><img src="${iconUrl("hourglass")}" alt=""><span>${t("Match time")}</span><b id="menu-clock">${matchClock()}</b></div><button class="primary-button" id="menu-resume" type="button">${t("Resume")}</button>${sessionMode === "hotseat" ? `<button class="secondary-button" id="switch-player">${t("Switch player")}</button>` : ""}${settingsButtons()}<button class="secondary-button" id="menu-catalog">${t("Card book")}</button><button class="secondary-button" id="menu-rules">${t("Rules & development status")}</button>${leave || spectating ? `<button class="danger-button menu-leave" id="menu-leave" type="button">${t("Leave match")}</button>` : ""}<div id="surrender-confirm" class="surrender-confirm" hidden><b>${t("Leave this match?")}</b><span>${t(isFfa() ? "You give up and drop out of this match." : "You give up and your opponent wins the duel.")}</span><div class="surrender-row"><button class="danger-button" id="surrender-yes" type="button">${t("Give up")}</button><button class="secondary-button" id="surrender-no" type="button">${t("Stay")}</button></div></div><p class="modal-note">${t(sessionMode === "online" ? "The duel goes on while this menu is open." : "Training is saved automatically.")}</p>`,
   );
-  $("modal").classList.toggle("with-flag", canSurrender());
-  if ($("menu-surrender")) {
-    $("menu-surrender").onclick = () => {
-      $("surrender-confirm").hidden = false;
-      tone("tap");
-    };
+  $("modal").classList.toggle("with-flag", leave);
+  $("menu-resume").onclick = closeModal;
+  const ask = () => {
+    $("surrender-confirm").hidden = false;
+    $("surrender-confirm").scrollIntoView({ block: "nearest", behavior: "smooth" });
+    tone("tap");
+  };
+  if (leave) {
+    $("menu-surrender").onclick = ask;
+    $("menu-leave").onclick = ask;
     $("surrender-no").onclick = () => ($("surrender-confirm").hidden = true);
     $("surrender-yes").onclick = surrender;
-  }
+  } else if (spectating)
+    // already out (watching) or the match is over: straight back to the main menu
+    $("menu-leave").onclick = () => {
+      begun = false;
+      shownResult = false;
+      disconnectRoom();
+      welcome();
+    };
   wireSettings(menu);
-  $("menu-catalog").onclick = catalogModal;
+  $("menu-catalog").onclick = () => catalogModal(menu);
   if ($("switch-player"))
     $("switch-player").onclick = () => {
       own = 1 - own;
@@ -2437,9 +2780,9 @@ function optionsModal() {
     `${modalHeader(t("Options"))}${settingsButtons()}<button class="secondary-button" id="menu-install">${t("Install app")}</button><button class="secondary-button" id="menu-rules">${t("Rules & development status")}</button><button class="primary-button" data-close>${t("Back to the main menu")}</button>`,
   );
   wireSettings(optionsModal);
-  $("menu-install").onclick = installHelp;
+  $("menu-install").onclick = () => installHelp(optionsModal);
 }
-function installHelp() {
+function installHelp(back = null) {
   if (installPrompt) {
     installPrompt.prompt();
     installPrompt = null;
@@ -2447,6 +2790,7 @@ function installHelp() {
   }
   showModal(
     `${modalHeader(t("Your phone app"))}<img class="modal-hero" src="assets/art/ui-logo.webp" alt="Felito Tower Wars"><p class="modal-copy">${t("<b>iPhone:</b> Open the game address in Safari. Tap Share and “Add to Home Screen”.<br><br><b>Android:</b> Open the address in Chrome. In the browser menu choose “Install app” or “Add to Home screen”.")}</p><p class="modal-note">${t("AI training also works offline after the first full load. A direct duel needs an internet connection. A private deployment needs the owner's sign-in.")}</p><button class="primary-button" data-close>${t("Got it")}</button>`,
+    { back },
   );
 }
 
@@ -2721,7 +3065,7 @@ function tick(dt) {
               : t("Tip: tap towers and upgrade them instead of only building new ones.");
     tone(won ? "victory" : "defeat");
     showModal(
-      `<div class="modal-kicker" style="text-align:center">${t(isFfa() ? "MATCH OVER" : "DUEL OVER")}</div>${isFfa() ? `<p class="modal-copy result-place">${t("Place {n} of {m}", { n: won ? 1 : me.place || 2, m: game.players.length })}</p>` : ""}<img class="modal-hero result-hero" src="${artUrl(won ? "tower-archer" : "creep-golem")}" alt=""><h2 class="welcome-title">${won ? t("Your line.<br><span>Your victory.</span>") : t("Well fought.<br><span>Another round?</span>")}</h2><div class="result-stats"><span><b>${me.stats.kills}</b>${t("stopped")}</span><span><b>${me.stats.sent}</b>${t("sent")}</span><span><b>${me.stats.leaks}</b>${t("breakthroughs")}</span><span><b>+${resourceNumber(me.income)}</b>${t("Income")}</span>${game.waves ? `<span><b>${game.wave}</b>${t("waves")}</span>` : ""}</div><p class="modal-copy" style="text-align:center">${t("Match time")} ${$("match-clock").textContent}${sessionMode === "training" ? ` · ${t("AI")} ${t(AI_NAMES[game.aiLevel] || "Normal")}` : ""}</p>${tip ? `<p class="modal-note result-tip">${tip}</p>` : ""}<button class="primary-button" id="play-again">${t("Play again")}</button>${sessionMode === "training" && game.aiLevel !== "hard" && won ? `<button class="secondary-button" id="play-harder">${t("Harder AI")}</button>` : ""}<button class="secondary-button" id="to-menu">${t("Main menu")}</button>`,
+      `<div class="modal-kicker" style="text-align:center">${t(isFfa() ? "MATCH OVER" : "DUEL OVER")}</div>${isFfa() ? `<p class="modal-copy result-place">${t("Place {n} of {m}", { n: won ? 1 : me.place || 2, m: game.players.length })}</p>` : ""}<img class="modal-hero result-hero" src="${artUrl(won ? "tower-archer" : "creep-golem")}" alt=""><h2 class="welcome-title">${won ? t("Your line.<br><span>Your victory.</span>") : t("Well fought.<br><span>Another round?</span>")}</h2>${resultStats(me, game.waves ? game.wave : null)}<p class="modal-copy" style="text-align:center">${t("Match time")} ${$("match-clock").textContent}${sessionMode === "training" ? ` · ${t("AI")} ${t(AI_NAMES[game.aiLevel] || "Normal")}` : ""}</p>${tip ? `<p class="modal-note result-tip">${tip}</p>` : ""}<button class="primary-button" id="play-again">${t("Play again")}</button>${sessionMode === "training" && game.aiLevel !== "hard" && won ? `<button class="secondary-button" id="play-harder">${t("Harder AI")}</button>` : ""}<button class="secondary-button" id="to-menu">${t("Main menu")}</button>`,
       { pauseGame: false },
     );
     $("play-again").onclick = () => {
@@ -2834,9 +3178,9 @@ async function init() {
       { passive: false },
     );
     $("auto-slot").addEventListener("pointerdown", startSlotPress);
-    $("auto-slot").onclick = () => {
-      // keyboard activation; pointer taps are handled on release
-      if (performance.now() < suppressClickUntil) return;
+    $("auto-slot").onclick = (e) => {
+      // keyboard activation only (detail 0); pointer taps are handled on release in stopSendHold
+      if (e.detail > 0 || performance.now() < suppressClickUntil) return;
       const p = game.players[own];
       if (p.autoSend) dispatch({ type: "autoSend", active: p.autoSendActive === false });
     };
@@ -2871,6 +3215,10 @@ async function init() {
     // Tapping a player's info plate opens that player's maze.
     document.querySelector(".player-plate.own").onclick = () => showMaze(own);
     document.querySelector(".player-plate.rival").onclick = (e) => {
+      if (e.target.closest?.("[data-more]")) {
+        $("enemy-list").hidden ? openEnemyList() : closeEnemyList();
+        return;
+      }
       const cell = e.target.closest?.("[data-seat]");
       if (cell) {
         const seat = Number(cell.dataset.seat);
@@ -2878,6 +3226,25 @@ async function init() {
         return;
       }
       if (!isFfa()) showMaze(nextLane());
+    };
+    // v0.11b: the enemy list behind the "+N" chip
+    $("enemy-list").onclick = (e) => {
+      const row = e.target.closest?.("[data-seat]");
+      if (!row) return;
+      const seat = Number(row.dataset.seat);
+      closeEnemyList();
+      if (!game.players[seat]?.out) showMaze(seat);
+    };
+    document.addEventListener(
+      "pointerdown",
+      (e) => {
+        if (!$("enemy-list").hidden && !e.target.closest?.("#enemy-list, [data-more]")) closeEnemyList();
+      },
+      true,
+    );
+    // v0.11b: the "whose board" label under the HUD leads back to your own board
+    $("board-label").onclick = () => {
+      if (view !== own) showMaze(own);
     };
     document.querySelectorAll(".player-plate").forEach(
       (el) =>
