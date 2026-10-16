@@ -632,6 +632,7 @@ export const PERKS = Object.freeze({
   gold: { name: "Gold", max: 5, text: "Instantly +{gold} gold" },
   novice: { name: "Novice", max: 5, text: "Gain experience 20% faster" },
   volley: { name: "Arrow Volley", max: 5, text: "Active ability: arrows rain on an area (20 s cooldown)" },
+  permafrost: { name: "Permafrost", max: 5, element: "water", text: "Ground creeps in your field are 4% slower per level" }, // v0.10o
   golem: { name: "Golem Whisperer", max: 1, element: "earth", text: "Boss creeps cost 25% less and have +10% hit points" }, // v0.10n
   crowd: { name: "Crowd Control", max: 3, text: "Above 50 creeps in your field: every 5 s the 3 weakest die per level" }, // v0.10l: 3 per level
   pillage: { name: "Pillage", max: 5, text: "Steal 1% of a player's gold on each breakthrough" }, // v0.10k: 1 % per level
@@ -708,11 +709,13 @@ function gainExp(game, p, amount) {
 export function grantExp(game, playerIndex, amount) {
   gainExp(game, game.players[playerIndex], amount);
 }
+/** Research never offered as a perk (v0.10o: Forged Arrows removed). */
+const REMOVED_PERKS = new Set(["R013", "R000"]);
 const ELEMENT_RESEARCH = new Set(FACTIONS.map((f) => f.research));
 /** Research levels a player may take as a level reward right now. */
 function upgradeOptions(game, p) {
   return getCatalog()
-    .research.filter((r) => r.playable && r.playerResearch && !ELEMENT_RESEARCH.has(r.id) && r.id !== "R013")
+    .research.filter((r) => r.playable && r.playerResearch && !ELEMENT_RESEARCH.has(r.id) && !REMOVED_PERKS.has(r.id))
     .filter((r) => available(game, p.id, "research", r.id, null, true).ok)
     .map((r) => ({ type: "research", id: r.id }));
 }
@@ -736,13 +739,13 @@ export const PERK_AVAILABILITY = {
   pillage: "6+",
   crowd: "6+",
   golem: "3+",
+  permafrost: "3+",
   // research (needs the matching element)
   R00K: "1+", // Watcher Owl
   R00U: "1+", // Creep Armor
   R00V: "1+", // Leadership
   R00W: "1+", // Tailwind
   R00X: "1+", // Willpower
-  R000: "1+", // Forged Arrows
   R001: "1+", // Healing Power
   R002: "1+", // Sparring Lessons
   R005: "1+", // Heavy Weapons
@@ -2221,7 +2224,8 @@ function moveCreep(game, p, c, dt) {
   // c.speed is already scaled once by statsFor; scale both clamp limits too.
   // This equals clamp(original speed with modifiers,24,1000)*modeMultiplier.
   const mobility = movementMultiplier(game);
-  let remaining = clamp(c.speed * (1 - clamp(slow, 0, 0.9)) * aura.speed, 24 * mobility, 1000 * mobility) * dt;
+  const frozen = c.flying ? 1 : 1 - 0.04 * perkLevel(p, "permafrost"); // v0.10o: Permafrost of the defender
+  let remaining = clamp(c.speed * (1 - clamp(slow, 0, 0.9)) * aura.speed * frozen, 24 * mobility, 1000 * mobility) * dt;
   while (remaining > EPS && game.running) {
     const next = c.path[c.pathIndex];
     if (!next) {

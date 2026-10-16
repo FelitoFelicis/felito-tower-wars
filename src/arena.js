@@ -580,7 +580,8 @@ export function mountArena({
     }
     drawPathTiles(player, z) {
       const path = player.path || [],
-        key = path.map((p) => p.gridX + "," + p.gridY).join(";") + "|" + this.terrainKey;
+        frozen = (player.perks?.permafrost || 0) > 0, // v0.10o: Permafrost turns the path to frozen ground
+        key = path.map((p) => p.gridX + "," + p.gridY).join(";") + "|" + this.terrainKey + (frozen ? "|ice" : "");
       if (key === this.pathKey) return;
       this.pathKey = key;
       const cell = z.cw;
@@ -597,9 +598,23 @@ export function mountArena({
           .setPosition(z.left + (p.gridX + 0.5) * cell, z.top + (p.gridY + 0.5) * cell)
           .setDisplaySize(cell + 0.6, cell + 0.6)
           .setAngle(Math.floor(hash(p.gridX, p.gridY, 7) * 4) * 90)
-          .setTint(0xffffff);
+          .setTint(frozen ? [0x8fc4f0, 0x9acbf2, 0x86bdea, 0x94c8f0][Math.floor(hash(p.gridX, p.gridY, 9) * 4)] : 0xffffff);
+        // v0.10o: Permafrost: a pale ice sheen over the same tile
+        let ice = this.iceTiles?.[i];
+        if (frozen && !ice) {
+          (this.iceTiles ||= [])[i] = ice = this.stage.image(0, 0, "tile-path").setDepth(3.5).setTintMode(TINT.FILL);
+        }
+        if (ice)
+          ice
+            .setVisible(frozen)
+            .setPosition(z.left + (p.gridX + 0.5) * cell, z.top + (p.gridY + 0.5) * cell)
+            .setDisplaySize(cell + 0.6, cell + 0.6)
+            .setAngle(Math.floor(hash(p.gridX, p.gridY, 7) * 4) * 90)
+            .setTint(0xc8ecff)
+            .setAlpha(0.26 + 0.1 * hash(p.gridX, p.gridY, 11));
         i++;
       }
+      for (let k = i; k < (this.iceTiles?.length || 0); k++) this.iceTiles[k]?.setVisible(false);
       for (; i < this.pathTiles.length; i++) this.pathTiles[i].setVisible(false);
     }
     // ---- pooled floating text -----------------------------------------------------
