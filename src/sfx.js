@@ -137,6 +137,19 @@ export function createSfx() {
       hiss({ dur: 0.4, gain: 0.05, freq: 180, q: 0.8, sweep: 0.6 });
       [784, 988, 1175].forEach((f, i) => tone({ type: "triangle", from: f, dur: 0.3, gain: 0.025, delay: 0.15 + i * 0.07 }));
     },
+    // v0.16: Evolution reward — a quick rising sparkle
+    evolve: () => {
+      [659, 880, 1175, 1568].forEach((f, i) => tone({ type: "triangle", from: f, to: f * 1.06, dur: 0.14, gain: 0.04, delay: i * 0.06 }));
+      hiss({ dur: 0.35, gain: 0.025, freq: 3000, q: 1.5, delay: 0.05, sweep: 1.6 });
+    },
+    // v0.15: Quick Match found — a bright, rising three-note notification chime
+    matchFound: () => {
+      [784, 1046, 1568].forEach((f, i) => {
+        tone({ type: "sine", from: f, dur: 0.5, gain: 0.07, delay: i * 0.12, attack: 0.004 });
+        tone({ type: "triangle", from: f * 2, dur: 0.25, gain: 0.02, delay: i * 0.12, attack: 0.004 });
+      });
+      tone({ type: "sine", from: 1568, to: 1570, dur: 1.1, gain: 0.05, delay: 0.36, attack: 0.01 });
+    },
     error: () => tone({ type: "square", from: 180, to: 140, dur: 0.12, gain: 0.03 }),
     tier: () => [523, 659, 784, 1046].forEach((f, i) => tone({ type: "triangle", from: f, dur: 0.16, gain: 0.04, delay: i * 0.08 })),
     victory: () => [523, 659, 784, 1046, 1318].forEach((f, i) => tone({ type: "triangle", from: f, dur: 0.3, gain: 0.05, delay: i * 0.11 })),

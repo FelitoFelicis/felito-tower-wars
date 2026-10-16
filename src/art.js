@@ -190,7 +190,8 @@ export const ART_MANIFEST = Object.freeze({
   ...Object.fromEntries(VARIANT_ART.map((k) => [k, BASE_ART[k.replace(/-v\d$/, "")]])),
 });
 
-export const artUrl = (key) => `assets/art/${key}.webp`;
+// v0.15: creep art repainted (cloth in team blue); the query makes browsers fetch the new pictures
+export const artUrl = (key) => `assets/art/${key}.webp${/^creep-/.test(key) ? "?v=016" : ""}`;
 export const iconUrl = (name) => `assets/art/icon-${name}.webp`;
 
 /** Cut-out frame animations (rigged from the still art). attack = played on each shot from `start`, walk = looped. */
@@ -200,7 +201,7 @@ export const ANIM_MANIFEST = Object.freeze({
   "tower-guard-l2": { kind: "attack", frames: 10, cols: 5, fw: 380, fh: 420, ox: 40, oy: 20, ms: 45, start: 2 },
   "creep-skeleton": { kind: "walk", frames: 8, cols: 4, fw: 444, fh: 412, ox: 24, oy: 12, ms: 80 },
 });
-export const animUrl = (key) => `assets/anim/${key}.webp`;
+export const animUrl = (key) => `assets/anim/${key}.webp${/^creep-/.test(key) ? "?v=016" : ""}`;
 export const TOWER_ART = Object.keys(ART_MANIFEST).filter((k) => k.startsWith("tower-"));
 export const CREEP_ART = Object.keys(ART_MANIFEST).filter((k) => k.startsWith("creep-"));
 export const ELEMENT_ICON = {
@@ -429,22 +430,24 @@ export function artFor(item) {
  */
 export const TEAM_COLORS = Object.freeze({
   // v0.08a: menu order and four new colours; black and white keep the cloth's shading
-  blue: { name: "Blue", css: "#1c74e0", hex: 0x1c74e0, hue: null },
+  blue: { name: "Blue", css: "#1c74e0", hex: 0x1c74e0, hue: null }, // v0.17: back to the original blue
   red: { name: "Red", css: "#cf241c", hex: 0xcf241c, hue: 356 },
   green: { name: "Green", css: "#16962e", hex: 0x16962e, hue: 128, sat: 1, val: 0.85 },
-  yellow: { name: "Yellow", css: "#e0a800", hex: 0xe0a800, hue: 46, sat: 1, val: 1.05 },
-  orange: { name: "Orange", css: "#e8650f", hex: 0xe8650f, hue: 24, sat: 1, val: 1 },
+  yellow: { name: "Yellow", css: "#ffb703", hex: 0xffb703, hue: 43, sat: 1, val: 1.12 },
+  orange: { name: "Orange", css: "#fb8500", hex: 0xfb8500, hue: 32, sat: 1, val: 1.08 },
   purple: { name: "Purple", css: "#5a17b5", hex: 0x5a17b5, hue: 271, sat: 1, val: 0.74 },
   teal: { name: "Teal", css: "#0b9c90", hex: 0x0b9c90, hue: 176, sat: 1, val: 0.85 },
-  pink: { name: "Pink", css: "#d92c82", hex: 0xd92c82, hue: 330, sat: 0.9, val: 1 },
-  lightblue: { name: "Light blue", css: "#4db6ee", hex: 0x4db6ee, hue: 201, sat: 0.72, val: 1.18 },
+  pink: { name: "Pink", css: "#ffc0cb", hex: 0xffc0cb, hue: 350, sat: 0.32, val: 1.3 },
+  lightblue: { name: "Light blue", css: "#87ceeb", hex: 0x87ceeb, hue: 197, sat: 0.5, val: 1.22 },
   brown: { name: "Brown", css: "#7a4718", hex: 0x7a4718, hue: 28, sat: 0.85, val: 0.6 },
   black: { name: "Black", css: "#3a3c45", hex: 0x3a3c45, hue: 230, sat: 0.12, val: 0.5 }, // v0.09: a tad lighter
   white: { name: "White", css: "#eceae4", hex: 0xeceae4, hue: 45, sat: 0.07, val: 1.38 },
 });
+/** v0.15: cloth colours for recolouring: the player colours plus a muted leather brown for neutral creeps. */
+export const CLOTH_COLORS = Object.freeze({ ...TEAM_COLORS, neutral: { name: "Neutral", css: "#8a8f96", hex: 0x8a8f96, hue: 215, sat: 0.08, val: 0.82 } });
 /** Moves the saturated team blue in RGBA pixel data to a player colour (in place). */
 export function recolorTeam(d, colorId) {
-  const color = TEAM_COLORS[colorId];
+  const color = CLOTH_COLORS[colorId];
   if (!color || color.hue === null) return;
   for (let i = 0; i < d.length; i += 4) {
     if (d[i + 3] < 10) continue;

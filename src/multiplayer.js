@@ -236,6 +236,103 @@ async function openRelayLinks(inbox, onText) {
   for (const l of live) l.subscribe(inbox);
   return live;
 }
+/**
+ * v0.14: presence. Every open game says anonymously over the relay brokers what it is doing
+ * ("queue" = searching a Quick Match, "pve" = playing vs AI); a heartbeat every 10 s keeps the
+ * entry alive for 25 s. `watch(cb)` reports { queue, pve } counts, own entry included.
+ */
+const PRESENCE_TOPIC = `felito/v${PROTOCOL_VERSION}/presence`;
+export function createPresence() {
+  const id = Math.random().toString(36).slice(2, 12),
+    seen = new Map(),
+    watchers = new Set();
+  let state = "idle",
+    links = null,
+    opening = null,
+    beat = null,
+    tick = null;
+  const counts = () => {
+    const now = Date.now(),
+      c = { queue: 0, pve: 0 };
+    for (const [k, v] of seen) {
+      if (now - v.at > 25000) seen.delete(k);
+      else if (v.s in c) c[v.s]++;
+    }
+    if (state in c && !seen.has(id)) c[state]++;
+    return c;
+  };
+  const notify = () => {
+    const c = counts();
+    for (const cb of watchers)
+      try {
+        cb(c);
+      } catch {}
+  };
+  const onMessage = (topic, bytes) => {
+    const who = topic.slice(PRESENCE_TOPIC.length + 1);
+    if (!who || who.length > 24) return;
+    let s = "";
+    try {
+      s = JSON.parse(textDec.decode(bytes)).s;
+    } catch {
+      return;
+    }
+    if (s === "queue" || s === "pve") seen.set(who, { s, at: Date.now() });
+    else seen.delete(who);
+    notify();
+  };
+  const open = () =>
+    (opening ||= (async () => {
+      for (const url of RELAY_BROKERS) {
+        const link = new MqttLink(url, onMessage);
+        if (await link.open()) {
+          link.subscribe(PRESENCE_TOPIC + "/+");
+          links = [link];
+          return links;
+        }
+        link.close();
+      }
+      links = [];
+      return links;
+    })());
+  const say = () => {
+    for (const l of links || []) l.publish(`${PRESENCE_TOPIC}/${id}`, textEnc.encode(JSON.stringify({ s: state })));
+  };
+  const set = (next) => {
+    if (next === state) return;
+    state = next;
+    clearInterval(beat);
+    beat = null;
+    if (state === "idle" || state === "pvp") {
+      say(); // tells the others to drop this entry
+      if (!watchers.size) setTimeout(() => {
+        if ((state === "idle" || state === "pvp") && !watchers.size) {
+          for (const l of links || []) l.close();
+          links = null;
+          opening = null;
+        }
+      }, 800);
+      return;
+    }
+    open().then(() => {
+      say();
+      if (!beat && state !== "idle" && state !== "pvp") beat = setInterval(say, 10000);
+    });
+  };
+  const watch = (cb) => {
+    watchers.add(cb);
+    open().then(notify);
+    tick ||= setInterval(notify, 3000);
+    return () => {
+      watchers.delete(cb);
+      if (!watchers.size) {
+        clearInterval(tick);
+        tick = null;
+      }
+    };
+  };
+  return { set, watch, counts };
+}
 class RelayLinkSender {
   constructor(links, outbox) {
     this.links = links;

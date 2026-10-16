@@ -1314,7 +1314,7 @@ dialog.welcome-modal {
   border: 0;
   border-radius: 0;
   box-shadow: none;
-  background: #07141a url("assets/art/keyart.webp") center top / cover no-repeat;
+  background: #07141a url("assets/art/keyart.webp?v=014") center top / cover no-repeat;
   overflow: hidden;
 }
 dialog.welcome-modal::backdrop {
@@ -3000,7 +3000,7 @@ dialog.welcome-modal::backdrop {
   white-space: normal;
 }
 .segmented.ai-levels {
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(4, 1fr) 0.95fr;
 }
 /* condensed numbers so gold and income always fit side by side, also inside a frame */
 .game-shell[data-page="send"] .unit-card .card-foot .price,
@@ -4282,19 +4282,41 @@ dialog.with-flag .modal-header {
 .welcome-group-title {
   min-height: 34px;
 }
+/* v0.14: the back arrow is a real raised button */
 .welcome-back {
-  display: grid;
-  place-items: center;
-  width: 34px;
-  height: 34px;
-  padding: 0 0 3px;
-  border: 0;
-  border-radius: 10px;
-  background: #0b1924;
-  box-shadow: inset 0 0 0 1px #d9b45a66;
-  font: 800 26px/1 var(--font-display);
-  color: var(--gold, #f2c75c);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 36px;
+  padding: 0 12px 2px 8px;
+  border: 2px solid #050d13;
+  border-radius: 11px;
+  background: linear-gradient(#ffe48f, #e8a52e);
+  box-shadow:
+    inset 0 1px 0 #fff8,
+    0 3px 0 #6b4a0a,
+    0 5px 8px #0007;
+  font: 800 14px/1 var(--font-display);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #4c3510;
   cursor: pointer;
+  transition: transform 0.08s, box-shadow 0.08s;
+}
+.welcome-back i {
+  font: 800 24px/0.8 var(--font-display);
+  font-style: normal;
+  margin-top: -2px;
+}
+.welcome-back:hover {
+  filter: brightness(1.06);
+}
+.welcome-back:active {
+  transform: translateY(3px);
+  box-shadow:
+    inset 0 1px 0 #fff8,
+    0 0 0 #6b4a0a,
+    0 2px 4px #0007;
 }
 
 /* v0.10b: Vs Player has two modes (Two players removed from the menu) */
@@ -4679,4 +4701,911 @@ dialog.welcome-modal {
 }
 .rules-credits span {
   font-style: italic;
+}
+
+/* ---- v0.14 ---------------------------------------------------------------------------------- */
+/* highest income: a soft golden glitter */
+.top-income {
+  position: relative;
+  color: #fff3a8 !important;
+  background: linear-gradient(100deg, #ffe27a 0%, #ffe27a 38%, #fffbe6 50%, #ffe27a 62%, #ffe27a 100%);
+  background-size: 260% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: none !important;
+  filter: drop-shadow(0 0 3px #ffd34a99) drop-shadow(1px 1px 0 #000) drop-shadow(-1px -1px 0 #000);
+  animation: income-shine 2.4s linear infinite;
+}
+.top-income::after {
+  content: "";
+  position: absolute;
+  right: -5px;
+  top: -4px;
+  width: 7px;
+  height: 7px;
+  background: radial-gradient(circle, #fff 0 18%, #ffe27a00 60%), conic-gradient(from 0deg, #fff0 0 10%, #fffbe0 12% 13%, #fff0 15% 35%, #fffbe0 37% 38%, #fff0 40% 60%, #fffbe0 62% 63%, #fff0 65% 85%, #fffbe0 87% 88%, #fff0 90%);
+  border-radius: 50%;
+  -webkit-text-fill-color: initial;
+  animation: income-sparkle 1.6s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes income-shine {
+  from { background-position: 130% 0; }
+  to { background-position: -130% 0; }
+}
+@keyframes income-sparkle {
+  0%, 100% { opacity: 0; transform: scale(0.4) rotate(0deg); }
+  45% { opacity: 1; transform: scale(1.15) rotate(45deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .top-income, .top-income::after { animation: none; }
+}
+/* ability descriptions in tooltips */
+.help-tip .tip-abilities {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid #ffffff1f;
+}
+.help-tip .tip-abilities > span {
+  color: var(--muted, #a8bccb);
+}
+.help-tip .tip-abilities p {
+  margin: 2px 0 0;
+  font-weight: 500;
+  line-height: 1.3;
+  color: #d6e2ea;
+}
+.help-tip .tip-abilities p b {
+  color: #fff;
+  font-weight: 800;
+}
+.help-tip.stats {
+  max-width: min(290px, calc(100vw - 12px));
+}
+/* match summary */
+.sum-stats {
+  grid-template-columns: repeat(auto-fit, minmax(64px, 1fr));
+}
+.sum-stats .sum-fav,
+.sum-stats .sum-income {
+  grid-column: 1 / -1;
+}
+.sum-stats .sum-fav {
+  grid-template-columns: 44px 1fr auto;
+  align-items: center;
+  text-align: left;
+  padding: 6px 10px;
+  column-gap: 10px;
+}
+.sum-stats .sum-fav img {
+  grid-row: span 2;
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
+}
+.sum-stats .sum-fav b {
+  font: 800 16px var(--font-display);
+  text-transform: none;
+}
+.sum-stats .sum-fav small {
+  grid-row: span 2;
+  color: #ffe27a;
+  font: 400 17px var(--font-number);
+}
+.sum-stats .sum-income {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  align-items: baseline;
+  gap: 2px 8px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: #07131b;
+  box-shadow: inset 0 0 0 1.5px #6ee87a66;
+  color: var(--muted);
+  font: 700 11px var(--font-display);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: left;
+  cursor: pointer;
+}
+.sum-stats .sum-income b {
+  color: #6ee87a;
+}
+.sum-stats .sum-income em {
+  font: 400 15px var(--font-number);
+  font-style: normal;
+  color: #c8f5cc;
+}
+.sum-stats .sum-income i {
+  grid-column: 1 / -1;
+  font-style: normal;
+  color: #8fa6b6;
+  letter-spacing: 0.04em;
+}
+.sum-stats .sum-income[aria-expanded="true"] i {
+  display: none;
+}
+.income-chart {
+  margin-top: 6px;
+  padding: 8px 8px 6px;
+  border-radius: 10px;
+  background: #07131b;
+}
+.income-chart[hidden] {
+  display: none;
+}
+.ic-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font: 700 12px var(--font-body);
+  color: #a8bccb;
+}
+.ic-head b {
+  color: #fff;
+}
+#ic-readout b {
+  color: #6ee87a;
+}
+.ic-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  touch-action: none;
+}
+.ic-bar {
+  fill: #3fb950;
+}
+.ic-bar.on {
+  fill: #a6f0ae;
+}
+.ic-grid {
+  stroke: #ffffff17;
+  stroke-width: 1;
+}
+.ic-axis {
+  fill: #7f94a3;
+  font: 600 9px var(--font-body);
+}
+.ic-hit {
+  fill: transparent;
+  cursor: crosshair;
+}
+.ic-foot {
+  font: 600 11px var(--font-body);
+  color: #7f94a3;
+  text-align: center;
+}
+/* surrender: red button at the bottom of the in-game menu */
+.menu-surrender {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+.menu-surrender[hidden] {
+  display: none;
+}
+.menu-surrender svg {
+  width: 22px;
+  height: 22px;
+}
+/* mixed difficulty toggle */
+.segmented.ai-levels .ai-mixed {
+  background: linear-gradient(#2a3b4a, #17242f);
+  color: #c9b8ff;
+  box-shadow: inset 0 0 0 1.5px #8a6cff66;
+}
+.segmented.ai-levels .ai-mixed.active {
+  background: linear-gradient(#c9a8ff, #7a4ee0);
+  color: #1f0b45;
+  box-shadow:
+    inset 0 1px 0 #fff8,
+    0 2px 0 #3a1d80;
+}
+/* the wolf's eyes glow while Hard is picked */
+.welcome-eyes {
+  position: absolute;
+  inset: 0;
+  background: url("assets/art/keyart-eyes.webp?v=014") center top / cover no-repeat;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s;
+}
+dialog.welcome-modal.hard-eyes .welcome-eyes {
+  animation: wolf-eyes 1.6s ease-in-out infinite;
+}
+@keyframes wolf-eyes {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}
+/* Quick Match queue: players online */
+.qm-presence {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.qm-presence span {
+  display: grid;
+  gap: 2px;
+  padding: 8px 4px;
+  border-radius: 10px;
+  background: #07131b;
+  color: var(--muted);
+  font: 700 11px var(--font-display);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: center;
+}
+.qm-presence b {
+  color: #fff;
+  font: 400 21px var(--font-number);
+}
+
+/* ---- v0.15 ---------------------------------------------------------------------------------- */
+/* Graphic › Version: Mobile / PC as two buttons, the fitting one says "(recommended)" */
+.choice-row {
+  display: grid;
+  grid-template-columns: auto 1fr 1fr;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: #07131b99;
+}
+.choice-row > span {
+  font: 800 15px var(--font-display);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #dfe8ee;
+  padding: 0 4px;
+}
+.choice-button {
+  min-height: 46px;
+  padding: 4px 8px;
+  border-radius: 10px;
+  border: 2px solid #050d13;
+  background: linear-gradient(#2a4458, #172a38);
+  box-shadow: inset 0 2px 0 #ffffff25, 0 3px 0 #050d13;
+  font: 800 16px var(--font-display);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #b9c8d2;
+  line-height: 1.05;
+}
+.choice-button small {
+  display: block;
+  font: 700 10px var(--font-body);
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: #9fe0a8;
+}
+.choice-button.active {
+  background: linear-gradient(#3b78aa, #1f4a74);
+  color: #fff;
+  box-shadow: inset 0 2px 0 #ffffff45, 0 3px 0 #050d13, 0 0 0 2px var(--gold, #f2c75c);
+}
+/* v0.15: border of the neighbouring field, shown in the gap while the board slides sideways */
+.lane-peek {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 2;
+  pointer-events: none;
+  box-sizing: border-box;
+  border: 4px solid var(--peek);
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--peek) 30%, transparent), transparent 70%),
+    repeating-linear-gradient(0deg, #ffffff08 0 1px, transparent 1px 34px),
+    repeating-linear-gradient(90deg, #ffffff08 0 1px, transparent 1px 34px),
+    #10241ccc;
+  box-shadow: inset 0 0 24px color-mix(in srgb, var(--peek) 55%, transparent);
+  overflow: hidden;
+}
+.lane-peek[data-side="right"] {
+  right: 0;
+  border-right: 0;
+  border-radius: 14px 0 0 14px;
+}
+.lane-peek[data-side="left"] {
+  left: 0;
+  border-left: 0;
+  border-radius: 0 14px 14px 0;
+  background:
+    linear-gradient(270deg, color-mix(in srgb, var(--peek) 30%, transparent), transparent 70%),
+    repeating-linear-gradient(0deg, #ffffff08 0 1px, transparent 1px 34px),
+    repeating-linear-gradient(90deg, #ffffff08 0 1px, transparent 1px 34px),
+    #10241ccc;
+}
+.lane-peek span {
+  position: absolute;
+  top: 50%;
+  white-space: nowrap;
+  transform: translateY(-50%);
+  font: 800 15px var(--font-display);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #fff;
+  text-shadow: 0 2px 0 #000a;
+}
+.lane-peek[data-side="right"] span {
+  left: 14px;
+}
+.lane-peek[data-side="left"] span {
+  right: 14px;
+}
+/* v0.15: highest income keeps the glitter but stays green */
+.top-income {
+  color: #b8ffbf !important;
+  background: linear-gradient(100deg, #6ee87a 0%, #6ee87a 38%, #eaffec 50%, #6ee87a 62%, #6ee87a 100%);
+  background-size: 260% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  filter: drop-shadow(0 0 3px #6ee87a99) drop-shadow(1px 1px 0 #000) drop-shadow(-1px -1px 0 #000);
+}
+.top-income::after {
+  background: radial-gradient(circle, #fff 0 18%, #6ee87a00 60%), conic-gradient(from 0deg, #fff0 0 10%, #eaffec 12% 13%, #fff0 15% 35%, #eaffec 37% 38%, #fff0 40% 60%, #eaffec 62% 63%, #fff0 65% 85%, #eaffec 87% 88%, #fff0 90%);
+}
+/* v0.15: creeps still locked by their start delay: padlock on crossed chains, rounds in the lock */
+.unit-card.locked img {
+  filter: grayscale(0.7) brightness(0.6);
+}
+.card-lock {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+.card-lock svg {
+  position: absolute;
+  inset: 4%;
+  width: 92%;
+  height: 92%;
+  filter: drop-shadow(0 2px 2px #000a);
+}
+.card-lock b {
+  position: relative;
+  margin-top: 26%;
+  font: 400 clamp(14px, 4.4vw, 22px)/1 var(--font-number);
+  color: #3a2404;
+  text-shadow: 0 1px 0 #fff3b8;
+}
+/* v0.15: quests in the level dialog and among the chosen rewards */
+.pick-card.pick-quest {
+  --el: #ffcf4a;
+  position: relative;
+  background: linear-gradient(#3a2e14, #1c160a);
+}
+.pick-card.pick-quest b {
+  color: #ffe27a;
+}
+.pick-card.pick-quest small {
+  color: #9fe0a8;
+  font: 600 10.5px/1.25 var(--font-body);
+}
+.quest-ribbon {
+  position: absolute;
+  top: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 1px 9px;
+  border-radius: 6px;
+  background: linear-gradient(#ffe27a, #c98a12);
+  border: 1.5px solid #3a2404;
+  color: #3a2404;
+  font: 800 10px/1.4 var(--font-display);
+  font-style: normal;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.owned-tile.quest-tile {
+  --el: #ffcf4a;
+}
+.owned-tile.quest-tile .quest-mark {
+  font: 800 11px/1.4 var(--font-display);
+}
+.owned-tile.quest-run .quest-mark {
+  background: #2a2008;
+  color: #ffe27a;
+}
+.owned-tile.quest-won {
+  --el: #4fd469;
+}
+.owned-tile.quest-won .quest-mark {
+  background: #1a7a2e;
+  color: #fff;
+}
+.owned-tile.quest-lost {
+  --el: #e0453a;
+}
+.owned-tile.quest-lost .quest-mark {
+  background: #9a1a14;
+  color: #fff;
+}
+.owned-tile.quest-lost img {
+  filter: grayscale(0.7) brightness(0.75);
+}
+/* v0.15: the card book as a tech tree */
+.catalog-grid.techtree {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+.tt-tree {
+  --el: #6a8496;
+  padding: 8px 8px 10px;
+  border-radius: 12px;
+  background: #07131b99;
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--el) 45%, #0000);
+  overflow-x: auto;
+}
+.tt-tree h3 {
+  margin: 0 0 6px 2px;
+  font: 800 14px var(--font-display);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--gold, #f2c75c);
+}
+.tt-chain {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  width: max-content;
+}
+.tt-chain.tt-wrap {
+  flex-wrap: wrap;
+  width: auto;
+  row-gap: 6px;
+}
+.tt-children {
+  margin: 4px 0 0 22px;
+  padding-left: 10px;
+  border-left: 2px solid #ffffff22;
+  display: grid;
+  gap: 5px;
+}
+.tt-children > .tt-branch {
+  position: relative;
+}
+.tt-children > .tt-branch::before {
+  content: "";
+  position: absolute;
+  left: -10px;
+  top: 27px;
+  width: 9px;
+  border-top: 2px solid #ffffff22;
+}
+.tt-node {
+  --el: #6a8496;
+  position: relative;
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  width: 64px;
+  min-height: 74px;
+  padding: 4px 3px 5px;
+  border-radius: 9px;
+  border: 1.5px solid #050d13;
+  background: linear-gradient(color-mix(in srgb, var(--el) 22%, #172a38), #0b1822);
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--el) 75%, #000);
+  color: #e6eef3;
+  cursor: pointer;
+}
+.tt-node img {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+}
+.tt-node b {
+  font: 800 9.5px/1.1 var(--font-display);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.tt-node i {
+  position: absolute;
+  top: 2px;
+  left: 3px;
+  font: 800 8.5px var(--font-display);
+  font-style: normal;
+  color: #cfe0ea;
+  text-shadow: 0 1px 0 #000;
+}
+.tt-node small {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font: 400 10px var(--font-number);
+  color: var(--gold, #f2c75c);
+}
+.tt-node small img {
+  width: 10px;
+  height: 10px;
+}
+.tt-node.tt-ref {
+  opacity: 0.55;
+  min-height: 0;
+}
+.tt-node.tt-ref img {
+  width: 26px;
+  height: 26px;
+}
+.tt-node:hover,
+.tt-node:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--el), 0 0 10px color-mix(in srgb, var(--el) 55%, transparent);
+  outline: none;
+}
+.tt-arrow {
+  font: 800 18px/1 var(--font-display);
+  color: #ffffff55;
+  padding: 0 1px;
+}
+.tt-next {
+  font: 800 11px var(--font-display);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--gold, #f2c75c);
+  padding: 4px 6px;
+  border: 1.5px dashed #f2c75c88;
+  border-radius: 8px;
+}
+
+/* ---- v0.16 ---------------------------------------------------------------------------------- */
+/* HUD in the player's colour: bottom bar and side buttons; a short lighter flash when pressed */
+.game-shell .bottom-nav {
+  background: color-mix(in srgb, var(--own-color, #3f9fff) 14%, #0a1822);
+  border-top-color: color-mix(in srgb, var(--own-color, #3f9fff) 45%, transparent);
+}
+.game-shell .bottom-nav [data-tab],
+.game-shell .side-button {
+  background: linear-gradient(color-mix(in srgb, var(--own-color, #3f9fff) 42%, #22394d), color-mix(in srgb, var(--own-color, #3f9fff) 28%, #0b1822));
+  transition: filter 0.25s ease-out, transform 0.08s;
+}
+.game-shell .bottom-nav [data-tab].active {
+  background: linear-gradient(color-mix(in srgb, var(--own-color, #3f9fff) 82%, #fff), color-mix(in srgb, var(--own-color, #3f9fff) 70%, #000));
+}
+.game-shell .bottom-nav [data-tab]:active,
+.game-shell .side-button:active,
+.game-shell .level-button:active,
+.game-shell .auto-slot:active,
+.game-shell .player-plate.own:active {
+  filter: brightness(1.45) saturate(1.1);
+  transform: translateY(1px);
+  transition: filter 0s, transform 0s;
+}
+.game-shell .auto-slot {
+  border-color: color-mix(in srgb, var(--own-color, #3f9fff) 70%, #050d13);
+}
+/* locked creeps: the price and income below the card turn grey too */
+.unit-card.locked .card-foot,
+.unit-card.locked .price,
+.unit-card.locked .card-note {
+  filter: grayscale(1) brightness(0.72);
+  opacity: 0.8;
+}
+/* first-round countdown: big cartoon numbers in the middle of the field, 35 % see-through */
+.warmup-count {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  z-index: 3;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  font: 400 clamp(88px, 34vw, 170px)/1 var(--font-number);
+  color: #ffe27a;
+  -webkit-text-stroke: 5px #3a2404;
+  paint-order: stroke fill;
+  text-shadow: 0 7px 0 #3a2404, 0 10px 18px #000a;
+  opacity: 0.65;
+}
+.warmup-count.pop {
+  animation: warmup-pop 0.9s cubic-bezier(0.2, 1.6, 0.4, 1) both;
+}
+@keyframes warmup-pop {
+  0% { transform: translate(-50%, -50%) scale(0.2) rotate(-12deg); opacity: 0; }
+  35% { transform: translate(-50%, -50%) scale(1.15) rotate(4deg); opacity: 0.65; }
+  60% { transform: translate(-50%, -50%) scale(0.96) rotate(-1deg); }
+  85% { transform: translate(-50%, -50%) scale(1); opacity: 0.65; }
+  100% { transform: translate(-50%, -50%) scale(1.25); opacity: 0; }
+}
+/* crossed swords (your target) sit a few px higher */
+.enemy-cell .ec-target {
+  transform: translateY(-4px);
+}
+/* five to seven enemies: two rows of compact cells (portrait left, lives and gold right) */
+.enemy-stack[data-count="5"],
+.enemy-stack[data-count="6"],
+.enemy-stack[data-count="7"] {
+  display: grid !important;
+  grid-auto-flow: row;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: 2px 3px;
+  align-items: stretch;
+}
+.enemy-stack[data-count="7"] {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.enemy-stack[data-count="5"] .enemy-cell,
+.enemy-stack[data-count="6"] .enemy-cell,
+.enemy-stack[data-count="7"] .enemy-cell {
+  display: grid !important;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: 1fr 1fr;
+  grid-template-areas: "face lives" "face gold";
+  align-items: center;
+  column-gap: 2px;
+  min-width: 0;
+  height: auto;
+  padding: 1px 3px 1px 2px;
+  font-size: 9.5px;
+  overflow: visible;
+}
+.enemy-stack[data-count="5"] .ec-top,
+.enemy-stack[data-count="6"] .ec-top,
+.enemy-stack[data-count="7"] .ec-top,
+.enemy-stack[data-count="5"] .ec-stats,
+.enemy-stack[data-count="6"] .ec-stats,
+.enemy-stack[data-count="7"] .ec-stats {
+  display: contents;
+}
+.enemy-stack[data-count="5"] .ec-face,
+.enemy-stack[data-count="6"] .ec-face,
+.enemy-stack[data-count="7"] .ec-face {
+  grid-area: face;
+  position: relative;
+}
+.enemy-stack[data-count="5"] .ec-lives,
+.enemy-stack[data-count="6"] .ec-lives,
+.enemy-stack[data-count="7"] .ec-lives {
+  grid-area: lives;
+  display: flex !important;
+  align-items: center;
+  gap: 1px;
+  position: static;
+  min-width: 0;
+}
+.enemy-stack[data-count="5"] .ec-gold,
+.enemy-stack[data-count="6"] .ec-gold,
+.enemy-stack[data-count="7"] .ec-gold {
+  grid-area: gold;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  min-width: 0;
+  margin: 0;
+}
+.enemy-stack[data-count="5"] .ec-lives img,
+.enemy-stack[data-count="6"] .ec-lives img,
+.enemy-stack[data-count="7"] .ec-lives img,
+.enemy-stack[data-count="5"] .ec-gold img,
+.enemy-stack[data-count="6"] .ec-gold img,
+.enemy-stack[data-count="7"] .ec-gold img {
+  width: 10px;
+  height: 10px;
+}
+.enemy-stack[data-count="5"] .ec-lives b,
+.enemy-stack[data-count="6"] .ec-lives b,
+.enemy-stack[data-count="7"] .ec-lives b,
+.enemy-stack[data-count="5"] .ec-gold b,
+.enemy-stack[data-count="6"] .ec-gold b,
+.enemy-stack[data-count="7"] .ec-gold b {
+  font-size: 10px;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: clip;
+}
+.enemy-stack[data-count="5"] .enemy-cell .portrait,
+.enemy-stack[data-count="6"] .enemy-cell .portrait,
+.enemy-stack[data-count="7"] .enemy-cell .portrait {
+  width: 20px;
+  height: 20px;
+}
+.enemy-stack[data-count="5"] .ec-target,
+.enemy-stack[data-count="6"] .ec-target,
+.enemy-stack[data-count="7"] .ec-target {
+  width: 12px;
+  height: 12px;
+  right: -5px;
+  top: -4px;
+}
+.enemy-stack[data-count="5"] .enemy-cell,
+.enemy-stack[data-count="6"] .enemy-cell,
+.enemy-stack[data-count="7"] .enemy-cell {
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: 100%;
+  border-radius: 7px;
+}
+.enemy-stack[data-count="5"] .enemy-cell .portrait,
+.enemy-stack[data-count="6"] .enemy-cell .portrait,
+.enemy-stack[data-count="7"] .enemy-cell .portrait {
+  width: 18px !important;
+  height: 18px !important;
+  border-width: 1.5px !important;
+}
+.enemy-stack[data-count="7"] .enemy-cell .portrait {
+  width: 15px !important;
+  height: 15px !important;
+}
+.enemy-stack[data-count="7"] .ec-lives img,
+.enemy-stack[data-count="7"] .ec-gold img {
+  width: 8px;
+  height: 8px;
+}
+.enemy-stack[data-count="7"] .ec-lives b,
+.enemy-stack[data-count="7"] .ec-gold b {
+  font-size: 9px;
+}
+.enemy-stack[data-count="5"] .enemy-cell .plate-skull,
+.enemy-stack[data-count="6"] .enemy-cell .plate-skull,
+.enemy-stack[data-count="7"] .enemy-cell .plate-skull {
+  width: 14px !important;
+  height: 14px !important;
+  top: 2px !important;
+}
+.enemy-stack[data-count="7"] .enemy-cell {
+  padding: 1px 1px 1px 2px !important;
+  column-gap: 1px;
+}
+.enemy-stack[data-count="7"] .ec-lives,
+.enemy-stack[data-count="7"] .ec-gold {
+  gap: 0;
+  letter-spacing: -0.03em;
+}
+
+/* ---- v0.17 ---------------------------------------------------------------------------------- */
+/* main menu: speaker (mute) button beside the options button */
+.welcome-options.welcome-mute {
+  left: 58px;
+}
+.welcome-mute[aria-pressed="true"] {
+  filter: saturate(0.6);
+}
+/* Nemesis box in the match summary (3+ players), framed in that player's colour */
+.nemesis {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 0 4px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 3px solid var(--nc);
+  background: linear-gradient(color-mix(in srgb, var(--nc) 26%, #142636), #0b1822);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--nc) 45%, transparent);
+}
+.nemesis .portrait {
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  border: 2px solid var(--nc);
+  object-fit: cover;
+}
+.nemesis div {
+  display: grid;
+  gap: 1px;
+}
+.nemesis span {
+  font: 800 11px var(--font-display);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #ff9a8a;
+}
+.nemesis b {
+  font: 800 17px var(--font-display);
+  color: #fff;
+}
+.nemesis small {
+  font: 600 11.5px var(--font-body);
+  color: #c9d6de;
+}
+/* creep tooltip: income and value in the income green */
+.help-tip .tip-row.tip-inc b {
+  color: #6ee87a;
+}
+/* creep gold cost about 7 % larger when the card has room (set by fitPrices) */
+.game-shell[data-page="send"] .unit-card.price-big .card-foot .price {
+  font-size: 12.9px;
+}
+.game-shell[data-page="send"] .unit-card.price-big .card-foot.long .price {
+  font-size: 11.8px;
+}
+
+/* First Blood: 15 % smaller, 40 % see-through, title +30 %, player name twice as big in the player's colour */
+.first-blood {
+  width: min(255px, 66vw);
+}
+.first-blood b {
+  font-size: clamp(39px, 11.7vw, 55px);
+}
+.first-blood small {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+.first-blood .fb-name {
+  font: 800 24px/1 var(--font-display);
+  color: var(--fb);
+  text-shadow: -1.5px -1.5px 0 #2a0000, 1.5px -1.5px 0 #2a0000, -1.5px 1.5px 0 #2a0000, 1.5px 1.5px 0 #2a0000;
+}
+@keyframes first-blood {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(2.2) rotate(-8deg); }
+  10% { opacity: 0.6; transform: translate(-50%, -50%) scale(0.92) rotate(2deg); }
+  14% { transform: translate(-52%, -50%) scale(1.04) rotate(-2deg); }
+  18% { transform: translate(-48%, -50%) scale(1) rotate(1deg); }
+  22% { transform: translate(-50%, -50%) scale(1) rotate(0); }
+  80% { opacity: 0.6; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -46%) scale(1.06); }
+}
+
+/* level button: number 20 % larger, frame in the EXP purple (not the player colour) */
+.game-shell .level-button {
+  border-color: #8e55ff;
+  box-shadow: inset 0 0 0 1px #c9a8ff80, 0 3px 0 #1a0b2e;
+}
+.game-shell .level-button b {
+  font-size: 20.5px;
+}
+/* portrait frames in the player's colour with a light metallic sheen */
+.player-plate.own .portrait {
+  --fc: var(--own-color, #1c74e0);
+}
+.player-plate.rival .portrait {
+  --fc: var(--rival-color, #e5443b);
+}
+/* v0.16d: enemy cells sit inside the rival plate, so they need the higher specificity to keep their own colour */
+.player-plate .enemy-cell .portrait {
+  --fc: var(--pc, #888);
+}
+.player-plate .portrait,
+.enemy-cell .portrait {
+  border-color: transparent !important;
+  background:
+    radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--fc) 45%, #2f3f4a), #0f1a22) padding-box,
+    linear-gradient(135deg, color-mix(in srgb, var(--fc) 45%, #fff) 0%, var(--fc) 28%, color-mix(in srgb, var(--fc) 55%, #000) 52%, color-mix(in srgb, var(--fc) 70%, #fff) 74%, color-mix(in srgb, var(--fc) 60%, #000) 100%) border-box !important;
+  box-shadow: 0 0 0 1px #0009, 0 1px 2px #0008;
+}
+/* v0.16f/g: recruit number in the top-left corner of creep cards, 10 % larger */
+.game-shell[data-page="send"] .unit-card .card-stock {
+  top: 3px;
+  left: 4px;
+  bottom: auto;
+  font-size: 14.3px;
+}
+.game-shell[data-page="send"] .unit-card.framed .card-stock {
+  top: 8px;
+  left: 8px;
+  bottom: auto;
+}
+/* v0.16g: result dialog headline: golden "Victory" or red "Defeat" */
+.result-banner {
+  margin: 2px 0 4px;
+  text-align: center;
+  font: 400 clamp(40px, 12vw, 58px)/1.05 var(--font-number);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  -webkit-text-stroke: 1.5px #2a1600;
+  paint-order: stroke fill;
+  filter: drop-shadow(0 3px 0 #0009) drop-shadow(0 0 10px #0006);
+}
+.result-banner.win {
+  background: linear-gradient(180deg, #fff6c2 0%, #ffd84a 38%, #e8a312 62%, #ffe27a 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.result-banner.lose {
+  background: linear-gradient(180deg, #ffb3a6 0%, #ff4a3a 40%, #b3140c 70%, #ff6b5a 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-stroke-color: #2a0400;
 }

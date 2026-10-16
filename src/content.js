@@ -34,7 +34,7 @@ export const RULES = {
   initialLumber: 0,
   initialLives: 30,
   incomeInterval: 15,
-  warmup: 12,
+  warmup: 10, // v0.16: 12 → 10 s
   suddenDeathRound: 120,
   suddenDeathFloor: 5,
   touchdownWood: 15,

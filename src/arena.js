@@ -1,5 +1,5 @@
 import { getStats, divineShield, isMagicTower, isMeleeTower, towerAt, towerSize, footprintOf, STRIP, HELLFIRE, LONE } from "./simulation.js";
-import { ART_MANIFEST, ANIM_MANIFEST, animUrl, artFor, artUrl, towerTier, TOWER_ART, CREEP_ART, TEAM_COLORS, recolorTeam } from "./art.js";
+import { ART_MANIFEST, ANIM_MANIFEST, animUrl, artFor, artUrl, towerTier, TOWER_ART, CREEP_ART, TEAM_COLORS, CLOTH_COLORS, recolorTeam } from "./art.js";
 import { t } from "./i18n.js";
 import { Stage, BLEND, TINT, hsvToColor } from "./b2d.js";
 
@@ -53,13 +53,15 @@ function creepSize(catalog, id) {
     for (const list of tiers.values()) {
       list.sort((a, b) => a.cost - b.cost);
       list.forEach((s, i) => {
-        const f = 0.7 + (0.45 * i) / Math.max(1, list.length - 1);
+        // v0.16g: wider spread from the weakest to the strongest creep, +1 % per tier above 1
+        const f = (0.68 + (0.6 * i) / Math.max(1, list.length - 1)) * tierGrowth(s.tier);
         for (const unit of [s.id, ...(s.spawnIds || [])]) if (!CREEP_SIZE.has(unit)) CREEP_SIZE.set(unit, f);
       });
     }
   }
   return (CREEP_SIZE.get(id) ?? 1) * (SIZE_BOOST[id] || 1);
 }
+const tierGrowth = (tier) => 1 + 0.01 * Math.max(0, (tier || 1) - 1);
 /** Creeps drawn larger than their rank alone would make them. */
 const SIZE_BOOST = { n00S: 1.3, nAGO: 1.45 }; // tier 1 Raiders, v0.12: Arcane Golem
 export function arenaGeometry(width, height, grid = { cols: 6, rows: 9 }, mode = "build", insets = { top: 84, bottom: 172 }) {
@@ -164,6 +166,7 @@ export function mountArena({
   popups = { numbers: true, notes: true },
   onPip = () => {},
   onSwipe = () => {},
+  peekLane = () => null, // v0.15: {name, color} of the field a swipe in that direction would show
   onHover = () => {},
   getAim = () => null,
   onTick,
@@ -174,6 +177,32 @@ export function mountArena({
     const id = getColors()?.[player];
     return TEAM_COLORS[id] ? id : player === getOwnPlayer() ? "blue" : "red";
   };
+  // v0.15: while the board slides sideways, the neighbouring field's border appears in the gap
+  const peekEl = document.createElement("div");
+  peekEl.className = "lane-peek";
+  peekEl.hidden = true;
+  peekEl.innerHTML = "<span></span>";
+  container.append(peekEl);
+  let peekInfo = null,
+    peekSide = 0;
+  function showPeek(offset, width, info = peekInfo) {
+    if (!offset || !info) {
+      if (!peekEl.hidden) peekEl.hidden = true;
+      return;
+    }
+    const w = Math.min(width, Math.abs(offset)),
+      side = offset < 0 ? "right" : "left";
+    if (peekInfo !== info || peekSide !== side) {
+      peekInfo = info;
+      peekSide = side;
+      peekEl.style.setProperty("--peek", info.color || "#888");
+      peekEl.firstChild.textContent = info.name || "";
+      peekEl.dataset.side = side;
+    }
+    peekEl.hidden = false;
+    peekEl.style.width = Math.round(w) + "px";
+    peekEl.style.opacity = String(Math.min(1, w / 40));
+  }
   let insets = { top: 84, bottom: 172 };
   function measureInsets() {
     const box = container.getBoundingClientRect(),
@@ -253,7 +282,7 @@ export function mountArena({
      */
     /** The art in a player's colour: team blue moved to that colour's hue (cached per colour). */
     teamTexture(key, colorId) {
-      const color = TEAM_COLORS[colorId];
+      const color = CLOTH_COLORS[colorId];
       if (!color || color.hue === null || !this.stage.hasTexture(key)) return key;
       const red = key + "#" + colorId;
       if (this.stage.hasTexture(red)) return red;
@@ -341,7 +370,13 @@ export function mountArena({
           const dx = p.x - press.x,
             dy = p.y - press.y;
           if (!press.swiping && Math.abs(dx) > 16 && Math.abs(dx) > Math.abs(dy) * 1.3) press.swiping = true;
-          if (press.swiping) this.stage.slideX = clamp(dx * 0.45, -this.stage.width * 0.3, this.stage.width * 0.3);
+          if (press.swiping) {
+            // v0.15: the board follows the finger closely; the next field's border shows in the gap
+            const step = dx < 0 ? 1 : -1;
+            if (press.peekStep !== step) (press.peekStep = step), (press.peek = peekLane(step));
+            const limit = this.stage.width * (press.peek ? 0.6 : 0.12);
+            this.setSlide(clamp(dx * 0.85, -limit, limit), press.peek);
+          }
           if (ev.pointerType === "mouse") onHover(null);
           return;
         }
@@ -375,11 +410,13 @@ export function mountArena({
             quick = performance.now() - press.t < 700;
           if (press.swiping || (quick && Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.3)) {
             const step = dx < 0 ? 1 : -1,
-              changed = Math.abs(dx) > 44 && onSwipe(step);
-            this.slideFrom(changed ? (dx < 0 ? this.stage.width * 0.32 : -this.stage.width * 0.32) : this.stage.slideX || 0);
+              info = press.peekStep === step ? press.peek : peekLane(step);
+            // v0.15: a swipe rolls the board out to the side, then the next field rolls in
+            if (Math.abs(dx) > 44 && info) this.roll(step, info, () => onSwipe(step));
+            else this.slideTo(0, 200);
             return;
           }
-          if (this.stage.slideX) this.slideFrom(this.stage.slideX);
+          if (this.stage.slideX && !this.slide) this.slideTo(0, 200);
         }
         if (!press || press.id !== p.id || press.seed !== state?.seed || Math.hypot(p.x - press.x, p.y - press.y) > 12) return;
         const r = pipGeometry(this.geometry());
@@ -405,23 +442,47 @@ export function mountArena({
       window.addEventListener("pointerup", this.onOutside);
       canvas.addEventListener("pointercancel", () => {
         this.press = null;
-        if (this.stage.slideX) this.slideFrom(this.stage.slideX);
+        if (this.stage.slideX && !this.slide) this.slideTo(0, 200);
       });
     }
     /** Ease the board back from a sideways offset (after a swipe or a cancelled drag). */
     slideFrom(offset) {
-      this.slide = { from: offset, t0: performance.now(), ms: 200 };
-      this.stage.slideX = offset;
+      this.setSlide(offset);
+      this.slideTo(0, 200);
+    }
+    /** v0.15: sideways offset of the whole board, with the neighbour's border in the gap. */
+    setSlide(x, info) {
+      this.stage.slideX = x;
+      showPeek(x, this.stage.width, info);
+    }
+    slideTo(to, ms, then, info) {
+      this.slide = { from: this.stage.slideX || 0, to, t0: performance.now(), ms, then, info, ease: this.slide?.ease };
+    }
+    /**
+     * v0.15: roll to another field: the board glides out to the side (the next field's border
+     * filling the gap), `apply` switches the view, and the new field glides in from the other side.
+     */
+    roll(step, info, apply, back = null, speed = 1) {
+      const w = this.stage.width,
+        out = step > 0 ? -w : w;
+      this.slideTo(out, Math.max(90, 170 * (1 - Math.abs(this.stage.slideX || 0) / w)) / speed, () => {
+        const changed = apply() !== false;
+        if (!changed) return this.slideFrom(0);
+        back = back ?? peekLane(-step);
+        this.setSlide(-out * 0.9, back);
+        this.slideTo(0, 260 / speed, null, back);
+      }, info);
     }
     stepSlide() {
       const s = this.slide;
       if (!s) return;
       const k = clamp((performance.now() - s.t0) / s.ms, 0, 1),
-        e = 1 - Math.pow(1 - k, 3);
-      this.stage.slideX = s.from * (1 - e);
+        e = s.to === 0 ? 1 - Math.pow(1 - k, 3) : k * k * (3 - 2 * k);
+      this.setSlide(s.from + (s.to - s.from) * e, s.info ?? peekInfo);
       if (k >= 1) {
         this.slide = null;
-        this.stage.slideX = 0;
+        this.setSlide(s.to, s.info ?? peekInfo);
+        s.then?.();
       }
     }
     geometry() {
@@ -737,6 +798,15 @@ export function mountArena({
           } else if (e.kind === "waterblock") {
             this.floatText(q.x, q.y - cell * 0.6, t("BLOCKED"), "#9ee0ff", 13, 34, 1.1);
             this.ring(q.x, q.y, cell * 0.2, cell * 1.1, 0x7fd0ff, 0.8, 4);
+          } else if (e.kind === "guardOn") {
+            this.floatText(q.x, q.y - cell * 0.7, t("RIVER GUARDIAN"), "#9ee0ff", 12, 30, 1.1);
+            this.ring(q.x, q.y - cell * 0.2, cell * 0.6, cell * 0.25, 0x7fd0ff, 0.5, 3);
+          } else if (e.kind === "guardBreak") {
+            // the shield cracks: a bright ring, shards flying off, then it is gone
+            this.ring(q.x, q.y - cell * 0.25, cell * 0.3, cell * 0.75, 0xd8f6ff, 0.35, 3);
+            this.burst(q.x, q.y - cell * 0.3, 0x9fe4ff, 14, 120, 2.6, 0.45, 160, true);
+            this.burst(q.x, q.y - cell * 0.3, 0xffffff, 6, 80, 1.8, 0.3, 120, true);
+            this.floatText(q.x, q.y - cell * 0.7, t("SHIELD BROKEN"), "#c8f0ff", 11, 26, 0.9);
           } else if (e.kind === "pocks") {
             this.floatText(q.x, q.y - cell * 0.6, t("POCKS"), "#b8ff6a", 12, 30, 1);
             this.burst(q.x, q.y - cell * 0.3, 0x9cff4a, 10, 60, 2.4, 0.6, -20, true);
@@ -745,8 +815,6 @@ export function mountArena({
             this.ring(q.x, q.y, cell * 0.1, cell * 0.5, 0xc07aff, 0.4, 3);
           } else if (e.kind === "crowd") this.floatText(q.x, q.y - cell * 0.55, t("CULLED"), "#ff9a5a", 12, 30, 0.9);
           else if (e.kind === "miss") this.floatText(q.x, q.y - cell * 0.5, t("DODGED"), "#c9d4dc", 11, 26, 0.7);
-          else if (e.kind === "bloodlust") this.floatText(q.x, q.y - cell * 0.8, t("BLOODLUST"), "#ff8a7a", 11, 26, 0.9);
-          else if (e.kind === "raise") this.floatText(q.x, q.y - cell * 0.8, t("+{n} INCOME", { n: e.amount }), "#b8ff8a", 12, 30, 1.1);
           else if (e.kind === "ultimate") {
             const names = { entangle: "ENTANGLE", decay: "DECAY", shrink: "SHRINK RAY", rockets: "ROCKET SWARM", flamestrike: "FLAME STRIKE", chain: "CHAIN LIGHTNING", blizzard: "BLIZZARD", tsunami: "TSUNAMI", raise: "RAISE DEAD" };
             const tower = lane.towers.find((t) => t.id === e.towerId),
@@ -826,6 +894,13 @@ export function mountArena({
             this.ring(q.x, q.y + cell * 0.1, cell * 0.2, cell * 0.66, e.type === "upgrade" ? 0xfff0a0 : 0xe8dcb5, 0.4, 3);
             const sprite = this.units.get(`${view}:t:${e.towerId}`);
             if (sprite) sprite.setData("pop", time);
+            if (e.evolution) {
+              // v0.16: Evolution reward: green arrows rise from the upgraded tower
+              [-0.28, 0, 0.28, -0.14, 0.14].forEach((dx, k) =>
+                this.floatText(q.x + dx * cell, q.y - cell * (0.1 + (k > 2 ? 0.25 : 0)), "▲", k > 2 ? "#b8ffbf" : "#6ee87a", k > 2 ? 16 : 22, 70 + k * 6, 1.1 + k * 0.08),
+              );
+              this.ring(q.x, q.y + cell * 0.1, cell * 0.2, cell * 0.8, 0x6ee87a, 0.55, 4);
+            }
           }
         } else if (e.type === "built" && e.player === view) {
           const tower = lane.towers.find((t) => t.id === e.towerId);
@@ -1173,20 +1248,25 @@ export function mountArena({
           raw = this.point(c.x, c.y),
           // Render-only spread so a group reads as several units, not one blob.
           q = { x: raw.x + ((((phase0 * 37) % 7) - 3) / 3) * cell * 0.14, y: raw.y + ((((phase0 * 53) % 5) - 2) / 2) * cell * 0.1 },
-          artKey = this.ready(artFor(def), "creep"),
-          m = ART_MANIFEST[artKey];
+          artKey = this.ready(c.art || artFor(def), "creep"), // v0.16: c.art (wave 1 boxer goblin)
+          m = ART_MANIFEST[artKey],
+          // v0.14: creeps wear their sender's colour (team blue in the art moved to that colour)
+          teamId = c.golem ? null : c.owner >= 0 ? colorOf(c.owner) : "neutral", // v0.15: neutral creeps wear brown
+          recolor = !!teamId && CLOTH_COLORS[teamId].hue !== null,
+          skin = recolor ? this.teamTexture(artKey, teamId) : artKey;
         alive.add(key);
         let sprite = this.units.get(key);
-        const walk = this.animFor(artKey);
+        const baseWalk = this.animFor(artKey),
+          walk = baseWalk && recolor ? { ...baseWalk, tex: this.teamTexture(baseWalk.tex, teamId) } : baseWalk;
         if (!sprite) {
-          sprite = this.stage.image(q.x, q.y, walk ? walk.tex : artKey, walk ? 0 : undefined);
+          sprite = this.stage.image(q.x, q.y, walk ? walk.tex : skin, walk ? 0 : undefined);
           sprite.setData("hp", c.hp).setData("px", q.x);
           this.units.set(key, sprite);
         }
         const boss = !!(def.bossTier || c.waveBoss),
           flying = !!(c.flying ?? def.flying),
           neutral = c.owner < 0,
-          height = cell * (boss ? 1.3 : (flying ? 0.82 : 0.78) * (neutral ? 1 : creepSize(catalog, def.id))),
+          height = cell * (boss ? 1.3 * (c.waveBoss ? 1 : tierGrowth(def.tier || (def.bossTier || 2) - 1)) : (flying ? 0.82 : 0.78) * (neutral ? 1 : creepSize(catalog, def.id))),
           s = (height / m.h) * (1 - 0.12 * (c.shrink || 0)),
           step = time * 0.016 + phase0;
         const lift = flying ? cell * 0.32 + Math.sin(time * 0.006 + phase0) * cell * 0.05 : walk ? 0 : Math.abs(Math.sin(step)) * cell * 0.05;
@@ -1207,14 +1287,14 @@ export function mountArena({
             clock = (sprite.getData("wc") ?? phase0 * 97) + Math.min(100, time - last) * rate;
           sprite.setData("wt", time).setData("wc", clock);
           this.showFrame(sprite, walk.tex, Math.floor(clock / walk.ms) % walk.frames);
-        } else if (sprite.texture.key !== artKey) sprite.setTexture(artKey);
+        } else if (sprite.texture.key !== skin) sprite.setTexture(skin);
         if ((sprite.getData("hit") || 0) > time) sprite.setTint(0xffffff).setTintMode(TINT.FILL);
         else {
           sprite.setTintMode(TINT.MULTIPLY);
           if (divineShield(game, c)) sprite.setTint(0xfff2b0);
           else if (statuses.some((st) => st.abilityId === "entangle")) sprite.setTint(0xa8ff9a);
           else if (statuses.some((st) => st.stun)) sprite.setTint(0xfff3a0);
-          else if (slowed) sprite.setTint(0x9fd8ff);
+          else if (slowed) sprite.setTint(statuses.some((st) => st.abilityId === "frost") ? 0xd2efff : 0x9fd8ff); // v0.16: frost gets the sheen instead
           else if (poisoned) sprite.setTint(0xc4f59a);
           else if (c.immune) sprite.setTint(0xe2d2ff);
           else if (c.burning) sprite.setTint(0xffa060); // v0.10w: Burning Treant
@@ -1225,11 +1305,70 @@ export function mountArena({
         sprite
           .setOrigin(walk ? (m.w / 2 + walk.ox) / walk.fw : 0.5, walk ? (m.footY + walk.oy) / walk.fh : m.footY / m.h)
           .setPosition(q.x, q.y + cell * 0.18 - lift)
-          .setScale(s * (sprite.getData("face") === -1 ? -1 : 1), s * flap)
+          .setScale(s * (sprite.getData("face") === -1 ? -1 : 1) * (c.buff === "fat" ? 1.42 : 1), s * flap * (c.buff === "fat" ? 1.06 : 1)) // v0.15: fat quest creeps
           .setRotation(flying || walk ? 0 : Math.sin(step) * 0.07)
           .setDepth(3000 + Math.floor(q.y) + (flying ? 1200 : 0)); // creeps always draw in front of towers
         g.fillStyle(0x06120e, flying ? 0.22 : 0.32);
         g.fillEllipse(q.x, q.y + cell * 0.2, cell * (boss ? 0.8 : 0.48), cell * (boss ? 0.28 : 0.17));
+        if (c.buff === "fast") {
+          // v0.15: fast quest creeps: a winged helmet and fine golden boots
+          const hb = this.hpBars,
+            face = sprite.getData("face") === -1 ? -1 : 1,
+            top = q.y + cell * 0.18 - lift - height * 0.9,
+            flapW = 1 + Math.sin(time * 0.025 + phase0) * 0.18,
+            ww = height * 0.2 * flapW,
+            wh = height * 0.12;
+          hb.fillStyle(0x9aa6b2, 1);
+          hb.fillEllipse(q.x, top + wh * 0.35, height * 0.3, height * 0.13); // helmet cap
+          hb.fillStyle(0xe8edf2, 1);
+          hb.fillEllipse(q.x - face * height * 0.03, top + wh * 0.2, height * 0.16, height * 0.06);
+          for (const side of [-1, 1]) {
+            const bx = q.x + side * height * 0.14;
+            hb.fillStyle(0x3a3c45, 1);
+            hb.fillTriangle(bx, top + wh * 0.5, bx + side * ww * 1.15, top - wh * 1.15, bx + side * ww * 0.5, top + wh * 0.65);
+            hb.fillStyle(0xffffff, 1);
+            hb.fillTriangle(bx, top + wh * 0.35, bx + side * ww, top - wh, bx + side * ww * 0.45, top + wh * 0.5);
+            hb.fillStyle(0xd8e2ea, 1);
+            hb.fillTriangle(bx, top + wh * 0.35, bx + side * ww * 0.7, top - wh * 0.4, bx + side * ww * 0.3, top + wh * 0.45);
+          }
+          const foot = q.y + cell * 0.16 - lift;
+          for (const side of [-1, 1]) {
+            const fx2 = q.x + side * height * 0.1 + Math.sin(step + (side > 0 ? Math.PI : 0)) * height * 0.03;
+            hb.fillStyle(0x6b3a06, 1);
+            hb.fillEllipse(fx2 + face * height * 0.02, foot, height * 0.2, height * 0.1);
+            hb.fillStyle(0xffc928, 1);
+            hb.fillEllipse(fx2 + face * height * 0.02, foot - height * 0.012, height * 0.16, height * 0.07);
+            hb.fillStyle(0xfff3a0, 1);
+            hb.fillCircle(fx2 + face * height * 0.04, foot - height * 0.02, Math.max(1, height * 0.015));
+          }
+        }
+        if (c.guard) {
+          // v0.14: River Guardian: a water shield bubble with droplets circling the creep
+          const share = clamp(c.guard.hp / Math.max(1, c.guard.max), 0, 1),
+            cy = q.y + cell * 0.18 - lift - height * 0.45,
+            rr = height * 0.62,
+            wob = Math.sin(time * 0.006 + phase0) * 0.04;
+          glow.fillStyle(0x5cc8ff, 0.1 + 0.12 * share);
+          glow.fillCircle(q.x, cy, rr * (1 + wob));
+          g.lineStyle(2, 0x9fe4ff, 0.35 + 0.45 * share);
+          g.strokeEllipse(q.x, cy, rr * 2 * (1 + wob), rr * 2 * (1 - wob));
+          for (let k = 0; k < 3; k++) {
+            const a = time * 0.004 + phase0 + (k * Math.PI * 2) / 3;
+            glow.fillStyle(0xd8f6ff, 0.75);
+            glow.fillCircle(q.x + Math.cos(a) * rr, cy + Math.sin(a) * rr * 0.45, Math.max(2, height * 0.05));
+          }
+        }
+        if (statuses.some((st) => st.abilityId === "frost")) {
+          // v0.16: frost: a light blue, see-through sheen over the creep and a few ice glints
+          const cy = q.y + cell * 0.18 - lift - height * 0.45;
+          glow.fillStyle(0x9fdcff, 0.3);
+          glow.fillEllipse(q.x, cy, height * 0.82, height * 0.95);
+          glow.fillStyle(0xe6f8ff, 0.55);
+          for (let k = 0; k < 3; k++) {
+            const a = phase0 * 1.7 + k * 2.1 + time * 0.002;
+            glow.fillCircle(q.x + Math.cos(a) * height * 0.3, cy + Math.sin(a) * height * 0.35, Math.max(1.5, height * 0.035));
+          }
+        }
         if (divineShield(game, c)) {
           glow.fillStyle(0xffe680, 0.18 + 0.08 * Math.sin(time * 0.01));
           glow.fillCircle(q.x, q.y - height * 0.45, height * 0.6);
@@ -1253,11 +1392,7 @@ export function mountArena({
           g.lineStyle(2, 0xd8a8ff, 0.8);
           g.strokeEllipse(q.x, q.y + cell * 0.2, cell * 0.8, cell * 0.28);
         }
-        if (neutral) {
-          // Neutral wave monsters stand on a violet rune ring so they read apart from sends.
-          g.lineStyle(2, c.immune ? 0xf2e6ff : 0xa070ff, 0.75);
-          g.strokeEllipse(q.x, q.y + cell * 0.2, cell * (boss ? 0.86 : 0.52), cell * (boss ? 0.3 : 0.19));
-        }
+        // v0.17: no ring under neutral creeps any more; their grey clothes set them apart
         // Health bar only once a creep has lost health; drawn on top of everything on the board.
         const ratio = clamp(c.hp / (c.maxHp || def.hp), 0, 1);
         if (ratio < 0.999) {
@@ -1862,6 +1997,12 @@ export function mountArena({
     if (el) resize.observe(el);
   const scene = () => (started ? arena : null);
   return {
+    /** v0.15: roll the view to another field (apply switches it). */
+    roll(step, info, apply, back) {
+      const sc = scene();
+      if (!sc) return apply();
+      sc.roll(step, info, apply, back);
+    },
     /** v0.13: Options › Graphic */
     setPopups(value) {
       Object.assign(popups, value);
