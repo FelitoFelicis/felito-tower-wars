@@ -261,6 +261,13 @@ export function configureContent(data) {
   // Wood is gone from the game: nothing costs wood any more.
   for (const u of allUnits) u.woodCost = 0;
   applyCreepTuning(byId);
+  // v0.17c: the Arcane Tower line loses its Detector ability
+  for (const u of allUnits)
+    if (u.isBuildable && /^Arcane Tower$/.test(u.shortName || "")) {
+      const keep = (id) => rawAbilities.get(id)?.baseId !== "Adtg";
+      u.abilities = u.abilities.filter(keep);
+      u.unimplementedAbilities = u.unimplementedAbilities.filter(keep);
+    }
   // v0.12: units that only perks bring into play
   if (byId.h000) {
     const base = byId.h000;

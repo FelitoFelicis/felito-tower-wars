@@ -605,6 +605,9 @@ export function previewBuild(game, playerIndex, gridX, gridY, id = null) {
   return { ok: true, gridX, gridY, path, length, delta: length - current };
 }
 
+const ARCHER_RANGE_CUT = 0.15, // fields (v0.17c)
+  BOMBARD_RANGE_CUT = 0.1,
+  RANGE_KEEP = /^(Bird Hunter|Water Elemental)/;
 function statsFor(game, player, item) {
   // Explicit map ranges remain authoritative: Footman 150, Archer 600, etc.
   // The adapter's inherited weapon='normal' fallback is not a melee classifier.
@@ -681,6 +684,13 @@ function statsFor(game, player, item) {
   stats.cooldown /= Math.max(0.1, 1 + attackSpeed);
   stats.speed *= movementMultiplier(game);
   if (item.isBuildable && item.attacks) stats.range = rangedReach(game, stats.range);
+  if (item.isBuildable && item.attacks && stats.range > MELEE_RANGE_MAX) {
+    // v0.17c: Archer line −0.15 fields (not Bird Hunter, not Water Elemental), Bombard line −0.10 fields
+    const cu = game.grid.cellUnits;
+    if (archerLine().has(item.id)) {
+      if (!RANGE_KEEP.test(nameOf(item))) stats.range -= ARCHER_RANGE_CUT * cu;
+    } else if (lineSet("h02R").has(item.id)) stats.range -= BOMBARD_RANGE_CUT * cu;
+  }
   return stats;
 }
 const INCOME_EXCLUDED = new Set(["n00Y", "n01H", "n01D", "n01R", "n01T", "n02P", "n02Q", "n02R"]);
@@ -1495,6 +1505,8 @@ function applyOption(game, p, option, level) {
     }
   }
 }
+/** v0.17c: EXP generators give 25 % more EXP per round. */
+export const EXP_GEN_BONUS = 1.25;
 /** v0.15: the Gold perk is only offered to the player with the lowest gold and the lowest income. */
 function goldPerkOpen(game, p) {
   const live = game.players.filter((q) => !q.out),
@@ -3192,9 +3204,19 @@ function incomeTick(game) {
     p.gold += p.income;
     p.stats.goldEarned += p.income;
     (p.stats.incomeLog ||= []).push(p.income); // v0.14: income paid in this round
-    const expGen = p.woodIncome * (1 + VOLTAGE.bonus * perkLevel(p, "voltage")); // v0.10r: High Voltage
+    // v0.17c: EXP generators give 25 % more; each one reports its share for a pop-up over it
+    const volt = 1 + VOLTAGE.bonus * perkLevel(p, "voltage"), // v0.10r: High Voltage
+      gens = [];
+    let genBase = 0;
+    for (const t of p.towers) {
+      const w = t.completed ? obj(t.typeId)?.woodIncome || 0 : 0;
+      if (!w) continue;
+      genBase += w;
+      gens.push({ towerId: t.id, x: t.x, y: t.y, exp: w * EXP_GEN_BONUS * volt });
+    }
+    const expGen = (p.woodIncome + genBase * (EXP_GEN_BONUS - 1)) * volt;
     gainExp(game, p, expGen);
-    emit(game, "income", { player: p.id, gold: p.income, exp: expGen });
+    emit(game, "income", { player: p.id, gold: p.income, exp: expGen, gens });
   }
   if (game.round >= RULES.suddenDeathRound) {
     if (!game.suddenDeath) {

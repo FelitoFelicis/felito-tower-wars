@@ -263,6 +263,7 @@ const CREEP_PATTERNS = [
   [/black dragon/i, "creep-black-dragon", "creep-harpy"],
   [/rock golem/i, "creep-golem", "creep-golem"],
   [/arcane golem/i, "creep-golem", "creep-golem"], // v0.12
+  [/^wisp$/i, "creep-shade", "creep-shade"], // v0.17c: the Treant's Wisp gets art that carries the player colour
   [/siege golem/i, "creep-siege-golem", "creep-golem"],
   [/meat golem|abomination/i, "creep-flesh-golem", "creep-ghoul"],
   [/infernal/i, "creep-infernal", "creep-golem"],

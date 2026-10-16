@@ -57,6 +57,9 @@ import {
   fireArcher,
   fatHp,
   PERK_AVAILABILITY,
+  UNDEAD_SENDS,
+  isHeavy,
+  hasDeathrattle,
 } from "./simulation.js";
 import { mountArena, artFor } from "./arena.js";
 import { artUrl, iconUrl, ELEMENT_ICON, ART_MANIFEST, registerTowerArt, TEAM_COLORS, recolorTeam } from "./art.js";
@@ -82,8 +85,8 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.17b",
-  APP_DATE = "16.10.2026";
+const APP_VERSION = "0.17e",
+  APP_DATE = "17.10.2026";
 const WAVES_PREF = "felito.waves";
 const COACH_PREF = "felito.coach.v1";
 const pref = (key, fallback) => {
@@ -99,30 +102,7 @@ const savePref = (key, value) => {
     localStorage.setItem(key, String(value));
   } catch {}
 };
-// Raise the controls (v0.07l): phones and app views can cover the bottom edge; the whole game
-// then ends this far above it. Touch screens start with a small gap.
-const LIFT_PREF = "felito.lift";
-// v0.09y: 96 px added for very tight views.
-const LIFTS = [0, 24, 48, 72, 96];
-let liftChoice = (() => {
-  const v = Number(pref(LIFT_PREF, ""));
-  if (pref(LIFT_PREF, "") !== "" && LIFTS.includes(v)) return v;
-  try {
-    return 0; // v0.16g: off by default; the embedded-app gap below is no longer the default
-    if (!matchMedia("(pointer: coarse)").matches) return 0;
-    // v0.10g: a normal mobile browser handles its bars through the safe area, so no gap; inside
-    // the Claude app (an embedded frame) a small gap stays.
-    let embedded = false;
-    try {
-      embedded = window.self !== window.top;
-    } catch {
-      embedded = true;
-    }
-    return embedded ? 24 : 0;
-  } catch {
-    return 0;
-  }
-})();
+// v0.17d: the "Raise controls" option (whole game lifted above the bottom edge) is gone.
 // Double tap on one of your towers (v0.08a): upgrade (default), tower info, or nothing.
 // v0.13: "upgrade" queues only the next logical step; "advanced" queues the whole chain up to the
 // upgrade you picked last time (the old behaviour).
@@ -145,8 +125,6 @@ addEventListener("resize", applyTopBand);
 addEventListener("orientationchange", applyTopBand);
 function applyLift() {
   applyTopBand();
-  document.querySelector(".game-shell")?.style.setProperty("--lift", liftChoice + "px");
-  document.documentElement.style.setProperty("--lift", liftChoice + "px");
 }
 // v0.13: volume sliders (0–100) replace the music and sound on/off buttons; an old "off" becomes 0.
 const VOL_PREFS = { master: "felito.vol.master", effects: "felito.vol.effects", music: "felito.vol.music" };
@@ -188,8 +166,24 @@ const controlsRow = () =>
   `<div class="choice-row" role="group" aria-label="${t("Version")}"><span>${t("Version")}</span>${["mobile", "pc"]
     .map((m) => `<button type="button" class="choice-button${controlMode === m ? " active" : ""}" data-ctl="${m}" aria-pressed="${controlMode === m}">${t(m === "pc" ? "PC" : "Mobile")}${m === recommendedControls() ? ` <small>${t("(recommended)")}</small>` : ""}</button>`)
     .join("")}</div>`;
+// v0.17d: two layouts for the mobile version: A (bottom bar, mini map; the v0.17c layout, "LayoutMobileA")
+// and B (no mini map, all buttons in one column right of the board, bigger board).
+const MOBILE_LAYOUT_PREF = "felito.mobileLayout";
+const MOBILE_LAYOUTS = ["A", "B"];
+let mobileLayout = MOBILE_LAYOUTS.includes(pref(MOBILE_LAYOUT_PREF, "A")) ? pref(MOBILE_LAYOUT_PREF, "A") : "A";
+const mobileLayoutText = () => `${t("Mobile Layout")}: ${mobileLayout}`;
 function applyControlMode() {
-  document.documentElement.classList.toggle("pc-controls", controlMode === "pc");
+  const root = document.documentElement,
+    b = controlMode === "mobile" && mobileLayout === "B";
+  root.classList.toggle("pc-controls", controlMode === "pc");
+  if (root.classList.contains("layout-b") !== b) {
+    root.classList.toggle("layout-b", b);
+    const nav = document.querySelector(".bottom-nav");
+    if (nav && !b) nav.removeAttribute("style");
+    try {
+      arena?.refresh?.(); // not yet declared on the first call at start-up
+    } catch {}
+  }
 }
 applyControlMode();
 let tipsEnabled = pref(TIPS_PREF, "true") !== "false";
@@ -799,9 +793,22 @@ const LOCK_SVG = `<svg viewBox="0 0 100 100" aria-hidden="true"><defs><linearGra
   })
   .join("")}<path d="M36 46V36a14 14 0 0 1 28 0v10" fill="none" stroke="#2a3038" stroke-width="10"/><path d="M36 46V36a14 14 0 0 1 28 0v10" fill="none" stroke="url(#lk-steel)" stroke-width="6"/><rect x="27" y="44" width="46" height="38" rx="7" fill="url(#lk-body)" stroke="#3a2404" stroke-width="3"/><rect x="31" y="47" width="38" height="5" rx="2.5" fill="#fff6c0" opacity=".55"/></svg>`;
 function cardLock(card, rounds) {
-  let el = card.querySelector(".card-lock");
+  let el = card.querySelector(".card-lock:not(.unlocking)");
   if (!rounds) {
-    if (el) el.remove();
+    if (el) {
+      // v0.17c: the shackle springs open, the chains slide apart and everything falls off the card.
+      // The falling lock lives in its own layer over the card, so a re-render of the deck can't cut it short.
+      const r = card.getBoundingClientRect();
+      el.remove();
+      if (tab === "send" && r.width > 0 && card.isConnected) {
+        const fly = Object.assign(document.createElement("span"), { className: "card-lock unlocking lock-fly" });
+        fly.innerHTML = el.innerHTML;
+        fly.style.cssText = `left:${r.left}px;top:${r.top}px;width:${r.width}px;height:${r.height}px`;
+        document.body.append(fly);
+        setTimeout(() => fly.remove(), 1400);
+        sfx.play("unlock");
+      }
+    }
     card.classList.remove("locked");
     return;
   }
@@ -1006,8 +1013,22 @@ function abilityNames(item) {
   if (fireArcher(item.id)) names.push("Multishot"); // v0.16
   return [...new Set(names)];
 }
-function statTip(item, action, towerId = null) {
-  const a = available(game, own, action, item.id, towerId),
+/** v0.17c: classes perks and quests refer to (undead, heavy, flying, boss, spawns on death). */
+function creepClasses(item) {
+  const out = [];
+  if (item.bossTier) out.push(t("Boss"));
+  if (item.flying) out.push(t("Flying"));
+  if (UNDEAD_SENDS.has(item.id)) out.push(t("Undead"));
+  if (isHeavy(item)) out.push(t("Heavy"));
+  if (hasDeathrattle(item.id)) out.push(t("Spawns on death"));
+  return out;
+}
+/**
+ * Tooltip of a card or a tower. `who` = whose stats (v0.17c: enemy towers too); `bare` leaves out
+ * the head line and the warning (used inside the detail dialog).
+ */
+function statTip(item, action, towerId = null, who = own, bare = false) {
+  const a = who === own && action !== "info" ? available(game, own, action, item.id, towerId) : { ok: true },
     price = action === "build" ? priceLabel(item) : format(itemPrice(item).gold),
     rows = [],
     after = [];
@@ -1018,19 +1039,22 @@ function statTip(item, action, towerId = null) {
   if (item.kind === "send") {
     // v0.17: Income and Value first (green), then Hitpoints, Speed, Abilities, Stock (current / max)
     const unit = catalog.byId[item.spawnIds?.[0]] || item,
-      us = getStats(game, own, unit.id),
+      us = getStats(game, who, unit.id),
       inc = incomeFor(item),
       cost = itemPrice(item).gold;
     rows.push([t("Income"), "+" + formatInc(inc) + (Math.abs(inc - item.income) > 0.004 ? ` (${t("base")} ${formatInc(item.income)})` : ""), "inc"]);
     rows.push([t("Value"), cost > 0 ? `${num((inc / cost) * 100, { maximumFractionDigits: 1 })} %` : "–", "inc"]);
     rows.push([t("Hitpoints"), format(us.hp)]);
     rows.push([t("Speed"), `${format(us.speed / game.grid.cellUnits)} ${t("fields/s")}`]);
+    const classes = creepClasses(item);
+    if (classes.length) rows.push([t("Classification"), classes.join(", ")]); // v0.17c
     after.push([t("Stock"), `${stockCount(item)}/${stockMaxOf(game.players[own], item)}`]);
   } else {
-    const s = getStats(game, own, item.id),
+    const s = getStats(game, who, item.id),
       air = item.targets?.includes("air"),
       ground = item.targets?.includes("ground");
-    rows.push([t("Damage"), format(s.damage) + (Math.abs(s.damage - item.damage) > 0.004 ? ` (${t("base")} ${format(item.damage)})` : "")]);
+    // v0.17c: "10 → 12" when upgrades raise the damage
+    rows.push([t("Damage"), Math.abs(s.damage - item.damage) > 0.004 ? `${format(item.damage)} → ${format(s.damage)}` : format(s.damage)]);
     rows.push([t("Range"), isMeleeTower(item) ? t("Melee") : `${format(s.range / game.grid.cellUnits)} ${t("fields")}`]);
     rows.push([t("Attacks every"), `${format(s.cooldown)} s`]);
     rows.push([t("Damage/s"), s.cooldown > 0 ? format(s.damage / s.cooldown) : "–"]); // v0.16e
@@ -1040,11 +1064,11 @@ function statTip(item, action, towerId = null) {
   const row = ([k, v, cls]) => `<div class="tip-row${cls ? " tip-" + cls : ""}"><span>${esc(k)}</span><b>${esc(v)}</b></div>`;
   return {
     html:
-      `<div class="tip-head"><b>${esc(itemName(item))}</b><span class="tip-gold"><img src="${iconUrl("coin")}" alt="Gold">${esc(price)}</span></div>` +
+      (bare ? "" : `<div class="tip-head"><b>${esc(itemName(item))}</b><span class="tip-gold"><img src="${iconUrl("coin")}" alt="Gold">${esc(price)}</span></div>`) +
       rows.map(row).join("") +
       // v0.16f: creeps show Stock right above the abilities, abilities last
       (item.kind === "send" ? after.map(row).join("") + abilityHtml : abilityHtml + after.map(row).join("")) +
-      (a.ok ? "" : `<div class="tip-warn">${esc(t(a.reason))}</div>`),
+      (a.ok || bare ? "" : `<div class="tip-warn">${esc(t(a.reason))}</div>`),
   };
 }
 /** Tooltip: values for creep and tower cards, else an explicit help text or the button's label. */
@@ -1074,14 +1098,42 @@ function showHelp(el) {
     helpTip.classList.remove("stats");
   }
   helpTip.hidden = false;
-  const r = el.getBoundingClientRect(),
-    w = helpTip.offsetWidth,
+  placeTip(el.getBoundingClientRect());
+}
+/** Puts the tooltip above (or below) a screen rectangle. */
+function placeTip(r) {
+  const w = helpTip.offsetWidth,
     h = helpTip.offsetHeight,
     left = Math.max(6, Math.min(innerWidth - w - 6, r.left + r.width / 2 - w / 2)),
     top = r.top - h - 8 >= 6 ? r.top - h - 8 : Math.min(innerHeight - h - 6, r.bottom + 8);
   helpTip.style.left = left + "px";
   helpTip.style.top = top + "px";
 }
+/** v0.17c: a tower's tooltip over the tower itself (enemy towers can be inspected this way). */
+let towerTipTimer = 0,
+  towerTipOn = false;
+function showTowerTip(tower, who) {
+  const item = catalog.byId[tower.typeId],
+    pt = arena?.cellCenter?.(tower.gridX ?? 0, tower.gridY ?? 0);
+  if (!item || !pt) return;
+  helpFor = null;
+  helpTip.innerHTML = statTip(item, "info", tower.id, who).html;
+  helpTip.classList.add("stats");
+  helpTip.hidden = false;
+  const box = $("arena").getBoundingClientRect(),
+    cell = (arena.geometry?.().cw || 48) * 0.5;
+  placeTip({ left: box.left + pt.x - cell, width: cell * 2, top: box.top + pt.y - cell * 1.4, bottom: box.top + pt.y + cell });
+  towerTipOn = true;
+  clearTimeout(towerTipTimer);
+  towerTipTimer = setTimeout(hideTowerTip, 5000);
+}
+function hideTowerTip() {
+  if (!towerTipOn) return;
+  towerTipOn = false;
+  clearTimeout(towerTipTimer);
+  if (!helpFor) helpTip.hidden = true;
+}
+document.addEventListener("pointerdown", hideTowerTip, true);
 function hideHelp() {
   helpFor = null;
   helpTip.hidden = true;
@@ -1605,7 +1657,7 @@ function incomeChart(log) {
   const grid = ticks.map((v) => `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" class="ic-grid"/><text x="${L - 4}" y="${y(v) + 3}" class="ic-axis" text-anchor="end">${goldShort(v)}</text>`).join("");
   const every = Math.max(1, Math.ceil(n / 8)),
     labels = log.map((_, i) => (i % every === 0 || i === n - 1 ? `<text x="${L + i * bw + bw / 2}" y="${H - 6}" class="ic-axis" text-anchor="middle">${i}</text>` : "")).join("");
-  return `<div class="ic-head"><b>${t("Income per round")}</b><span id="ic-readout">${t("Tap a bar")}</span></div><svg viewBox="0 0 ${W} ${H}" class="ic-svg" role="img" aria-label="${t("Income per round")}">${grid}${bars}${labels}<rect class="ic-hit" x="${L}" y="${T}" width="${W - L - R}" height="${H - T - B}"/></svg><div class="ic-foot">${t("Round")} → · ${t("start {a}, end {b}", { a: format(log[0]), b: format(log[n - 1]) })}</div>`;
+  return `<div class="ic-head"><b>${t("Income per round")}</b><span id="ic-readout">${t("Tap a bar")}</span></div><svg viewBox="0 0 ${W} ${H}" class="ic-svg" role="img" aria-label="${t("Income per round")}">${grid}${bars}${labels}<rect class="ic-hit" x="${L}" y="${T}" width="${W - L - R}" height="${H - T - B}"/></svg>`; // v0.17c: no caption below the chart
 }
 const goldShort = (v) => (v >= 1000 ? format(Math.round(v / 100) / 10) + "k" : format(Math.round(v)));
 function wireIncomeChart(box, log) {
@@ -2107,6 +2159,14 @@ function onTowerTap(tower, at = performance.now(), point = null) {
     doubleUpgrade(tower, dblMode === "advanced");
     return;
   }
+  if (view !== own) {
+    // v0.17c: enemy towers can be selected; they show their tooltip
+    selectedTower = tower.id;
+    $("tower-panel").hidden = true;
+    showTowerTip(tower, view);
+    tone("select");
+    return;
+  }
   const again = selectedTower === tower.id || (deckClosed.towerId === tower.id && performance.now() - deckClosed.at < 600);
   if (view === own && again && !(double && dblMode === "off")) {
     deckClosed = { at: 0, towerId: null };
@@ -2550,10 +2610,13 @@ function refreshLevelButton(p) {
     const dock = $("side-dock"),
       size = Math.round(z.side.w),
       x = Math.round(z.side.x) + "px",
-      bottom = z.top + z.bh, // v0.09: no exit strip
+      // v0.17c: never under the send buttons, which overlap the board's lower edge on phones
+      cardsTop = $("cards").getBoundingClientRect().top - $("arena").getBoundingClientRect().top,
+      bottom = Math.min(z.top + z.bh, cardsTop > 0 ? cardsTop - 6 : Infinity), // v0.09: no exit strip
       dockTop = Math.round(bottom - (dock.offsetHeight || size + 34)) + "px",
       top = Math.round(z.side.y + 14) + "px";
-    if (dock.style.left !== x || dock.style.top !== dockTop) Object.assign(dock.style, { left: x, top: dockTop, width: size + "px" });
+    if (z.col) placeColumn(z, dock, size);
+    else if (dock.style.left !== x || dock.style.top !== dockTop) Object.assign(dock.style, { left: x, top: dockTop, width: size + "px" });
     dock.style.setProperty("--slot", size + "px");
     if (btn.style.left !== x) btn.style.left = x;
     if (btn.style.top !== top) btn.style.top = top;
@@ -2565,6 +2628,28 @@ function refreshLevelButton(p) {
     openingShown = key;
     pickModal();
   }
+}
+/** v0.17d, mobile layout B: the bottom bar becomes the button column right of the board — help and
+ * options on top, Build and Send at the bottom (above the send buttons, which reach over the board's
+ * lower edge), the auto slot right above them. */
+function placeColumn(z, dock, size) {
+  const nav = document.querySelector(".bottom-nav"),
+    shell = document.querySelector(".game-shell"),
+    arenaBox = $("arena").getBoundingClientRect(),
+    deck = document.querySelector(".command-deck")?.getBoundingClientRect(),
+    rise = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--send-h")) || 0,
+    offset = arenaBox.top - (shell?.getBoundingClientRect().top || 0),
+    sendTop = deck ? deck.bottom - rise - arenaBox.top : Infinity,
+    bottom = Math.min(z.top + z.bh, sendTop - 4),
+    { x, y, w, sq } = z.col;
+  if (nav) {
+    const st = { left: Math.round(x) + "px", top: Math.round(y + offset) + "px", width: Math.round(w) + "px", height: Math.round(bottom - y) + "px" };
+    if (Object.entries(st).some(([k, v]) => nav.style[k] !== v)) Object.assign(nav.style, st);
+    nav.style.setProperty("--sq", sq + "px");
+  }
+  const left = Math.round(z.side.x) + "px",
+    dockTop = Math.round(bottom - sq - 8 - (dock.offsetHeight || size + 34)) + "px";
+  if (dock.style.left !== left || dock.style.top !== dockTop) Object.assign(dock.style, { left, top: dockTop, width: size + "px" });
 }
 /** Tier up: a glare sweeps across every send button. */
 function tierGlow() {
@@ -3154,6 +3239,11 @@ function showTower(towerOrId) {
     return;
   }
   selectedTower = id;
+  if (view !== own) {
+    // v0.17e: enemy towers show their tooltip (showTowerTip) instead of the old panel
+    $("tower-panel").hidden = true;
+    return;
+  }
   if (view === own) {
     $("tower-panel").hidden = true;
     if (tab !== "build") setPage("build");
@@ -3222,7 +3312,7 @@ function itemDetail(id, towerId, detailPlayer = own) {
     stats = item.kind === "research" ? null : getStats(game, detailPlayer, id),
     canAct = detailPlayer === own;
   showModal(
-    `${modalHeader(itemName(item))}<img class="modal-hero" src="${towerArtUrl(artFor(item))}" alt=""><p class="modal-copy">${esc(cardHint(item))}</p>${stats ? `<div class="detail-stats"><span><b>${format(stats.damage)}</b>${t("Damage")}</span><span><b>${isMeleeTower(item) ? 1 : format(stats.range / game.grid.cellUnits)}</b>${t(isMeleeTower(item) ? "field around (melee)" : "fields range")}</span>${item.kind === "send" ? `<span><b>${format(stats.hp)}</b>${t("Hitpoints")}</span><span><b>${format(stats.speed / game.grid.cellUnits)}</b>${t("fields / s")}</span>` : ""}</div>` : ""}${
+    `${modalHeader(itemName(item))}<img class="modal-hero" src="${towerArtUrl(artFor(item))}" alt="">${stats ? `<div class="help-tip stats detail-tip">${statTip(item, "info", towerId, detailPlayer, true).html}</div>` : `<p class="modal-copy">${esc(cardHint(item))}</p>`}${
       item.upgrades?.length
         ? `<div class="rule-row"><strong>${t("Upgrade")}</strong>${item.upgrades
             .map((uid) => {
@@ -3437,7 +3527,6 @@ const DBL_NOTES = {
   info: "Double tap shows the tower info.",
   off: "Double tap does nothing.",
 };
-const liftText = () => `${t("Raise controls")}: ${liftChoice ? "+" + liftChoice + " px" : t("Off")}`;
 /** Header of a sub-menu: ‹ back to the options, title, red ×. */
 const subHeader = (title) =>
   `<div class="modal-header sub-header"><button class="welcome-back modal-back" type="button" id="sub-back" aria-label="${t("Back")}">‹</button><h2>${esc(title)}</h2><button class="close-modal" data-close aria-label="${t("Close")}">×</button></div>`;
@@ -3472,7 +3561,7 @@ function audioModal(back) {
 }
 function graphicModal(back) {
   showModal(
-    `${subHeader(t("Graphic"))}<div id="menu-controls">${controlsRow()}</div><button class="secondary-button" id="menu-lift">${liftText()}</button><button class="secondary-button" id="menu-popnum">${t("Pop-up numbers")}: ${onOff(popNumbers)}</button><button class="secondary-button" id="menu-popnote">${t("Pop-up notifications")}: ${onOff(popNotes)}</button>`,
+    `${subHeader(t("Graphic"))}<div id="menu-controls">${controlsRow()}</div><button class="secondary-button" id="menu-mlayout"${controlMode === "mobile" ? "" : " hidden"}>${mobileLayoutText()}</button><button class="secondary-button" id="menu-popnum">${t("Pop-up numbers")}: ${onOff(popNumbers)}</button><button class="secondary-button" id="menu-popnote">${t("Pop-up notifications")}: ${onOff(popNotes)}</button>`,
   );
   $("sub-back").onclick = back;
   $("menu-controls").onclick = (e) => {
@@ -3482,14 +3571,15 @@ function graphicModal(back) {
     savePref(CONTROL_PREF, controlMode);
     applyControlMode();
     $("menu-controls").innerHTML = controlsRow();
+    $("menu-mlayout").hidden = controlMode !== "mobile";
     toast(controlMode === "pc" ? "PC version: mouse hover shows tips, mouse wheel and arrow keys switch fields, B / S switch Build and Send." : "Mobile version: touch controls, tips only in help mode.");
     tone("select");
   };
-  $("menu-lift").onclick = () => {
-    liftChoice = LIFTS[(LIFTS.indexOf(liftChoice) + 1) % LIFTS.length];
-    savePref(LIFT_PREF, liftChoice);
-    applyLift();
-    $("menu-lift").textContent = liftText();
+  $("menu-mlayout").onclick = () => {
+    mobileLayout = MOBILE_LAYOUTS[(MOBILE_LAYOUTS.indexOf(mobileLayout) + 1) % MOBILE_LAYOUTS.length];
+    savePref(MOBILE_LAYOUT_PREF, mobileLayout);
+    applyControlMode();
+    $("menu-mlayout").textContent = mobileLayoutText();
     tone("select");
   };
   $("menu-popnum").onclick = () => {

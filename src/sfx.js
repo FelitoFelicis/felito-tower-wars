@@ -150,12 +150,19 @@ export function createSfx() {
       });
       tone({ type: "sine", from: 1568, to: 1570, dur: 1.1, gain: 0.05, delay: 0.36, attack: 0.01 });
     },
+    // v0.17c: a creep unlocks: the padlock clicks open and the chains rattle down
+    unlock: () => {
+      tone({ type: "square", from: 1900, to: 1500, dur: 0.035, gain: 0.025 });
+      tone({ type: "triangle", from: 2600, to: 2300, dur: 0.06, gain: 0.03, delay: 0.05 });
+      for (let i = 0; i < 4; i++) tone({ type: "triangle", from: 3100 - i * 260, to: 2700 - i * 260, dur: 0.05, gain: 0.018, delay: 0.16 + i * 0.07 });
+      hiss({ dur: 0.25, gain: 0.02, freq: 4200, q: 2, delay: 0.16, sweep: 0.7 });
+    },
     error: () => tone({ type: "square", from: 180, to: 140, dur: 0.12, gain: 0.03 }),
     tier: () => [523, 659, 784, 1046].forEach((f, i) => tone({ type: "triangle", from: f, dur: 0.16, gain: 0.04, delay: i * 0.08 })),
     victory: () => [523, 659, 784, 1046, 1318].forEach((f, i) => tone({ type: "triangle", from: f, dur: 0.3, gain: 0.05, delay: i * 0.11 })),
     defeat: () => [392, 330, 262, 196].forEach((f, i) => tone({ type: "sine", from: f, dur: 0.35, gain: 0.05, delay: i * 0.16 })),
   };
-  const minGap = { thunder: 0.22, pillar: 1, monsun: 1, golem: 0.5, volley: 0.5, kill: 0.07, tap: 0.03, built: 0.08, income: 0.3, leak: 0.12, bell: 1 };
+  const minGap = { unlock: 0.2, thunder: 0.22, pillar: 1, monsun: 1, golem: 0.5, volley: 0.5, kill: 0.07, tap: 0.03, built: 0.08, income: 0.3, leak: 0.12, bell: 1 };
   return {
     play(name) {
       if (!enabled || !sounds[name]) return;

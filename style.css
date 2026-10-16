@@ -5519,7 +5519,7 @@ dialog.welcome-modal.hard-eyes .welcome-eyes {
   font-size: 11.8px;
 }
 
-/* First Blood: 15 % smaller, 40 % see-through, title +30 %, player name twice as big in the player's colour */
+/* First Blood: 15 % smaller, 35 % see-through (v0.17c: like every splat over the board), title +30 %, player name twice as big in the player's colour */
 .first-blood {
   width: min(255px, 66vw);
 }
@@ -5538,11 +5538,11 @@ dialog.welcome-modal.hard-eyes .welcome-eyes {
 }
 @keyframes first-blood {
   0% { opacity: 0; transform: translate(-50%, -50%) scale(2.2) rotate(-8deg); }
-  10% { opacity: 0.6; transform: translate(-50%, -50%) scale(0.92) rotate(2deg); }
+  10% { opacity: 0.65; transform: translate(-50%, -50%) scale(0.92) rotate(2deg); }
   14% { transform: translate(-52%, -50%) scale(1.04) rotate(-2deg); }
   18% { transform: translate(-48%, -50%) scale(1) rotate(1deg); }
   22% { transform: translate(-50%, -50%) scale(1) rotate(0); }
-  80% { opacity: 0.6; transform: translate(-50%, -50%) scale(1); }
+  80% { opacity: 0.65; transform: translate(-50%, -50%) scale(1); }
   100% { opacity: 0; transform: translate(-50%, -46%) scale(1.06); }
 }
 
@@ -5824,3 +5824,123 @@ b.val {
 .book-card img { max-width: 44px; height: 44px; }
 .book-card small { color: #c9b4f0; font-weight: 600; }
 .book-empty { margin: 12px; color: var(--muted, #b9c6cf); text-align: center; }
+
+/* ---- v0.17c: bigger board on phones — the board reaches right up to the HUD and down to the cards ---- */
+/* Slimmer player plates, no padding above the cards and a lower card row (build cards keep their size;
+   the send buttons keep their size and still overlap the board's lower edge); the board takes the freed height. */
+@media (max-width: 600px) {
+  .game-shell .mini-hud {
+    padding-bottom: 2px;
+  }
+  .game-shell .player-plate,
+  .game-shell .round-plate {
+    height: 60px;
+  }
+  .game-shell .player-plate {
+    padding-top: 2px;
+    padding-bottom: 8px;
+  }
+  .game-shell .plate-body {
+    gap: 0;
+  }
+  .game-shell .income-timer {
+    width: 32px;
+    height: 32px;
+  }
+  .game-shell .command-deck,
+  .game-shell[data-page="send"] .command-deck {
+    padding-top: 0;
+    height: 88px;
+  }
+  .game-shell .cards {
+    height: 86px;
+  }
+}
+
+/* ---- v0.17d: mobile layout B — no bottom bar, no mini map; one button column right of the board ---- */
+/* The column is placed by the app (placeColumn): help and options on top, Build and Send as small squares
+   at the bottom, level button and auto slot in between. The cards move down to the screen edge. */
+html.layout-b {
+  --send-h: 146px;
+}
+html.layout-b .game-shell {
+  --nav-size: 0px;
+}
+html.layout-b .game-shell .command-deck {
+  bottom: env(safe-area-inset-bottom);
+}
+html.layout-b .game-shell[data-page="send"] .cards {
+  height: var(--send-h);
+}
+html.layout-b .game-shell .bottom-nav {
+  --sq: 40px;
+  position: absolute;
+  z-index: 6;
+  left: auto;
+  right: 6px;
+  top: 90px;
+  bottom: auto;
+  width: 88px;
+  height: 300px;
+  padding: 0;
+  display: flex;
+  flex-flow: row wrap;
+  justify-content: space-between;
+  align-content: space-between;
+  gap: 4px;
+  background: none;
+  border: 0;
+  pointer-events: none;
+}
+html.layout-b .game-shell .bottom-nav > * {
+  pointer-events: auto;
+  flex: none;
+  width: var(--sq);
+  height: var(--sq);
+  min-height: 0;
+  border-radius: 10px;
+}
+html.layout-b .game-shell .bottom-nav .help-button { order: 1; }
+html.layout-b .game-shell .bottom-nav .menu-side { order: 2; }
+html.layout-b .game-shell .bottom-nav .tab-build { order: 3; }
+html.layout-b .game-shell .bottom-nav .tab-send { order: 4; }
+html.layout-b .game-shell .bottom-nav [data-tab] {
+  flex-direction: column;
+  gap: 0;
+  padding: 2px 0 0;
+  font-size: 9px;
+  letter-spacing: 0.02em;
+  line-height: 1;
+}
+html.layout-b .game-shell .bottom-nav [data-tab] img {
+  width: 24px;
+  height: 24px;
+}
+html.layout-b .game-shell .side-button img {
+  width: 22px;
+  height: 22px;
+}
+
+/* v0.17c: unlock animation: shackle opens, chains slide apart and fall, the lock drops off the card */
+.card-lock.unlocking b { animation: lk-fade 0.25s ease-out forwards; }
+.card-lock.unlocking svg { animation: lk-drop 1.05s cubic-bezier(.5,0,.8,.4) 0.22s forwards; }
+.card-lock.unlocking .lk-chain { transform-box: fill-box; transform-origin: center; }
+.card-lock.unlocking .lk-chain[data-k="0"] { animation: lk-chain-l 0.8s ease-in forwards; }
+.card-lock.unlocking .lk-chain[data-k="1"] { animation: lk-chain-r 0.8s ease-in forwards; }
+.card-lock.unlocking svg > path:first-of-type,
+.card-lock.unlocking svg > path:nth-of-type(2) { transform-box: fill-box; transform-origin: 100% 100%; animation: lk-shackle 0.2s ease-out forwards; }
+@keyframes lk-fade { to { opacity: 0; } }
+@keyframes lk-shackle { to { transform: translate(0, -18%) rotate(28deg); } }
+@keyframes lk-chain-l { 0% { transform: none; } 30% { transform: translate(-16%, -4%) rotate(-8deg); opacity: 1; } 100% { transform: translate(-40%, 90%) rotate(-38deg); opacity: 0; } }
+@keyframes lk-chain-r { 0% { transform: none; } 30% { transform: translate(16%, -4%) rotate(8deg); opacity: 1; } 100% { transform: translate(40%, 90%) rotate(38deg); opacity: 0; } }
+@keyframes lk-drop { 0% { transform: none; opacity: 1; } 20% { transform: translateY(-6%) rotate(-6deg); } 100% { transform: translateY(115%) rotate(24deg); opacity: 0; } }
+
+/* v0.17c: the tower tooltip inside the detail dialog */
+.help-tip.detail-tip {
+  position: static;
+  max-width: none;
+  margin: 4px 0 10px;
+  pointer-events: auto;
+  box-shadow: inset 0 0 0 1.5px #6a8496;
+}
+.card-lock.lock-fly { position: fixed; inset: auto; z-index: 8500; overflow: visible; }

@@ -64,6 +64,8 @@ function creepSize(catalog, id) {
 const tierGrowth = (tier) => 1 + 0.01 * Math.max(0, (tier || 1) - 1);
 /** Creeps drawn larger than their rank alone would make them. */
 const SIZE_BOOST = { n00S: 1.3, nAGO: 1.45 }; // tier 1 Raiders, v0.12: Arcane Golem
+/** v0.17d: mobile layout B is switched on by a class on <html> (set by the app). */
+const layoutB = () => typeof document !== "undefined" && document.documentElement.classList.contains("layout-b");
 export function arenaGeometry(width, height, grid = { cols: 6, rows: 9 }, mode = "build", insets = { top: 84, bottom: 172 }) {
   const w = Math.max(1, width),
     h = Math.max(1, height),
@@ -76,6 +78,32 @@ export function arenaGeometry(width, height, grid = { cols: 6, rows: 9 }, mode =
     frameV = 5;
   const availableHeight = Math.max(9, h - safeTop - safeBottom - frameV * 2),
     byHeight = availableHeight / (logicalRows + STRIP); // v0.09: no exit strip below the board
+  // v0.17d: mobile layout B: no mini map; one button column right of the board (options and help on
+  // top, level and auto slot in the middle, Build and Send at the bottom), so the board can grow.
+  if (layoutB()) {
+    const colGap = 5,
+      edgeLeft = frame + 4,
+      // the column takes what a full-height board leaves free, at least 76 px (two 36 px squares)
+      colW = clamp(Math.floor(w - edgeLeft - frame - colGap - 4 - logicalCols * byHeight), 76, 96),
+      colReserve = frame + colGap + colW + 4,
+      cell = Math.max(1, Math.min(Math.max(5, w - edgeLeft - colReserve) / logicalCols, byHeight)),
+      bw = cell * logicalCols,
+      bh = cell * logicalRows,
+      strip = cell * STRIP,
+      left = edgeLeft + Math.max(0, (w - edgeLeft - colReserve - bw) / 2),
+      top = safeTop + frameV + strip + (availableHeight - bh - strip) / 2,
+      sq = Math.floor((colW - 4) / 2),
+      slot = Math.round(colW * 0.62),
+      col = { x: left + bw + frame + colGap, y: top - strip, w: colW, h: bh + strip, sq };
+    return {
+      w, h, mode, mini: false, rotated: false, passive: mode !== "build",
+      logicalCols, logicalRows, cols: logicalCols, rows: logicalRows,
+      left, top, bw, bh, cw: cell, ch: cell, frame, frameV, strip,
+      pip: null,
+      col,
+      side: { x: col.x + (colW - slot) / 2, y: col.y + sq + 8 - 14, w: slot, layoutB: true },
+    };
+  }
   // A portrait mini map of the other lane sits in its own column right of the board, never over it.
   // v0.12: side columns shrink (down to 38 px) and sit tighter so the board can reach full height.
   const layout = (pipW) => {
@@ -209,8 +237,8 @@ export function mountArena({
       hud = document.querySelector(".mini-hud")?.getBoundingClientRect(),
       dock = document.querySelector(".command-deck")?.getBoundingClientRect();
     insets = {
-      top: hud ? Math.max(0, hud.bottom - box.top) + 2 : 84,
-      bottom: dock ? Math.max(0, box.bottom - dock.top) + 2 : 172,
+      top: hud ? Math.max(0, hud.bottom - box.top) : 84,
+      bottom: dock ? Math.max(0, box.bottom - dock.top) : 172,
     };
   }
   measureInsets();
@@ -420,7 +448,7 @@ export function mountArena({
         }
         if (!press || press.id !== p.id || press.seed !== state?.seed || Math.hypot(p.x - press.x, p.y - press.y) > 12) return;
         const r = pipGeometry(this.geometry());
-        if (p.x >= r.x - 6 && p.x <= r.x + r.w + 6 && p.y >= r.y - 6 && p.y <= r.y + r.h + 12) {
+        if (r && p.x >= r.x - 6 && p.x <= r.x + r.w + 6 && p.y >= r.y - 6 && p.y <= r.y + r.h + 12) {
           onPip();
           return;
         }
@@ -865,6 +893,14 @@ export function mountArena({
         } else if (e.type === "volleyStart" && e.player === view) {
           const q = this.point(e.x, e.y);
           this.ring(q.x, q.y, cell * 0.3, cell * 1.5, 0xffe7a8, 0.6, 3);
+        } else if (e.type === "income" && e.player === view && e.gens?.length) {
+          // v0.17c: EXP pop-up over every EXP generator at the start of a round
+          for (const gen of e.gens) {
+            const q = this.point(gen.x, gen.y),
+              n = Math.round(gen.exp * 100) / 100;
+            this.burst(q.x, q.y - cell * 0.35, 0xb48cff, 6, 45, 2.2, 0.55, -30, true);
+            this.floatText(q.x, q.y - cell * 0.45, `+${n} EXP`, "#d2b0ff", 15, 44, 1.2);
+          }
         } else if (e.type === "kill" && e.player === view) {
           const q = this.point(e.x, e.y),
             def = catalog.byId[e.id],
@@ -1255,7 +1291,7 @@ export function mountArena({
           artKey = this.ready(c.art || artFor(def), "creep"), // v0.16: c.art (wave 1 boxer goblin)
           m = ART_MANIFEST[artKey],
           // v0.14: creeps wear their sender's colour (team blue in the art moved to that colour)
-          teamId = c.golem ? null : c.owner >= 0 ? colorOf(c.owner) : "neutral", // v0.15: neutral creeps wear brown
+          teamId = c.owner >= 0 ? colorOf(c.owner) : "neutral", // v0.15: neutral creeps wear brown; v0.17c: the Arcane Golem too wears its owner's colour
           recolor = !!teamId && CLOTH_COLORS[teamId].hue !== null,
           skin = recolor ? this.teamTexture(artKey, teamId) : artKey;
         alive.add(key);
@@ -1270,7 +1306,7 @@ export function mountArena({
         const boss = !!(def.bossTier || c.waveBoss),
           flying = !!(c.flying ?? def.flying),
           neutral = c.owner < 0,
-          height = cell * (boss ? 1.3 * (c.waveBoss ? 1 : tierGrowth(def.tier || (def.bossTier || 2) - 1)) : (flying ? 0.82 : 0.78) * (neutral ? 1 : creepSize(catalog, def.id))),
+          height = cell * (boss ? 1.3 * (c.waveBoss ? 1 : tierGrowth(def.tier || (def.bossTier || 2) - 1)) : (flying ? 0.82 : 0.78) * (neutral ? 1 : creepSize(catalog, def.id))) * (c.golem ? 1 + 0.07 * ((c.level || 1) - 1) : 1), // v0.17c: the Arcane Golem grows 7 % per perk level
           s = (height / m.h) * (1 - 0.12 * (c.shrink || 0)),
           step = time * 0.016 + phase0;
         const lift = flying ? cell * 0.32 + Math.sin(time * 0.006 + phase0) * cell * 0.05 : walk ? 0 : Math.abs(Math.sin(step)) * cell * 0.05;
@@ -1302,7 +1338,6 @@ export function mountArena({
           else if (poisoned) sprite.setTint(0xc4f59a);
           else if (c.immune) sprite.setTint(0xe2d2ff);
           else if (c.burning) sprite.setTint(0xffa060); // v0.10w: Burning Treant
-          else if (c.golem) sprite.setTint(0xd8b4ff); // v0.12: Arcane Golem
           else sprite.clearTint();
         }
         const flap = flying ? 1 + Math.sin(time * 0.03 + phase0) * 0.05 : 1;
@@ -1816,6 +1851,10 @@ export function mountArena({
         r = pipGeometry(z),
         { cols, rows } = game.grid;
       g.clear();
+      if (!r) {
+        this.pipLabel.setVisible(false); // v0.17d: layout B has no mini map
+        return;
+      }
       // Portrait, same orientation as the main board.
       const sx = r.w / cols,
         sy = r.h / rows,
