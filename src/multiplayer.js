@@ -50,9 +50,292 @@ async function peerOptions(dependencies = {}) {
     path: "/",
     secure: true,
     debug: 0,
-    config: { iceServers: await iceServers() },
+    // test hook: window.felitoForceRelay = true blocks direct channels, so the relay path runs
+    config: globalThis.felitoForceRelay ? { iceServers: [], iceTransportPolicy: "relay" } : { iceServers: await iceServers() },
     ...(dependencies.peerOptions || {}),
   };
+}
+
+// ---- v0.13a: relay fallback over public MQTT brokers ------------------------------------
+// When two devices can't open a direct WebRTC channel (mobile data, strict routers) and no TURN
+// relay is configured, the game data travels through public MQTT brokers instead. The topic is
+// derived from a 128-bit random secret that the guest sends to the host through PeerJS
+// signalling (connection metadata), so nobody else knows it. Messages are deflated and carry a
+// frame counter, so both brokers can be used at once and duplicates are dropped.
+const RELAY_BROKERS = ["wss://broker.hivemq.com:8884/mqtt", "wss://test.mosquitto.org:8081/mqtt"];
+const RELAY_AFTER_MS = 5000;
+const textEnc = new TextEncoder(),
+  textDec = new TextDecoder();
+export function randomSecret(dependencies = {}) {
+  const bytes = dependencies.randomBytes ? dependencies.randomBytes(16) : globalThis.crypto.getRandomValues(new Uint8Array(16));
+  return [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+const validSecret = (s) => typeof s === "string" && /^[0-9a-f]{32}$/.test(s);
+async function deflate(bytes) {
+  if (!globalThis.CompressionStream) return bytes;
+  const out = new Response(new Blob([bytes]).stream().pipeThrough(new CompressionStream("deflate-raw")));
+  return new Uint8Array(await out.arrayBuffer());
+}
+async function inflate(bytes) {
+  if (!globalThis.DecompressionStream) return bytes;
+  const out = new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream("deflate-raw")));
+  return new Uint8Array(await out.arrayBuffer());
+}
+/** Minimal MQTT 3.1.1 client over WebSocket: connect, subscribe, QoS 0 publish, ping. */
+class MqttLink {
+  constructor(url, onMessage) {
+    this.url = url;
+    this.onMessage = onMessage;
+    this.ready = false;
+    this.closed = false;
+    this.subs = [];
+    this.buffer = new Uint8Array(0);
+    this.packetId = 1;
+  }
+  static str(s) {
+    const b = textEnc.encode(s);
+    return [b.length >> 8, b.length & 255, ...b];
+  }
+  static len(n) {
+    const out = [];
+    do {
+      let d = n % 128;
+      n = Math.floor(n / 128);
+      if (n > 0) d |= 128;
+      out.push(d);
+    } while (n > 0);
+    return out;
+  }
+  packet(type, body) {
+    const head = [type, ...MqttLink.len(body.length)],
+      out = new Uint8Array(head.length + body.length);
+    out.set(head, 0);
+    out.set(body, head.length);
+    return out;
+  }
+  open(timeout = 6000) {
+    return new Promise((resolve) => {
+      let done = false;
+      const finish = (ok) => {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        resolve(ok);
+      };
+      const timer = setTimeout(() => {
+        finish(false);
+        this.close();
+      }, timeout);
+      try {
+        this.ws = new WebSocket(this.url, ["mqtt"]);
+      } catch {
+        return finish(false);
+      }
+      this.ws.binaryType = "arraybuffer";
+      this.ws.onopen = () => {
+        const id = "felito-" + Math.random().toString(36).slice(2, 12);
+        this.ws.send(this.packet(0x10, [...MqttLink.str("MQTT"), 4, 2, 0, 60, ...MqttLink.str(id)]));
+      };
+      this.ws.onmessage = (e) => {
+        const add = new Uint8Array(e.data),
+          merged = new Uint8Array(this.buffer.length + add.length);
+        merged.set(this.buffer);
+        merged.set(add, this.buffer.length);
+        this.buffer = merged;
+        this.parse(() => finish(true));
+      };
+      this.ws.onerror = () => finish(false);
+      this.ws.onclose = () => {
+        this.ready = false;
+        finish(false);
+      };
+      this.ping = setInterval(() => {
+        if (this.ready) this.raw(new Uint8Array([0xc0, 0]));
+      }, 25000);
+    });
+  }
+  parse(onConnack) {
+    while (this.buffer.length >= 2) {
+      let mult = 1,
+        length = 0,
+        i = 1,
+        byte;
+      do {
+        if (i >= this.buffer.length) return;
+        byte = this.buffer[i++];
+        length += (byte & 127) * mult;
+        mult *= 128;
+      } while (byte & 128);
+      if (this.buffer.length < i + length) return;
+      const type = this.buffer[0],
+        body = this.buffer.subarray(i, i + length);
+      this.buffer = this.buffer.slice(i + length);
+      if (type >> 4 === 2) {
+        this.ready = body[1] === 0;
+        for (const t of this.subs) this.sendSubscribe(t);
+        onConnack();
+      } else if (type >> 4 === 3) {
+        const tl = (body[0] << 8) | body[1],
+          topic = textDec.decode(body.subarray(2, 2 + tl)),
+          qos = (type >> 1) & 3,
+          start = 2 + tl + (qos ? 2 : 0);
+        try {
+          this.onMessage(topic, body.slice(start));
+        } catch {}
+      }
+    }
+  }
+  raw(bytes) {
+    try {
+      if (this.ws?.readyState === 1) this.ws.send(bytes);
+    } catch {}
+  }
+  sendSubscribe(topic) {
+    const id = this.packetId++ & 0xffff || 1;
+    this.raw(this.packet(0x82, [id >> 8, id & 255, ...MqttLink.str(topic), 0]));
+  }
+  subscribe(topic) {
+    this.subs.push(topic);
+    if (this.ready) this.sendSubscribe(topic);
+  }
+  publish(topic, bytes) {
+    if (!this.ready) return false;
+    const t = MqttLink.str(topic),
+      body = new Uint8Array(t.length + bytes.length);
+    body.set(t);
+    body.set(bytes, t.length);
+    this.raw(this.packet(0x30, body));
+    return true;
+  }
+  close() {
+    this.closed = true;
+    clearInterval(this.ping);
+    try {
+      if (this.ws?.readyState === 1) this.raw(new Uint8Array([0xe0, 0]));
+      this.ws?.close();
+    } catch {}
+  }
+}
+/**
+ * A message channel on all reachable brokers. `inbox`/`outbox` are topics. Messages are strings
+ * (deflated on the wire, framed with a counter). Resolves once at least one broker is connected.
+ */
+async function openRelayLinks(inbox, onText) {
+  let lastIn = 0;
+  const chain = { p: Promise.resolve() };
+  const onMessage = (topic, bytes) => {
+    if (topic !== inbox || bytes.length < 4) return;
+    const n = ((bytes[0] << 24) >>> 0) + (bytes[1] << 16) + (bytes[2] << 8) + bytes[3];
+    if (n <= lastIn) return;
+    lastIn = n;
+    chain.p = chain.p.then(() => inflate(bytes.subarray(4))).then((b) => onText(textDec.decode(b))).catch(() => {});
+  };
+  const links = RELAY_BROKERS.map((url) => new MqttLink(url, onMessage));
+  const opened = await Promise.all(links.map((l) => l.open().then((ok) => (ok ? l : (l.close(), null)))));
+  const live = opened.filter(Boolean);
+  for (const l of live) l.subscribe(inbox);
+  return live;
+}
+class RelayLinkSender {
+  constructor(links, outbox) {
+    this.links = links;
+    this.outbox = outbox;
+    this.n = 0;
+    this.queue = Promise.resolve();
+    this.pending = 0;
+  }
+  send(text) {
+    const n = ++this.n;
+    this.pending++;
+    this.queue = this.queue
+      .then(() => deflate(textEnc.encode(text)))
+      .then((z) => {
+        const out = new Uint8Array(z.length + 4);
+        out.set([(n >>> 24) & 255, (n >> 16) & 255, (n >> 8) & 255, n & 255]);
+        out.set(z, 4);
+        for (const l of this.links) l.publish(this.outbox, out);
+      })
+      .catch(() => {})
+      .finally(() => this.pending--);
+  }
+}
+/**
+ * A PeerJS-DataConnection look-alike over the relay: on("open"|"data"|"close"|"error"), send(),
+ * close(), open, bufferSize. Both sides say "hi" until they hear the other side.
+ */
+class RelayChannel {
+  constructor(secret, role, code) {
+    this.base = `felito/v${PROTOCOL_VERSION}/r/${code}/${secret}`;
+    this.role = role;
+    this.handlers = {};
+    this.open = false;
+    this.closed = false;
+    this.relay = true;
+  }
+  on(event, fn) {
+    (this.handlers[event] ||= []).push(fn);
+  }
+  off(event, fn) {
+    this.handlers[event] = (this.handlers[event] || []).filter((f) => f !== fn);
+  }
+  emit(event, ...args) {
+    for (const fn of [...(this.handlers[event] || [])]) {
+      try {
+        fn(...args);
+      } catch {}
+    }
+  }
+  get bufferSize() {
+    return this.sender?.pending || 0;
+  }
+  async start() {
+    const me = this.role === "host" ? "h" : "g",
+      other = me === "h" ? "g" : "h";
+    this.links = await openRelayLinks(`${this.base}/${other}`, (text) => {
+      if (this.closed) return;
+      if (text === "\u0001hi" || text === "\u0001hi!") {
+        if (!this.open) {
+          this.open = true;
+          clearInterval(this.hello);
+          this.sender.send("\u0001hi!");
+          this.emit("open");
+        } else if (text === "\u0001hi") this.sender.send("\u0001hi!");
+        return;
+      }
+      if (text === "\u0001bye") {
+        this.closeNow(true);
+        return;
+      }
+      if (this.open) this.emit("data", text);
+    });
+    if (this.closed) return this.dispose();
+    if (!this.links.length) {
+      this.emit("error", { type: "relay-unavailable" });
+      return;
+    }
+    this.sender = new RelayLinkSender(this.links, `${this.base}/${me}`);
+    this.sender.send("\u0001hi");
+    this.hello = setInterval(() => !this.open && this.sender.send("\u0001hi"), 600);
+  }
+  send(text) {
+    if (!this.open || this.closed) throw new Error("relay not open");
+    this.sender.send(String(text));
+  }
+  closeNow(remote) {
+    if (this.closed) return;
+    if (!remote && this.sender) this.sender.send("\u0001bye");
+    this.closed = true;
+    this.open = false;
+    clearInterval(this.hello);
+    setTimeout(() => this.dispose(), remote ? 0 : 300);
+    this.emit("close");
+  }
+  close() {
+    this.closeNow(false);
+  }
+  dispose() {
+    for (const l of this.links || []) l.close();
+  }
 }
 
 export class MultiplayerError extends Error {
@@ -206,6 +489,7 @@ function peerFailure(err) {
     "socket-error": "Connecting to the connection server failed.",
     "socket-closed": "The connection server closed the connection.",
     "server-error": "The connection server is unavailable right now.",
+    "relay-unavailable": "No direct connection, and the relay servers can't be reached either.",
     webrtc: "The direct data channel couldn't be set up. The network may be blocking WebRTC.",
   };
   return error(
@@ -238,9 +522,11 @@ class Session {
     this.inbound = tokenBucket(this.now, 120, 90);
     this.outboundBytes = tokenBucket(this.now, 4 * 1024 * 1024, 2 * 1024 * 1024);
     this.inboundBytes = tokenBucket(this.now, 4 * 1024 * 1024, 2 * 1024 * 1024);
+    this.relaySecret = role === "guest" ? randomSecret(dependencies) : null;
     this.room = Object.freeze({
       code,
       role,
+      isRelay: () => !!this.connection?.relay,
       send: (data) => this.send(data),
       close: () => this.finish("closed", "Room closed."),
     });
@@ -358,7 +644,7 @@ class Session {
       try {
         const connection = this.peer.connect("felito-v1-" + this.code, {
           label: PROTOCOL,
-          metadata: { protocol: PROTOCOL, version: PROTOCOL_VERSION, room: this.code },
+          metadata: { protocol: PROTOCOL, version: PROTOCOL_VERSION, room: this.code, relay: this.relaySecret },
           serialization: "binary",
           reliable: true,
         });
@@ -410,14 +696,28 @@ class Session {
       return;
     }
     this.connection = connection;
+    // v0.13a: no direct channel after a few seconds: switch both sides to the MQTT relay
+    let relayNow = null;
+    if (!connection.relay) {
+      const secret = this.role === "guest" ? this.relaySecret : connection.metadata?.relay;
+      if (validSecret(secret) && this.dependencies.relay !== false) {
+        relayNow = () => {
+          if (this.closed || this.connection !== connection || this.channelOpen) return false;
+          this.cancel(this.relayTimer);
+          this.useRelay(connection, secret);
+          return true;
+        };
+        this.relayTimer = this.later(relayNow, RELAY_AFTER_MS);
+      }
+    }
     this.phase = this.role === "host" ? "hello" : "welcome";
     this.listen(connection, "data", (data) => this.receive(data), this.connectionListeners);
-    this.listen(connection, "error", (err) => this.connectionFailure(peerFailure(err)), this.connectionListeners);
+    this.listen(connection, "error", (err) => relayNow?.() || this.connectionFailure(peerFailure(err)), this.connectionListeners);
     this.listen(
       connection,
       "close",
       () => {
-        if (this.closed) return;
+        if (this.closed || relayNow?.()) return;
         this.connectionFailure(error("opponent-left", "Your opponent left the room."));
       },
       this.connectionListeners,
@@ -426,6 +726,8 @@ class Session {
     const onOpen = () => {
       if (this.closed || opened) return;
       opened = true;
+      this.channelOpen = true;
+      this.cancel(this.relayTimer);
       this.cancel(this.connectionTimer);
       this.handshakeTimer = this.later(
         () =>
@@ -451,10 +753,24 @@ class Session {
     if (connection.open) onOpen();
   }
 
+  useRelay(connection, secret) {
+    for (const dispose of this.connectionListeners.splice(0)) dispose();
+    this.cancel(this.connectionTimer);
+    try {
+      connection.close();
+    } catch {}
+    this.status("connecting", "No direct connection. Switching to the relay server …");
+    const relay = new RelayChannel(secret, this.role, this.code);
+    this.attach(relay);
+    relay.start();
+  }
+
   connectionFailure(err) {
     if (this.closed) return;
     // Invalid or abandoned candidates do not destroy a host's waiting room.
     if (this.role === "host" && !this.connected && this.opened) {
+      this.channelOpen = false;
+      this.cancel(this.relayTimer);
       this.cancel(this.connectionTimer);
       this.cancel(this.handshakeTimer);
       for (const dispose of this.connectionListeners.splice(0)) dispose();
@@ -689,8 +1005,27 @@ export async function findQuickMatch({ signal, onStatus } = {}, dependencies = {
       peer.on("open", () => done("open"));
       peer.on("error", (e) => done(e?.type || "error"));
     });
-  // Waits on a claimed slot for one opponent; hands it a fresh room code. v0.13: the match only
-  // counts once the opponent confirms the code (qm-ack); otherwise the slot keeps waiting.
+  // v0.13a: the lobby talks over the relay brokers (topic from a secret in the connection
+  // metadata, which travels through PeerJS signalling) and over the data channel if one opens.
+  const lobbyTalk = async (secret, me, onMsg) => {
+    const base = `felito/v${PROTOCOL_VERSION}/qm/${secret}`,
+      other = me === "h" ? "g" : "h";
+    let links = [];
+    try {
+      links = await openRelayLinks(`${base}/${other}`, (text) => {
+        try {
+          onMsg(JSON.parse(text));
+        } catch {}
+      });
+    } catch {}
+    const sender = links.length ? new RelayLinkSender(links, `${base}/${me}`) : null;
+    return {
+      send: (msg) => sender?.send(JSON.stringify(msg)),
+      close: () => setTimeout(() => links.forEach((l) => l.close()), 600),
+    };
+  };
+  // Waits on a claimed slot for one opponent; hands it a fresh room code. The match only counts
+  // once the opponent takes the code; otherwise the slot keeps waiting.
   const hostSlot = (peer) =>
     new Promise((resolve, reject) => {
       let matched = false,
@@ -716,83 +1051,94 @@ export async function findQuickMatch({ signal, onStatus } = {}, dependencies = {
       const rescan = setTimeout(() => {
         if (!matched && !offering) settle(null);
       }, 20000);
-      peer.on("connection", (conn) => {
+      peer.on("connection", async (conn) => {
+        const secret = conn.metadata?.qm;
+        if (matched || offering || settled || !validSecret(secret)) {
+          setTimeout(() => conn.close(), 300);
+          return;
+        }
+        const code = randomCode(dependencies),
+          offer = { protocol: PROTOCOL, kind: "qm-match", code };
+        offering = secret;
+        let talk = null,
+          repeat = null;
+        const take = (msg) => {
+          if (matched || offering !== secret || msg?.protocol !== PROTOCOL || msg.kind !== "qm-ack" || msg.code !== code) return;
+          matched = true;
+          clearTimeout(giveUp);
+          clearInterval(repeat);
+          talk?.close();
+          setTimeout(() => settle({ role: "host", code }), 250);
+        };
+        const giveUp = setTimeout(() => {
+          if (matched || offering !== secret) return;
+          offering = null;
+          clearInterval(repeat);
+          talk?.close();
+          try {
+            conn.close();
+          } catch {}
+        }, 9000);
+        conn.on("data", take);
         conn.on("open", () => {
-          if (matched || offering || settled) {
-            try {
-              conn.send({ protocol: PROTOCOL, kind: "qm-busy" });
-            } catch {}
-            setTimeout(() => conn.close(), 300);
-            return;
-          }
-          const code = randomCode(dependencies);
-          offering = conn;
-          const giveUp = setTimeout(() => {
-            if (matched || offering !== conn) return;
-            offering = null;
-            try {
-              conn.close();
-            } catch {}
-          }, 5000);
-          conn.on("data", (msg) => {
-            if (offering !== conn || msg?.protocol !== PROTOCOL || msg.kind !== "qm-ack" || msg.code !== code) return;
-            matched = true;
-            clearTimeout(giveUp);
-            // let the ack's channel settle, then free the slot and open the room
-            setTimeout(() => settle({ role: "host", code }), 250);
-          });
-          conn.on("close", () => {
-            if (!matched && offering === conn) offering = null;
-          });
-          conn.send({ protocol: PROTOCOL, kind: "qm-match", code });
+          try {
+            conn.send(offer);
+          } catch {}
         });
+        talk = await lobbyTalk(secret, "h", take);
+        if (matched || offering !== secret) return talk.close();
+        talk.send(offer);
+        repeat = setInterval(() => talk.send(offer), 700);
       });
       peer.on("error", (e) => {
         if (!matched && ["network", "server-error", "socket-error", "socket-closed"].includes(e?.type)) settle(null);
       });
     });
-  // Asks a waiting slot for a match; resolves the room code or null. v0.13: guarded against the
-  // close event that destroy() fires synchronously (it used to resolve null before the code).
+  // Asks a waiting slot for a match; resolves the room code or null.
   const askSlot = (slot) =>
     new Promise((resolve) => {
-      openPeer().then(({ peer, result }) => {
-        let done = false;
+      openPeer().then(async ({ peer, result }) => {
+        let done = false,
+          talk = null;
         const finish = (code) => {
           if (done) return;
           done = true;
           clearTimeout(timer);
           resolve(code);
+          talk?.close();
           setTimeout(
             () => {
               try {
                 peer.destroy();
               } catch {}
             },
-            code ? 400 : 0,
+            code ? 600 : 0,
           );
         };
-        const timer = setTimeout(() => finish(null), 9000);
+        const timer = setTimeout(() => finish(null), 11000);
         if (result !== "open") return finish(null);
+        const secret = randomSecret(dependencies);
+        let conn = null;
+        const onOffer = (msg) => {
+          if (done || msg?.protocol !== PROTOCOL || msg.kind !== "qm-match") return;
+          let code = null;
+          try {
+            code = normalizeRoomCode(msg.code);
+          } catch {}
+          if (!code) return;
+          const ack = { protocol: PROTOCOL, kind: "qm-ack", code };
+          talk?.send(ack);
+          talk?.send(ack);
+          try {
+            if (conn?.open) conn.send(ack);
+          } catch {}
+          finish(code);
+        };
+        talk = await lobbyTalk(secret, "g", onOffer);
+        if (done) return;
         peer.on("error", () => finish(null));
-        const conn = peer.connect(lobbyId(slot), { reliable: true });
-        conn.on("data", (msg) => {
-          if (msg?.protocol !== PROTOCOL) return finish(null);
-          if (msg.kind === "qm-match") {
-            let code = null;
-            try {
-              code = normalizeRoomCode(msg.code);
-            } catch {}
-            if (!code) return finish(null);
-            try {
-              conn.send({ protocol: PROTOCOL, kind: "qm-ack", code });
-            } catch {
-              return finish(null);
-            }
-            finish(code);
-          } else finish(null);
-        });
-        conn.on("close", () => finish(null));
-        conn.on("error", () => finish(null));
+        conn = peer.connect(lobbyId(slot), { reliable: true, metadata: { qm: secret } });
+        conn.on("data", onOffer);
       });
     });
   for (let round = 0; ; round++) {

@@ -61,7 +61,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.13",
+const APP_VERSION = "0.13a",
   APP_DATE = "16.10.2026";
 const WAVES_PREF = "felito.waves";
 const COACH_PREF = "felito.coach.v1";
@@ -2797,7 +2797,7 @@ async function quickMatch() {
 }
 function onlineMenu() {
   showModal(
-    `${modalHeader(t("Play with a friend"))}<p class="modal-copy">${t("One player opens a room. The other enters the same code. Each defends their own arena.")}</p><button class="primary-button" id="create-room">${t("Open a room →")}</button><label for="room-input" class="modal-label">${t("YOUR OPPONENT'S ROOM CODE")}</label><input id="room-input" maxlength="12" autocomplete="off" autocapitalize="characters" placeholder="XXXXXXXX"><button class="secondary-button" id="join-room">${t("Join room")}</button><div id="network-status" class="network-status">${t("Ready for a direct duel.")}</div><p class="modal-note">${t("Internet required. The connection runs directly over WebRTC; PeerJS brokers the contact. Both devices must be able to open the game page. Some mobile or company networks block direct connections.")}</p>`,
+    `${modalHeader(t("Play with a friend"))}<p class="modal-copy">${t("One player opens a room. The other enters the same code. Each defends their own arena.")}</p><button class="primary-button" id="create-room">${t("Open a room →")}</button><label for="room-input" class="modal-label">${t("YOUR OPPONENT'S ROOM CODE")}</label><input id="room-input" maxlength="12" autocomplete="off" autocapitalize="characters" placeholder="XXXXXXXX"><button class="secondary-button" id="join-room">${t("Join room")}</button><div id="network-status" class="network-status">${t("Ready for a direct duel.")}</div><p class="modal-note">${t("Internet required. The connection runs directly over WebRTC; PeerJS brokers the contact. If a network blocks direct connections, the game switches to a relay server after a few seconds.")}</p>`,
   );
   $("create-room").onclick = () => connectOnline();
   $("join-room").onclick = () => {
@@ -3070,7 +3070,8 @@ function tick(dt) {
       }
     }
   }
-  if (networkTime >= 0.12) {
+  // v0.13a: through the relay servers the state goes out less often (data volume)
+  if (networkTime >= (room?.isRelay?.() ? 0.3 : 0.12)) {
     networkTime = 0;
     if (room?.role === "host" && connected && begun) sendState();
   }
