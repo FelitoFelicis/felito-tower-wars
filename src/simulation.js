@@ -630,6 +630,7 @@ export const PERKS = Object.freeze({
   gold: { name: "Gold", max: 5, text: "Instantly +{gold} gold" },
   novice: { name: "Novice", max: 5, text: "Gain experience 20% faster" },
   volley: { name: "Arrow Volley", max: 5, text: "Active ability: arrows rain on an area (20 s cooldown)" },
+  pillage: { name: "Pillage", max: 5, text: "Steal 1% of a player's gold on each breakthrough" }, // v0.10k: 1 % per level
 });
 /** v0.09q: Arrow Volley: cooldown, area radius in fields, arrows per perk level, extra base damage. */
 export const VOLLEY = { cooldown: 20, radius: 1.5, perLevel: 3, bonus: 3, spread: 0.9 };
@@ -723,6 +724,7 @@ export const PERK_AVAILABILITY = {
   gold: "3-5",
   novice: "3-6",
   volley: "2-5",
+  pillage: "6+",
   // research (needs the matching element)
   R00K: "1+", // Watcher Owl
   R00U: "1+", // Creep Armor
@@ -2108,6 +2110,16 @@ function touchdown(game, p, c) {
   p.lives = Math.max(0, p.lives - 1);
   if (!sender.out) sender.lives++;
   sender.stats.leaks++;
+  // v0.10k: Pillage, 1 % of the leaked player's gold per perk level
+  const pillage = perkLevel(sender, "pillage");
+  if (pillage && !sender.out) {
+    const loot = Math.floor((p.gold * pillage) / 100);
+    if (loot > 0) {
+      p.gold -= loot;
+      sender.gold += loot;
+      emit(game, "pillage", { player: p.id, owner: sender.id, gold: loot, x: c.x, y: c.y });
+    }
+  }
   gainExp(game, sender, ["n00S", "n01C"].includes(c.typeId) ? 30 : RULES.touchdownWood);
   if (["n01R", "n02P"].includes(c.typeId)) {
     const stolen = Math.trunc(p.income / 100);
