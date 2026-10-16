@@ -650,7 +650,7 @@ export const PERKS = Object.freeze({
   wings: { name: "Wings of War", max: 5, element: "storm", text: "Your flying creeps: +6% hit points, +3% speed and +10% income per level" }, // v0.10p
   hellfire: { name: "Hellfire", max: 5, element: "fire", text: "Creeps in your 6th row take tier × level + 3 damage per second (+5 at level 4, +10 at level 5)" }, // v0.10p
   burst: { name: "Arcane Burst", max: 5, element: "arcane", text: "Active ability: level × 200 × tier damage, split among the creeps in an area (40 s cooldown)" }, // v0.10p
-  treasure: { name: "Gold Treasure", max: 1, text: "Instantly +{treasure} gold and +25 income" }, // v0.10r
+  treasure: { name: "Gold Treasure", max: 1, powerup: true, text: "Instantly +{treasure} gold and +25 income" }, // v0.10r
   voltage: { name: "High Voltage", max: 3, element: "storm", text: "EXP generators give 50% more EXP per level" }, // v0.10r
   boots: { name: "Red Boots", max: 3, element: "fire", text: "Your ground creeps: 25% / 33% / 40% less slowed and +1% income per level" }, // v0.10r
   exhume: { name: "Exhumination", max: 3, element: "plague", text: "Undead creeps cost 20% / 35% / 50% less but restock 20% slower" }, // v0.10r
