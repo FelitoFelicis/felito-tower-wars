@@ -48,7 +48,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.10g",
+const APP_VERSION = "0.10h",
   APP_DATE = "16.10.2026";
 const WAVES_PREF = "felito.waves";
 const COACH_PREF = "felito.coach.v1";
@@ -830,6 +830,9 @@ function sendState() {
 }
 function pause(value) {
   if (!game || (!value && transportBlocked)) return;
+  // v0.10h: online (PvP) games never pause for menus, level-up picks or the app going to the
+  // background; only a lost or blocked connection stops the duel.
+  if (room) return;
   if (room?.role === "guest") room.send({ kind: "pause", paused: value });
   else {
     if (room) {
@@ -2404,7 +2407,7 @@ function surrender() {
 /** In-game menu: settings only, rulebook at the bottom. The red × closes it. */
 function menu() {
   showModal(
-    `${canSurrender() ? `<button class="surrender-flag" id="menu-surrender" type="button" aria-label="${t("Surrender")}" title="${t("Surrender")}">${FLAG_SVG}</button>` : ""}${modalHeader(t("Paused"))}<div id="surrender-confirm" class="surrender-confirm" hidden><b>${t("Really surrender?")}</b><span>${t(isFfa() ? "You drop out of this match." : "Your opponent wins the duel.")}</span><div class="surrender-row"><button class="danger-button" id="surrender-yes" type="button">${t("Surrender")}</button><button class="secondary-button" id="surrender-no" type="button">${t("Resume")}</button></div></div><div class="menu-clock"><img src="${iconUrl("hourglass")}" alt=""><span>${t("Match time")}</span><b id="menu-clock">${matchClock()}</b></div>${sessionMode === "hotseat" ? `<button class="secondary-button" id="switch-player">${t("Switch player")}</button>` : ""}${settingsButtons()}<button class="secondary-button" id="menu-catalog">${t("Card book")}</button><button class="secondary-button" id="menu-rules">${t("Rules & development status")}</button><p class="modal-note">${t("Training is saved automatically.")}</p>`,
+    `${canSurrender() ? `<button class="surrender-flag" id="menu-surrender" type="button" aria-label="${t("Surrender")}" title="${t("Surrender")}">${FLAG_SVG}</button>` : ""}${modalHeader(t(room ? "Menu" : "Paused"))}<div id="surrender-confirm" class="surrender-confirm" hidden><b>${t("Really surrender?")}</b><span>${t(isFfa() ? "You drop out of this match." : "Your opponent wins the duel.")}</span><div class="surrender-row"><button class="danger-button" id="surrender-yes" type="button">${t("Surrender")}</button><button class="secondary-button" id="surrender-no" type="button">${t("Resume")}</button></div></div><div class="menu-clock"><img src="${iconUrl("hourglass")}" alt=""><span>${t("Match time")}</span><b id="menu-clock">${matchClock()}</b></div>${sessionMode === "hotseat" ? `<button class="secondary-button" id="switch-player">${t("Switch player")}</button>` : ""}${settingsButtons()}<button class="secondary-button" id="menu-catalog">${t("Card book")}</button><button class="secondary-button" id="menu-rules">${t("Rules & development status")}</button><p class="modal-note">${t("Training is saved automatically.")}</p>`,
   );
   $("modal").classList.toggle("with-flag", canSurrender());
   if ($("menu-surrender")) {
@@ -2582,7 +2585,8 @@ function receiveNetwork(message) {
       sendState();
     }
     if (message.kind === "pause" && typeof message.paused === "boolean") {
-      message.paused ? networkPauses.add(1) : networkPauses.delete(1);
+      // v0.10h: no pauses in PvP; a pause request from the guest is ignored
+      networkPauses.clear();
       game.paused = transportBlocked || networkPauses.size > 0;
       sendState();
     }
@@ -2943,7 +2947,7 @@ document.addEventListener("visibilitychange", () => {
         localStorage.setItem(SAVE, serializeGame(game));
       } catch {}
   } else if (begun && uiPauses.has("background")) {
-    if (!$("modal").open) menu();
+    if (!$("modal").open && !room) menu(); // v0.10h: online games carry on without the menu
     setUiPause("background", false);
   }
 });
