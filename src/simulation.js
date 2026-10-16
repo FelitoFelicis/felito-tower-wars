@@ -367,7 +367,7 @@ export function getPurchaseCost(game, playerIndex, id) {
   const p = game.players[playerIndex],
     item = obj(id);
   if (!p || !item) return null;
-  if (item.kind !== "research") return { gold: item.cost, wood: item.woodCost, time: item.buildTime };
+  if (item.kind !== "research") return { gold: bossDiscount(p, item, item.cost), wood: item.woodCost, time: item.buildTime };
   return getResearchCost(id, FACTIONS.some((f) => f.research === id) ? p.elementsPurchased : p.research[id] || 0);
 }
 /** Element upgrades locked until that element is owned (war3map.j SETUP + ELEMENT dialog). */
@@ -420,6 +420,7 @@ export function available(game, playerIndex, type, id, towerId = null, viaPick =
     if (item.bossTier && (p.bossBought?.[id] || p.tier >= item.bossTier)) return { ok: false, reason: "Boss already bought" };
     if (game.warmup) return { ok: false, reason: `Setup · ${Math.ceil(game.incomeRemaining)} s` };
     if ((p.stock[id]?.count ?? 0) < 1) return { ok: false, reason: "Restocking" };
+    cost = { gold: bossDiscount(p, item, item.cost), wood: 0 };
   } else if (type === "build") {
     if (!item.isBuildable) return { ok: false, reason: "Not a building" };
     if (!item.isRoot) return { ok: false, reason: "Upgrade from the previous tower" };
@@ -557,6 +558,7 @@ function statsFor(game, player, item) {
     }
   }
   stats.hp *= 1 + hpPercent;
+  if (item.isSend && item.bossTier && perkLevel(player, "golem")) stats.hp *= 1 + GOLEM.hp; // v0.10n
   stats.damageMultiplier *= 1 + damagePercent;
   if (perkLevel(player, "archery") && archerLine().has(item.id)) stats.damageMultiplier *= 1 + 0.05 * perkLevel(player, "archery");
   stats.damage = (stats.damage + stats.damageBonus) * stats.damageMultiplier;
@@ -630,6 +632,7 @@ export const PERKS = Object.freeze({
   gold: { name: "Gold", max: 5, text: "Instantly +{gold} gold" },
   novice: { name: "Novice", max: 5, text: "Gain experience 20% faster" },
   volley: { name: "Arrow Volley", max: 5, text: "Active ability: arrows rain on an area (20 s cooldown)" },
+  golem: { name: "Golem Whisperer", max: 1, element: "earth", text: "Boss creeps cost 25% less and have +10% hit points" }, // v0.10n
   crowd: { name: "Crowd Control", max: 3, text: "Above 50 creeps in your field: every 5 s the 3 weakest die per level" }, // v0.10l: 3 per level
   pillage: { name: "Pillage", max: 5, text: "Steal 1% of a player's gold on each breakthrough" }, // v0.10k: 1 % per level
 });
@@ -638,6 +641,11 @@ export const VOLLEY = { cooldown: 20, radius: 1.5, perLevel: 3, bonus: 3, spread
 /** Research that only an element unlocks: its element (for colour and frame in the dialog). */
 export const RESEARCH_ELEMENT = Object.freeze({ R002: "water", R000: "fire", R005: "earth", R006: "arcane", R00K: "storm", R00C: "plague", R00J: "fire", R00U: "earth", R00V: "fire", R00W: "storm", R00X: "plague", R001: "water", R00D: "arcane" });
 const perkLevel = (p, id) => p?.perks?.[id] || 0;
+/** v0.10n: Golem Whisperer (Earth): boss creeps 25 % cheaper and 10 % more hit points. */
+export const GOLEM = { discount: 0.25, hp: 0.1 };
+function bossDiscount(p, item, gold) {
+  return item?.isSend && item.bossTier && perkLevel(p, "golem") ? Math.round(gold * (1 - GOLEM.discount)) : gold;
+}
 /** Archer (h003) and every tower that grows out of it. */
 let ARCHER_LINE = null;
 function archerLine() {
@@ -727,6 +735,7 @@ export const PERK_AVAILABILITY = {
   volley: "2-5",
   pillage: "6+",
   crowd: "6+",
+  golem: "3+",
   // research (needs the matching element)
   R00K: "1+", // Watcher Owl
   R00U: "1+", // Creep Armor
@@ -793,6 +802,7 @@ function optionValid(game, p, o) {
     return !!f && !p.research[f.unlock];
   }
   if (o.type === "research") return available(game, p.id, "research", o.id, null, true).ok;
+  if (o.type === "perk" && PERKS[o.id]?.element && !p.research[FACTIONS.find((f) => f.id === PERKS[o.id].element)?.unlock]) return false;
   if (o.type === "perk") return perkLevel(p, o.id) < (PERKS[o.id]?.max || 0) && (o.id !== "evolution" || evolutionTargets(game, p).length > 0);
   return true;
 }
