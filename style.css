@@ -5803,3 +5803,24 @@ b.val {
 .campaign-open {
   margin-top: 6px;
 }
+
+/* v0.17b: quest finished / failed scroll over the board (35 % transparent) */
+.quest-splat{position:absolute;left:50%;top:42%;width:min(78%,340px);transform:translate(-50%,-50%) scale(.6);z-index:40;pointer-events:none;opacity:0;animation:questSplat 2.6s ease-out forwards}
+.quest-splat svg{display:block;width:100%;height:auto;filter:drop-shadow(0 6px 10px #0008)}
+.quest-splat b{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font:400 clamp(22px,7vw,34px)/1 "Lilita One",system-ui,sans-serif;letter-spacing:.02em;text-shadow:0 1px 0 #fff8,0 0 2px #0006}
+.quest-splat.won b{color:#1f8a2e;-webkit-text-stroke:1px #0d4a16}
+.quest-splat.lost b{color:#c4161c;-webkit-text-stroke:1px #5e0a0d}
+@keyframes questSplat{0%{opacity:0;transform:translate(-50%,-50%) scale(.6)}12%{opacity:.65;transform:translate(-50%,-50%) scale(1.06)}20%{transform:translate(-50%,-50%) scale(1)}80%{opacity:.65;transform:translate(-50%,-50%) scale(1)}100%{opacity:0;transform:translate(-50%,-56%) scale(1)}}
+
+/* v0.17b: perks section of the card book (display cards, not buttons) */
+.perk-book { overflow-x: visible; }
+.book-grid { grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 6px; }
+.book-card { padding: 8px 4px 10px; }
+.book-card b { font-size: 11.5px; }
+.book-card span { font-size: 10.5px; }
+.book-card small { font-size: 9.5px; }
+.book-card { cursor: default; position: relative; }
+.book-card:hover { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--el) 70%, #000), 0 3px 0 #050d13; }
+.book-card img { max-width: 44px; height: 44px; }
+.book-card small { color: #c9b4f0; font-weight: 600; }
+.book-empty { margin: 12px; color: var(--muted, #b9c6cf); text-align: center; }

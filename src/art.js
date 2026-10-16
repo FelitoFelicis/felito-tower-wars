@@ -249,7 +249,6 @@ const RESEARCH_ART = {
   R006: "tower-arcane",
   R00C: "tower-fire",
   R00D: "creep-wolf",
-  R013: "tower-earth",
 };
 /** Monster figures; the first matching name wins. Missing art falls back to the generic set. */
 const CREEP_PATTERNS = [

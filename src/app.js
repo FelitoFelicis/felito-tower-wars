@@ -56,6 +56,7 @@ import {
   tierSends,
   fireArcher,
   fatHp,
+  PERK_AVAILABILITY,
 } from "./simulation.js";
 import { mountArena, artFor } from "./arena.js";
 import { artUrl, iconUrl, ELEMENT_ICON, ART_MANIFEST, registerTowerArt, TEAM_COLORS, recolorTeam } from "./art.js";
@@ -81,7 +82,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.17a",
+const APP_VERSION = "0.17b",
   APP_DATE = "16.10.2026";
 const WAVES_PREF = "felito.waves";
 const COACH_PREF = "felito.coach.v1";
@@ -725,7 +726,6 @@ let queued = [],
   queuedFor = null;
 const researchCopy = {
   R00K: ["Watcher Owl", "More range for archer-line towers: +{owl} fields at level {lv}."],
-  R000: ["Forged Arrows", "+5% damage for arrow towers per level."],
   R00J: ["Fire Arrows", "+10% damage for arrow towers per level."],
   R005: ["Heavy Weapons", "+5% damage for guards and cannons per level."],
   R00M: ["Fire", "Unlocks the fire upgrade paths."],
@@ -743,7 +743,6 @@ const researchCopy = {
   R006: ["Magic Library", "More income from creep purchases."],
   R00C: ["Unholy Frenzy", "Your towers attack faster."],
   R00D: ["Spirit Wolves", "Later payouts bring wolves."],
-  R013: ["Improved Construction", "More life for your towers."],
 };
 
 // The original names, except for the creeps and buildings renamed in this port.
@@ -934,7 +933,8 @@ const ABILITY_DESC = {
   "Explode on Death": "Explodes when destroyed",
   "Unholy Aura": "Undead creeps nearby run faster and regenerate",
   Evasion: "Chance to dodge an attack",
-  "Arrow Resistance": "Takes less damage from arrows",
+  "Arrow Resistance": "Takes 33% less damage from Archer-line towers",
+  "Siege Resistance": "Takes 33% less damage from Bombard-line towers",
   "Scale Armor": "Ignores a little damage from every hit",
   "Nerf Resistance": "Slows, stuns and curses last much shorter",
   "Magic Resistance": "Takes much less magic damage",
@@ -2411,25 +2411,42 @@ function questProgress(p) {
   if (!st) return "";
   const q = QUESTS[st.id];
   if (q.kind === "untouchable") return t("{a} of {b} rounds without a breach", { a: st.clean, b: st.need });
-  if (!st.wave) return t("The first wave comes in {n} rounds.", { n: Math.max(0, st.next - game.round) || 1 });
+  if (!st.wave) {
+    const n = Math.max(0, st.next - game.round) || 1;
+    return n === 1 ? t("The first wave comes next round.") : t("The first wave comes in {n} rounds.", { n });
+  }
   return t("Wave {a} of {b}", { a: st.wave, b: BANTER.waves });
 }
 function questEvent(e) {
   const name = t(QUESTS[e.id].name);
   if (e.state === "start") {
-    toast(QUESTS[e.id].kind === "untouchable" ? t("{name}: no breach for {n} rounds!", { name, n: e.need }) : t("{name} accepted: the first wave comes in {n} rounds.", { name, n: BANTER.delay }), "level");
+    toast(QUESTS[e.id].kind === "untouchable" ? t("{name}: no breach for {n} rounds!", { name, n: e.need }) : (BANTER.delay === 1 ? t("{name} accepted: the first wave comes next round.", { name }) : t("{name} accepted: the first wave comes in {n} rounds.", { name, n: BANTER.delay })), "level");
     return;
   }
   if (e.state === "won") {
     const extra = (e.granted || []).map(optionName).filter(Boolean);
+    questSplat(true);
     toast(t("Quest completed: {name}", { name }) + (e.exp ? ` · +${format(e.exp)} EXP` : "") + (extra.length ? ` · ${extra.join(", ")}` : ""), "tier");
     if (e.exp) hudPop("#own-level", `+${format(e.exp)} EXP`, "exp");
     tone("tier");
     if (game.players[own].picks.length && QUESTS[e.id].kind === "untouchable") note(t("Quest rewards are waiting at the level button."), "level");
     return;
   }
+  questSplat(false);
   toast(t("Quest failed: {name}", { name }), "boss");
   tone("error");
+}
+/** v0.17b: a parchment scroll over the board, 35 % transparent: "Quest finished" (green) or "Quest failed" (red). */
+const QUEST_SCROLL = `<svg viewBox="0 0 320 120" aria-hidden="true"><defs><linearGradient id="qsP" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f7e7bd"/><stop offset=".5" stop-color="#ecd49a"/><stop offset="1" stop-color="#d6b571"/></linearGradient><linearGradient id="qsR" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#8a5a24"/><stop offset=".45" stop-color="#e2bd7a"/><stop offset="1" stop-color="#7a4c1c"/></linearGradient></defs><path d="M34 18 Q160 6 286 18 L286 102 Q160 114 34 102 Z" fill="url(#qsP)" stroke="#6b4518" stroke-width="3"/><path d="M48 30 Q160 22 272 30 M48 92 Q160 100 272 92" fill="none" stroke="#b8925a" stroke-width="1.5" opacity=".6"/><rect x="14" y="10" width="24" height="100" rx="12" fill="url(#qsR)" stroke="#5a3510" stroke-width="3"/><rect x="282" y="10" width="24" height="100" rx="12" fill="url(#qsR)" stroke="#5a3510" stroke-width="3"/><circle cx="26" cy="10" r="6" fill="#5a3510"/><circle cx="26" cy="110" r="6" fill="#5a3510"/><circle cx="294" cy="10" r="6" fill="#5a3510"/><circle cx="294" cy="110" r="6" fill="#5a3510"/></svg>`;
+function questSplat(won) {
+  const host = $("arena") || document.body,
+    el = document.createElement("div");
+  el.className = `quest-splat ${won ? "won" : "lost"}`;
+  el.setAttribute("role", "status");
+  el.innerHTML = `${QUEST_SCROLL}<b>${won ? t("Quest finished") : t("Quest failed")}</b>`;
+  host.querySelector(".quest-splat")?.remove();
+  host.append(el);
+  setTimeout(() => el.remove(), 2600);
 }
 /** v0.15: a reward option's display name (for granted quest rewards). */
 function optionName(o) {
@@ -3286,7 +3303,7 @@ function techTree(kind) {
       })
       .join("");
   const groups = new Map();
-  for (const r of catalog.research.filter((r) => r.playable)) {
+  for (const r of bookResearch()) {
     const key = catalog.factions.find((f) => f.research === r.id || f.unlock === r.id)?.id || RESEARCH_ELEMENT[r.id] || "general";
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(r);
@@ -3304,13 +3321,54 @@ function techTree(kind) {
     })
     .join("");
 }
+/** v0.17b: the Upgrades tab lists only research a player can pick at a level-up (elements have their own section under Perks). */
+const bookResearch = () => catalog.research.filter((r) => r.playable && !catalog.factions.some((f) => f.research === r.id || f.unlock === r.id));
+// ---- v0.17b: perks, active abilities, powerups, quests and elements in the card book ----------
+const ACTIVE_PERKS = new Set(["volley", "burst", "pillar", "agolem", "monsun"]);
+const PERK_SECTIONS = ["Perks", "Active abilities", "Powerups", "Quests", "Elements"];
+function perkBookEntries() {
+  const out = [];
+  for (const id of Object.keys(PERKS)) out.push({ section: PERKS[id].powerup ? "Powerups" : ACTIVE_PERKS.has(id) ? "Active abilities" : "Perks", type: "perk", id, name: t(PERKS[id].name) });
+  for (const id of Object.keys(QUESTS)) out.push({ section: "Quests", type: "quest", id, name: t(QUESTS[id].name) });
+  for (const f of catalog.factions) out.push({ section: "Elements", type: "element", id: f.id, name: t(f.name) });
+  return out;
+}
+const levelsText = (spec) => t("Levels {l}", { l: String(spec ?? "1+").replace(/-/g, "–") });
+function perkBookCard(e, p) {
+  if (e.type === "element") {
+    const f = elementOf(e.id);
+    return `<div class="pick-card book-card pick-element el-${f.id}" style="--el:${f.color}"><img src="${iconUrl(ELEMENT_ICON[f.id])}" alt=""><b>${esc(e.name)}</b><span>${t("Unlocks {name} towers and perks", { name: esc(e.name) })}</span><small>${t("Opening pick, levels 10 and 25")}</small></div>`;
+  }
+  if (e.type === "quest") {
+    const q = QUESTS[e.id];
+    return `<div class="pick-card book-card pick-quest quest-${q.kind}"><i class="quest-ribbon">${t("Quest")}</i><img src="${questArt(e.id)}" alt=""><b>${esc(e.name)}</b><span>${esc(questText(e.id))}</span><small>${levelsText(q.avail)}</small></div>`;
+  }
+  const d = PERKS[e.id],
+    els = perkElements(e.id),
+    pel = els.length ? elementOf(els[0]) : null;
+  return `<div class="pick-card book-card pick-perk perk-${e.id}${pel ? " pick-element el-" + pel.id : ""}"${pel ? ` style="--el:${pel.color}"` : ""}><img src="${PERK_ART[e.id]()}" alt=""><b>${esc(e.name)}</b><span>${valHtml(perkText(e.id, p.level || 1, p, false))}</span><small>${d.max > 1 ? t("Max level {n}", { n: d.max }) + " · " : ""}${levelsText(PERK_AVAILABILITY[e.id])}${pel ? " · " + els.map((x) => esc(t(elementOf(x)?.name || x))).join("/") : ""}</small></div>`;
+}
+function perkBook(query = "") {
+  const p = game?.players?.[own] || { perks: {}, research: {}, picks: [], level: 1, tier: 1 },
+    entries = perkBookEntries().filter((e) => !query || [e.name, e.id].join(" ").toLowerCase().includes(query));
+  return PERK_SECTIONS.map((sec) => {
+    const list = entries.filter((e) => e.section === sec);
+    return list.length ? `<section class="tt-tree perk-book"><h3>${esc(t(sec))}</h3><div class="pick-grid book-grid">${list.map((e) => perkBookCard(e, p)).join("")}</div></section>` : "";
+  }).join("");
+}
 function catalogModal() {
   showModal(
-    `${modalHeader(t("All cards"))}<input class="catalog-search" id="catalog-search" placeholder="${t("Name or original ID …")}" aria-label="${t("Search the catalog")}"><div class="pills"><button class="active" data-filter="tower">${t("Towers")}</button><button data-filter="send">${t("Creeps")}</button><button data-filter="research">${t("Upgrades")}</button></div><div id="catalog-grid" class="catalog-grid"></div>`,
+    `${modalHeader(t("All cards"))}<input class="catalog-search" id="catalog-search" placeholder="${t("Name or original ID …")}" aria-label="${t("Search the catalog")}"><div class="pills"><button class="active" data-filter="tower">${t("Towers")}</button><button data-filter="send">${t("Creeps")}</button><button data-filter="research">${t("Upgrades")}</button><button data-filter="perk">${t("Perks")}</button></div><div id="catalog-grid" class="catalog-grid"></div>`,
   );
   let filter = "tower";
   const draw = () => {
     const q = $("catalog-search").value.toLowerCase();
+    if (filter === "perk") {
+      // v0.17b: perks, active abilities, powerups, quests and elements (display only)
+      $("catalog-grid").classList.add("techtree");
+      $("catalog-grid").innerHTML = perkBook(q) || `<p class="book-empty">${t("Nothing found.")}</p>`;
+      return;
+    }
     // v0.15: without a search the card book is a tech tree; a search lists the matching cards
     if (!q) {
       $("catalog-grid").classList.add("techtree");
@@ -3321,7 +3379,7 @@ function catalogModal() {
       return;
     }
     $("catalog-grid").classList.remove("techtree");
-    const list = (filter === "tower" ? catalog.towers : filter === "send" ? catalog.sends : catalog.research).filter(
+    const list = (filter === "tower" ? catalog.towers : filter === "send" ? catalog.sends : bookResearch()).filter(
       (u) => [u.name, u.id, itemName(u)].join(" ").toLowerCase().includes(q),
     );
     $("catalog-grid").innerHTML = list.map(cardMarkup).join("");

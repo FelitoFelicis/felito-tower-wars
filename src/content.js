@@ -56,7 +56,7 @@ export const RULES = {
 };
 const SHOPS = ["H049", "H04A", "H04E", "H04B", "H04K", "H02K"];
 /** Researches a player can hold (elements, their upgrades, level rewards). */
-const PLAYER_RESEARCH = ["R00K", "R00M", "R00N", "R00O", "R00P", "R00Q", "R00R", "R00U", "R00V", "R00W", "R00X", "R000", "R001", "R002", "R005", "R006", "R00C", "R00D", "R013", "R00J"];
+const PLAYER_RESEARCH = ["R00K", "R00M", "R00N", "R00O", "R00P", "R00Q", "R00R", "R00U", "R00V", "R00W", "R00X", "R001", "R002", "R005", "R006", "R00C", "R00D", "R00J"]; // v0.17b: Forged Arrows (R000) and Improved Construction (R013) removed
 const NO_INCOME = new Set(["n00Y", "n01H", "n01D", "n01R", "n01T", "n02P", "n02Q", "n02R"]);
 const NO_DECIMAL = new Set(["n00Y", "n01D", "n01R", "n02N", "n01T", "n02P", "n02Q", "n02R"]);
 const TRIPLES = new Set(["n00P", "n00U", "n01L", "n01S", "n017"]);
@@ -79,6 +79,8 @@ export function configureContent(data) {
   const rawUnits = mergeObjects(data.units),
     rawUpgrades = mergeObjects(data.upgrades),
     rawAbilities = mergeObjects(data.abilities);
+  // v0.17b: own creep abilities (not in the map data): damage resistance against one tower line
+  for (const a of CUSTOM_ABILITIES) rawAbilities.set(a.id, { ...a, fields: { ...a.fields } });
   const byId = {},
     allUnits = [],
     allResearch = [];
@@ -398,10 +400,10 @@ export function configureContent(data) {
     byId[r.id] = r;
     allResearch.push(r);
   }
-  const triggerResearch = new Set([...FACTIONS.map((f) => f.research), "R00D", "R00W", "R001", "R006", "R013"]);
-  // Forged Arrows / Heavy Weapons set only the effect type ("ratt", percent damage);
+  const triggerResearch = new Set([...FACTIONS.map((f) => f.research), "R00D", "R00W", "R001", "R006"]);
+  // Heavy Weapons sets only the effect type ("ratt", percent damage);
   // the tooltips state +5 % per level, recorded as the value instead of guessing natives.
-  for (const id of ["R000", "R005"]) {
+  for (const id of ["R005"]) {
     const r = byId[id];
     if (!r) continue;
     for (const e of r.effects) if (e.type === "ratt" && !e.base && !e.increment) Object.assign(e, { base: 0.05, increment: 0.05 });
@@ -485,11 +487,21 @@ export function configureContent(data) {
  * defenseType, speed (game units: 128 = one field per second), count (creeps per purchase),
  * flying, stockMax, stockRegen (seconds per recruit), stockStart (seconds before the first).
  */
+/**
+ * v0.17b: own creep abilities. "Xlrs" = less damage from every tower of one line (`line` = the
+ * line's root tower: h003 Archer, h02R Bombard). simulation.js reads `line` and `reduce`.
+ */
+export const CUSTOM_ABILITIES = [
+  { id: "XA01", baseId: "Xlrs", custom: true, line: "h003", reduce: 0.33, fields: { anam: { 0: "Arrow Resistance" }, aub1: { 1: "Takes 33% less damage from Archer-line towers" } } },
+  { id: "XA02", baseId: "Xlrs", custom: true, line: "h02R", reduce: 0.33, fields: { anam: { 0: "Siege Resistance" }, aub1: { 1: "Takes 33% less damage from Bombard-line towers" } } },
+];
 export const CREEP_TUNING = {
   n00E: { income: 1, cost: 5, stockMax: 18 }, // Goblin: income 1.17 → 1 (v0.07g), cost 6 → 5 (v0.07h); peon companion removed (v0.07i); stock 16 → 18 (v0.08b)
   n007: { cost: 10, income: 1.9 }, // Horse: cost 12 → 10, income 2 → 1.9 (v0.08b)
   n00K: { income: 3.5 }, // Gnoll: income 3 → 3.5 (v0.08d)
-  n00M: { hp: 156 }, // Grunt: hit points +30 %, 120 → 156 (v0.09s)
+  n00M: { hp: 156, name: "[06] Orc", shortName: "Orc", abilities: ["A01A", "XA02"] }, // Grunt → Orc (v0.17b): hit points +30 %, 120 → 156 (v0.09s); Siege Resistance 33 % (v0.17b)
+  n00R: { abilities: ["A01A", "XA01"] }, // Skeleton: Arrow Resistance now 33 % less damage from Archer-line towers (v0.17b, was: ignores 1 ranged damage)
+  n00P: { hp: 85, speed: 138.56 }, // Flying Sheep: hit points 80 → 85, speed 1.06 → 1.08 fields/s (v0.17b)
   n00L: { speed: 375 }, // Wolf: 25 % faster, 300 → 375 (v0.08d)
   n00S: { speed: 420 }, // Raider: 25 % faster (v0.07b)
   n010: { hp: 1300 }, // Forest Troll: hit points −10 %, 1450 → 1300 (v0.16i: broke through 5–8× as often as other tier-2 creeps in self-play)
