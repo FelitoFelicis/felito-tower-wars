@@ -887,7 +887,7 @@ export function mountArena({
       if (!game) return;
       if (this.gameSeed !== game.seed || game.eventId < this.lastEvent) {
         // v0.11: a new match starts with the whole board in view
-        if (this.gameSeed !== game.seed && (this.stage.zoom || 1) > 1.001) {
+        if ((this.stage.zoom || 1) > 1.001) {
           this.zoomAnim = null;
           this.stage.zoom = 1;
           this.stage.panX = this.stage.panY = 0;
