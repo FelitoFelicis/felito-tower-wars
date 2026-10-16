@@ -836,11 +836,12 @@ function closeModal() {
     welcome();
     return;
   }
-  if (begun && !shownResult) setUiPause("modal", false);
+  // v0.11: after a knock-out the match keeps running for spectators, so dialogs must release it too
+  if (begun && (!shownResult || game?.running)) setUiPause("modal", false);
   if ($("modal").open) $("modal").close();
 }
 $("modal").addEventListener("close", () => {
-  if (!$("modal").open && begun && !shownResult) setUiPause("modal", false);
+  if (!$("modal").open && begun && (!shownResult || game?.running)) setUiPause("modal", false);
 });
 $("modal").addEventListener("cancel", (e) => {
   e.preventDefault();
@@ -2700,7 +2701,7 @@ function tick(dt) {
   }
   if (saveTime >= 3) {
     saveTime = 0;
-    if (begun && !room && game.running)
+    if (begun && !room && game.running && !game.players[own]?.out)
       try {
         localStorage.setItem(SAVE, serializeGame(game));
       } catch {}
@@ -2949,7 +2950,7 @@ document.addEventListener("visibilitychange", () => {
   music.setHidden(document.hidden);
   if (document.hidden && begun) {
     setUiPause("background", true);
-    if (!room)
+    if (!room && game.running && !game.players[own]?.out)
       try {
         localStorage.setItem(SAVE, serializeGame(game));
       } catch {}
@@ -2959,7 +2960,7 @@ document.addEventListener("visibilitychange", () => {
   }
 });
 window.addEventListener("pagehide", () => {
-  if (game && begun && !room)
+  if (game && begun && !room && game.running && !game.players[own]?.out)
     try {
       localStorage.setItem(SAVE, serializeGame(game));
     } catch {}

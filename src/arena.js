@@ -310,7 +310,7 @@ export function mountArena({
       this.strips = this.stage.graphics().setDepth(6); // spawn strip (portal fields) and exit strip
       this.ghost = this.stage.image(0, 0, "tower-archer").setDepth(4000).setVisible(false);
       this.previewLabel = this.stage
-        .text(0, 0, "", { fontFamily: FONT, fontSize: "14px", color: "#ffffff", stroke: "#10221d", strokeThickness: 5, resolution: DPR })
+        .text(0, 0, "", { fontFamily: FONT, fontSize: "14px", color: "#ffffff", stroke: "#10221d", strokeThickness: 5, resolution: DPR, align: "center" })
         .setOrigin(0.5, 1)
         .setDepth(6500)
         .setVisible(false);
@@ -874,7 +874,7 @@ export function mountArena({
       }
     }
     update(time, delta) {
-      const dt = Math.min(delta / 1000, 0.1);
+      const dt = Math.min(delta / 1000, 0.25); // v0.11: slow phones still play at full speed
       this.stepSlide();
       this.stepZoom();
       onTick(dt);
@@ -904,6 +904,14 @@ export function mountArena({
       }
       if (view !== this.lastView) {
         this.clearFx();
+        // v0.11: another lane starts at the whole board
+        if ((this.stage.zoom || 1) > 1.001) {
+          this.zoomAnim = null;
+          this.stage.zoom = 1;
+          this.stage.panX = this.stage.panY = 0;
+          this.lastZoom = 1;
+          onZoom(1);
+        }
         this.lastView = view;
         this.lastEvent = game.eventId || 0;
         this.pathKey = "";
@@ -1470,10 +1478,20 @@ export function mountArena({
             ? t("Path +{n}", { n: preview.delta })
             : t("Path unchanged")
         : t(preview.reason || "Not possible here");
+      // v0.11: long reasons wrap onto two lines and the label stays inside the board
+      const maxChars = Math.max(12, Math.floor(z.bw / 8));
+      let text = label;
+      if (text.length > maxChars && text.includes(" ")) {
+        const mid = text.length / 2;
+        let cut = -1;
+        for (let i = 0; i < text.length; i++) if (text[i] === " " && (cut < 0 || Math.abs(i - mid) < Math.abs(cut - mid))) cut = i;
+        text = text.slice(0, cut) + "\n" + text.slice(cut + 1);
+      }
+      const est = Math.min(z.bw - 8, Math.max(...text.split("\n").map((l) => l.length)) * 7.6 + 14);
       this.previewLabel
-        .setText(label)
+        .setText(text)
         .setColor(ok ? (preview.delta > 0 ? "#c9ffb0" : "#ffffff") : "#ffc2c2")
-        .setPosition(clamp(q.x, z.left + 64, z.left + z.bw - 64), Math.max(z.top + 16, q.y - cell * 0.95))
+        .setPosition(clamp(q.x, z.left + est / 2 + 4, z.left + z.bw - est / 2 - 4), Math.max(z.top + 16 + (text.includes("\n") ? 16 : 0), q.y - cell * 0.95))
         .setVisible(true);
     }
     drawFx(game, player, dt, cell) {

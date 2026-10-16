@@ -2626,7 +2626,7 @@ function templatePlan(game, forced = null) {
  * rolls its template and mirror side, or where the first wall sits and which side its gap is on.
  */
 function mazePlan(game, p, level) {
-  if (p.aiMaze && p.aiMaze.cols === game.grid.cols && p.aiMaze.rows === game.grid.rows) return p.aiMaze;
+  if (p.aiMaze && p.aiMaze.keys instanceof Set && p.aiMaze.cols === game.grid.cols && p.aiMaze.rows === game.grid.rows) return p.aiMaze;
   if (level !== "veryEasy" && (p.aiPersona?.mazeV2 ?? 1) > 0.5) {
     const plan = templatePlan(game, p.aiPersona?.mazeTpl ?? null);
     if (plan) return (p.aiMaze = plan);
@@ -2977,7 +2977,7 @@ const hpOf = (s) => s.spawnIds.reduce((h, id) => h + (obj(id)?.hp || 0), 0);
 function capacityVs(game, p, enemy, s) {
   const unit = obj(s.spawnIds[0]) || s,
     key = (s.flying ? "a:" : "g:") + (unit.defenseType || "medium") + ":" + (unit.armor || 0);
-  if (!p.aiArmorCache || game.tick - p.aiArmorCache.tick > 100) p.aiArmorCache = { tick: game.tick, map: new Map() };
+  if (!p.aiArmorCache || !(p.aiArmorCache.map instanceof Map) || game.tick - p.aiArmorCache.tick > 100) p.aiArmorCache = { tick: game.tick, map: new Map() };
   const map = p.aiArmorCache.map;
   if (!map.has(key)) {
     let sum = 0;
@@ -3306,8 +3306,10 @@ export function step(game, dt) {
   }
   return game;
 }
+/** Bot caches (the maze plan and armour lookups) hold Sets and Maps; they are rebuilt on demand. */
+const VOLATILE_KEYS = new Set(["aiMaze", "aiArmorCache"]);
 export function serializeGame(game) {
-  return JSON.stringify(game);
+  return JSON.stringify(game, (key, value) => (VOLATILE_KEYS.has(key) ? undefined : value instanceof Set || value instanceof Map ? undefined : value));
 }
 export function restoreGame(serialized) {
   const game = typeof serialized === "string" ? JSON.parse(serialized) : structuredClone(serialized);
@@ -3320,7 +3322,8 @@ export function restoreGame(serialized) {
   }
   if (
     !Array.isArray(game.players) ||
-    ![2, 4].includes(game.players.length) ||
+    game.players.length < 2 ||
+    game.players.length > 8 ||
     !Number.isFinite(game.rng) ||
     !game.achievements ||
     ["events", "effects", "commands", "pendingSpawns"].some((key) => !Array.isArray(game[key])) ||
@@ -3335,6 +3338,8 @@ export function restoreGame(serialized) {
   )
     throw new Error("Invalid save");
   for (const p of game.players) {
+    // v0.11: old saves wrote the bot caches as plain objects; drop them so they get rebuilt
+    for (const key of VOLATILE_KEYS) delete p[key];
     const occupied = new Set();
     for (const tower of p.towers) {
       // Saves from before 2×2 halls keep their towers on one field.

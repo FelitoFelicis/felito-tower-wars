@@ -122,9 +122,19 @@ export class Stage {
   start(update) {
     const t0 = performance.now();
     let last = t0;
+    let failures = 0;
     this.engine.runRenderLoop(() => {
       const now = performance.now();
-      update(now - t0, now - last);
+      // v0.11: one failing frame must not stop the render loop for the rest of the session
+      try {
+        update(now - t0, now - last);
+        failures = 0;
+      } catch (err) {
+        if (failures++ < 1) {
+          console.error(err);
+          window.dispatchEvent(new ErrorEvent("error", { message: String(err?.message || err) }));
+        }
+      }
       last = now;
       this.scene.render();
     });
