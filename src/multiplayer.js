@@ -615,11 +615,138 @@ async function startRoom(role, code, callbacks, dependencies) {
 }
 
 /** Resolves after signaling registration. Wait for onConnect before sending. */
-export async function createRoom(callbacks = {}, dependencies = {}) {
-  return startRoom("host", randomCode(dependencies), callbacks, dependencies);
+export async function createRoom(callbacks = {}, dependencies = {}, presetCode) {
+  const code = presetCode ? normalizeRoomCode(presetCode) : randomCode(dependencies);
+  return startRoom("host", code, callbacks, dependencies);
 }
 
 /** Resolves when signaling is ready and the connection attempt has started. */
 export async function joinRoom(code, callbacks = {}, dependencies = {}) {
   return startRoom("guest", normalizeRoomCode(code), callbacks, dependencies);
+}
+
+/**
+ * Quick Match (v0.10i): matchmaking without an own server. Lobby slots are fixed PeerJS ids.
+ * Whoever registers a free slot waits there; the next searcher finds the id taken, connects and
+ * receives a fresh room code. Both then use the normal room flow (host = waiter). A slot is
+ * released as soon as a pair is made, so stale or busy slots only cost a few seconds.
+ * Resolves { role: "host" | "guest", code }.
+ */
+export const QUICK_SLOTS = 6;
+const lobbyId = (slot) => `felito-qm-p${PROTOCOL_VERSION}-${slot}`;
+export async function findQuickMatch({ signal, onStatus } = {}, dependencies = {}) {
+  const PeerClass = await peerClass(dependencies, signal);
+  const options = { host: "0.peerjs.com", port: 443, path: "/", secure: true, debug: 0, ...(dependencies.peerOptions || {}) };
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  const check = () => {
+    if (signal?.aborted) throw error("aborted", "Search cancelled.");
+  };
+  const tell = (message) => callback({ onStatus }, "onStatus", { state: "searching", message });
+  // Opens a peer; resolves "open" or the PeerJS error type.
+  const openPeer = (id) =>
+    new Promise((resolve) => {
+      const peer = id ? new PeerClass(id, options) : new PeerClass(options);
+      const timer = setTimeout(() => done("timeout"), 10000);
+      const done = (result) => {
+        clearTimeout(timer);
+        resolve({ peer, result });
+      };
+      peer.on("open", () => done("open"));
+      peer.on("error", (e) => done(e?.type || "error"));
+    });
+  // Waits on a claimed slot for one opponent; hands it a fresh room code.
+  const hostSlot = (peer) =>
+    new Promise((resolve, reject) => {
+      let matched = false;
+      const stop = () => {
+        try {
+          peer.destroy();
+        } catch {}
+      };
+      const abort = () => {
+        stop();
+        reject(error("aborted", "Search cancelled."));
+      };
+      signal?.addEventListener("abort", abort, { once: true });
+      // Give other free slots a chance: re-scan every 20 s so two waiting players find each other.
+      const rescan = setTimeout(() => {
+        if (matched) return;
+        signal?.removeEventListener("abort", abort);
+        stop();
+        resolve(null);
+      }, 20000);
+      peer.on("connection", (conn) => {
+        conn.on("open", () => {
+          if (matched) {
+            conn.send({ protocol: PROTOCOL, kind: "qm-busy" });
+            setTimeout(() => conn.close(), 300);
+            return;
+          }
+          matched = true;
+          clearTimeout(rescan);
+          const code = randomCode(dependencies);
+          conn.send({ protocol: PROTOCOL, kind: "qm-match", code });
+          setTimeout(() => {
+            signal?.removeEventListener("abort", abort);
+            stop();
+            resolve({ role: "host", code });
+          }, 400);
+        });
+      });
+    });
+  // Asks a waiting slot for a match; resolves the room code or null.
+  const askSlot = (slot) =>
+    new Promise((resolve) => {
+      openPeer().then(({ peer, result }) => {
+        const finish = (code) => {
+          clearTimeout(timer);
+          try {
+            peer.destroy();
+          } catch {}
+          resolve(code);
+        };
+        const timer = setTimeout(() => finish(null), 6000);
+        if (result !== "open") return finish(null);
+        peer.on("error", () => finish(null));
+        const conn = peer.connect(lobbyId(slot), { reliable: true });
+        conn.on("data", (msg) => {
+          if (msg?.protocol !== PROTOCOL) return finish(null);
+          if (msg.kind === "qm-match") {
+            try {
+              finish(normalizeRoomCode(msg.code));
+            } catch {
+              finish(null);
+            }
+          } else finish(null);
+        });
+        conn.on("close", () => finish(null));
+        conn.on("error", () => finish(null));
+      });
+    });
+  for (let round = 0; ; round++) {
+    check();
+    tell(round ? "Still searching for an opponent …" : "Searching for an opponent …");
+    for (let slot = 0; slot < QUICK_SLOTS; slot++) {
+      check();
+      const { peer, result } = await openPeer(lobbyId(slot));
+      check();
+      if (result === "open") {
+        tell("Waiting for an opponent …");
+        const found = await hostSlot(peer);
+        if (found) return found;
+        break; // re-scan from slot 0
+      }
+      try {
+        peer.destroy();
+      } catch {}
+      if (result === "unavailable-id") {
+        const code = await askSlot(slot);
+        check();
+        if (code) return { role: "guest", code };
+      } else if (result !== "timeout") {
+        throw peerFailure({ type: result });
+      }
+    }
+    await wait(1000 + Math.random() * 1500);
+  }
 }

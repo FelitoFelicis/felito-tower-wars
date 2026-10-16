@@ -4269,6 +4269,10 @@ dialog.with-flag .modal-header {
 .welcome-row.pvp-row {
   grid-template-columns: 1fr 1fr;
 }
+/* v0.10i: Quick Match spans the full row above the two other modes */
+.welcome-row.pvp-row #start-quick {
+  grid-column: 1 / -1;
+}
 
 /* ---- AI enemy count (v0.10c) --------------------------------------------------------------- */
 .segmented.ai-count {

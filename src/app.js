@@ -48,7 +48,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.10h",
+const APP_VERSION = "0.10i",
   APP_DATE = "16.10.2026";
 const WAVES_PREF = "felito.waves";
 const COACH_PREF = "felito.coach.v1";
@@ -876,7 +876,7 @@ const modalHeader = (title) =>
 function welcome() {
   const saved = unusableSave ? null : localStorage.getItem(SAVE);
   showModal(
-    `<div class="welcome-art" aria-hidden="true"></div><button class="welcome-options" id="welcome-options" type="button" aria-label="${t("Options")}"><img src="${iconUrl("gear")}" alt=""></button><span class="app-version">v${APP_VERSION} · ${APP_DATE}</span><img class="welcome-logo" src="assets/art/ui-logo.webp" alt="Felito Tower Wars"><div class="welcome-panel" id="welcome-panel" data-view="home"><div class="welcome-home">${saved ? `<button class="secondary-button welcome-continue" id="resume-game">${t("Continue")}</button>` : ""}<span class="modal-label">${t("Your color")}: <b id="color-name">${t(TEAM_COLORS[colorChoice].name)}</b></span><div class="color-picker" role="radiogroup" aria-label="${t("Your color")}">${Object.entries(TEAM_COLORS).map(([id, c]) => `<button role="radio" data-color="${id}" aria-checked="${id === colorChoice}" aria-label="${t(c.name)}" title="${t(c.name)}" class="${id === colorChoice ? "active" : ""}" style="--c:${c.css}"></button>`).join("")}</div><div class="welcome-modes"><button class="primary-button big welcome-mode" data-open="ai">${t("Vs AI")}</button><button class="primary-button big welcome-mode alt" data-open="player">${t("Vs Player")}</button></div></div><section class="welcome-group" data-sub="ai" aria-label="${t("Vs AI")}"><h3 class="welcome-group-title"><button class="welcome-back" type="button" data-back aria-label="${t("Back")}">‹</button>${t("Vs AI")}</h3><div class="segmented ai-levels" role="radiogroup" aria-label="${t("Difficulty")}">${Object.entries(AI_NAMES).map(([id, name]) => `<button role="radio" data-ai="${id}" aria-checked="${id === aiChoice}" class="${id === aiChoice ? "active" : ""}">${t(name)}</button>`).join("")}</div><div class="welcome-inline"><span class="modal-label">${t("Neutral waves")}</span><div class="segmented" role="radiogroup" aria-label="${t("Neutral waves")}">${[["on", "On"], ["off", "Off"]].map(([id, name]) => `<button role="radio" data-waves="${id}" aria-checked="${(id === "on") === wavesOn}" class="${(id === "on") === wavesOn ? "active" : ""}">${t(name)}</button>`).join("")}</div></div><span class="modal-label">${t("Number of AI enemies")}</span><div class="segmented ai-count" role="radiogroup" aria-label="${t("Number of AI enemies")}">${AI_COUNTS.map((n) => `<button role="radio" data-aicount="${n}" aria-checked="${n === aiCount}" class="${n === aiCount ? "active" : ""}">${n}</button>`).join("")}</div><button class="primary-button big" id="start-training">${t("Start")}</button></section><section class="welcome-group" data-sub="player" aria-label="${t("Vs Player")}"><h3 class="welcome-group-title"><button class="welcome-back" type="button" data-back aria-label="${t("Back")}">‹</button>${t("Vs Player")}</h3><div class="welcome-row pvp-row"><button class="secondary-button" id="start-online">${t("Play a friend")}</button><button class="secondary-button" id="start-ranked">${t("Ranked match")}</button></div></section></div>`,
+    `<div class="welcome-art" aria-hidden="true"></div><button class="welcome-options" id="welcome-options" type="button" aria-label="${t("Options")}"><img src="${iconUrl("gear")}" alt=""></button><span class="app-version">v${APP_VERSION} · ${APP_DATE}</span><img class="welcome-logo" src="assets/art/ui-logo.webp" alt="Felito Tower Wars"><div class="welcome-panel" id="welcome-panel" data-view="home"><div class="welcome-home">${saved ? `<button class="secondary-button welcome-continue" id="resume-game">${t("Continue")}</button>` : ""}<span class="modal-label">${t("Your color")}: <b id="color-name">${t(TEAM_COLORS[colorChoice].name)}</b></span><div class="color-picker" role="radiogroup" aria-label="${t("Your color")}">${Object.entries(TEAM_COLORS).map(([id, c]) => `<button role="radio" data-color="${id}" aria-checked="${id === colorChoice}" aria-label="${t(c.name)}" title="${t(c.name)}" class="${id === colorChoice ? "active" : ""}" style="--c:${c.css}"></button>`).join("")}</div><div class="welcome-modes"><button class="primary-button big welcome-mode" data-open="ai">${t("Vs AI")}</button><button class="primary-button big welcome-mode alt" data-open="player">${t("Vs Player")}</button></div></div><section class="welcome-group" data-sub="ai" aria-label="${t("Vs AI")}"><h3 class="welcome-group-title"><button class="welcome-back" type="button" data-back aria-label="${t("Back")}">‹</button>${t("Vs AI")}</h3><div class="segmented ai-levels" role="radiogroup" aria-label="${t("Difficulty")}">${Object.entries(AI_NAMES).map(([id, name]) => `<button role="radio" data-ai="${id}" aria-checked="${id === aiChoice}" class="${id === aiChoice ? "active" : ""}">${t(name)}</button>`).join("")}</div><div class="welcome-inline"><span class="modal-label">${t("Neutral waves")}</span><div class="segmented" role="radiogroup" aria-label="${t("Neutral waves")}">${[["on", "On"], ["off", "Off"]].map(([id, name]) => `<button role="radio" data-waves="${id}" aria-checked="${(id === "on") === wavesOn}" class="${(id === "on") === wavesOn ? "active" : ""}">${t(name)}</button>`).join("")}</div></div><span class="modal-label">${t("Number of AI enemies")}</span><div class="segmented ai-count" role="radiogroup" aria-label="${t("Number of AI enemies")}">${AI_COUNTS.map((n) => `<button role="radio" data-aicount="${n}" aria-checked="${n === aiCount}" class="${n === aiCount ? "active" : ""}">${n}</button>`).join("")}</div><button class="primary-button big" id="start-training">${t("Start")}</button></section><section class="welcome-group" data-sub="player" aria-label="${t("Vs Player")}"><h3 class="welcome-group-title"><button class="welcome-back" type="button" data-back aria-label="${t("Back")}">‹</button>${t("Vs Player")}</h3><div class="welcome-row pvp-row"><button class="primary-button" id="start-quick">${t("Quick Match")}</button><button class="secondary-button" id="start-online">${t("Play a friend")}</button><button class="secondary-button" id="start-ranked">${t("Ranked match")}</button></div></section></div>`,
     { pauseGame: false, welcome: true },
   );
   $("modal-body")
@@ -964,6 +964,7 @@ function welcome() {
   $("start-training").onclick = () => (aiCount === 1 ? startLocal() : startLocal({ ffa: true, seats: aiCount + 1 }));
   $("welcome-options").onclick = optionsModal;
   $("start-online").onclick = () => onlineMenu();
+  $("start-quick").onclick = () => quickMatch();
   // Start menu pages (v0.10a): home with colour and the two mode buttons; Vs AI and Vs Player open
   // as their own pages with a back button.
   const welcomeView = (view) => {
@@ -2448,6 +2449,40 @@ function installHelp() {
   );
 }
 
+// Quick Match (v0.10i): automatic 1v1 against the next searching player, no room code.
+async function quickMatch() {
+  disconnectRoom();
+  networkAbort = new AbortController();
+  const signal = networkAbort.signal;
+  showModal(
+    `${modalHeader(t("Quick Match"))}<p class="modal-copy">${t("You'll be paired with the next player who is searching. Keep this page open.")}</p><div id="network-status" class="network-status">${t("Searching for an opponent …")}</div><button class="secondary-button" id="qm-cancel">${t("Cancel")}</button>`,
+  );
+  $("qm-cancel").onclick = () => {
+    networkAbort?.abort();
+    closeModal();
+  };
+  const status = (message) => {
+    if ($("network-status")) $("network-status").textContent = message;
+  };
+  // Closing the dialog any other way (× button) also stops the search.
+  const watch = setInterval(() => {
+    if (!$("qm-cancel")) networkAbort?.abort();
+    if (signal.aborted) clearInterval(watch);
+  }, 300);
+  try {
+    const { findQuickMatch } = await import("./multiplayer.js");
+    const match = await findQuickMatch({ signal, onStatus: (s) => status(t(s.message)) });
+    clearInterval(watch);
+    if (signal.aborted) return;
+    status(t("Opponent found! Connecting …"));
+    tone("tap");
+    if (match.role === "host") connectOnline(undefined, match.code);
+    else connectOnline(match.code, true);
+  } catch (error) {
+    if (signal.aborted) return;
+    status(t("Connection failed:") + " " + error.message);
+  }
+}
 function onlineMenu() {
   showModal(
     `${modalHeader(t("Play with a friend"))}<p class="modal-copy">${t("One player opens a room. The other enters the same code. Each defends their own arena.")}</p><button class="primary-button" id="create-room">${t("Open a room →")}</button><label for="room-input" class="modal-label">${t("YOUR OPPONENT'S ROOM CODE")}</label><input id="room-input" maxlength="12" autocomplete="off" autocapitalize="characters" placeholder="XXXXXXXX"><button class="secondary-button" id="join-room">${t("Join room")}</button><div id="network-status" class="network-status">${t("Ready for a direct duel.")}</div><p class="modal-note">${t("Internet required. The connection runs directly over WebRTC; PeerJS brokers the contact. Both devices must be able to open the game page. Some mobile or company networks block direct connections.")}</p>`,
@@ -2462,15 +2497,15 @@ function onlineMenu() {
     connectOnline(code);
   };
 }
-async function connectOnline(code) {
+async function connectOnline(code, preset) {
   disconnectRoom();
   lastSendCards.fill(null);
   networkAbort = new AbortController();
   const signal = networkAbort.signal;
   sessionMode = "online";
   begun = false;
-  $("create-room").disabled = true;
-  $("join-room").disabled = true;
+  if ($("create-room")) $("create-room").disabled = true;
+  if ($("join-room")) $("join-room").disabled = true;
   const status = (message) => {
     if ($("network-status")) $("network-status").textContent = message;
   };
@@ -2510,13 +2545,26 @@ async function connectOnline(code) {
         if ($("network-restart")) $("network-restart").onclick = onlineMenu;
       },
     };
-    const r = code ? await joinRoom(code, callbacks) : await createRoom(callbacks);
+    let r;
+    if (code && preset) {
+      // Quick Match guest: the host registers its room a moment later, so retry briefly.
+      for (let tries = 0; ; tries++) {
+        await new Promise((ok) => setTimeout(ok, 1200));
+        if (signal.aborted) return;
+        try {
+          r = await joinRoom(code, callbacks);
+          break;
+        } catch (error) {
+          if (tries >= 4 || error.code !== "peer-unavailable") throw error;
+        }
+      }
+    } else r = code ? await joinRoom(code, callbacks) : await createRoom(callbacks, {}, preset);
     if (signal.aborted) {
       r.close();
       return;
     }
     room = r;
-    if (!code && $("network-status")) {
+    if (!code && !preset && $("network-status")) {
       $("network-status").innerHTML =
         `${t("Your room is open.")}<div class="room-code">${esc(r.code)}</div>${t("Share this code with your opponent. Keep the game page open on both devices.")}`;
     }
