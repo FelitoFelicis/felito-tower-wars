@@ -2563,12 +2563,12 @@ function applySkills(game, p, tower, item, target, damage, skills) {
   }
 }
 // ---- Tower specials, v0.00 rules ------------------------------------------------------
-// Cannon: tiny core takes full damage, a wider ring 50 %. Magic: mana charges slowly, a full
+// Cannon: tiny core takes full damage, a wider ring 25 % (v0.17a). Magic: mana charges slowly, a full
 // bar fires an empowered bolt. Poison: every hit adds a stack (damage + a little slow, stacks
 // add up). Frost: one slow, never stacks.
 const CANNON_CORE = 0.35, // cells
   CANNON_RING = 1.15, // cells
-  CANNON_RING_FACTOR = 0.5;
+  CANNON_RING_FACTOR = 0.25; // v0.17a: outer ring 50 % -> 25 %
 export const MAGIC_CHARGE_SECONDS = 8;
 export const MAGIC_EMPOWER = 4;
 const POISON_MAX_STACKS = 8,
@@ -2880,7 +2880,7 @@ function attack(game, p, tower, dt) {
       from = next;
     }
   } else if (isCannonTower(item)) {
-    // Cannon: full damage in a tiny core around the impact, 50 % in the wider ring.
+    // Cannon: full damage in a tiny core around the impact, 25 % in the wider ring.
     const core = Math.max(item.splashFull, CANNON_CORE * game.grid.cellUnits),
       ring = Math.max(item.splashSmall, item.splashMedium, CANNON_RING * game.grid.cellUnits);
     for (const other of p.creeps) {
