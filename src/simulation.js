@@ -1,5 +1,5 @@
 /** Deterministic, renderer-independent 1v1 simulation. Time is in seconds. */
-import { getCatalog, getResearchCost, FACTIONS, RULES, field, splitIds, cleanText } from "./content.js";
+import { getCatalog, getResearchCost, FACTIONS, RULES, field, splitIds, cleanText, WALL_ID, GOLEM_ID } from "./content.js";
 
 export const TICK = 0.05;
 export const SAVE_VERSION = 5;
@@ -425,6 +425,7 @@ export function available(game, playerIndex, type, id, towerId = null, viaPick =
     if (!item.isBuildable) return { ok: false, reason: "Not a building" };
     if (!item.isRoot) return { ok: false, reason: "Upgrade from the previous tower" };
     if (item.support === "farm") return { ok: false, reason: "Farm not available for now" };
+    if (id === WALL_ID && !perkLevel(p, "fort")) return { ok: false, reason: "Needs the Fortifications perk" }; // v0.12
     if (id === "h003" && (p.freeArchers || 0) > 0) cost = { gold: 0, wood: 0 }; // Forest Patrol
   } else if (type === "upgrade") {
     const tower = p.towers.find((t) => t.id === towerId);
@@ -562,6 +563,10 @@ function statsFor(game, player, item) {
     }
   }
   stats.hp *= 1 + hpPercent;
+  // v0.12: Lone Guardians: towers attack twice as fast while the player owns at most 5 towers
+  if (item.isBuildable && item.attacks && perkLevel(player, "lone") && (player.towers?.length || 0) <= LONE.towers) attackSpeed += LONE.speed;
+  // v0.12: Heavy Nobility: heavy creeps get more hit points
+  if (perkLevel(player, "nobility") && isHeavy(item)) stats.hp *= 1 + NOBILITY.hp * perkLevel(player, "nobility");
   if (item.isSend && item.bossTier && perkLevel(player, "golem")) stats.hp *= 1 + GOLEM.hp; // v0.10n
   if (item.isSend && item.flying && perkLevel(player, "wings")) {
     // v0.10p: Wings of War
@@ -641,7 +646,7 @@ function newTower(game, p, id, gx, gy) {
 // offer them, and the dialogs up to level 3 always hold at least one ----------------------
 export const PERKS = Object.freeze({
   // v0.09q: perk rework (availability in PERK_AVAILABILITY)
-  recruit: { name: "Recruitment", max: 5, text: "+1 max stock and 8% faster recruitment for the first 3 creeps of each tier" },
+  recruit: { name: "Recruitment", max: 10, text: "Increases creep recruitment speed by 10%" }, // v0.10i (artifact line), merged in v0.11c
   feudal: { name: "Feudality", max: 5, text: "+1.5% income for creeps" },
   archery: { name: "Archery", max: 5, text: "+5% damage for all archer-line towers" },
   patrol: { name: "Forest Patrol", max: 5, text: "Next 2 archers are free" },
@@ -663,12 +668,281 @@ export const PERKS = Object.freeze({
   golem: { name: "Golem Whisperer", max: 1, element: "earth", text: "Boss creeps cost 25% less and have +10% hit points" }, // v0.10n
   crowd: { name: "Crowd Control", max: 3, text: "Above 50 creeps in your field: every 5 s the 3 weakest die per level" }, // v0.10l: 3 per level
   pillage: { name: "Pillage", max: 5, text: "Steal 1% of a player's gold on each breakthrough" }, // v0.10k: 1 % per level
+  // v0.12: nine new perks
+  lone: { name: "Lone Guardians", max: 1, text: "Your towers attack 100% faster while you own 5 towers or fewer" },
+  manufacture: { name: "Creep Manufacture", max: 3, element: "water", text: "The 4th creep of every tier costs {manufacture} less and restocks 10% faster" },
+  summon: { name: "Summon Tower", max: 1, element: "arcane", powerup: true, text: "Summons a random level 1-3 tower of any element on a free field (sells for 10% of its value)" },
+  nobility: { name: "Heavy Nobility", max: 3, element: "earth", text: "Heavy creeps (single, no boss, no death spawn) cost {nobility} less, have {nobilityHp} more hit points and restock 10% faster" },
+  breeding: { name: "Breeding Pools", max: 3, element: "plague", text: "Creeps that spawn creeps on death: {breeding} chance of one more; spawned creeps get {breedingHp} more hit points" },
+  pillar: { name: "Pillar of Fire", max: 5, element: "fire", text: "Active ability: a pillar of fire burns an area for 1.5 s, {pillar} damage every 0.3 s (75 s cooldown)" },
+  fort: { name: "Fortifications", max: 1, element: ["earth", "water"], text: "Unlocks the Wall: 5 gold, no attack, for cheap mazes. Double-tap sells it for 1 gold" },
+  agolem: { name: "Arcane Golem", max: 5, element: "arcane", text: "Active ability: a golem walks your path upwards and knocks creeps back, then runs on into the next lane (50 s cooldown)" },
+  monsun: { name: "Monsun", max: 5, element: "storm", text: "Active ability: storm winds push creeps back for {monsun} s, lightning strikes flyers (40 s cooldown)" },
 });
 /** v0.09q: Arrow Volley: cooldown, area radius in fields, arrows per perk level, extra base damage. */
 export const VOLLEY = { cooldown: 20, radius: 1.5, perLevel: 3, bonus: 3, spread: 0.9 };
 /** Research that only an element unlocks: its element (for colour and frame in the dialog). */
 export const RESEARCH_ELEMENT = Object.freeze({ R002: "water", R000: "fire", R005: "earth", R006: "arcane", R00K: "storm", R00C: "plague", R00J: "fire", R00U: "earth", R00V: "fire", R00W: "storm", R00X: "plague", R001: "water", R00D: "arcane" });
 const perkLevel = (p, id) => p?.perks?.[id] || 0;
+/** v0.12: element(s) a perk needs; Fortifications takes Earth or Water. */
+export const perkElements = (id) => [].concat(PERKS[id]?.element || []);
+// ---- v0.12: new perks -------------------------------------------------------------------
+/** Lone Guardians: tower limit and attack speed bonus. */
+export const LONE = { towers: 5, speed: 1 };
+/** Creep Manufacture (Water): discount of the 4th creep of each tier by level, restock bonus. */
+export const MANUFACTURE = { discount: [0.15, 0.25, 0.33], restock: 1.1 };
+/** Heavy Nobility (Earth): discount by level, hit points per level, restock bonus. */
+export const NOBILITY = { discount: [0.1, 0.18, 0.24], hp: 0.12, restock: 1.1 };
+/** Breeding Pools (Plague): chance of an extra death spawn by level, hit points per level. */
+export const BREEDING = { chance: [0.33, 0.6, 0.75], hp: 0.1 };
+/** Pillar of Fire (Fire): cooldown, radius in fields, delay, burn time, damage interval, scorch time. */
+export const PILLAR = { cooldown: 75, radius: 2.5, delay: 0.5, duration: 1.5, interval: 0.3, scorch: 15, air: 0.5, budget: 1.5 };
+export const pillarDamage = (p, level = perkLevel(p, "pillar")) => level * (p?.tier || 1) * 6 + 12;
+/** Arcane Golem (Arcane): cooldown, knock-back in fields and hit point loss per collision by level. */
+export const AGOLEM = { cooldown: 50, knock: [1, 1.25, 1.5, 1.75, 2], loss: [0.01, 0.009, 0.008, 0.0075, 0.007], heavy: 3, damage: 10, reach: 0.45 };
+export const golemHp = (p, level = perkLevel(p, "agolem")) => Math.round(level * (p?.tier || 1) * (400 * ((p?.level || 1) * 0.2) + 1));
+/** Monsun (Storm): cooldown, duration by level, lightning interval; push in fields per second (before the arena's 45 %). */
+export const MONSUN = { cooldown: 40, duration: [4, 5, 6, 7, 8], strike: 0.5, groundShare: 0.5 };
+export const monsunForce = (p, level = perkLevel(p, "monsun")) => 0.4 + level * 0.12 + (p?.tier || 1) * 0.02;
+export const monsunDamage = (p, level = perkLevel(p, "monsun")) => 30 + 20 * level * (p?.tier || 1);
+/** Perks that skip the next level once taken. */
+const PERK_SKIP = new Set(["pillar", "agolem", "monsun"]);
+/** Creep ids with a death spawn (Breeding Pools; never "heavy"). */
+const DEATH_PLANS = {
+  n00N: [
+    ["n00R", 0],
+    ["n00R", 0.33],
+    ["n00R", 0.66],
+  ],
+  n00Y: [["n006", 0]],
+  n02V: [
+    ["n02W", 0],
+    ["n02W", 0.25],
+    ["n02X", 0.5],
+  ],
+  n01F: [["n004", 0]],
+  n01H: [["n008", 0, 0.9]],
+  n02E: [
+    ["n038", 0],
+    ["n038", 0.3],
+    ["n038", 0.6],
+    ["n038", 0.9],
+  ],
+};
+export function hasDeathrattle(id) {
+  if (DEATH_PLANS[id] || id === "n03A" || id === "n037") return true;
+  return !!obj(id) && creepSkills({ typeId: id }).some((sk) => sk.type === "spawnOnDeath");
+}
+/** Heavy creeps: one creep per purchase, no boss, no death spawn. */
+const HEAVY = new Map();
+export function isHeavy(item) {
+  if (!item?.isSend) return false;
+  if (!HEAVY.has(item.id)) HEAVY.set(item.id, !item.bossTier && (item.spawnIds?.length || 0) === 1 && !hasDeathrattle(item.id));
+  return HEAVY.get(item.id);
+}
+const heavyCreep = (c) => c.heavy || isHeavy(obj(c.typeId)) || !!obj(c.typeId)?.bossTier || !!c.waveBoss;
+/** The 4th creep of a tier (Creep Manufacture). */
+const fourthOf = (item) => !!item?.isSend && !item.bossTier && tierSends(item.tier)[3]?.id === item.id;
+/** Budget creeps: the first three of a tier and what they bring along (Pillar of Fire). */
+let BUDGET = null;
+function isBudget(id) {
+  if (!BUDGET) {
+    BUDGET = new Set();
+    for (let tier = 1; tier <= 6; tier++) for (const s of tierSends(tier).slice(0, 3)) [s.id, ...(s.spawnIds || [])].forEach((x) => BUDGET.add(x));
+  }
+  return BUDGET.has(id);
+}
+/** Moves a creep back along the way it came (ground: its path; flyers: straight up). */
+function pushBack(game, c, units) {
+  if (!(units > 0) || c.dead) return;
+  if (c.flying) {
+    const top = c.path?.[0]?.y ?? -0.02;
+    c.y = Math.max(top, c.y - units / game.grid.cellUnits / game.grid.rows);
+    return;
+  }
+  let d = units;
+  while (d > EPS && c.path?.length) {
+    const prev = c.path[c.pathIndex - 1] || (c.pathIndex === 0 ? c.prevNode : null);
+    if (!prev) break;
+    const seg = dist(game, c, prev);
+    if (seg > d) {
+      const f = d / seg;
+      c.x += (prev.x - c.x) * f;
+      c.y += (prev.y - c.y) * f;
+      break;
+    }
+    c.x = prev.x;
+    c.y = prev.y;
+    d -= seg;
+    if (c.pathIndex > 0) c.pathIndex--;
+    else break;
+  }
+}
+/** Summon Tower: towers of level 1-3 that may appear (any element, single field, no support towers). */
+function summonPool(level) {
+  return getCatalog().towers.filter((u) => u.playable && u.attacks && !u.perkUnit && !u.isHall && !u.support && (u.level || 1) === level && footprintOf(u.id) === 1 && !UNIQUE_TOWERS.has(u.id) && !/hall of/i.test(u.name || ""));
+}
+function summonTower(game, p) {
+  const roll = random(game),
+    level = roll < 0.2 ? 1 : roll < 0.7 ? 2 : 3;
+  let pool = summonPool(level);
+  for (let l = 1; !pool.length && l <= 3; l++) pool = summonPool(l);
+  if (!pool.length) return;
+  const item = pool[Math.floor(random(game) * pool.length)],
+    cells = [];
+  for (let y = 0; y < game.grid.rows; y++) for (let x = 0; x < game.grid.cols; x++) if (canBuild(game, p.id, x, y, item.id).ok) cells.push([x, y]);
+  if (!cells.length) return;
+  const [x, y] = cells[Math.floor(random(game) * cells.length)],
+    tower = newTower(game, p, item.id, x, y);
+  tower.buildRemaining = 0;
+  tower.summoned = true;
+  tower.summonValue = item.pointValue || 0;
+  tower.totalSpent = 0;
+  p.towers.push(tower);
+  p.stats.built++;
+  repath(game, p);
+  emit(game, "build", { player: p.id, id: item.id, towerId: tower.id, x: tower.x, y: tower.y, summoned: true });
+  emit(game, "summon", { player: p.id, id: item.id, towerId: tower.id, x: tower.x, y: tower.y, level: item.level || 1 });
+  completeTower(game, p, tower);
+}
+function launchPillar(game, p, x, y) {
+  const level = perkLevel(p, "pillar");
+  (game.pillars ||= []).push({
+    player: p.id,
+    x,
+    y,
+    radius: PILLAR.radius,
+    damage: pillarDamage(p, level),
+    start: game.time,
+    erupt: game.time + PILLAR.delay,
+    end: game.time + PILLAR.delay + PILLAR.duration,
+    next: game.time + PILLAR.delay,
+    until: game.time + PILLAR.delay + PILLAR.duration + PILLAR.scorch,
+  });
+  p.pillarReady = game.time + PILLAR.cooldown;
+  emit(game, "pillar", { player: p.id, x, y, radius: PILLAR.radius });
+}
+function tickPillars(game) {
+  if (!game.pillars?.length) return;
+  for (const f of game.pillars) {
+    const p = game.players[f.player];
+    while (p && !p.out && f.next < f.end - EPS && game.time + EPS >= f.next) {
+      f.next += PILLAR.interval;
+      const r = f.radius * game.grid.cellUnits;
+      for (const c of p.creeps) {
+        if (c.dead || c.hp <= 0 || dist(game, c, f) > r || divineShield(game, c)) continue;
+        c.hp -= f.damage * (c.flying ? PILLAR.air : 1) * (!c.wave && isBudget(c.typeId) ? PILLAR.budget : 1);
+        if (c.hp <= 0) killCreep(game, p, c);
+      }
+    }
+  }
+  game.pillars = game.pillars.filter((f) => f.until > game.time);
+}
+function launchMonsun(game, p) {
+  const level = perkLevel(p, "monsun");
+  p.monsun = { start: game.time, until: game.time + MONSUN.duration[Math.min(5, level) - 1], next: game.time + MONSUN.strike, force: monsunForce(p, level), damage: monsunDamage(p, level) };
+  p.monsunReady = game.time + MONSUN.cooldown;
+  emit(game, "monsun", { player: p.id, until: p.monsun.until });
+}
+function tickMonsun(game, p) {
+  const m = p.monsun;
+  if (!m) return;
+  if (game.time > m.until + EPS) {
+    p.monsun = null;
+    return;
+  }
+  const push = m.force * game.grid.cellUnits * movementMultiplier(game) * TICK;
+  for (const c of p.creeps) if (!c.dead && c.hp > 0) pushBack(game, c, push * (c.flying ? 2 : 1));
+  while (game.time + EPS >= m.next && m.next <= m.until + EPS) {
+    m.next += MONSUN.strike;
+    const alive = p.creeps.filter((c) => !c.dead && c.hp > 0 && !divineShield(game, c)),
+      air = alive.filter((c) => c.flying),
+      list = air.length ? air : alive;
+    if (!list.length) continue;
+    const c = list[Math.floor(random(game) * list.length)],
+      damage = m.damage * (air.length ? 1 : MONSUN.groundShare);
+    c.hp -= damage;
+    emit(game, "lightning", { player: p.id, x: c.x, y: c.y, small: !air.length, damage: Math.round(damage) });
+    if (c.hp <= 0) killCreep(game, p, c);
+  }
+}
+function launchGolem(game, p) {
+  const level = perkLevel(p, "agolem"),
+    route = findPath(game, p.id);
+  if (!route?.length) return { ok: false, reason: "No path for the golem" };
+  const path = route.slice().reverse(),
+    hp = golemHp(p, level),
+    s = statsFor(game, p, obj(GOLEM_ID));
+  (p.golems ||= []).push({
+    id: "g" + game.nextId++,
+    typeId: GOLEM_ID,
+    owner: p.id,
+    golem: true,
+    level,
+    x: path[0].x,
+    y: path[0].y,
+    path,
+    pathIndex: 1,
+    hp,
+    maxHp: hp,
+    speed: s.speed,
+    statuses: [],
+    hit: [],
+  });
+  p.golemReady = game.time + AGOLEM.cooldown;
+  emit(game, "golem", { player: p.id, x: path[0].x, y: path[0].y });
+  return { ok: true };
+}
+function tickGolems(game, p) {
+  if (!p.golems?.length) return;
+  const reach = AGOLEM.reach * game.grid.cellUnits;
+  for (const g of p.golems) {
+    let left = g.speed * TICK;
+    while (left > EPS) {
+      const next = g.path[g.pathIndex];
+      if (!next) break;
+      const d = dist(game, g, next);
+      if (d <= left + EPS) {
+        g.x = next.x;
+        g.y = next.y;
+        g.pathIndex++;
+        left -= d;
+      } else {
+        g.x += ((next.x - g.x) * left) / d;
+        g.y += ((next.y - g.y) * left) / d;
+        left = 0;
+      }
+    }
+    const i = Math.min(5, g.level) - 1;
+    for (const c of p.creeps) {
+      if (g.hp <= 0) break;
+      if (c.dead || c.hp <= 0 || c.flying || g.hit.includes(c.id) || dist(game, g, c) > reach) continue;
+      g.hit.push(c.id);
+      const loss = g.maxHp * AGOLEM.loss[i] * (heavyCreep(c) ? AGOLEM.heavy : 1);
+      g.hp -= loss;
+      if (!divineShield(game, c)) c.hp -= loss * AGOLEM.damage;
+      pushBack(game, c, AGOLEM.knock[i] * game.grid.cellUnits);
+      emit(game, "skill", { player: p.id, kind: "golemHit", x: c.x, y: c.y });
+      if (c.hp <= 0) killCreep(game, p, c);
+    }
+    if (g.hp <= 0) {
+      g.dead = true;
+      emit(game, "golemDown", { player: p.id, x: g.x, y: g.y });
+    } else if (g.pathIndex >= g.path.length) {
+      // the portal row: the golem moves on into the next lane as a creep
+      g.dead = true;
+      const target = targetOf(game, p.id),
+        c = target && target.id !== p.id && !target.out ? spawnCreep(game, p.id, GOLEM_ID, null, target.id) : null;
+      if (c) {
+        c.hp = g.hp;
+        c.maxHp = g.maxHp;
+        c.golem = true;
+      }
+      emit(game, "golemPortal", { player: p.id, x: g.x, y: g.y, lane: target?.id ?? -1 });
+    }
+  }
+  p.golems = p.golems.filter((g) => !g.dead);
+}
 /** v0.10n: Golem Whisperer (Earth): boss creeps 25 % cheaper and 10 % more hit points. */
 export const GOLEM = { discount: 0.25, hp: 0.1 };
 /** v0.10p: Wings of War (Storm), per level. */
@@ -734,6 +1008,8 @@ function bossDiscount(p, item, gold) {
   let share = 1;
   if (item.bossTier && perkLevel(p, "golem")) share *= 1 - GOLEM.discount;
   if (UNDEAD_SENDS.has(item.id) && perkLevel(p, "exhume")) share *= 1 - EXHUME.discount[Math.min(3, perkLevel(p, "exhume")) - 1]; // v0.10r/s
+  if (perkLevel(p, "manufacture") && fourthOf(item)) share *= 1 - MANUFACTURE.discount[Math.min(3, perkLevel(p, "manufacture")) - 1]; // v0.12
+  if (perkLevel(p, "nobility") && isHeavy(item)) share *= 1 - NOBILITY.discount[Math.min(3, perkLevel(p, "nobility")) - 1]; // v0.12
   return share === 1 ? gold : Math.round(gold * share);
 }
 /** v0.10r: undead creeps (Exhumination). */
@@ -785,18 +1061,16 @@ function archerLine() {
   }
   return ARCHER_LINE;
 }
-/** Seconds per recruit (v0.09q: Recruitment refills the first three of a tier 8 % faster per level). */
+/** Seconds per recruit (v0.10i: Recruitment refills every creep 10 % faster per level). */
 export function stockRegenOf(p, s) {
-  const level = perkLevel(p, "recruit"),
-    first = level && !s.bossTier && tierSends(s.tier).slice(0, 3).some((x) => x.id === s.id);
+  const level = perkLevel(p, "recruit");
   const slower = UNDEAD_SENDS.has(s.id) && perkLevel(p, "exhume") ? EXHUME.restock : 1; // v0.10s: Exhumination
-  return ((s.stockRegen || 0) / (first ? 1 + 0.08 * level : 1)) * slower;
+  const faster = (perkLevel(p, "manufacture") && fourthOf(s) ? MANUFACTURE.restock : 1) * (perkLevel(p, "nobility") && isHeavy(s) ? NOBILITY.restock : 1); // v0.12
+  return ((s.stockRegen || 0) / (level && !s.bossTier ? 1 + 0.1 * level : 1)) * slower / faster;
 }
-/** Highest stock of a send for this player (Recruitment adds to the first three of a tier). */
+/** Highest stock of a send for this player (v0.10i: Recruitment no longer adds stock). */
 export function stockMaxOf(p, s) {
-  if (!s) return 0;
-  const extra = perkLevel(p, "recruit");
-  return s.stockMax + (extra && !s.bossTier && tierSends(s.tier).slice(0, 3).some((x) => x.id === s.id) ? extra : 0);
+  return s ? s.stockMax : 0;
 }
 // ---- Experience and level picks (v0.06, replaces wood) --------------------------------
 // EXP comes from everything that used to give wood: breakthroughs, creeps crossing the enemy
@@ -878,6 +1152,16 @@ export const PERK_AVAILABILITY = {
   boots: "6+",
   exhume: "3+",
   waterblock: "3+",
+  // v0.12
+  lone: "2-3",
+  manufacture: "2+",
+  summon: "2",
+  nobility: "2+",
+  breeding: "2+",
+  pillar: "5+",
+  fort: "2-3",
+  agolem: "5+",
+  monsun: "5+",
   // research (needs the matching element)
   R00K: "1+", // Watcher Owl
   R00U: "1+", // Creep Armor
@@ -908,9 +1192,16 @@ export function parseAvailability(spec) {
   }
   return availabilityCache.get(key);
 }
-const perkAvailable = (o, level) => {
+/** v0.10i: extra levels on which a perk appears once the player owns it (at least level 1). */
+export const PERK_AVAILABILITY_OWNED = {
+  recruit: "5+",
+};
+const perkAvailable = (o, level, p) => {
   const id = o.type === "perk" || o.type === "research" ? o.id : o.type;
-  return parseAvailability(PERK_AVAILABILITY[id] ?? "1+")(level);
+  // v0.12: some perks sit out the level after they were taken
+  if (o.type === "perk" && PERK_SKIP.has(id) && p?.perkTakenAt?.[id] === level - 1) return false;
+  if (parseAvailability(PERK_AVAILABILITY[id] ?? "1+")(level)) return true;
+  return o.type === "perk" && perkLevel(p, id) >= 1 && !!PERK_AVAILABILITY_OWNED[id] && parseAvailability(PERK_AVAILABILITY_OWNED[id])(level);
 };
 function makePick(game, p, kind) {
   const draw = (list, n) => {
@@ -922,7 +1213,7 @@ function makePick(game, p, kind) {
   if (kind === "element")
     return { kind, level: p.level, options: draw(FACTIONS.filter((f) => !p.research[f.unlock]).map((f) => ({ type: "element", id: f.id })), 3) };
   // v0.09q: no general rewards any more; perks and research, each on its own levels
-  const open = (o) => perkAvailable(o, p.level) && optionValid(game, p, o);
+  const open = (o) => perkAvailable(o, p.level, p) && optionValid(game, p, o);
   const perks = Object.keys(PERKS)
     .map((id) => ({ type: "perk", id }))
     .filter(open);
@@ -943,7 +1234,7 @@ function optionValid(game, p, o) {
     return !!f && !p.research[f.unlock];
   }
   if (o.type === "research") return available(game, p.id, "research", o.id, null, true).ok;
-  if (o.type === "perk" && PERKS[o.id]?.element && !p.research[FACTIONS.find((f) => f.id === PERKS[o.id].element)?.unlock]) return false;
+  if (o.type === "perk" && perkElements(o.id).length && !perkElements(o.id).some((el) => p.research[FACTIONS.find((f) => f.id === el)?.unlock])) return false;
   if (o.type === "perk") return perkLevel(p, o.id) < (PERKS[o.id]?.max || 0) && (o.id !== "evolution" || evolutionTargets(game, p).length > 0);
   return true;
 }
@@ -974,6 +1265,11 @@ function resolvePick(game, p, index) {
   else if (option.type === "lives") p.lives += option.amount;
   else if (option.type === "perk") {
     p.perks = { ...(p.perks || {}), [option.id]: perkLevel(p, option.id) + 1 };
+    p.perkTakenAt = { ...(p.perkTakenAt || {}), [option.id]: pick.level }; // v0.12
+    if (option.id === "summon") summonTower(game, p);
+    if (option.id === "pillar" && !(p.pillarReady > game.time)) p.pillarReady = game.time;
+    if (option.id === "agolem" && !(p.golemReady > game.time)) p.golemReady = game.time;
+    if (option.id === "monsun" && !(p.monsunReady > game.time)) p.monsunReady = game.time;
     if (option.id === "patrol") p.freeArchers = (p.freeArchers || 0) + 2;
     if (option.id === "militia") placeMilitia(game, p, 2);
     if (option.id === "evolution") evolveTower(game, p);
@@ -990,8 +1286,6 @@ function resolvePick(game, p, index) {
       p.stats.goldEarned += gold;
       p.income += 25;
     }
-    if (option.id === "recruit")
-      for (const s of tierSends(p.tier).slice(0, 3)) if (p.stock[s.id]) p.stock[s.id].count = Math.min(stockMaxOf(p, s), p.stock[s.id].count + 1);
   }
   refreshPicks(game, p);
   emit(game, "picked", { player: p.id, option, level: pick.level });
@@ -1169,6 +1463,27 @@ export function command(game, input) {
       y = Number(input.y);
     if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || x > 1 || y < -0.1 || y > 1.1) return { ok: false, reason: "Outside the board" };
     launchBurst(game, p, x, y);
+    return { ok: true };
+  }
+  // v0.12: Pillar of Fire (aimed), Arcane Golem and Monsun (instant)
+  if (type === "pillar") {
+    if (!perkLevel(p, "pillar")) return { ok: false, reason: "Pillar of Fire not learned" };
+    if (p.pillarReady > game.time + EPS) return { ok: false, reason: `Pillar of Fire ready in ${Math.ceil(p.pillarReady - game.time)} s` };
+    const x = Number(input.x),
+      y = Number(input.y);
+    if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || x > 1 || y < -0.1 || y > 1.1) return { ok: false, reason: "Outside the board" };
+    launchPillar(game, p, x, y);
+    return { ok: true };
+  }
+  if (type === "agolem") {
+    if (!perkLevel(p, "agolem")) return { ok: false, reason: "Arcane Golem not learned" };
+    if (p.golemReady > game.time + EPS) return { ok: false, reason: `Arcane Golem ready in ${Math.ceil(p.golemReady - game.time)} s` };
+    return launchGolem(game, p);
+  }
+  if (type === "monsun") {
+    if (!perkLevel(p, "monsun")) return { ok: false, reason: "Monsun not learned" };
+    if (p.monsunReady > game.time + EPS) return { ok: false, reason: `Monsun ready in ${Math.ceil(p.monsunReady - game.time)} s` };
+    launchMonsun(game, p);
     return { ok: true };
   }
   if (type === "volley") {
@@ -1360,7 +1675,11 @@ export function getSellValue(game, playerIndex, towerId) {
   if (!t) return 0;
   const item = obj(t.typeId);
   if (t.free && t.typeId === "h003") return 0; // a Forest Patrol archer was free
-  return item.support === "farm" ? 0 : Math.trunc(item.pointValue * item.sellRate);
+  if (item.support === "farm") return 0;
+  const value = Math.trunc(item.pointValue * item.sellRate);
+  // v0.12: a summoned tower gives back only 10 % of its own value (paid upgrades in full)
+  if (t.summoned) return Math.max(0, value - Math.trunc((t.summonValue || 0) * item.sellRate) + Math.trunc((t.summonValue || 0) * 0.1));
+  return value;
 }
 function sellTower(game, p, towerId) {
   const i = p.towers.findIndex((t) => t.id === towerId);
@@ -2251,28 +2570,7 @@ function killCreep(game, p, c) {
 }
 
 function deathrattle(game, c) {
-  const plans = {
-    n00N: [
-      ["n00R", 0],
-      ["n00R", 0.33],
-      ["n00R", 0.66],
-    ],
-    n00Y: [["n006", 0]],
-    n02V: [
-      ["n02W", 0],
-      ["n02W", 0.25],
-      ["n02X", 0.5],
-    ],
-    n01F: [["n004", 0]],
-    n01H: [["n008", 0, 0.9]],
-    n02E: [
-      ["n038", 0],
-      ["n038", 0.3],
-      ["n038", 0.6],
-      ["n038", 0.9],
-    ],
-  };
-  let plan = (plans[c.typeId] || []).slice();
+  let plan = (DEATH_PLANS[c.typeId] || []).slice();
   if (c.typeId === "n03A" || c.typeId === "n037") {
     const roll = 1 + Math.floor(random(game) * 5),
       first = { 1: "n02Z", 2: "n034", 3: "n02Y", 4: "n036", 5: "n02Z" }[roll];
@@ -2281,8 +2579,19 @@ function deathrattle(game, c) {
   }
   for (const sk of creepSkills(c))
     if (sk.type === "spawnOnDeath" && obj(sk.id)) for (let i = 0; i < sk.count; i++) plan.push([sk.id, i * 0.3]);
+  // v0.12: Breeding Pools of the sender: chance of one more spawn, spawns with more hit points
+  const sender = c.owner >= 0 ? game.players[c.owner] : null,
+    breed = Math.min(3, perkLevel(sender, "breeding"));
+  let boost = 1;
+  if (breed && plan.length) {
+    boost = 1 + BREEDING.hp * breed;
+    if (random(game) < BREEDING.chance[breed - 1]) {
+      const [id, delay, health = 1] = plan[0];
+      plan.push([id, Math.max(...plan.map((x) => x[1])) + 0.2, health]);
+    }
+  }
   for (const [id, delay, health = 1] of plan)
-    game.pendingSpawns.push({ owner: c.owner, lane: c.defender, id, time: game.time + delay, x: c.x, y: c.y, health });
+    game.pendingSpawns.push({ owner: c.owner, lane: c.defender, id, time: game.time + delay, x: c.x, y: c.y, health, ...(boost > 1 ? { boost } : {}) });
 }
 /** The next lane a leaked creep runs on: the next seat to the right that is still in, not the sender's. */
 function laneAfter(game, p, sender) {
@@ -2738,6 +3047,9 @@ function aiPick(game, p, persona) {
       if (o.type === "income") return (game.round < 30 ? 6 : 2) * o.amount + random(game);
       if (o.type === "gold") return o.amount / 40 + random(game);
       if (o.type === "lives") return p.lives < 12 ? 9 : 1 + random(game);
+      // v0.12: perks the bot can hardly use rank low
+      if (o.type === "perk" && o.id === "fort") return 0.5 + random(game);
+      if (o.type === "perk" && o.id === "lone") return (p.towers.length <= LONE.towers && p.level <= 3 ? 3 : 0.5) + random(game);
       const r = obj(o.id),
         effects = (r?.effects || []).map((e) => e.type);
       return ((effects.some((e) => ["ratt", "rats", "ratx", "ratr"].includes(e)) ? 6 : 4) + random(game) * 2) * (persona.researchBias ?? 1);
@@ -2832,7 +3144,17 @@ function templatePlan(game, forced = null) {
  * rolls its template and mirror side, or where the first wall sits and which side its gap is on.
  */
 function mazePlan(game, p, level) {
-  if (p.aiMaze && p.aiMaze.cols === game.grid.cols && p.aiMaze.rows === game.grid.rows) return p.aiMaze;
+  if (p.aiMaze && p.aiMaze.cols === game.grid.cols && p.aiMaze.rows === game.grid.rows) {
+    // v0.10za: a saved or synced game turns the plan's Sets into {}; rebuild them instead of crashing.
+    const m = p.aiMaze;
+    if (m.extra instanceof Set && (!m.template || m.keys instanceof Set)) return m;
+    if (m.template && Array.isArray(m.order)) {
+      m.keys = new Set(m.order.map((c) => c.key));
+      m.extra = new Set();
+      return m;
+    }
+    p.aiMaze = null;
+  }
   if (level !== "veryEasy" && (p.aiPersona?.mazeV2 ?? 1) > 0.5) {
     const plan = templatePlan(game, p.aiPersona?.mazeTpl ?? null);
     if (plan) return (p.aiMaze = plan);
@@ -2965,7 +3287,7 @@ function bestSpot(game, p, item, persona, air = false, ctx = {}) {
         const key = x + "," + y,
           wall = maze && size === 1 ? maze.wallOf[key] : undefined;
         if (gaps.has(key)) continue; // the gaps are the maze; never close one
-        if (restrict && wall === undefined && !maze.extra.has(key)) continue;
+        if (restrict && wall === undefined && !maze.extra?.has?.(key)) continue;
         const preview = previewBuild(game, p.id, x, y, item.id);
         if (!preview.ok || !preview.path) continue;
         let value,
@@ -3059,6 +3381,24 @@ function think(game, p) {
       if (!best || n > best.n) best = { c, n };
     }
     if (best && (best.n >= 3 || best.c.progress > 0.75)) command(game, { type: "burst", player: p.id, x: best.c.x, y: best.c.y });
+  }
+  // v0.12: Pillar of Fire on the densest group, Arcane Golem and Monsun when the lane fills up
+  if (perkLevel(p, "pillar") && !(p.pillarReady > game.time) && p.creeps.length) {
+    const r = PILLAR.radius * game.grid.cellUnits,
+      live = p.creeps.filter((c) => !c.dead && c.hp > 0 && c.owner !== p.id);
+    let best = null;
+    for (const c of live) {
+      const n = live.filter((o) => dist(game, c, o) <= r).length;
+      if (!best || n > best.n) best = { c, n };
+    }
+    if (best && (best.n >= 5 || best.c.progress > 0.8)) command(game, { type: "pillar", player: p.id, x: best.c.x, y: best.c.y });
+  }
+  if ((perkLevel(p, "agolem") && !(p.golemReady > game.time)) || (perkLevel(p, "monsun") && !(p.monsunReady > game.time))) {
+    const live = p.creeps.filter((c) => !c.dead && c.hp > 0),
+      ground = live.filter((c) => !c.flying).length,
+      deep = live.some((c) => c.progress > 0.7);
+    if (perkLevel(p, "agolem") && !(p.golemReady > game.time) && (ground >= 6 || (deep && ground >= 2))) command(game, { type: "agolem", player: p.id });
+    if (perkLevel(p, "monsun") && !(p.monsunReady > game.time) && (live.length >= 8 || deep)) command(game, { type: "monsun", player: p.id });
   }
   // ---- how much defence is needed right now
   // Need: the biggest group the opponent sends (towers chew through a group creep by creep),
@@ -3426,11 +3766,13 @@ function fixedTick(game) {
   game.incomeRemaining -= TICK;
   if (game.incomeRemaining <= EPS) incomeTick(game);
   tickVolleys(game); // v0.09q
+  tickPillars(game); // v0.12
   const pending = game.pendingSpawns.filter((s) => s.time <= game.time + EPS);
   game.pendingSpawns = game.pendingSpawns.filter((s) => s.time > game.time + EPS);
   for (const s of pending) {
     const c = spawnCreep(game, s.owner, s.id, s, s.lane ?? null);
     if (c) {
+      if (s.boost > 1) c.maxHp *= s.boost; // v0.12: Breeding Pools
       c.hp = c.maxHp * s.health;
       c.summoned = true;
       if (s.speedDelta) c.speed = Math.max(1, c.speed + s.speedDelta * movementMultiplier(game));
@@ -3457,6 +3799,8 @@ function fixedTick(game) {
     crowdControl(game, p); // v0.10l
     tickHellfire(game, p); // v0.10p
     tickPocks(game, p); // v0.10q
+    tickMonsun(game, p); // v0.12
+    tickGolems(game, p); // v0.12
     for (const q of p.researchQueue) {
       q.remaining -= TICK;
       if (q.remaining <= EPS) finishResearch(game, p, q.id);

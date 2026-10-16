@@ -42,6 +42,7 @@ export function createSfx() {
       f = ctx.createBiquadFilter(),
       v = ctx.createGain();
     s.buffer = noise;
+    s.loop = true; // v0.12: longer hisses than the 0.5 s noise buffer
     f.type = "bandpass";
     f.Q.value = q;
     f.frequency.setValueAtTime(freq, t);
@@ -112,12 +113,35 @@ export function createSfx() {
       tone({ type: "sawtooth", from: 87, to: 65, dur: 0.7, gain: 0.04, delay: 0.12, attack: 0.06 });
       tone({ type: "sine", from: 98, to: 42, dur: 0.45, gain: 0.18, delay: 0.32 });
     },
+    // v0.12: Pillar of Fire — a whoosh, a low roar and crackling embers
+    pillar: () => {
+      hiss({ dur: 0.5, gain: 0.05, freq: 400, q: 0.8, sweep: 4 });
+      hiss({ dur: 1.8, gain: 0.09, freq: 260, q: 0.6, delay: 0.45, sweep: 0.7 });
+      tone({ type: "sawtooth", from: 70, to: 48, dur: 1.6, gain: 0.05, delay: 0.45, attack: 0.08 });
+      for (let i = 0; i < 9; i++) hiss({ dur: 0.04, gain: 0.05, freq: 2500 + Math.random() * 2500, q: 3, delay: 0.5 + Math.random() * 1.4 });
+    },
+    // v0.12: Monsun — rising storm wind
+    monsun: () => {
+      hiss({ dur: 2.2, gain: 0.07, freq: 300, q: 1.2, sweep: 3.5, attack: 0.3 });
+      hiss({ dur: 2.6, gain: 0.04, freq: 900, q: 2.5, delay: 0.2, sweep: 0.5 });
+    },
+    thunder: () => {
+      hiss({ dur: 0.08, gain: 0.09, freq: 3800, q: 0.6, sweep: 0.4 });
+      hiss({ dur: 0.7, gain: 0.07, freq: 140, q: 0.7, delay: 0.05, sweep: 0.5 });
+      tone({ type: "sine", from: 70, to: 40, dur: 0.6, gain: 0.08, delay: 0.04 });
+    },
+    // v0.12: Arcane Golem — a stone rumble with a violet chime
+    golem: () => {
+      tone({ type: "sine", from: 90, to: 50, dur: 0.6, gain: 0.14 });
+      hiss({ dur: 0.4, gain: 0.05, freq: 180, q: 0.8, sweep: 0.6 });
+      [784, 988, 1175].forEach((f, i) => tone({ type: "triangle", from: f, dur: 0.3, gain: 0.025, delay: 0.15 + i * 0.07 }));
+    },
     error: () => tone({ type: "square", from: 180, to: 140, dur: 0.12, gain: 0.03 }),
     tier: () => [523, 659, 784, 1046].forEach((f, i) => tone({ type: "triangle", from: f, dur: 0.16, gain: 0.04, delay: i * 0.08 })),
     victory: () => [523, 659, 784, 1046, 1318].forEach((f, i) => tone({ type: "triangle", from: f, dur: 0.3, gain: 0.05, delay: i * 0.11 })),
     defeat: () => [392, 330, 262, 196].forEach((f, i) => tone({ type: "sine", from: f, dur: 0.35, gain: 0.05, delay: i * 0.16 })),
   };
-  const minGap = { volley: 0.5, kill: 0.07, tap: 0.03, built: 0.08, income: 0.3, leak: 0.12, bell: 1 };
+  const minGap = { thunder: 0.22, pillar: 1, monsun: 1, golem: 0.5, volley: 0.5, kill: 0.07, tap: 0.03, built: 0.08, income: 0.3, leak: 0.12, bell: 1 };
   return {
     play(name) {
       if (!enabled || !sounds[name]) return;

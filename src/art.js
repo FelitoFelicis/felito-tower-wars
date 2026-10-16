@@ -78,6 +78,7 @@ const BASE_ART = {
   "tower-guard-champion": { w: 353, h: 400, plateW: 243, plateCX: 180.5, plateCY: 284.5, plateTop: 220 },
   "tower-guard-elite": { w: 287, h: 400, plateW: 245, plateCX: 140.5, plateCY: 284.0, plateTop: 220 },
   "tower-hall": { w: 283, h: 400, plateW: 252, plateCX: 141.0, plateCY: 290.0, plateTop: 233 },
+  "tower-wall": { w: 320, h: 330, plateW: 262, plateCX: 160.0, plateCY: 232.0, plateTop: 122 }, // v0.12: Fortifications
   "tower-headhunter": { w: 331, h: 400, plateW: 245, plateCX: 138.5, plateCY: 292.5, plateTop: 237 },
   "tower-hydra": { w: 341, h: 400, plateW: 248, plateCX: 166.0, plateCY: 283.5, plateTop: 220 },
   "tower-lich": { w: 287, h: 400, plateW: 221, plateCX: 130.5, plateCY: 285.5, plateTop: 220 },
@@ -226,6 +227,7 @@ const ROOT_TOWER = {
   h03V: "tower-arcane",
   h02Q: "tower-farm",
   h05L: "tower-hall",
+  hWAL: "tower-wall", // v0.12
 };
 const RESEARCH_ART = {
   R00M: "tower-fire",
@@ -258,6 +260,7 @@ const CREEP_PATTERNS = [
   [/gryphon/i, "creep-gryphon", "creep-harpy"],
   [/black dragon/i, "creep-black-dragon", "creep-harpy"],
   [/rock golem/i, "creep-golem", "creep-golem"],
+  [/arcane golem/i, "creep-golem", "creep-golem"], // v0.12
   [/siege golem/i, "creep-siege-golem", "creep-golem"],
   [/meat golem|abomination/i, "creep-flesh-golem", "creep-ghoul"],
   [/infernal/i, "creep-infernal", "creep-golem"],

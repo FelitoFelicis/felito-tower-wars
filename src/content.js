@@ -17,6 +17,9 @@ export function field(fields, key, level = 0) {
 }
 const n = (value, fallback = null) =>
   value !== undefined && value !== null && value !== "" && Number.isFinite(Number(value)) ? Number(value) : fallback;
+/** v0.12: Wall (Fortifications) and Arcane Golem, units of the port itself. */
+export const WALL_ID = "hWAL",
+  GOLEM_ID = "nAGO";
 export const FACTIONS = [
   { id: "water", name: "Water", color: "#68caff", research: "R00N", unlock: "R01D" },
   { id: "fire", name: "Fire", color: "#ff9169", research: "R00M", unlock: "R01G" },
@@ -256,6 +259,85 @@ export function configureContent(data) {
   // Wood is gone from the game: nothing costs wood any more.
   for (const u of allUnits) u.woodCost = 0;
   applyCreepTuning(byId);
+  // v0.12: units that only perks bring into play
+  if (byId.h000) {
+    const base = byId.h000;
+    // Fortifications: a cheap wall without attack for mazing (sells for 1 gold)
+    const wall = {
+      ...base,
+      id: WALL_ID,
+      name: "Wall",
+      shortName: "Wall",
+      description: "A plain stone wall for cheap mazes. No attack. Double-tap to sell it.",
+      cost: 5,
+      hp: 400,
+      regen: 0,
+      armor: 5,
+      defenseType: "fortified",
+      damage: 0,
+      damageBase: 0,
+      dice: 0,
+      sides: 0,
+      attacks: false,
+      range: 0,
+      targets: [],
+      cooldown: 1,
+      upgrades: [],
+      requires: [],
+      researchAffected: [],
+      abilities: [],
+      implementedAbilities: [],
+      unimplementedAbilities: [],
+      fields: {},
+      weapon2: undefined,
+      buildTime: 1,
+      pointValue: 2,
+      sellRate: 0.5,
+      level: 1,
+      element: "neutral",
+      isRoot: true,
+      isBuildable: true,
+      playable: true,
+      support: null,
+      woodIncome: 0,
+      perkUnit: "fort",
+      source: { file: "port", id: WALL_ID },
+    };
+    byId[WALL_ID] = wall;
+    allUnits.push(wall);
+  }
+  if (byId.n00T) {
+    // Arcane Golem: walks a maze upwards, then runs on as a creep in the next lane
+    const golem = {
+      ...byId.n00T,
+      id: GOLEM_ID,
+      name: "Arcane Golem",
+      shortName: "Arcane Golem",
+      description: "Summoned by the Arcane Golem perk.",
+      kind: "unit",
+      isSend: false,
+      bossTier: null,
+      tier: 0,
+      cost: 0,
+      income: 0,
+      pointValue: 0,
+      bountyBase: 0,
+      bountyDice: 0,
+      bountySides: 0,
+      speed: 128, // 1.00 field per second (before the arena's 45 %)
+      defenseType: "medium",
+      abilities: [],
+      implementedAbilities: [],
+      unimplementedAbilities: [],
+      researchAffected: [],
+      spawnIds: [GOLEM_ID],
+      playable: false,
+      perkUnit: "agolem",
+      source: { file: "port", id: GOLEM_ID },
+    };
+    byId[GOLEM_ID] = golem;
+    allUnits.push(golem);
+  }
   // Wisp "pages" are the builder's research-menu scrollers, not towers.
   for (const u of allUnits) {
     if (/^Wisp\b/.test(u.name)) u.playable = false;

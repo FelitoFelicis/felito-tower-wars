@@ -61,7 +61,7 @@ function creepSize(catalog, id) {
   return (CREEP_SIZE.get(id) ?? 1) * (SIZE_BOOST[id] || 1);
 }
 /** Creeps drawn larger than their rank alone would make them. */
-const SIZE_BOOST = { n00S: 1.3 }; // tier 1 Raiders
+const SIZE_BOOST = { n00S: 1.3, nAGO: 1.45 }; // tier 1 Raiders, v0.12: Arcane Golem
 export function arenaGeometry(width, height, grid = { cols: 6, rows: 9 }, mode = "build", insets = { top: 84, bottom: 172 }) {
   const w = Math.max(1, width),
     h = Math.max(1, height),
@@ -69,31 +69,40 @@ export function arenaGeometry(width, height, grid = { cols: 6, rows: 9 }, mode =
     logicalRows = grid.rows,
     safeTop = Math.max(0, insets.top),
     safeBottom = Math.max(0, insets.bottom),
-    frame = 13;
+    frame = 13,
+    // v0.12: thin wall above and below the board, so the board can use the full height
+    frameV = 5;
+  const availableHeight = Math.max(9, h - safeTop - safeBottom - frameV * 2),
+    byHeight = availableHeight / (logicalRows + STRIP); // v0.09: no exit strip below the board
   // A portrait mini map of the other lane sits in its own column right of the board, never over it.
-  const pipW = clamp(Math.round(w * 0.1), 34, 60),
+  // v0.12: side columns shrink (down to 38 px) and sit tighter so the board can reach full height.
+  const layout = (pipW) => {
+    const pipGap = 4,
+      edge = 3,
+      pipReserve = frame + pipGap + pipW + edge,
+      sideReserve = frame + 3 + pipW + 3,
+      edgeLeft = frame + 4,
+      twoColumns = Math.min(Math.max(5, w - 2 * (frame + 6)) / logicalCols, Math.max(5, w - sideReserve - pipReserve) / logicalCols, byHeight),
+      // Narrow screens (v0.07l): one column right of the board holds mini map, level button and auto slot.
+      oneColumn = Math.min(Math.max(5, w - edgeLeft - pipReserve) / logicalCols, byHeight),
+      compact = oneColumn > twoColumns * 1.02;
+    return { pipW, pipGap, pipReserve, sideReserve, edgeLeft, compact, cell: Math.max(1, compact ? oneColumn : twoColumns) };
+  };
+  let L = layout(clamp(Math.round(w * 0.1), 38, 60));
+  for (let pw = L.pipW - 2; pw >= 38 && L.cell < byHeight - 0.01 && !L.compact; pw -= 2) {
+    const next = layout(pw);
+    if (next.cell <= L.cell) break;
+    L = next;
+  }
+  const { pipW, pipGap, pipReserve, sideReserve, edgeLeft, compact, cell } = L,
     pipH = (pipW * logicalRows) / logicalCols,
-    pipGap = 8,
-    edge = 6,
-    pipReserve = frame + pipGap + pipW + edge,
-    // A matching column left of the board holds the auto-spawn slot and the level button.
     sideW = pipW,
-    sideGap = 6,
-    sideReserve = frame + sideGap + sideW + 4;
-  const availableHeight = Math.max(9, h - safeTop - safeBottom - frame * 2),
-    byHeight = availableHeight / (logicalRows + STRIP), // v0.09: no exit strip below the board
-    twoColumns = Math.min(Math.max(5, w - 2 * (frame + 9)) / logicalCols, Math.max(5, w - sideReserve - pipReserve) / logicalCols, byHeight),
-    // Narrow screens (v0.07l): when the width limits the board, one column right of it holds
-    // the mini map, the level button and the auto-spawn slot, and the board takes the rest.
-    edgeLeft = frame + 5,
-    oneColumn = Math.min(Math.max(5, w - edgeLeft - pipReserve) / logicalCols, byHeight),
-    compact = oneColumn > twoColumns * 1.02,
-    cell = Math.max(1, compact ? oneColumn : twoColumns);
+    sideGap = 3;
   const bw = cell * logicalCols,
     bh = cell * logicalRows,
     strip = cell * STRIP,
     left = compact ? edgeLeft + Math.max(0, (w - edgeLeft - pipReserve - bw) / 2) : Math.max(sideReserve, Math.min((w - bw) / 2, w - pipReserve - bw)),
-    top = safeTop + frame + strip + (availableHeight - bh - strip) / 2;
+    top = safeTop + frameV + strip + (availableHeight - bh - strip) / 2;
   const pip = { x: left + bw + frame + pipGap, y: top - strip, w: pipW, h: pipH },
     // compact: the level button sits below the mini map and its label
     side = compact ? { x: pip.x, y: pip.y + pipH + 36, w: pipW, compact: true } : { x: left - frame - sideGap - sideW, y: top - strip, w: sideW };
@@ -115,6 +124,7 @@ export function arenaGeometry(width, height, grid = { cols: 6, rows: 9 }, mode =
     cw: cell,
     ch: cell,
     frame,
+    frameV,
     strip,
     pip,
     side,
@@ -168,8 +178,8 @@ export function mountArena({
       hud = document.querySelector(".mini-hud")?.getBoundingClientRect(),
       dock = document.querySelector(".command-deck")?.getBoundingClientRect();
     insets = {
-      top: hud ? Math.max(0, hud.bottom - box.top) + 4 : 84,
-      bottom: dock ? Math.max(0, box.bottom - dock.top) + 6 : 172,
+      top: hud ? Math.max(0, hud.bottom - box.top) + 2 : 84,
+      bottom: dock ? Math.max(0, box.bottom - dock.top) + 2 : 172,
     };
   }
   measureInsets();
@@ -205,6 +215,7 @@ export function mountArena({
       this.particles = [];
       this.rings = [];
       this.swipes = [];
+      this.bolts = []; // v0.12
       this.floaters = [];
       this.textPool = [];
       this.tiles = [];
@@ -449,15 +460,16 @@ export function mountArena({
       // Wall frame in the lane owner's colour, bricks a little brighter and darker.
       f.clear();
       const L = z.left - z.frame,
-        T = z.top - z.strip - z.frame,
+        fv = z.frameV ?? z.frame,
+        T = z.top - z.strip - fv,
         W = z.bw + z.frame * 2,
-        H = z.bh + z.strip + z.frame * 2,
+        H = z.bh + z.strip + fv * 2,
         wall = TEAM_COLORS[colorOf(getViewPlayer())].hex,
         tint = (k) => mixColor(0x46525a, wall, 0.8, k * 0.82);
       f.fillStyle(0x05110f, 0.6);
       f.fillRoundedRect(L - 4, T + 2, W + 8, H + 8, 14);
       f.fillStyle(tint(0.62));
-      f.fillRoundedRect(L, T, W, H, 12);
+      f.fillRoundedRect(L, T, W, H, Math.min(12, fv + 4));
       const block = z.frame * 1.6;
       for (const side of ["top", "bottom", "left", "right"]) {
         const horizontal = side === "top" || side === "bottom",
@@ -466,14 +478,14 @@ export function mountArena({
         for (let i = 0; i < n; i++) {
           const tone = [tint(0.9), tint(0.78), tint(1), tint(0.72)][Math.floor(hash(i, side.length) * 4)];
           f.fillStyle(tone);
-          if (horizontal) f.fillRoundedRect(L + i * block + 1, side === "top" ? T + 1 : T + H - z.frame + 1, block - 2, z.frame - 3, 3);
+          if (horizontal) f.fillRoundedRect(L + i * block + 1, side === "top" ? T + 1 : T + H - fv + 1, block - 2, Math.max(2, fv - 2), 2);
           else f.fillRoundedRect(side === "left" ? L + 1 : L + W - z.frame + 1, T + i * block + 1, z.frame - 3, block - 2, 3);
         }
       }
       f.lineStyle(2, tint(0.3), 0.9);
-      f.strokeRoundedRect(L, T, W, H, 12);
+      f.strokeRoundedRect(L, T, W, H, Math.min(12, fv + 4));
       f.lineStyle(1, tint(1.5), 0.35);
-      f.strokeRoundedRect(L + 2, T + 2, W - 4, H - 4, 10);
+      f.strokeRoundedRect(L + 2, T + 2, W - 4, H - 4, Math.min(10, fv + 2));
       // Inner board drop shadow.
       f.fillStyle(0x0a1412, 0.7);
       f.fillRect(z.left - 2, z.top - z.strip - 2, z.bw + 4, z.bh + z.strip + 4);
@@ -713,6 +725,9 @@ export function mountArena({
           } else if (e.kind === "pocks") {
             this.floatText(q.x, q.y - cell * 0.6, t("POCKS"), "#b8ff6a", 12, 30, 1);
             this.burst(q.x, q.y - cell * 0.3, 0x9cff4a, 10, 60, 2.4, 0.6, -20, true);
+          } else if (e.kind === "golemHit") {
+            this.burst(q.x, q.y - cell * 0.2, 0xd8a8ff, 8, 90, 2.4, 0.4, 0, true);
+            this.ring(q.x, q.y, cell * 0.1, cell * 0.5, 0xc07aff, 0.4, 3);
           } else if (e.kind === "crowd") this.floatText(q.x, q.y - cell * 0.55, t("CULLED"), "#ff9a5a", 12, 30, 0.9);
           else if (e.kind === "miss") this.floatText(q.x, q.y - cell * 0.5, t("DODGED"), "#c9d4dc", 11, 26, 0.7);
           else if (e.kind === "bloodlust") this.floatText(q.x, q.y - cell * 0.8, t("BLOODLUST"), "#ff8a7a", 11, 26, 0.9);
@@ -740,6 +755,30 @@ export function mountArena({
           this.ring(q.x, q.y, cell * 0.1, cell * e.radius * 0.7, 0xf0d8ff, 0.7, 3);
           this.burst(q.x, q.y, 0xd8a8ff, 18, 140, 3, 0.6, 0, true);
           if (e.hits) this.floatText(q.x, q.y - cell * 0.6, t("ARCANE BURST") + " " + e.damage, "#e2c2ff", 14, 38, 1.1);
+        } else if (e.type === "lightning" && e.player === view) {
+          // v0.12: Monsun lightning, a jagged bolt from the sky
+          const q = this.point(e.x, e.y),
+            pts = [];
+          for (let k = 0, n = 7; k <= n; k++) pts.push({ x: q.x + (k && k < n ? (Math.random() - 0.5) * cell * 0.7 : 0), y: q.y - cell * 0.3 - cell * 3.2 * (1 - k / n) });
+          this.bolts.push({ pts, life: 0.28, max: 0.28, small: !!e.small });
+          this.burst(q.x, q.y - cell * 0.3, 0xfff6b0, e.small ? 6 : 10, 90, 2.4, 0.35, 0, true);
+          this.flash = Math.max(this.flash, e.small ? 0 : 0.12);
+        } else if (e.type === "summon" && e.player === view) {
+          const q = this.point(e.x, e.y);
+          this.ring(q.x, q.y + cell * 0.1, cell * 0.1, cell * 1.1, 0xc07aff, 0.9, 5);
+          this.ring(q.x, q.y + cell * 0.1, cell * 0.2, cell * 0.7, 0xf0d8ff, 0.7, 3);
+          this.burst(q.x, q.y - cell * 0.3, 0xe2c2ff, 18, 120, 3, 0.7, -30, true);
+          this.floatText(q.x, q.y - cell * 0.8, t("SUMMONED"), "#e2c2ff", 14, 38, 1.2);
+        } else if ((e.type === "golem" || e.type === "golemPortal" || e.type === "golemDown") && e.player === view) {
+          const q = this.point(e.x, e.y);
+          this.ring(q.x, q.y, cell * 0.2, cell * (e.type === "golemDown" ? 0.8 : 1.2), 0xc07aff, 0.7, 4);
+          this.burst(q.x, q.y - cell * 0.3, e.type === "golemDown" ? 0xb8b0a8 : 0xd8a8ff, 14, 100, 3, 0.6, 30, e.type !== "golemDown");
+          if (e.type === "golemPortal") this.floatText(q.x, q.y + cell * 0.2, t("TO THE NEXT LANE"), "#e2c2ff", 12, 30, 1.1);
+        } else if (e.type === "pillar" && e.player === view) {
+          const q = this.point(e.x, e.y);
+          this.floatText(q.x, q.y - cell * (e.radius || 2.5) * 0.6, t("PILLAR OF FIRE"), "#ffb070", 15, 40, 1.2);
+        } else if (e.type === "monsun" && e.player === view) {
+          this.floatText(z.left + z.bw / 2, z.top + z.bh * 0.45, t("MONSUN"), "#bfe6ff", 20, 50, 1.4);
         } else if (e.type === "volleyStart" && e.player === view) {
           const q = this.point(e.x, e.y);
           this.ring(q.x, q.y, cell * 0.3, cell * 1.5, 0xffe7a8, 0.6, 3);
@@ -913,8 +952,8 @@ export function mountArena({
           px = this.pointer.x,
           py = this.pointer.y,
           pulse = 0.5 + 0.5 * Math.sin(time * 0.01);
-        const ac = aim.arcane ? 0xc07aff : 0xffd27a,
-          al = aim.arcane ? 0xeacbff : 0xffe7a8; // v0.10p: violet for Arcane Burst
+        const ac = aim.arcane ? 0xc07aff : aim.fire ? 0xff7a2a : 0xffd27a,
+          al = aim.arcane ? 0xeacbff : aim.fire ? 0xffc89a : 0xffe7a8; // v0.10p: violet for Arcane Burst, v0.12: orange for Pillar of Fire
         g.fillStyle(ac, 0.12 + 0.06 * pulse);
         g.fillCircle(px, py, r);
         g.lineStyle(2.5, al, 0.85);
@@ -1045,7 +1084,8 @@ export function mountArena({
           g.strokePath();
         }
         const level = t.level || def.level || 1;
-        this.levelBadge(key, level, cx - tc * 0.36, cy + tc * 0.2, Math.floor(cy) + 101, BADGE_COLORS[def.element] || BADGE_COLORS.neutral);
+        if (def.perkUnit) this.labels.get(key)?.setVisible(false); // v0.12: walls carry no level badge
+        else this.levelBadge(key, level, cx - tc * 0.36, cy + tc * 0.2, Math.floor(cy) + 101, BADGE_COLORS[def.element] || BADGE_COLORS.neutral);
       }
       // ---- disease clouds
       for (const cl of game.clouds || []) {
@@ -1083,8 +1123,9 @@ export function mountArena({
           hb.fillTriangle(ax - s, ay, ax + s, ay, ax, ay - s);
           hb.fillRect(ax - s * 0.4, ay - 1, s * 0.8, s * 1.1);
         }
-      // ---- creeps
-      for (const c of player.creeps) {
+      this.drawPerkFx(game, view, z, time, g, glow); // v0.12: Pillar of Fire, Monsun
+      // ---- creeps (v0.12: and Arcane Golems walking up the lane)
+      for (const c of player.golems?.length ? [...player.creeps, ...player.golems] : player.creeps) {
         if (c.hp <= 0) continue;
         const def = catalog.byId[c.typeId || c.unitId || c.defId || c.type];
         if (!def) continue;
@@ -1138,6 +1179,7 @@ export function mountArena({
           else if (poisoned) sprite.setTint(0xc4f59a);
           else if (c.immune) sprite.setTint(0xe2d2ff);
           else if (c.burning) sprite.setTint(0xffa060); // v0.10w: Burning Treant
+          else if (c.golem) sprite.setTint(0xd8b4ff); // v0.12: Arcane Golem
           else sprite.clearTint();
         }
         const flap = flying ? 1 + Math.sin(time * 0.03 + phase0) * 0.05 : 1;
@@ -1164,6 +1206,13 @@ export function mountArena({
             glow.fillStyle(0xffd24a, 0.55 + 0.3 * fl);
             glow.fillCircle(fx, fy + height * 0.03, height * (0.04 + 0.03 * fl));
           }
+        }
+        if (c.golem) {
+          // v0.12: Arcane Golem: violet glow and runes circling at its feet
+          glow.fillStyle(0xb06aff, 0.16 + 0.06 * Math.sin(time * 0.008));
+          glow.fillCircle(q.x, q.y + cell * 0.18 - height * 0.45, height * 0.62);
+          g.lineStyle(2, 0xd8a8ff, 0.8);
+          g.strokeEllipse(q.x, q.y + cell * 0.2, cell * 0.8, cell * 0.28);
         }
         if (neutral) {
           // Neutral wave monsters stand on a violet rune ring so they read apart from sends.
@@ -1505,6 +1554,23 @@ export function mountArena({
           } else this.burst(x, y, p.color, 4, 45, 1.9, 0.2, 0, p.glow);
         }
       }
+      // v0.12: Monsun lightning bolts
+      for (let i = this.bolts.length - 1; i >= 0; i--) {
+        const b = this.bolts[i];
+        b.life -= dt;
+        if (b.life <= 0) {
+          this.bolts.splice(i, 1);
+          continue;
+        }
+        const k = b.life / b.max;
+        for (const [w, c, a] of [[b.small ? 7 : 11, 0x8fc8ff, 0.35], [b.small ? 2.5 : 4, 0xfffbe0, 1]]) {
+          fa.lineStyle(w, c, a * k);
+          fa.beginPath();
+          fa.moveTo(b.pts[0].x, b.pts[0].y);
+          for (const pt of b.pts.slice(1)) fa.lineTo(pt.x, pt.y);
+          fa.strokePath();
+        }
+      }
       for (let i = this.swipes.length - 1; i >= 0; i--) {
         const s = this.swipes[i];
         s.life -= dt;
@@ -1638,11 +1704,94 @@ export function mountArena({
       const s = 1.9;
       return 1 + (s + 1) * Math.pow(t - 1, 3) + s * Math.pow(t - 1, 2);
     }
+    /** v0.12: Pillar of Fire (flames, pillar, scorched ground) and Monsun winds, drawn from the game state. */
+    drawPerkFx(game, view, z, time, g, glow) {
+      const cell = z.cw,
+        now = game.time;
+      for (const f of game.pillars || []) {
+        if (f.player !== view) continue;
+        const q = this.point(f.x, f.y),
+          r = f.radius * cell,
+          seed = (f.start * 13.7) % 1;
+        if (now >= f.end) {
+          // scorched ground, fading out
+          const fade = clamp((f.until - now) / 3, 0, 1);
+          g.fillStyle(0x1a0c06, 0.42 * fade);
+          g.fillEllipse(q.x, q.y, r * 2, r * 1.7);
+          g.fillStyle(0x2e1408, 0.35 * fade);
+          g.fillEllipse(q.x, q.y, r * 1.3, r * 1.05);
+          for (let k = 0; k < 10; k++) {
+            const a = hash(k, 31 + seed) * Math.PI * 2,
+              d = Math.sqrt(hash(k, 37 + seed)) * r * 0.85,
+              tw = 0.5 + 0.5 * Math.sin(time * 0.006 + k * 2.1);
+            glow.fillStyle(0xff6a1a, 0.5 * fade * tw);
+            glow.fillCircle(q.x + Math.cos(a) * d, q.y + Math.sin(a) * d * 0.85, 1.5 + 2 * tw);
+          }
+          continue;
+        }
+        const erupting = now >= f.erupt,
+          flames = erupting ? 22 : 12,
+          k0 = erupting ? 1 : clamp((now - f.start) / Math.max(0.01, f.erupt - f.start), 0, 1);
+        glow.fillStyle(0xff5a12, erupting ? 0.28 : 0.1 + 0.08 * k0);
+        glow.fillCircle(q.x, q.y, r);
+        g.lineStyle(erupting ? 4 : 2.5, 0xffa040, erupting ? 0.9 : 0.5 + 0.4 * k0);
+        g.strokeEllipse(q.x, q.y, r * 2, r * 1.85);
+        // dancing flames over the area
+        for (let k = 0; k < flames; k++) {
+          const a = hash(k, 7 + seed) * Math.PI * 2,
+            d = Math.sqrt(hash(k, 11 + seed)) * r * 0.9,
+            x = q.x + Math.cos(a) * d,
+            y = q.y + Math.sin(a) * d * 0.9,
+            fl = 0.5 + 0.5 * Math.sin(time * 0.025 + k * 1.7),
+            h = cell * (erupting ? 0.5 : 0.22 * k0 + 0.08) * (0.7 + 0.6 * fl);
+          glow.fillStyle(0xff4a0c, 0.55);
+          glow.fillTriangle(x - h * 0.32, y, x + h * 0.32, y, x + Math.sin(time * 0.02 + k) * h * 0.15, y - h);
+          glow.fillStyle(0xffd24a, 0.75);
+          glow.fillTriangle(x - h * 0.16, y, x + h * 0.16, y, x, y - h * 0.6);
+        }
+        if (erupting) {
+          // the pillar itself: a tall column of fire, brightest in the middle
+          const life = clamp((f.end - now) / Math.max(0.01, f.end - f.erupt), 0, 1),
+            top = q.y - cell * 3.4,
+            w = r * 0.55 * (0.8 + 0.2 * Math.sin(time * 0.03));
+          for (let k = 0; k < 9; k++) {
+            const y = q.y - (q.y - top) * (k / 8),
+              ww = w * (1 - k * 0.07) * (0.85 + 0.15 * Math.sin(time * 0.04 + k));
+            glow.fillStyle(0xff3a08, 0.3 * life + 0.15);
+            glow.fillEllipse(q.x + Math.sin(time * 0.02 + k) * cell * 0.08, y, ww * 2, cell * 0.9);
+            glow.fillStyle(0xffc24a, 0.35 * life + 0.15);
+            glow.fillEllipse(q.x, y, ww, cell * 0.6);
+          }
+          glow.fillStyle(0xfff4c0, 0.5);
+          glow.fillEllipse(q.x, q.y - cell * 0.4, w * 0.6, cell * 1.6);
+          if (Math.random() < 0.35) this.burst(q.x + (Math.random() - 0.5) * r, q.y - Math.random() * cell, 0xffb040, 3, 110, 2.6, 0.5, -60, true);
+          if (!this.shook?.has(f.start)) {
+            (this.shook ||= new Set()).add(f.start);
+            this.stage.shake(260, 0.008);
+          }
+        }
+      }
+      const m = game.players[view]?.monsun;
+      if (m && now <= m.until) {
+        const fade = clamp(Math.min((now - m.start) / 0.6, (m.until - now) / 0.6), 0, 1);
+        g.fillStyle(0x0a1830, 0.2 * fade);
+        g.fillRect(z.left, z.top - z.strip, z.bw, z.bh + z.strip);
+        for (let k = 0; k < 30; k++) {
+          const x = z.left + hash(k, 41) * z.bw,
+            speed = 0.35 + 0.4 * hash(k, 43),
+            y = z.top + z.bh - (((time * 0.001 * speed * z.bh * 0.9 + hash(k, 47) * z.bh) % z.bh) + 0),
+            len = cell * (0.5 + 0.6 * hash(k, 53));
+          glow.lineStyle(2, 0xd8f0ff, 0.35 * fade);
+          glow.lineBetween(x, y, x + Math.sin(time * 0.003 + k) * cell * 0.12, y - len);
+        }
+      }
+    }
     clearFx() {
       this.projectiles = [];
       this.particles = [];
       this.rings = [];
       this.swipes = [];
+      this.bolts = [];
       for (const f of this.floaters) this.recycle(f);
       this.floaters = [];
       this.flash = 0;
