@@ -1198,7 +1198,7 @@ export function mountArena({
           g.strokePath();
         }
         const level = t.level || def.level || 1;
-        if (def.perkUnit) this.labels.get(key)?.setVisible(false); // v0.12: walls carry no level badge
+        if (def.perkUnit || def.id === "hROK") this.labels.get(key)?.setVisible(false); // v0.12: walls (v0.17: and rocks) carry no level badge
         else this.levelBadge(key, level, cx - tc * 0.36, cy + tc * 0.2, Math.floor(cy) + 101, BADGE_COLORS[def.element] || BADGE_COLORS.neutral);
       }
       // ---- disease clouds

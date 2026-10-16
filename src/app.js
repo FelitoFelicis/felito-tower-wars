@@ -62,6 +62,7 @@ import { artUrl, iconUrl, ELEMENT_ICON, ART_MANIFEST, registerTowerArt, TEAM_COL
 import { createSoundtrack } from "./soundtrack.js";
 import { createSfx, haptic } from "./sfx.js";
 import { t, num, goldText } from "./i18n.js";
+import { MISSIONS, CAMPAIGN_PREF } from "./campaign.js";
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) =>
@@ -80,7 +81,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.16k",
+const APP_VERSION = "0.17",
   APP_DATE = "16.10.2026";
 const WAVES_PREF = "felito.waves";
 const COACH_PREF = "felito.coach.v1";
@@ -224,7 +225,7 @@ function seatColors() {
 /** The player you send to (1v1: the other side). */
 const rivalIndex = () => (isFfa() ? targetOf(game, own).id : 1 - own);
 const seatName = (i) =>
-  i === own ? myName() : (!game?.players[i]?.ai && onlineName(game?.players[i])) || t(TEAM_COLORS[seatColors()[i]]?.name || "AI"); // v0.14: human opponents by name
+  i === own ? myName() : game?.players[i]?.missionName ? t(game.players[i].missionName) : (!game?.players[i]?.ai && onlineName(game?.players[i])) || t(TEAM_COLORS[seatColors()[i]]?.name || "AI"); // v0.14: human opponents by name
 /** v0.13: the name an online opponent typed in, if any. */
 const onlineName = (q) => cleanName(q?.name && !/^(You|Player \d)$/.test(q.name) ? q.name : "");
 /**
@@ -233,6 +234,7 @@ const onlineName = (q) => cleanName(q?.name && !/^(You|Player \d)$/.test(q.name)
  */
 const AI_PORTRAIT = { easy: "n00R", normal: "n00M", hard: "n021" };
 function portraitFor(q) {
+  if (q?.missionArt) return headCrop(artUrl(q.missionArt)); // v0.17: campaign enemies
   const id = q?.ai ? AI_PORTRAIT[q.aiLevel || game.aiLevel] : null,
     item = id && catalog?.byId[id];
   return item ? headCrop(artUrl(artFor(item))) : "assets/art/portrait-enemy.webp";
@@ -918,6 +920,13 @@ const HIDDEN_ABILITIES = new Set(["Aroa", "Aro1", "Aeth", "Aloc", "Aasl"]);
 /** v0.14: a one-line description per ability for the tooltips (by its shown name). */
 const ABILITY_DESC = {
   Multishot: "Fires one arrow per tower level at different creeps.", // v0.16
+  // v0.16k: ultimates and armour that had no description yet
+  "Auto Cannon": "Ultimate: fires cannon shots on its own when charged",
+  Blizzard: "Ultimate: ice shards hit every creep in a wide area",
+  Flamestrike: "Ultimate: a column of fire burns an area",
+  "Mega Tsunami": "Ultimate: a huge wave crushes a whole row of creeps",
+  "Swarm Rockets": "Ultimate: a swarm of rockets hits many creeps at once",
+  "Void Armor": "Ignores 5 damage of every hit, but always takes at least 20%",
   "Tower Repair": "Repairs a tower over a few seconds",
   "Switch Weapon": "Switches between two attack modes",
   "Bounty Bonus": "Chance of extra gold per kill",
@@ -934,7 +943,7 @@ const ABILITY_DESC = {
   "Divine Shield": "Now and then invulnerable for a few seconds",
   "Creep Armor Aura": "Creeps nearby get more armor",
   Detector: "Reveals invisible creeps nearby",
-  Invisibillity: "Invisible; only towers near a detector hit it",
+  Invisibility: "Invisible; only towers near a detector hit it",
   Spawn: "Spawns more creeps on its way",
   "Critical Shot": "Chance to deal double damage",
   "Multi Shot": "Shoots several arrows at once",
@@ -947,7 +956,7 @@ const ABILITY_DESC = {
   "Critical Hit": "Chance to deal double damage",
   "Frenzy Aura": "Towers nearby attack faster",
   "Bouncing Projectiles": "Shots bounce to further creeps",
-  "Mana Regenration Aura": "Towers nearby regain mana faster",
+  "Mana Regeneration Aura": "Towers nearby regain mana faster",
   "Firestorm Aura": "Burns all creeps in a wide area",
   "Frost Aura": "Slows ground creeps in a wide area",
   "Slow Aura": "Slows flying creeps in a wide area",
@@ -976,13 +985,24 @@ const ABILITY_DESC = {
   "Curse Aura": "Towers nearby attack slower",
   "Disease Barrage": "Shots leave a disease cloud that hurts over time",
 };
+/**
+ * v0.16k: escaped text with its values (numbers, percentages, seconds, fields) in gold, so the
+ * important part of a tooltip stands out.
+ */
+function valHtml(text) {
+  // values only (no ordinals like "4th", no digits inside escaped entities like &#39;)
+  return esc(text).replace(/(^|[^&#\w])([+−-]?\d+(?:[.,]\d+)?(?!\d|st\b|nd\b|rd\b|th\b)(?:\s?(?:%|s\b|fields?\b|gold\b|EXP\b|×))?)/g, '$1<b class="val">$2</b>');
+}
+/** v0.16k: typos in the map data, fixed for display. */
+const ABILITY_RENAME = { Invisibillity: "Invisibility", "Mana Regenration Aura": "Mana Regeneration Aura" };
 /** Readable ability names of a unit (internal helpers and colour codes left out). */
 function abilityNames(item) {
   const names = (item.abilities || [])
     .map((id) => catalog.abilities[id])
     .filter((a) => a && !HIDDEN_ABILITIES.has(a.baseId))
     .map((a) => String(a.fields?.anam?.[0] ?? a.fields?.anam?.[1] ?? "").replace(/\|c[0-9a-fA-F]{8}|\|r|\[[^\]]*\]/g, "").trim())
-    .filter((n) => n && !n.startsWith("*") && !/^Ani|Animation/i.test(n));
+    .map((n) => ABILITY_RENAME[n] || n)
+    .filter((n) => n && !n.startsWith("*") && !/^Ani|Animation|Dummy|Spellbook/i.test(n));
   if (fireArcher(item.id)) names.push("Multishot"); // v0.16
   return [...new Set(names)];
 }
@@ -993,7 +1013,7 @@ function statTip(item, action, towerId = null) {
     after = [];
   const abilities = abilityNames(item),
     abilityHtml = abilities.length
-      ? `<div class="tip-abilities"><span>${t("Abilities")}</span>${abilities.map((n) => `<p><b>${esc(t(n))}</b>${ABILITY_DESC[n] ? ` – ${esc(t(ABILITY_DESC[n]))}` : ""}</p>`).join("")}</div>`
+      ? `<div class="tip-abilities"><span>${t("Abilities")}</span>${abilities.map((n) => `<p><b>${esc(t(n))}</b>${ABILITY_DESC[n] ? ` – ${valHtml(t(ABILITY_DESC[n]))}` : ""}</p>`).join("")}</div>`
       : "";
   if (item.kind === "send") {
     // v0.17: Income and Value first (green), then Hitpoints, Speed, Abilities, Stock (current / max)
@@ -1108,7 +1128,7 @@ function showDialogTip(el) {
   const level = el.dataset.tipLevel;
   dialogTip.innerHTML =
     `<div class="tip-head"><b>${esc(el.dataset.tip)}</b>${level ? `<span class="tip-level">${esc(t("Level {n}", { n: level }))}</span>` : ""}</div>` +
-    (el.dataset.tipText ? `<div class="tip-text">${esc(el.dataset.tipText)}</div>` : "");
+    (el.dataset.tipText ? `<div class="tip-text">${valHtml(el.dataset.tipText)}</div>` : "");
   dialogTip.hidden = false;
   dialogTipFor = el;
   const r = el.getBoundingClientRect(),
@@ -1337,7 +1357,7 @@ function welcome() {
   presenceState("idle"); // v0.14
   const saved = unusableSave ? null : localStorage.getItem(SAVE);
   showModal(
-    `<div class="welcome-eyes" aria-hidden="true"></div><div class="welcome-art" aria-hidden="true"></div><button class="welcome-options" id="welcome-options" type="button" aria-label="${t("Options")}"><img src="${iconUrl("gear")}" alt=""></button><button class="welcome-options welcome-mute" id="welcome-mute" type="button" aria-pressed="${muted}" aria-label="${t(muted ? "Sound off" : "Sound on")}">${speakerSvg(muted)}</button><span class="app-version">v${APP_VERSION} · ${APP_DATE}</span><img class="welcome-logo" src="assets/art/ui-logo.webp" alt="Felito Tower Wars"><div class="welcome-panel" id="welcome-panel" data-view="home"><div class="welcome-home"><label class="modal-label name-label" for="player-name">${t("Player name")}</label><input id="player-name" class="name-input" maxlength="16" autocomplete="nickname" spellcheck="false" placeholder="${t("Your name")}" value="${esc(playerNameChoice)}"><span class="modal-label">${t("Your color")}: <b id="color-name">${t(TEAM_COLORS[colorChoice].name)}</b></span><div class="color-picker" role="radiogroup" aria-label="${t("Your color")}">${Object.entries(TEAM_COLORS).map(([id, c]) => `<button role="radio" data-color="${id}" aria-checked="${id === colorChoice}" aria-label="${t(c.name)}" title="${t(c.name)}" class="${id === colorChoice ? "active" : ""}" style="--c:${c.css}"></button>`).join("")}</div><div class="welcome-modes"><button class="primary-button big welcome-mode" data-open="ai">${t("Vs AI")}</button><button class="primary-button big welcome-mode alt" data-open="player">${t("Vs Player")}</button></div></div><section class="welcome-group" data-sub="ai" aria-label="${t("Vs AI")}"><h3 class="welcome-group-title"><button class="welcome-back" type="button" data-back aria-label="${t("Back")}"><i aria-hidden="true">‹</i>${t("Back")}</button>${t("Vs AI")}</h3><div class="segmented ai-levels" role="radiogroup" aria-label="${t("Difficulty")}">${Object.entries(AI_NAMES).map(([id, name]) => `<button role="radio" data-ai="${id}" aria-checked="${id === aiChoice}" class="${id === aiChoice ? "active" : ""}">${t(name)}</button>`).join("")}<button type="button" class="ai-mixed${aiMixed ? " active" : ""}" id="ai-mixed" aria-pressed="${aiMixed}" title="${t("Shuffles AI enemies of different difficulties into the match, up to the chosen one")}">${t("Mixed")}</button></div><div class="welcome-inline"><span class="modal-label">${t("Neutral waves")}</span><div class="segmented" role="radiogroup" aria-label="${t("Neutral waves")}">${[["on", "On"], ["off", "Off"]].map(([id, name]) => `<button role="radio" data-waves="${id}" aria-checked="${(id === "on") === wavesOn}" class="${(id === "on") === wavesOn ? "active" : ""}">${t(name)}</button>`).join("")}</div></div><span class="modal-label">${t("Number of AI enemies")}</span><div class="segmented ai-count" role="radiogroup" aria-label="${t("Number of AI enemies")}">${AI_COUNTS.map((n) => `<button role="radio" data-aicount="${n}" aria-checked="${n === aiCount}" class="${n === aiCount ? "active" : ""}">${n}</button>`).join("")}</div><button class="primary-button big" id="start-training">${t("Start")}</button></section><section class="welcome-group" data-sub="player" aria-label="${t("Vs Player")}"><h3 class="welcome-group-title"><button class="welcome-back" type="button" data-back aria-label="${t("Back")}"><i aria-hidden="true">‹</i>${t("Back")}</button>${t("Vs Player")}</h3><div class="welcome-row pvp-row"><button class="primary-button" id="start-quick">${t("Quick Match")}</button><button class="secondary-button" id="start-online">${t("Play a friend")}</button><button class="secondary-button" id="start-ranked" disabled aria-disabled="true" title="${t("Ranked matches are coming soon.")}">${t("Ranked match")}</button></div></section></div>`,
+    `<div class="welcome-eyes" aria-hidden="true"></div><div class="welcome-art" aria-hidden="true"></div><button class="welcome-options" id="welcome-options" type="button" aria-label="${t("Options")}"><img src="${iconUrl("gear")}" alt=""></button><button class="welcome-options welcome-mute" id="welcome-mute" type="button" aria-pressed="${muted}" aria-label="${t(muted ? "Sound off" : "Sound on")}">${speakerSvg(muted)}</button><span class="app-version">v${APP_VERSION} · ${APP_DATE}</span><img class="welcome-logo" src="assets/art/ui-logo.webp" alt="Felito Tower Wars"><div class="welcome-panel" id="welcome-panel" data-view="home"><div class="welcome-home"><label class="modal-label name-label" for="player-name">${t("Player name")}</label><input id="player-name" class="name-input" maxlength="16" autocomplete="nickname" spellcheck="false" placeholder="${t("Your name")}" value="${esc(playerNameChoice)}"><span class="modal-label">${t("Your color")}: <b id="color-name">${t(TEAM_COLORS[colorChoice].name)}</b></span><div class="color-picker" role="radiogroup" aria-label="${t("Your color")}">${Object.entries(TEAM_COLORS).map(([id, c]) => `<button role="radio" data-color="${id}" aria-checked="${id === colorChoice}" aria-label="${t(c.name)}" title="${t(c.name)}" class="${id === colorChoice ? "active" : ""}" style="--c:${c.css}"></button>`).join("")}</div><div class="welcome-modes"><button class="primary-button big welcome-mode" data-open="ai">${t("Vs AI")}</button><button class="primary-button big welcome-mode alt" data-open="player">${t("Vs Player")}</button></div></div><section class="welcome-group" data-sub="ai" aria-label="${t("Vs AI")}"><h3 class="welcome-group-title"><button class="welcome-back" type="button" data-back aria-label="${t("Back")}"><i aria-hidden="true">‹</i>${t("Back")}</button>${t("Vs AI")}</h3><div class="segmented ai-levels" role="radiogroup" aria-label="${t("Difficulty")}">${Object.entries(AI_NAMES).map(([id, name]) => `<button role="radio" data-ai="${id}" aria-checked="${id === aiChoice}" class="${id === aiChoice ? "active" : ""}">${t(name)}</button>`).join("")}<button type="button" class="ai-mixed${aiMixed ? " active" : ""}" id="ai-mixed" aria-pressed="${aiMixed}" title="${t("Shuffles AI enemies of different difficulties into the match, up to the chosen one")}">${t("Mixed")}</button></div><div class="welcome-inline"><span class="modal-label">${t("Neutral waves")}</span><div class="segmented" role="radiogroup" aria-label="${t("Neutral waves")}">${[["on", "On"], ["off", "Off"]].map(([id, name]) => `<button role="radio" data-waves="${id}" aria-checked="${(id === "on") === wavesOn}" class="${(id === "on") === wavesOn ? "active" : ""}">${t(name)}</button>`).join("")}</div></div><span class="modal-label">${t("Number of AI enemies")}</span><div class="segmented ai-count" role="radiogroup" aria-label="${t("Number of AI enemies")}">${AI_COUNTS.map((n) => `<button role="radio" data-aicount="${n}" aria-checked="${n === aiCount}" class="${n === aiCount ? "active" : ""}">${n}</button>`).join("")}</div><button class="primary-button big" id="start-training">${t("Start")}</button><button class="secondary-button big campaign-open" id="start-campaign">${t("Campaign")} · ${campaignDone().size}/${MISSIONS.length}</button></section><section class="welcome-group" data-sub="player" aria-label="${t("Vs Player")}"><h3 class="welcome-group-title"><button class="welcome-back" type="button" data-back aria-label="${t("Back")}"><i aria-hidden="true">‹</i>${t("Back")}</button>${t("Vs Player")}</h3><div class="welcome-row pvp-row"><button class="primary-button" id="start-quick">${t("Quick Match")}</button><button class="secondary-button" id="start-online">${t("Play a friend")}</button><button class="secondary-button" id="start-ranked" disabled aria-disabled="true" title="${t("Ranked matches are coming soon.")}">${t("Ranked match")}</button></div></section></div>`,
     { pauseGame: false, welcome: true },
   );
   $("modal-body")
@@ -1441,6 +1461,7 @@ function welcome() {
     if (e.key === "Enter") $("player-name").blur();
   };
   $("start-training").onclick = () => (aiCount === 1 ? startLocal() : startLocal({ ffa: true, seats: aiCount + 1 }));
+  $("start-campaign").onclick = () => campaignMenu(); // v0.17
   $("welcome-options").onclick = optionsModal;
   $("welcome-mute").onclick = () => {
     muted = !muted;
@@ -1624,6 +1645,7 @@ function ownKnockedOut(place) {
   };
   $("ko-again").onclick = () => {
     shownResult = false;
+    if (sessionMode === "campaign") return startCampaign(campaignIndex); // v0.17
     startLocal({ ffa: true, seats: game.players.length });
   };
   $("ko-menu").onclick = () => {
@@ -1658,7 +1680,95 @@ function wolfEyes() {
   const panel = $("welcome-panel");
   document.querySelector("dialog.welcome-modal")?.classList.toggle("hard-eyes", !!panel && panel.dataset.view === "ai" && aiChoice === "hard");
 }
-function startLocal({ hotseat = false, ffa = false, seats = 4 } = {}) {
+// ---- v0.17: single-player campaign ---------------------------------------------------------
+let campaignIndex = 0;
+/** Missions won so far (ids), kept in the browser. */
+function campaignDone() {
+  try {
+    const v = JSON.parse(localStorage.getItem(CAMPAIGN_PREF) || "[]");
+    return new Set(Array.isArray(v) ? v.filter((n) => Number.isInteger(n)) : []);
+  } catch {
+    return new Set();
+  }
+}
+function campaignWon(id) {
+  const done = campaignDone();
+  done.add(id);
+  try {
+    localStorage.setItem(CAMPAIGN_PREF, JSON.stringify([...done].sort((a, b) => a - b)));
+  } catch {}
+}
+/** A mission is open once the one before it is won (the first always is). */
+const missionOpen = (i, done = campaignDone()) => i === 0 || done.has(MISSIONS[i - 1].id) || done.has(MISSIONS[i].id);
+function campaignMenu() {
+  const done = campaignDone();
+  showModal(
+    `${modalHeader(t("Campaign"))}<p class="modal-copy campaign-progress">${t("{n} of {m} missions won", { n: done.size, m: MISSIONS.length })}</p><div class="campaign-grid">${MISSIONS.map((m, i) => {
+      const open = missionOpen(i, done),
+        won = done.has(m.id);
+      return `<button class="mission-tile${won ? " won" : ""}${open ? "" : " locked"}" data-mission="${i}" ${open ? "" : "disabled"} aria-label="${esc(t("Mission {n}", { n: i + 1 }) + ": " + (open ? t(m.title) : t("locked")))}"><span class="mission-num">${i + 1}</span><img src="${artUrl(m.art)}" alt=""><b>${open ? esc(t(m.title)) : "???"}</b>${won ? '<i class="mission-check">✓</i>' : open ? "" : '<i class="mission-lock">🔒</i>'}</button>`;
+    }).join("")}</div><button class="secondary-button" data-close>${t("Back")}</button>`,
+  );
+  $("modal-body")
+    .querySelectorAll("[data-mission]")
+    .forEach((b) => (b.onclick = () => missionScene(Number(b.dataset.mission))));
+}
+/** The short scene before a mission: the enemy and Pip talk, then the briefing and Fight! */
+function missionScene(i, step = 0) {
+  const m = MISSIONS[i];
+  if (!m) return campaignMenu();
+  const lines = m.scene || [],
+    talking = step < lines.length,
+    [who, line] = talking ? lines[step] : ["", ""],
+    pip = who === "Pip";
+  showModal(
+    `<div class="mission-scene"><div class="scene-head"><span class="scene-kicker">${t("Mission {n}", { n: i + 1 })}</span><h2>${esc(t(m.title))}</h2></div><div class="scene-stage${pip ? " pip" : ""}"><img class="scene-enemy" src="${artUrl(m.art)}" alt="${esc(t(m.enemy))}"><img class="scene-pip" src="${artUrl("tower-archer")}" alt="Pip"></div>${
+      talking
+        ? `<div class="scene-bubble${pip ? " pip" : ""}"><b>${esc(t(who))}</b><p>${esc(t(line))}</p></div><div class="scene-actions"><button class="primary-button" id="scene-next">${t(step === lines.length - 1 ? "To the briefing" : "Next")}</button><button class="secondary-button" id="scene-skip">${t("Skip")}</button></div>`
+        : `<div class="scene-brief"><p>${valHtml(t(m.briefing))}</p><p class="scene-weak"><b>${t("Pip's tip")}:</b> ${esc(t(m.weakness))}</p></div><div class="scene-actions"><button class="primary-button big" id="scene-fight">${t("Fight!")}</button><button class="secondary-button" id="scene-back">${t("Back")}</button></div>`
+    }</div>`,
+  );
+  if (talking) {
+    $("scene-next").onclick = () => missionScene(i, step + 1);
+    $("scene-skip").onclick = () => missionScene(i, lines.length);
+  } else {
+    $("scene-fight").onclick = () => startCampaign(i);
+    $("scene-back").onclick = () => campaignMenu();
+  }
+}
+function startCampaign(i) {
+  const m = MISSIONS[i];
+  if (!m) return;
+  campaignIndex = i;
+  const st = m.setup;
+  startLocal({ ffa: (st.seats || 2) > 2, seats: st.seats || 2, mission: st });
+  sessionMode = "campaign";
+  toast(t(m.briefing), "level", true);
+}
+/** Result dialog buttons for a mission: next mission after a win, retry after a defeat. */
+function campaignResult(won) {
+  const m = MISSIONS[campaignIndex],
+    next = MISSIONS[campaignIndex + 1];
+  if (won && m) campaignWon(m.id);
+  const again = $("play-again");
+  again.textContent = won ? (next ? t("Next mission") : t("Campaign complete!")) : t("Retry mission");
+  again.onclick = () => {
+    shownResult = false;
+    if (!won) return startCampaign(campaignIndex);
+    if (next) missionScene(campaignIndex + 1);
+    else campaignMenu();
+  };
+  $("play-harder")?.remove();
+  const menu = document.createElement("button");
+  menu.className = "secondary-button";
+  menu.textContent = t("Campaign");
+  menu.onclick = () => {
+    shownResult = false;
+    campaignMenu();
+  };
+  again.after(menu);
+}
+function startLocal({ hotseat = false, ffa = false, seats = 4, mission = null } = {}) {
   disconnectRoom();
   uiPauses.clear();
   sessionMode = hotseat ? "hotseat" : ffa ? "ffa" : "training";
@@ -1672,10 +1782,11 @@ function startLocal({ hotseat = false, ffa = false, seats = 4 } = {}) {
     mode: chosenMode,
     faction: chosenFaction,
     ai: !hotseat,
-    aiLevel: aiChoice,
-    aiLevels: !hotseat && aiMixed ? mixedLevels(ffa ? Math.min(8, Math.max(3, seats)) : 2, aiChoice) : null,
-    waves: wavesOn,
+    aiLevel: mission?.level || aiChoice,
+    aiLevels: !hotseat && aiMixed && !mission ? mixedLevels(ffa ? Math.min(8, Math.max(3, seats)) : 2, aiChoice) : null,
+    waves: mission ? !!mission.waves : wavesOn,
     seats: ffa ? Math.min(8, Math.max(3, seats)) : 2,
+    mission, // v0.17: campaign
   });
   presenceState("pve");
   applyColors();
@@ -1912,6 +2023,17 @@ function doubleUpgrade(tw, advanced = false) {
   else if (upQueue.some((q) => q.towerId === tw.id)) note("Upgrade queued: starts as soon as you have enough gold.");
   tone("upgrade");
 }
+/**
+ * v0.16k: element frame of a tower card: one element in its colour, a combination tower half and
+ * half in the colours of the two elements it needs ("Magic City [Storm & Arcane]").
+ */
+function elementFrame(item) {
+  const pair = String(item?.name || "").match(/\[\s*(Water|Fire|Earth|Storm|Arcane|Plague)\s*&\s*(Water|Fire|Earth|Storm|Arcane|Plague)\s*\]/i),
+    ids = pair ? [pair[1], pair[2]].map((x) => x.toLowerCase()) : item?.element && item.element !== "neutral" ? [item.element] : [],
+    cols = ids.map((id) => catalog.factions.find((f) => f.id === id)?.color).filter(Boolean);
+  if (!cols.length) return "";
+  return `<i class="el-frame${cols.length > 1 ? " combo" : ""}" style="--el1:${cols[0]};--el2:${cols[1] || cols[0]}" aria-hidden="true"></i>`;
+}
 function upgradeDeck(tw) {
   const item = catalog.byId[tw.typeId],
     ups = item.upgrades
@@ -1929,11 +2051,13 @@ function upgradeDeck(tw) {
           waiting = upQueue.some((q) => q.towerId === tw.id && q.id === u.id),
           name = `${itemName(u)} Level ${u.level || 1}`;
         const afterBuild = /Still under construction/.test(a.reason || "");
-        return `<button class="unit-card up-card ${a.ok || afterBuild ? "" : "unaffordable"} ${isPoor(a) ? "poor" : ""} ${waiting ? "queued" : ""}" data-upgrade="${u.id}" aria-label="${esc(t("Upgrade to {name}, {cost} gold", { name, cost: format(u.cost) }))}${a.ok ? "" : ", " + esc(t(a.reason))}" title="${esc(a.ok ? name : t(a.reason))}"><span class="up-title">${esc(name)}</span><span class="up-art"><img src="${towerArtUrl(artFor(u))}" alt=""></span><span class="up-cost"><span class="price">${format(u.cost)}</span>${u.woodCost ? `<span class="price wood-price">${format(u.woodCost)}</span>` : ""}</span><i class="up-arrow" aria-hidden="true"></i>${waiting ? '<span class="up-queued">⏳</span>' : ""}${locked ? `<span class="up-lock">${esc(t(a.reason))}</span>` : ""}</button>`;
+        return `<button class="unit-card up-card ${a.ok || afterBuild ? "" : "unaffordable"} ${isPoor(a) ? "poor" : ""} ${waiting ? "queued" : ""}" data-upgrade="${u.id}" aria-label="${esc(t("Upgrade to {name}, {cost} gold", { name, cost: format(u.cost) }))}${a.ok ? "" : ", " + esc(t(a.reason))}" title="${esc(a.ok ? name : t(a.reason))}"><span class="up-title">${esc(name)}</span><span class="up-art"><img src="${towerArtUrl(artFor(u))}" alt=""></span><span class="up-cost"><span class="price">${format(u.cost)}</span>${u.woodCost ? `<span class="price wood-price">${format(u.woodCost)}</span>` : ""}</span><i class="up-arrow" aria-hidden="true"></i>${waiting ? '<span class="up-queued">⏳</span>' : ""}${locked ? `<span class="up-lock">${esc(t(a.reason))}</span>` : ""}${elementFrame(u)}</button>`;
       })
       .join("") +
-    (ups.length ? "" : `<div class="up-empty">${t("Highest level reached")}</div>`) +
-    `<button class="unit-card up-card sell-card" id="up-sell" aria-label="${esc(t("Sell {name} for {gold} gold", { name: itemName(item), gold: format(refund) }))}"><span class="up-title">${t("Sell")}</span><span class="up-art"><img src="${iconUrl("coin")}" alt=""></span><span class="up-cost"><span class="price">+${format(refund)}</span></span></button>`;
+    (ups.length ? "" : `<div class="up-empty">${t(tw.typeId === "hROK" ? "A rock: clear it for gold, or steal lives to crack it" : "Highest level reached")}</div>`) +
+    (tw.typeId === "hROK"
+      ? `<button class="unit-card up-card sell-card rock-card" id="up-sell" aria-label="${esc(t("Clear the rock for {gold} gold", { gold: format(-refund) }))}"><span class="up-title">${t("Clear")}</span><span class="up-art"><img src="${artUrl("deco-rock")}" alt=""></span><span class="up-cost"><span class="price">−${format(-refund)}</span></span></button>` // v0.17
+      : `<button class="unit-card up-card sell-card" id="up-sell" aria-label="${esc(t("Sell {name} for {gold} gold", { name: itemName(item), gold: format(refund) }))}"><span class="up-title">${t("Sell")}</span><span class="up-art"><img src="${iconUrl("coin")}" alt=""></span><span class="up-cost"><span class="price">+${format(refund)}</span></span></button>`);
   $("cards").querySelectorAll("[data-upgrade]").forEach((b) => (b.onclick = () => upgradeTap(tw, b.dataset.upgrade)));
   $("up-sell").onclick = () => {
     dispatch({ type: "sell", towerId: tw.id });
@@ -2243,14 +2367,14 @@ function pickCard(o, i, p) {
     const item = catalog.byId[o.id],
       level = p.research[o.id] || 0,
       el = elementOf(RESEARCH_ELEMENT[o.id]);
-    return `<button class="pick-card${el ? " pick-element el-" + el.id : ""}" data-pick="${i}"${el ? ` style="--el:${el.color}"` : ""}><img src="${researchArt(item)}" alt=""><b>${esc(itemName(item))}</b><span>${esc(cardHint(item))}</span><small>${t("Level {a} → {b}", { a: level, b: level + 1 })}</small></button>`;
+    return `<button class="pick-card${el ? " pick-element el-" + el.id : ""}" data-pick="${i}"${el ? ` style="--el:${el.color}"` : ""}><img src="${researchArt(item)}" alt=""><b>${esc(itemName(item))}</b><span>${valHtml(cardHint(item))}</span><small>${t("Level {a} → {b}", { a: level, b: level + 1 })}</small></button>`;
   }
   if (o.type === "perk") {
     const d = PERKS[o.id],
       level = p.perks?.[o.id] || 0,
       els = perkElements(o.id),
       pel = els.length ? elementOf(els.find((e) => p.research[elementOf(e)?.unlock]) || els[0]) : null; // v0.10n: element perks get the element frame
-    return `<button class="pick-card pick-perk perk-${o.id}${pel ? " pick-element el-" + pel.id : ""}" data-pick="${i}"${pel ? ` style="--el:${pel.color}"` : ""}><img src="${PERK_ART[o.id]()}" alt="">${o.id === "patrol" ? '<i class="perk-badge">×2</i>' : ""}<b>${esc(t(d.name))}</b><span>${esc(perkText(o.id, p.picks[0]?.level || p.level, p, true))}</span><small>${t("Level {a} → {b}", { a: level, b: level + 1 })}</small></button>`;
+    return `<button class="pick-card pick-perk perk-${o.id}${pel ? " pick-element el-" + pel.id : ""}" data-pick="${i}"${pel ? ` style="--el:${pel.color}"` : ""}><img src="${PERK_ART[o.id]()}" alt="">${o.id === "patrol" ? '<i class="perk-badge">×2</i>' : ""}<b>${esc(t(d.name))}</b><span>${valHtml(perkText(o.id, p.picks[0]?.level || p.level, p, true))}</span><small>${t("Level {a} → {b}", { a: level, b: level + 1 })}</small></button>`;
   }
   if (o.type === "quest") {
     const q = QUESTS[o.id];
@@ -2522,7 +2646,9 @@ function refreshUI() {
   const ownPlate = document.querySelector(".player-plate.own .plate-name");
   if (ownPlate && ownPlate.textContent !== myName()) ownPlate.textContent = myName();
   $("rival-name").textContent =
-    sessionMode === "ffa"
+    sessionMode === "campaign"
+      ? seatName(enemy.id)
+      : sessionMode === "ffa"
       ? `${seatName(enemy.id)} · ${t(AI_NAMES[enemy.aiLevel || game.aiLevel] || "Normal")}`
       : sessionMode === "training"
         ? `${t("AI")} · ${t(AI_NAMES[enemy.aiLevel || game.aiLevel] || "Normal")}`
@@ -2533,7 +2659,14 @@ function refreshUI() {
   $("arena-label").textContent = view === own ? t("Your arena") : isFfa() || sessionMode === "online" ? seatName(view) : t("Enemy"); // v0.14
   $("view-button").textContent = t(tab !== "build" ? "Back" : view === own ? "Enemy" : "Back");
   $("view-button").classList.toggle("active", view !== own);
-  $("round-label").textContent = game.warmup ? t("Warm up") : t("Round {n}", { n: game.round });
+  const goal = game.mission?.goal; // v0.17: survive N rounds / win by round N
+  $("round-label").textContent = game.warmup
+    ? t("Warm up")
+    : goal?.survive
+      ? t("Round {n}/{m}", { n: game.round, m: goal.survive })
+      : goal?.deadline
+        ? t("Round {n}/{m}", { n: game.round, m: goal.deadline })
+        : t("Round {n}", { n: game.round });
   refreshWaveChip(p);
   $("arena-hint").textContent =
     tab !== "build" || view !== own
@@ -3064,7 +3197,7 @@ function researchDetail(id) {
   const item = catalog.byId[id],
     owned = (game.players[own].research?.[id] || 0) > 0;
   showModal(
-    `${modalHeader(itemName(item))}<img class="modal-hero" src="${researchArt(item)}" alt=""><p class="modal-copy">${esc(cardHint(item))}</p><div class="rule-row"><strong>${t(owned ? "Already unlocked" : "Level reward")}</strong>${t(owned ? "Active in this match." : "Upgrades come with level-ups: collect EXP from breakthroughs, creeps and EXP generators.")}</div><details class="info-disclosure"><summary>${t("Exact values")}</summary><p class="modal-copy">${esc(item.description).replace(/\n/g, "<br>")}</p></details><button class="primary-button" data-close>${t("Back")}</button>`,
+    `${modalHeader(itemName(item))}<img class="modal-hero" src="${researchArt(item)}" alt=""><p class="modal-copy">${valHtml(cardHint(item))}</p><div class="rule-row"><strong>${t(owned ? "Already unlocked" : "Level reward")}</strong>${t(owned ? "Active in this match." : "Upgrades come with level-ups: collect EXP from breakthroughs, creeps and EXP generators.")}</div><details class="info-disclosure"><summary>${t("Exact values")}</summary><p class="modal-copy">${esc(item.description).replace(/\n/g, "<br>")}</p></details><button class="primary-button" data-close>${t("Back")}</button>`,
   );
 }
 function itemDetail(id, towerId, detailPlayer = own) {
@@ -3072,7 +3205,7 @@ function itemDetail(id, towerId, detailPlayer = own) {
     stats = item.kind === "research" ? null : getStats(game, detailPlayer, id),
     canAct = detailPlayer === own;
   showModal(
-    `${modalHeader(itemName(item))}<img class="modal-hero" src="${towerArtUrl(artFor(item))}" alt=""><p class="modal-copy">${esc(cardHint(item))}</p>${stats ? `<div class="detail-stats"><span><b>${format(stats.damage)}</b>${t("Damage")}</span><span><b>${isMeleeTower(item) ? 1 : format(stats.range / game.grid.cellUnits)}</b>${t(isMeleeTower(item) ? "field around (melee)" : "fields range")}</span><span><b>${format(stats.hp)}</b>${t("Lives")}</span>${item.kind === "send" ? `<span><b>${format(stats.speed / game.grid.cellUnits)}</b>${t("fields / s")}</span>` : ""}</div>` : ""}${
+    `${modalHeader(itemName(item))}<img class="modal-hero" src="${towerArtUrl(artFor(item))}" alt=""><p class="modal-copy">${esc(cardHint(item))}</p>${stats ? `<div class="detail-stats"><span><b>${format(stats.damage)}</b>${t("Damage")}</span><span><b>${isMeleeTower(item) ? 1 : format(stats.range / game.grid.cellUnits)}</b>${t(isMeleeTower(item) ? "field around (melee)" : "fields range")}</span>${item.kind === "send" ? `<span><b>${format(stats.hp)}</b>${t("Hitpoints")}</span><span><b>${format(stats.speed / game.grid.cellUnits)}</b>${t("fields / s")}</span>` : ""}</div>` : ""}${
       item.upgrades?.length
         ? `<div class="rule-row"><strong>${t("Upgrade")}</strong>${item.upgrades
             .map((uid) => {
@@ -3950,6 +4083,7 @@ function tick(dt) {
       if (e.type === "achievement" && e.global && e.player !== own) toast(t("{who} got {name}", { who: seatName(e.player), name: t(e.name) }), "level"); // v0.16
       if (e.type === "achievement" && e.player === own && e.name) toast(t("Achievement: {name}", { name: t(e.name) }) + ` · +${e.exp} EXP`, "tier"); // v0.15
       if (e.type === "firstBlood") firstBlood(e);
+      if (e.type === "rock" && e.player === own) toast(e.cracked ? "A rock cracked!" : "Rock cleared", "level", true); // v0.17
       if (e.type === "upgrade" && e.evolution && e.player === own) sfx.play("evolve"); // v0.16
       // v0.15: quests
       if (e.type === "quest" && e.player === own) questEvent(e);
@@ -4029,6 +4163,7 @@ function tick(dt) {
       shownResult = false;
       startLocal({ hotseat: sessionMode === "hotseat", ffa: sessionMode === "ffa", seats: game.players.length });
     };
+    if (sessionMode === "campaign") campaignResult(won); // v0.17
     if ($("play-harder"))
       $("play-harder").onclick = () => {
         aiChoice = { veryEasy: "easy", easy: "normal", normal: "hard" }[game.aiLevel] || "hard";

@@ -286,6 +286,7 @@ export function createGame({
   aiLevels = null,
   incomeInterval = RULES.incomeInterval,
   seats = 2,
+  mission = null, // v0.17: campaign mission (see src/campaign.js)
 } = {}) {
   getCatalog();
   // v0.10c/f: 2 to 8 seats (you plus up to 7 AIs)
@@ -357,8 +358,89 @@ export function createGame({
     for (const s of getCatalog().sends) p.stock[s.id] = { count: s.stockStart > 0 ? 0 : s.stockMax, next: s.stockStart };
     stockTier(game, p, 1, 0);
   }
+  if (mission) applyMission(game, mission);
   emit(game, "start", { message: "Defend your lane. Send creeps, raise your income." });
   return game;
+}
+// ---- v0.17: campaign missions ----------------------------------------------------------------
+export const ROCK_ID = "hROK";
+/** All tower ids of the lines that start at `roots` (the root and every upgrade after it). */
+function lineIds(roots) {
+  const out = new Set(),
+    todo = [...roots];
+  while (todo.length) {
+    const id = todo.pop();
+    if (out.has(id) || !obj(id)) continue;
+    out.add(id);
+    todo.push(...(obj(id).upgrades || []));
+  }
+  return [...out];
+}
+const cellList = (text) =>
+  String(text || "")
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((k) => k.split(",").map(Number));
+/** A tower placed for free at the start (pre-built maze, rocks); skipped if it would block the path. */
+function placeFree(game, p, id, x, y) {
+  if (!canBuild(game, p.id, x, y, id).ok) return null;
+  const t = newTower(game, p, id, x, y);
+  t.buildRemaining = 0;
+  t.preset = true;
+  p.towers.push(t);
+  p.path = findPath(game, p.id) || [];
+  completeTower(game, p, t);
+  return t;
+}
+/**
+ * Mission rules, kept on the game and the players as plain data (saves and replays carry them):
+ * start lives, gold and income; rocks in a maze (cleared for gold, or cracked by stealing lives);
+ * pre-built towers; allowed sends and towers; no anti-air; a tower limit; a sleeping start; the
+ * bot's maze shape and personality; and the goal (destroy, survive N rounds, or win by round N).
+ */
+function applyMission(game, m) {
+  game.mission = { id: m.id, goal: m.goal || null, rockCost: m.rockCost ?? 40, rocksOnSteal: !!m.rocksOnSteal };
+  const setup = (p, r = {}) => {
+    if (r.lives) p.lives = r.lives;
+    p.gold += r.gold || 0;
+    p.income += r.income || 0;
+    if (r.name) p.missionName = r.name;
+    if (r.art) p.missionArt = r.art;
+    if (r.level && p.ai && Object.hasOwn(AI_LEVELS, r.level)) p.aiLevel = r.level;
+    const rules = {};
+    if (r.sends) rules.sends = r.sends;
+    if (r.towers) rules.towers = lineIds(r.towers);
+    if (r.noAir) rules.noAir = true;
+    if (r.maxTowers) rules.maxTowers = r.maxTowers;
+    if (r.sleep) rules.sleep = r.sleep;
+    if (r.maze) rules.maze = r.maze;
+    if (r.persona) rules.persona = r.persona;
+    if (Object.keys(rules).length) p.rules = rules;
+    for (const pre of r.prebuild || []) for (const [x, y] of cellList(pre.cells)) placeFree(game, p, pre.id, x, y);
+    for (const [x, y] of cellList(r.rocks)) placeFree(game, p, ROCK_ID, x, y);
+    p.path = findPath(game, p.id) || [];
+  };
+  setup(game.players[0], m.player);
+  game.players.slice(1).forEach((p, i) => setup(p, m.enemies?.[i] || m.enemies?.[0]));
+}
+/** v0.17: is this send allowed for the player (mission rules)? Bosses always are. */
+const sendAllowed = (p, s) => !p.rules?.sends || s.bossTier || p.rules.sends.includes(s.id);
+/** v0.17: goal checks after every new round: survive N rounds, or win before round N. */
+function missionRound(game) {
+  const goal = game.mission?.goal;
+  if (!goal || !game.running) return;
+  const me = game.players[0];
+  if (goal.survive && game.round >= goal.survive && me.lives > 0) {
+    game.running = false;
+    game.winner = 0;
+    me.place = 1;
+    emit(game, "victory", { player: 0, survived: true });
+  } else if (goal.deadline && game.round > goal.deadline) {
+    const rival = game.players.find((q) => q.id !== 0 && !q.out) || game.players[1];
+    game.running = false;
+    game.winner = rival.id;
+    emit(game, "victory", { player: rival.id, deadline: true });
+  }
 }
 
 function meetRequirements(player, requirements) {
@@ -425,6 +507,7 @@ export function available(game, playerIndex, type, id, towerId = null, viaPick =
     if (item.tier < p.tier) return { ok: false, reason: "Replaced by the next tier" };
     if (item.inactiveInSource) return { ok: false, reason: "Disabled in the source map (tier 6 off)" };
     if (item.bossTier && (p.bossBought?.[id] || p.tier >= item.bossTier)) return { ok: false, reason: "Boss already bought" };
+    if (!sendAllowed(p, item)) return { ok: false, reason: "Not allowed in this mission" }; // v0.17
     if (game.warmup) return { ok: false, reason: `Warm up · ${Math.ceil(game.incomeRemaining)} s` };
     if (lockRoundsLeft(game, p.stock[id]) > 0) return { ok: false, reason: lockRoundsLeft(game, p.stock[id]) === 1 ? "Locked for 1 more round" : `Locked for ${lockRoundsLeft(game, p.stock[id])} more rounds` }; // v0.15
     if ((p.stock[id]?.count ?? 0) < 1) return { ok: false, reason: "Restocking" };
@@ -448,6 +531,13 @@ export function available(game, playerIndex, type, id, towerId = null, viaPick =
       return req.ok ? { ok: false, reason: "Still under construction" } : req;
     }
   }
+  // v0.17: mission rules for towers: allowed lines, no anti-air, a tower limit
+  if ((type === "build" || type === "upgrade") && p.rules && item.attacks) {
+    if (p.rules.towers && !p.rules.towers.includes(id)) return { ok: false, reason: "Not allowed in this mission" };
+    if (p.rules.noAir && item.targets?.includes("air")) return { ok: false, reason: "Not allowed in this mission" };
+  }
+  if (type === "build" && p.rules?.maxTowers && p.towers.filter((t) => t.typeId !== ROCK_ID).length >= p.rules.maxTowers)
+    return { ok: false, reason: `Tower limit: ${p.rules.maxTowers}` };
   const req = meetRequirements(p, requirements);
   if (!req.ok) return req;
   if (p.gold + EPS < cost.gold) return { ok: false, reason: `Need ${Math.ceil(cost.gold - p.gold)} more gold`, cost };
@@ -681,7 +771,7 @@ export const PERKS = Object.freeze({
   lone: { name: "Lone Guardians", max: 1, text: "Your towers attack 125% faster while you own 5 towers or fewer" }, // v0.16h: back to the v0.13 effect
   manufacture: { name: "Creep Manufacture", max: 3, element: "water", text: "Buffs the 4th creep of every tier: {manufacture} cheaper and restocks 10% faster" },
   summon: { name: "Summon Tower", max: 1, element: "arcane", powerup: true, text: "Summons a random level 1-3 tower of any element on a free field (sells for 10% of its value)" },
-  nobility: { name: "Heavy Nobility", max: 3, element: "earth", text: "Buffs heavy creeps (single, no boss, no death spawn): {nobility} cheaper, {nobilityHp} more hit points, restock 10% faster" },
+  nobility: { name: "Heavy Nobility", max: 3, element: "earth", text: "Buffs heavy creeps: {nobility} cheaper, {nobilityHp} more hit points, restock 10% faster" },
   breeding: { name: "Breeding Pools", max: 3, element: "plague", text: "Buffs creeps that spawn creeps on death: {breeding} chance of one more; spawned creeps get {breedingHp} more hit points" },
   pillar: { name: "Pillar of Fire", max: 5, element: "fire", text: "Active ability: a pillar of fire burns an area for 1.5 s, {pillar} damage every 0.3 s, up to 75% more in its centre (75 s cooldown)" },
   fort: { name: "Fortifications", max: 1, element: ["earth", "water"], text: "Unlocks the Wall: 5 gold, no attack, for cheap mazes. Double-tap sells it for 1 gold" },
@@ -2025,6 +2115,7 @@ export function getSellValue(game, playerIndex, towerId) {
   if (!t) return 0;
   const item = obj(t.typeId);
   if (t.free && t.typeId === "h003") return 0; // a Forest Patrol archer was free
+  if (t.typeId === ROCK_ID) return -(game.mission?.rockCost ?? 40); // v0.17: clearing a rock costs gold
   if (item.support === "farm") return 0;
   const value = Math.trunc(item.pointValue * item.sellRate);
   // v0.12: a summoned tower gives back only 10 % of its own value (paid upgrades in full)
@@ -2037,6 +2128,16 @@ function sellTower(game, p, towerId) {
   const t = p.towers[i],
     item = obj(t.typeId);
   if (t.buildRemaining > EPS) return { ok: false, reason: "Still under construction" };
+  if (t.typeId === ROCK_ID) {
+    // v0.17: a rock is cleared for gold, not sold
+    const price = game.mission?.rockCost ?? 40;
+    if (p.gold + EPS < price) return { ok: false, reason: `Need ${Math.ceil(price - p.gold)} more gold to clear the rock` };
+    p.gold -= price;
+    p.towers.splice(i, 1);
+    p.path = findPath(game, p.id) || [];
+    emit(game, "rock", { player: p.id, towerId, x: t.x, y: t.y, cleared: true });
+    return { ok: true, refund: -price };
+  }
   const refund = getSellValue(game, p.id, towerId);
   p.gold += refund;
   if (item.woodIncome) p.woodIncome -= item.woodIncome;
@@ -2929,6 +3030,15 @@ function touchdown(game, p, c) {
   (sender.stats.stoleFrom ||= {})[p.id] = (sender.stats.stoleFrom[p.id] || 0) + 1;
   if (!sender.out) sender.lives++;
   sender.stats.leaks++;
+  // v0.17: stealing a life cracks one of your rocks (missions with rocks)
+  if (game.mission?.rocksOnSteal) {
+    const k = sender.towers.findIndex((t) => t.typeId === ROCK_ID);
+    if (k >= 0) {
+      const rock = sender.towers.splice(k, 1)[0];
+      sender.path = findPath(game, sender.id) || [];
+      emit(game, "rock", { player: sender.id, towerId: rock.id, x: rock.x, y: rock.y, cracked: true });
+    }
+  }
   // v0.10k: Pillage, 1 % of the leaked player's gold per perk level
   const pillage = perkLevel(sender, "pillage");
   if (pillage && !sender.out) {
@@ -3047,6 +3157,7 @@ function moveCreep(game, p, c, dt) {
 function incomeTick(game) {
   game.warmup = false;
   game.round++;
+  missionRound(game); // v0.17
   if (game.waves && game.round >= WAVE_FIRST_ROUND && (game.round - WAVE_FIRST_ROUND) % WAVE_EVERY_ROUNDS === 0)
     launchWave(game, (game.round - WAVE_FIRST_ROUND) / WAVE_EVERY_ROUNDS + 1);
   game.incomeCounter++;
@@ -3170,11 +3281,11 @@ function waveDefense(game, p) {
 // and otherwise invests in income sends. It saves for pushes now and then, prefers flyers
 // when the opponent has little anti-air, and plays every match a little differently: each
 // AI player rolls a personality from the game seed. Everything goes through `command`.
-const AI_SAFETY = { veryEasy: 1.45, easy: 0.85, normal: 1.2, hard: 1.45 };
+const AI_SAFETY = { veryEasy: 0.6, easy: 0.85, normal: 1.2, hard: 1.45 }; // v0.16k: very easy 1.45 → 0.6
 // How the difficulty plays: share of decisions that follow the maze plan, how noisy tower
 // placement is, and persona multipliers. Very easy turtles: it overbuilds, sends little and late.
 const AI_STYLE = {
-  veryEasy: { strict: 0.45, noise: 0.6, turtle: 0.6, maxSends: 1, persona: { greed: 0.35, push: 0, bossRound: 1.8, expGen: 0, upgradeBias: 0.7 } },
+  veryEasy: { strict: 0.35, noise: 0.8, turtle: 0.6, maxSends: 1, persona: { greed: 0.3, push: 0, bossRound: 2.2, expGen: 0, upgradeBias: 0.5, smartPush: 0 } }, // v0.16k: weaker
   easy: { strict: 0.75, noise: 0.35, persona: { greed: 0.85, push: 0.5, bossRound: 1.3 } },
   normal: { strict: 1, noise: 0.1 },
   // Hard (v0.07m): its own ranges from about 1,000 hard-vs-hard games (two random searches over
@@ -3250,6 +3361,7 @@ function aiPersonality(game, p) {
   p.aiPersona = Object.fromEntries(Object.entries(ranges).map(([k, range]) => [k, roll(range)]));
   p.aiPersona.elementOrder = FACTIONS.map((f) => f.id).sort(() => random(game) - 0.5);
   for (const [k, f] of Object.entries(AI_STYLE[aiLevel(game, p)]?.persona || {})) p.aiPersona[k] *= f;
+  if (p.rules?.persona) Object.assign(p.aiPersona, p.rules.persona); // v0.17: mission personality
   return p.aiPersona;
 }
 const HP_PER_GOLD = new Map();
@@ -3448,6 +3560,39 @@ function expectedRoute(game, p, extra = null) {
   }
   return sum / game.grid.cols;
 }
+/** v0.16k: fun mazes for the very easy bot (6×9 board, x 0–5, y 0–8 from the portal down). */
+const FUN_MAZES = [
+  { name: "smiley", order: "1,2 4,2 2,4 3,4 0,5 5,5 1,6 2,6 3,6 4,6 0,0 5,0" },
+  { name: "heart", order: "1,1 4,1 0,2 2,2 3,2 5,2 0,3 5,3 1,4 4,4 2,5 3,5" },
+  { name: "pillars", order: "0,1 2,1 4,1 1,3 3,3 5,3 0,5 2,5 4,5 1,7 3,7 5,7" },
+  { name: "lightning", order: "4,0 3,1 2,2 3,3 4,4 3,5 2,6 1,7 0,8 5,6" },
+  { name: "towers", order: "0,0 0,1 0,2 5,6 5,7 5,8 2,3 3,3 2,4 3,4" },
+];
+function funMaze(game, wanted = null) {
+  const { cols, rows } = game.grid,
+    named = wanted && FUN_MAZES.find((m) => m.name === wanted),
+    given = wanted && !named && /\d,\d/.test(wanted) ? { order: wanted } : named; // a name or an order of cells
+  let order;
+  if (!given && random(game) < 0.25) {
+    // pure chaos: a random scatter, new every match
+    const cells = [];
+    for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) cells.push({ x, y });
+    for (let i = cells.length - 1; i > 0; i--) {
+      const j = Math.floor(random(game) * (i + 1));
+      [cells[i], cells[j]] = [cells[j], cells[i]];
+    }
+    order = cells.slice(0, 14);
+  } else {
+    const tpl = given || FUN_MAZES[Math.floor(random(game) * FUN_MAZES.length)],
+      mirror = random(game) < 0.5;
+    order = tpl.order.split(" ").map((k) => {
+      const [x, y] = k.split(",").map(Number);
+      return { x: mirror ? cols - 1 - x : x, y };
+    });
+  }
+  order = order.map((c) => ({ ...c, key: c.x + "," + c.y }));
+  return { cols, rows, template: true, fun: true, order, keys: new Set(order.map((c) => c.key)), curve: order.map(() => 10.2).concat([10.2]), gaps: [], wallOf: {}, cellsOf: [], extra: new Set(), size: order.length };
+}
 function templatePlan(game, forced = null) {
   const list = MAZE_TEMPLATES[game.grid.cols + "x" + game.grid.rows];
   if (!list) return null;
@@ -3480,6 +3625,9 @@ function mazePlan(game, p, level) {
     }
     p.aiMaze = null;
   }
+  // v0.16k: very easy builds funny, chaotic mazes (a smiley, a heart, pillars, lightning, chaos)
+  if (p.rules?.maze && game.grid.cols === 6 && game.grid.rows === 9) return (p.aiMaze = funMaze(game, p.rules.maze)); // v0.17: mission maze
+  if (level === "veryEasy" && game.grid.cols === 6 && game.grid.rows === 9) return (p.aiMaze = funMaze(game));
   if (level !== "veryEasy" && (p.aiPersona?.mazeV2 ?? 1) > 0.5) {
     const plan = templatePlan(game, p.aiPersona?.mazeTpl ?? null);
     if (plan) return (p.aiMaze = plan);
@@ -3547,7 +3695,8 @@ function templateCandidates(game, p, maze, ctx) {
     const promise = Math.max(0, (maze.curve[j] - before) / (j - built + 1)) / Math.max(1, before);
     open.slice(0, 3).forEach((c, i) => out.push({ x: c.x, y: c.y, key: c.key, plan: true, rank: i, promise }));
   }
-  if (open.length <= 1) {
+  // v0.16k: a fun maze stays recognisable: only a few towers beyond its shape, then upgrades
+  if (open.length <= 1 && !(maze.fun && taken.size >= maze.order.length + 4)) {
     const now = ctx.expRoute ?? (ctx.expRoute = expectedRoute(game, p));
     for (let y = 0; y < game.grid.rows; y++)
       for (let x = 0; x < game.grid.cols; x++) {
@@ -3664,7 +3813,7 @@ function defenceOptions(game, p, persona, level, style, cap, wantAir, onlyBuild 
         if (gain > 0) options.push({ value: gain / item.cost, cost: item.cost, run: () => command(game, { type: "upgrade", player: p.id, id, towerId: t.id }) });
       }
   // new towers on the best spot, following the maze plan
-  const ctx = { maze, strict: random(game) < style.strict, noise: style.noise, cap, need, cellCache: new Map() };
+  const ctx = { maze, strict: random(game) < style.strict || !!maze?.fun, noise: style.noise, cap, need, cellCache: new Map() }; // v0.16k: fun mazes keep their shape
   for (const item of getCatalog().towers) {
     if (!item.isRoot || !item.attacks || !item.playable) continue;
     if (wantAir ? !item.targets.includes("air") : !item.targets.includes("ground")) continue;
@@ -3677,9 +3826,10 @@ function defenceOptions(game, p, persona, level, style, cap, wantAir, onlyBuild 
 function think(game, p) {
   if (game.tick < p.nextAiTick) return;
   const level = aiLevel(game, p),
-    interval = { veryEasy: 60, easy: 40, normal: 20, hard: 10 }[level] || 20,
+    interval = { veryEasy: 80, easy: 40, normal: 20, hard: 10 }[level] || 20,
     style = AI_STYLE[level] || AI_STYLE.normal;
   p.nextAiTick = game.tick + interval;
+  if (p.rules?.sleep && game.time < p.rules.sleep) return; // v0.17: a sleepy mission enemy
   const persona = aiPersonality(game, p),
     enemy = targetOf(game, p.id), // the player this bot sends to
     attackers = attackersOf(game, p.id), // the players sending into this bot's lane
@@ -3832,9 +3982,11 @@ function think(game, p) {
   // legacy planner just buys the toughest creep per gold.
   // v0.16j: now and then (rarely in tier 1, more often from tier 2) the bot checks whether a
   // saved-up wave of one strong or fast creep type would really break through, and saves for it
-  if (!p.aiPush && game.round >= 4 && persona.smartPush && random(game) < aiSaveChance(p) * (persona.saveMore ?? 1)) {
+  const saves = (p.aiSaves ||= {});
+  if (!p.aiPush && game.round >= 4 && persona.smartPush && !((saves[Math.min(3, p.tier)] || 0) >= (saveRule(p).max ?? Infinity)) && random(game) < aiSaveChance(p) * (persona.saveMore ?? 1)) {
     const plan = savePlan(game, p, enemy, persona);
     if (plan) {
+      saves[Math.min(3, p.tier)] = (saves[Math.min(3, p.tier)] || 0) + 1;
       p.aiPush = plan;
       return;
     }
@@ -3850,7 +4002,7 @@ function think(game, p) {
   // thin anti-air, flyers rank higher: they pay income and break through at the same time.
   const burst = Math.min(style.maxSends || 3, p.gold > p.income * 2 ? 3 : 1),
     flyerBias = (persona.flyerBias ?? 1) > 1 && weakAirOf(game, p, enemy, persona) ? persona.flyerBias : 1,
-    pool = tierSends(p.tier).filter((s) => !s.bossTier && s.income > 0),
+    pool = tierSends(p.tier).filter((s) => !s.bossTier && s.income > 0 && sendAllowed(p, s)),
     tough = (s) => ((persona.armorBias ?? 0) > 0 ? toughnessOf(game, p, enemy, pool, s) ** persona.armorBias : 1),
     worth = (s) => (s.income / s.cost) * (s.flying ? flyerBias : 1) * tough(s);
   for (let k = 0; k < burst; k++) {
@@ -3868,9 +4020,10 @@ function think(game, p) {
  * end the opponent. Fast creeps count with their speed: the towers have less time for them.
  */
 const AI_SAVE = {
-  1: { chance: 0.0008, ids: ["n00S", "n00N"], minLives: 4, rounds: 1.5 },
-  2: { chance: 0.0015, strong: 0.5, minLives: 4, rounds: 2 },
-  3: { chance: 0.003, perTier: 0.0008, minLives: 3, rounds: 2.5, kill: 4 },
+  // v0.16k: tier 1 at most 2 saved waves per match, tier 2 at most 2, from tier 3 regularly and bigger
+  1: { chance: 0.0006, ids: ["n00S", "n00N"], minLives: 4, rounds: 1.5, max: 2 },
+  2: { chance: 0.001, strong: 0.5, minLives: 4, rounds: 2, max: 2 },
+  3: { chance: 0.006, perTier: 0.001, minLives: 3, rounds: 3, kill: 5 },
   margin: 1.25,
   refSpeed: 240,
 };
@@ -3879,7 +4032,7 @@ const aiSaveChance = (p) => saveRule(p).chance + (saveRule(p).perTier || 0) * Ma
 function savePlan(game, p, enemy, persona, onlyId = null) {
   const rule = saveRule(p),
     theirs = laneCapacity(game, enemy),
-    pool = tierSends(p.tier).filter((s) => !s.bossTier && s.playable && s.cost > 0),
+    pool = tierSends(p.tier).filter((s) => !s.bossTier && s.playable && s.cost > 0 && sendAllowed(p, s)),
     costs = pool.map((s) => s.cost).sort((a, b) => a - b),
     minCost = rule.strong ? costs[Math.floor(costs.length * rule.strong)] || 0 : 0;
   let best = null;
@@ -3947,9 +4100,9 @@ function weakAirOf(game, p, enemy, persona) {
 }
 function legacyPushPlan(game, p, enemy, persona) {
   const theirs = laneCapacity(game, enemy),
-    flyers = tierSends(p.tier).filter((s) => s.flying && !s.bossTier && s.income >= 0),
+    flyers = tierSends(p.tier).filter((s) => s.flying && !s.bossTier && s.income >= 0 && sendAllowed(p, s)),
     weakAir = theirs.air < theirs.ground * (persona.airThreshold ?? 0.25);
-  const pool = weakAir && flyers.length ? flyers : tierSends(p.tier).filter((s) => !s.bossTier);
+  const pool = weakAir && flyers.length ? flyers : tierSends(p.tier).filter((s) => !s.bossTier && sendAllowed(p, s));
   const pickSend = pool.sort((a, b) => hpOf(b) / b.cost - hpOf(a) / a.cost)[0];
   if (!pickSend) return null;
   const count = Math.max(3, Math.min(14, Math.floor((p.income * (persona.pushSize ?? 3)) / Math.max(1, pickSend.cost))));
@@ -3966,7 +4119,7 @@ function breakthroughPlan(game, p, enemy, persona, onlyId = null) {
     budget = p.gold + p.income * rounds;
   let best = null;
   for (const s of tierSends(p.tier)) {
-    if (s.bossTier || !s.playable || s.cost <= 0 || (onlyId && s.id !== onlyId)) continue;
+    if (s.bossTier || !s.playable || s.cost <= 0 || (onlyId && s.id !== onlyId) || !sendAllowed(p, s)) continue;
     const stock = p.stock[s.id];
     if (!stock) continue;
     const hp = hpOf(s),

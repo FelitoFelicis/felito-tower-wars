@@ -79,6 +79,7 @@ const BASE_ART = {
   "tower-guard-elite": { w: 287, h: 400, plateW: 245, plateCX: 140.5, plateCY: 284.0, plateTop: 220 },
   "tower-hall": { w: 283, h: 400, plateW: 252, plateCX: 141.0, plateCY: 290.0, plateTop: 233 },
   "tower-wall": { w: 320, h: 330, plateW: 262, plateCX: 160.0, plateCY: 232.0, plateTop: 122 }, // v0.12: Fortifications
+  "deco-rock": { w: 200, h: 182, plateW: 176, plateCX: 100.0, plateCY: 140.0, plateTop: 70 }, // v0.17: campaign rocks
   "tower-headhunter": { w: 331, h: 400, plateW: 245, plateCX: 138.5, plateCY: 292.5, plateTop: 237 },
   "tower-hydra": { w: 341, h: 400, plateW: 248, plateCX: 166.0, plateCY: 283.5, plateTop: 220 },
   "tower-lich": { w: 287, h: 400, plateW: 221, plateCX: 130.5, plateCY: 285.5, plateTop: 220 },
@@ -229,6 +230,7 @@ const ROOT_TOWER = {
   h02Q: "tower-farm",
   h05L: "tower-hall",
   hWAL: "tower-wall", // v0.12
+  hROK: "deco-rock", // v0.17: campaign rocks
 };
 const RESEARCH_ART = {
   R00M: "tower-fire",

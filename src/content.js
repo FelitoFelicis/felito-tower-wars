@@ -305,6 +305,23 @@ export function configureContent(data) {
     };
     byId[WALL_ID] = wall;
     allUnits.push(wall);
+    // v0.17: campaign rocks: block a field until cleared for gold or cracked by stealing lives
+    const rock = {
+      ...wall,
+      id: "hROK",
+      name: "Rock",
+      shortName: "Rock",
+      description: "A boulder in your maze. Clear it for gold, or crack it by stealing lives from your enemy.",
+      cost: 0,
+      hp: 1000,
+      pointValue: 0,
+      isRoot: false,
+      isBuildable: false,
+      perkUnit: null,
+      source: { file: "port", id: "hROK" },
+    };
+    byId.hROK = rock;
+    allUnits.push(rock);
   }
   if (byId.n00T) {
     // Arcane Golem: walks a maze upwards, then runs on as a creep in the next lane
