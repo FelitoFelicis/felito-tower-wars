@@ -34,27 +34,30 @@
   <link rel="icon" href="assets/app-icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="assets/app-icon-192.png">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="style.css?v=f10016">
-  <script type="importmap">{"imports":{"./src/music.js":"./src/music.js?v=f10016","./src/art.js":"./src/art.js?v=f10016","./src/soundtrack.js":"./src/soundtrack.js?v=f10016","./src/sfx.js":"./src/sfx.js?v=f10016","./src/app.js":"./src/app.js?v=f10016","./src/arena.js":"./src/arena.js?v=f10016","./src/content.js":"./src/content.js?v=f10016","./src/simulation.js":"./src/simulation.js?v=f10016","./src/multiplayer.js":"./src/multiplayer.js?v=f10016","./src/i18n.js":"./src/i18n.js?v=f10016","./src/b2d.js":"./src/b2d.js?v=f10016"}}</script>
+  <link rel="stylesheet" href="style.css?v=f11a01">
+  <link rel="stylesheet" href="tutorial.css?v=f11a01">
+  <script type="importmap">{"imports":{"./src/music.js":"./src/music.js?v=f11a01","./src/art.js":"./src/art.js?v=f11a01","./src/soundtrack.js":"./src/soundtrack.js?v=f11a01","./src/sfx.js":"./src/sfx.js?v=f11a01","./src/app.js":"./src/app.js?v=f11a01","./src/arena.js":"./src/arena.js?v=f11a01","./src/content.js":"./src/content.js?v=f11a01","./src/simulation.js":"./src/simulation.js?v=f11a01","./src/multiplayer.js":"./src/multiplayer.js?v=f11a01","./src/i18n.js":"./src/i18n.js?v=f11a01","./src/b2d.js":"./src/b2d.js?v=f11a01","./src/tutorial.js":"./src/tutorial.js?v=f11a01"}}</script>
 </head>
 <body>
 <main class="game-shell" data-page="build" aria-label="Felito Tower Wars">
     <div class="mini-hud">
-      <header class="game-header">
-        <div class="player-plate own" role="button" tabindex="0" data-ta="Show your board" aria-label="Show your board" data-help="Your gold, income per round, lives and EXP. Tap to show your board.">
-          <div class="plate-face"><img class="portrait" src="assets/art/portrait-player.webp" alt=""><i class="plate-skull" aria-hidden="true"></i><span class="plate-lives"><img src="assets/art/icon-heart.webp" alt=""><strong id="own-lives">30</strong></span></div>
-          <div class="plate-body"><span class="plate-name" data-t="You">You</span><span class="plate-gold"><img src="assets/art/icon-coin.webp" alt="Gold"><b id="own-gold">0</b></span><em class="plate-inc" id="own-income">+0</em></div>
-          <div class="plate-exp" data-tt="Experience" title="Experience"><i id="own-exp"></i><span>Lv <b id="own-level">1</b></span></div>
+      <!-- v0.11: one slim row. Own stats left, income ring centre, enemies right as chips. -->
+      <header class="game-header hud-row">
+        <div class="player-plate own hud-own" role="button" tabindex="0" data-ta="Show your board" aria-label="Show your board" data-help="Your gold, income per round, lives and level. Tap to show your board.">
+          <span class="hud-gold"><img src="assets/art/icon-coin.webp" alt="Gold"><b id="own-gold">0</b><em class="hud-inc" id="own-income">+0</em></span>
+          <span class="hud-sub"><span class="hud-lives"><img src="assets/art/icon-heart.webp" alt="Lives"><strong id="own-lives">30</strong></span><span class="hud-level" data-tt="Experience" title="Experience"><span>Lv</span><b id="own-level">1</b><span class="hud-xp" aria-hidden="true"><i id="own-exp"></i></span></span></span>
         </div>
-        <div class="round-plate" data-ta="Next income" aria-label="Next income" data-help="Round, countdown to your next income, and match time.">
+        <div class="round-plate" data-ta="Next income" aria-label="Next income" data-help="Countdown to your next income. Every round you get gold.">
           <span class="round-label" id="round-label">Setup</span>
           <div class="income-timer"><svg viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="17"></circle><circle id="income-ring" cx="20" cy="20" r="17"></circle></svg><span id="income-time">12</span></div>
           <span class="match-time sr-only"><span id="match-clock">00:00</span><span id="speed-label" class="sr-only">Live</span></span>
         </div>
-        <div class="player-plate rival" role="button" tabindex="0" data-ta="Show the enemy board" aria-label="Show the enemy board" data-help="Your enemy's gold, income, lives and level. Tap to show their board.">
-          <div class="plate-body"><span class="plate-name" id="rival-name">Enemy</span><small id="rival-sub" class="sr-only">Training</small><span class="plate-gold"><b id="rival-gold">0</b><img src="assets/art/icon-coin.webp" alt="Gold"></span><em class="plate-inc" id="rival-income">+0</em></div>
-          <div class="plate-face"><img class="portrait" src="assets/art/portrait-enemy.webp" alt=""><i class="plate-skull" aria-hidden="true"></i><span class="plate-lives"><strong id="rival-lives">30</strong><img src="assets/art/icon-heart.webp" alt=""></span></div>
-          <div class="plate-exp" data-tt="Experience" title="Experience"><i id="rival-exp"></i><span>Lv <b id="rival-level">1</b></span></div>
+        <div class="player-plate rival hud-rival" role="button" tabindex="0" data-ta="Show the enemy board" aria-label="Show the enemy board" data-help="Your enemy's lives. Tap to show their board.">
+          <span class="rival-chip">
+            <span class="plate-face"><img class="portrait" src="assets/art/portrait-enemy.webp" alt=""><i class="plate-skull" aria-hidden="true"></i></span>
+            <span class="rival-stats"><span class="rival-lives"><img src="assets/art/icon-heart.webp" alt="Lives"><strong id="rival-lives">30</strong></span><span class="rival-level">Lv <b id="rival-level">1</b></span></span>
+          </span>
+          <span class="sr-only"><span id="rival-name">Enemy</span><small id="rival-sub">Training</small><b id="rival-gold">0</b><em id="rival-income">+0</em><i id="rival-exp"></i></span>
           <div class="enemy-stack" id="enemy-stack" hidden></div>
         </div>
       </header>
@@ -74,18 +77,23 @@
         <div id="game-loader" data-t="Preparing the arena …">Preparing the arena …</div>
         <span id="arena-label" class="sr-only">Your arena</span>
         <div id="arena-hint" class="sr-only"></div>
-        <div id="side-dock" class="side-dock" hidden><span class="side-label" id="auto-kicker">Auto</span><button id="auto-slot" class="auto-slot" type="button" aria-label="Auto-Spawn" data-help="Auto-spawn: in Send, drag a creep card here and it is sent automatically. Tap to pause, drag out to clear."><span class="auto-slot-empty">+</span></button><span id="tier-badge" class="tier-badge" data-help="Your send tier. Buying the boss unlocks the next tier.">T1</span></div>
-        <button id="level-button" class="level-button" type="button" data-ta="Choose a level reward" aria-label="Choose a level reward" data-help="Your level. It fills up with experience. With every level-up you pick one of three rewards here; when it glows, a reward is waiting." hidden><s class="level-fill" aria-hidden="true"></s><span>Lv</span><b id="level-number">1</b><i id="level-pending" hidden>1</i></button>
-        <button id="volley-button" class="volley-button" type="button" aria-label="Arrow Volley" data-help="Arrow Volley: tap it, then tap your field. Arrows rain on that area (cooldown 20 s)." hidden></button>
       </section>
-      <section class="command-deck" data-ta="Your cards" aria-label="Your cards">
+      <!-- v0.11: the tray. Level button and volley left of the cards, auto-spawn slot right (Send). -->
+      <section id="tray" class="command-deck" data-ta="Your cards" aria-label="Your cards">
         <div class="deck-heading sr-only"><h2 id="deck-title">Your towers</h2><select id="tier-select" hidden></select></div>
         <div id="auto-send" class="auto-send" hidden><div><span class="auto-send-kicker">Auto</span><strong id="auto-send-label"></strong></div><button id="auto-send-toggle" type="button" aria-pressed="false" disabled></button></div>
         <button id="deck-expand" class="deck-handle" type="button" aria-expanded="false" aria-controls="deck-sheet" hidden><span class="handle-chevron" aria-hidden="true"></span><span id="deck-count" data-t="All">All</span></button>
-        <div class="cards-wrap">
-          <button id="deck-prev" class="deck-arrow prev" type="button" data-ta="Previous cards" aria-label="Previous cards" hidden></button>
-          <div id="cards" class="cards" data-ta="Unit cards" aria-label="Unit cards"></div>
-          <button id="deck-next" class="deck-arrow next" type="button" data-ta="More cards" aria-label="More cards" hidden></button>
+        <div class="tray-row">
+          <div class="tray-side tray-left">
+            <button id="level-button" class="level-button" type="button" data-ta="Choose a level reward" aria-label="Choose a level reward" data-help="Your level. It fills up with experience. With every level-up you pick one of three rewards here; when it glows, a reward is waiting." hidden><s class="level-fill" aria-hidden="true"></s><span>Lv</span><b id="level-number">1</b><i id="level-pending" hidden>1</i></button>
+            <button id="volley-button" class="volley-button" type="button" aria-label="Arrow Volley" data-help="Arrow Volley: tap it, then tap your field. Arrows rain on that area (cooldown 20 s)." hidden></button>
+          </div>
+          <div class="cards-wrap">
+            <button id="deck-prev" class="deck-arrow prev" type="button" data-ta="Previous cards" aria-label="Previous cards" hidden></button>
+            <div id="cards" class="cards" data-ta="Unit cards" aria-label="Unit cards"></div>
+            <button id="deck-next" class="deck-arrow next" type="button" data-ta="More cards" aria-label="More cards" hidden></button>
+          </div>
+          <div id="side-dock" class="side-dock tray-side tray-right" hidden><span class="side-label" id="auto-kicker">Auto</span><button id="auto-slot" class="auto-slot" type="button" aria-label="Auto-Spawn" data-help="Auto-spawn: drag a creep card here and it is sent by itself. Tap to pause, drag out to clear."><span class="auto-slot-empty">+</span></button><span id="tier-badge" class="tier-badge" data-help="Your creep tier. Buying the boss unlocks the next tier.">T1</span></div>
         </div>
         <p class="deck-tip sr-only" id="deck-tip" data-t="Swipe sideways for more cards.">Swipe sideways for more cards.</p>
       </section>
@@ -97,6 +105,7 @@
       <button data-tab="send" class="tab-send" data-help="Send: send creeps to your enemy. Every purchase raises your income for good."><img src="assets/art/icon-attack.webp" alt=""><span data-t="Send">Send</span></button>
       <button id="menu-button" class="icon-button menu-side side-button" data-ta="Open options" aria-label="Open options" data-help="Pause, options, language, card book and rules."><img src="assets/art/icon-gear.webp" alt=""></button>
     </nav>
+    <button id="zoom-reset" class="zoom-reset" type="button" aria-label="Reset zoom" data-help="Zoom back out to the whole board." hidden><svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="13.5" cy="13.5" r="8.5" fill="#cfe9ff33" stroke="currentColor" stroke-width="3.2"/><path d="M20 20l7.5 7.5" stroke="currentColor" stroke-width="4.2" stroke-linecap="round"/><path d="M9.5 13.5h8" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"/></svg></button>
     <div id="deck-backdrop" class="deck-backdrop" hidden></div>
     <section id="deck-sheet" class="deck-sheet" data-ta="All cards" aria-label="All cards" hidden>
       <div class="sheet-head"><strong id="sheet-title">All cards</strong><span id="sheet-sub" class="sheet-sub"></span><button id="sheet-close" class="close-modal" type="button" data-ta="Close the card overview" aria-label="Close the card overview">×</button></div>
@@ -109,7 +118,7 @@
     <section id="tower-panel" class="tower-panel" hidden></section>
   </main>
   <dialog id="modal"><div id="modal-body"></div></dialog>
-  <script src="vendor/babylon-felito.js?v=f10016"></script>
-  <script type="module" src="src/app.js?v=f10016"></script>
+  <script src="vendor/babylon-felito.js?v=f11a01"></script>
+  <script type="module" src="src/app.js?v=f11a01"></script>
 </body>
 </html>

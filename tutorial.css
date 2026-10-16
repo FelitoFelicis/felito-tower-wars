@@ -1,0 +1,249 @@
+/* First-match tutorial (src/tutorial.js): a parchment bubble, a pointing glove and a gold glow on
+   the thing to tap. The overlay never takes taps, only its Skip / Let's go buttons do. */
+.tut {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  overflow: hidden;
+  pointer-events: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.tut[hidden],
+.tut [hidden] {
+  display: none !important;
+}
+.tut-ring,
+.tut-tap,
+.tut-hand,
+.tut-bubble {
+  position: absolute;
+  left: 0;
+  top: 0;
+  will-change: transform;
+}
+.tut.no-target .tut-ring,
+.tut.no-target .tut-tap,
+.tut.no-target .tut-hand {
+  display: none;
+}
+
+/* ---- highlight: card / button outline, or the glowing field on the board ---- */
+.tut-ring {
+  border-radius: 16px;
+  border: 3px solid #ffd76a;
+  box-shadow:
+    0 0 0 2px #4a2e12b0,
+    0 0 18px 4px #ffcf4a99,
+    inset 0 0 12px #ffcf4a55;
+  animation: tut-ring 1.4s ease-in-out infinite;
+}
+.tut-ring.cell {
+  border-radius: 9px;
+  border: 2.5px solid #fff1b8;
+  background: radial-gradient(circle, #fff6c470 0%, #ffcf4a5c 58%, #ffb23a40 100%);
+  box-shadow:
+    0 0 0 2px #4a2e1299,
+    0 0 22px 7px #ffcf4ab8,
+    inset 0 0 14px #fff1b8b0;
+  animation: tut-glow 1.4s ease-in-out infinite;
+}
+@keyframes tut-ring {
+  0%,
+  100% {
+    opacity: 0.7;
+  }
+  45% {
+    opacity: 1;
+  }
+}
+@keyframes tut-glow {
+  0%,
+  100% {
+    opacity: 0.62;
+    filter: brightness(0.95);
+  }
+  45% {
+    opacity: 1;
+    filter: brightness(1.2);
+  }
+}
+
+/* ---- the glove: rotated around its fingertip, bobbing along its own axis ---- */
+.tut-hand {
+  width: 48px;
+  height: 62px;
+  transform-origin: 17px 2px;
+  filter: drop-shadow(0 4px 5px #000a);
+}
+.tut-hand svg {
+  display: block;
+}
+.tut-hand-bob {
+  animation: tut-bob 1.4s ease-in-out infinite;
+}
+@keyframes tut-bob {
+  0%,
+  100% {
+    transform: translateY(13px);
+  }
+  45%,
+  58% {
+    transform: translateY(0);
+  }
+}
+/* a ring spreads where the fingertip touches */
+.tut-tap::after {
+  content: "";
+  position: absolute;
+  left: -22px;
+  top: -22px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 3px solid #fff3c4;
+  box-shadow: 0 0 10px #ffcf4acc;
+  opacity: 0;
+  animation: tut-tap 1.4s ease-out infinite;
+}
+@keyframes tut-tap {
+  0%,
+  44% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  46% {
+    opacity: 0.95;
+    transform: scale(0.35);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.3);
+  }
+}
+
+/* ---- the bubble: parchment label with a gold rim, like the art sheet ---- */
+.tut-bubble {
+  width: min(292px, calc(100vw - 20px));
+}
+.tut-card {
+  position: relative;
+  padding: 10px 12px 5px 14px;
+  border-radius: 16px;
+  background: linear-gradient(176deg, #fff8e2, #f4e2b4 68%, #ecd49c);
+  border: 2px solid #c08a2c;
+  box-shadow:
+    0 0 0 2px #4a2e12,
+    0 10px 24px #000b,
+    inset 0 1px 0 #fffc,
+    inset 0 -2px 0 #c9a25a55;
+  color: #3a2410;
+  text-align: left;
+}
+.tut-card.pop {
+  animation: tut-pop 0.34s cubic-bezier(0.2, 1.4, 0.4, 1);
+}
+@keyframes tut-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.tut-text {
+  margin: 0;
+  font: 700 15px/1.32 var(--font-body, "DM Sans", system-ui, sans-serif);
+  letter-spacing: 0.005em;
+}
+.tut-sub {
+  margin: 3px 0 0;
+  font: 600 12.5px/1.3 var(--font-body, "DM Sans", system-ui, sans-serif);
+  color: #8a5a14;
+}
+.tut-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 30px;
+  margin-top: 4px;
+}
+.tut-dots {
+  display: flex;
+  gap: 5px;
+}
+.tut-dots i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #c08a2c40;
+  box-shadow: inset 0 0 0 1px #9a6a1f50;
+}
+.tut-dots i.done {
+  background: #c08a2c;
+}
+.tut-dots i.now {
+  background: #e46c16;
+  box-shadow: 0 0 0 2.5px #e46c1638;
+}
+.tut-skip {
+  pointer-events: auto;
+  min-height: 32px;
+  margin: -4px -4px -4px 0;
+  padding: 4px 4px 4px 14px;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  color: #7a5418;
+  font: 700 13px var(--font-body, "DM Sans", system-ui, sans-serif);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.tut-go {
+  pointer-events: auto;
+  min-height: 34px;
+  margin: 2px 0 5px;
+  padding: 4px 16px;
+  border-radius: 10px;
+  border: 2px solid #4a1d04;
+  background: linear-gradient(var(--orange-hi, #ffc04a), var(--orange-lo, #e46c16));
+  box-shadow:
+    inset 0 2px 0 #ffffff70,
+    0 3px 0 #4a1d04;
+  color: #fff;
+  font: 800 16px var(--font-display, "Barlow Condensed", system-ui, sans-serif);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  text-shadow: 0 2px 0 #7a3006;
+  cursor: pointer;
+}
+.tut-tail {
+  position: absolute;
+  bottom: -8px;
+  width: 14px;
+  height: 14px;
+  background: #ecd49c;
+  border-right: 2px solid #c08a2c;
+  border-bottom: 2px solid #c08a2c;
+  box-shadow: 2px 2px 0 #4a2e12;
+  transform: rotate(45deg);
+}
+.tut-tail.up {
+  top: -8px;
+  bottom: auto;
+  background: #fff8e2;
+  transform: rotate(225deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tut-ring,
+  .tut-ring.cell,
+  .tut-hand-bob,
+  .tut-tap::after,
+  .tut-card.pop {
+    animation: none;
+  }
+}

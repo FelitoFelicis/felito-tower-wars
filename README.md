@@ -22,6 +22,7 @@ python3 -m http.server 8080
 | `index.html` | Page and import map |
 | `style.css` | All styling |
 | `src/app.js` | UI: menus, card bar, tower panel, saving |
+| `src/tutorial.js`, `tutorial.css` | Guided first match against the AI (bubble and pointing hand); done flag in `localStorage` key `felito.tutorial.v1` |
 | `src/arena.js`, `src/b2d.js` | Board rendering with Babylon.js |
 | `src/simulation.js` | Game logic (20 ticks/s, deterministic: randomness only via `random(game)`) |
 | `src/content.js`, `data/` | Towers, creeps and research from the map |

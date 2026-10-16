@@ -30,6 +30,7 @@ import { artUrl, iconUrl, ELEMENT_ICON, registerTowerArt, TEAM_COLORS, recolorTe
 import { createSoundtrack } from "./soundtrack.js";
 import { createSfx, haptic } from "./sfx.js";
 import { t, num, goldText } from "./i18n.js";
+import { createTutorial } from "./tutorial.js";
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) =>
@@ -48,7 +49,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.10f",
+const APP_VERSION = "0.11a",
   APP_DATE = "16.10.2026";
 const WAVES_PREF = "felito.waves";
 const COACH_PREF = "felito.coach.v1";
@@ -218,26 +219,21 @@ function renderEnemyStack(force = false) {
     stack.innerHTML = seats
       .map(
         (q) =>
-          `<button class="enemy-cell" type="button" data-seat="${q.id}" style="--pc:${TEAM_COLORS[colors[q.id]]?.css || "#888"}"><span class="ec-top"><span class="ec-face"><img class="portrait" src="assets/art/portrait-enemy.webp" alt=""><i class="plate-skull" aria-hidden="true"></i><img class="ec-target" src="${iconUrl("attack")}" alt=""></span><span class="ec-stats"><span class="ec-lives"><img src="${iconUrl("heart")}" alt=""><b></b></span></span></span><span class="ec-gold"><img src="${iconUrl("coin")}" alt=""><b></b></span><em class="ec-inc"></em><span class="ec-level"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 1.2l2.6 5.6 6.1.7-4.5 4.2 1.2 6.1L10 14.8l-5.4 3 1.2-6.1-4.5-4.2 6.1-.7z" fill="#a35bff" stroke="#2a0f4f" stroke-width="1.4" stroke-linejoin="round"/></svg><b></b></span></button>`,
+          // v0.11: compact chip, portrait in the player's colour with the lives below it
+          `<button class="foe-chip" type="button" data-seat="${q.id}" style="--pc:${TEAM_COLORS[colors[q.id]]?.css || "#888"}"><span class="fc-face"><img class="portrait" src="assets/art/portrait-enemy.webp" alt=""><i class="plate-skull" aria-hidden="true"></i><img class="fc-target" src="${iconUrl("attack")}" alt=""></span><span class="fc-lives"><img src="${iconUrl("heart")}" alt=""><b></b></span></button>`,
       )
       .join("");
   }
   const target = game.players[own].out ? -1 : targetOf(game, own).id;
   for (const cell of stack.querySelectorAll("[data-seat]")) {
     const q = game.players[Number(cell.dataset.seat)],
-      label = `${seatName(q.id)} · ${q.lives} ${t("Lives")}${q.out ? " · " + t("out") : q.id === target ? " · " + t("your target") : ""}`;
+      label = `${seatName(q.id)} · ${q.lives} ${t("Lives")} · Lv ${q.level || 1}${q.out ? " · " + t("out") : q.id === target ? " · " + t("your target") : ""}`;
     setPortrait(cell.querySelector(".portrait"), q);
     cell.classList.toggle("out", !!q.out);
     cell.classList.toggle("target", q.id === target && !q.out);
     cell.classList.toggle("viewing", q.id === view);
-    const lives = String(q.lives),
-      gold = q.out ? "–" : resourceNumber(Math.floor(q.gold)),
-      inc = q.out ? "" : "+" + resourceNumber(Math.floor(q.income));
-    if (cell.querySelector(".ec-lives b").textContent !== lives) cell.querySelector(".ec-lives b").textContent = lives;
-    const lvl = String(q.level || 1);
-    if (cell.querySelector(".ec-level b").textContent !== lvl) cell.querySelector(".ec-level b").textContent = lvl;
-    if (cell.querySelector(".ec-gold b").textContent !== gold) cell.querySelector(".ec-gold b").textContent = gold;
-    if (cell.querySelector(".ec-inc").textContent !== inc) cell.querySelector(".ec-inc").textContent = inc;
+    const lives = String(q.lives);
+    if (cell.querySelector(".fc-lives b").textContent !== lives) cell.querySelector(".fc-lives b").textContent = lives;
     if (cell.getAttribute("aria-label") !== label) {
       cell.setAttribute("aria-label", label);
       cell.dataset.help = label;
@@ -286,16 +282,7 @@ function refreshVolley(p) {
   btn.style.setProperty("--cd", ready ? 0 : Math.min(1, left / VOLLEY.cooldown));
   const label = ready ? "" : String(Math.ceil(left));
   if ($("volley-time").textContent !== label) $("volley-time").textContent = label;
-  const lvl = $("level-button"),
-    z = arena?.geometry?.();
-  if (z?.side && lvl) {
-    const size = Math.round(z.side.w),
-      top = Math.round(z.side.y + 14 + size + 14) + "px",
-      x = Math.round(z.side.x) + "px";
-    if (btn.style.left !== x) btn.style.left = x;
-    if (btn.style.top !== top) btn.style.top = top;
-    btn.style.setProperty("--slot", size + "px");
-  }
+  // v0.11: the button has its fixed slot in the tray, under the level button
   if (!ready && volleyAim) setVolleyAim(false);
 }
 /** Show a player's maze (from the plates or a swipe). */
@@ -757,7 +744,7 @@ function applyStaticTexts() {
   document.querySelectorAll("[data-tt]").forEach((el) => (el.title = t(el.dataset.tt)));
 }
 applyStaticTexts();
-function toast(message, kind = "") {
+function toast(message, kind = "", ms = 2200) {
   const el = $("toast");
   el.textContent = t(message); // literal German messages and simulation reasons translate here
   el.dataset.kind = kind;
@@ -765,7 +752,7 @@ function toast(message, kind = "") {
   void el.offsetWidth;
   el.classList.add("show");
   clearTimeout(toastTimeout);
-  toastTimeout = setTimeout(() => el.classList.remove("show"), 2200);
+  toastTimeout = setTimeout(() => el.classList.remove("show"), ms);
 }
 /** Minor hints go to the bottom banner only while tips are switched on (v0.09). */
 function note(message, kind = "") {
@@ -1056,7 +1043,9 @@ function startLocal({ hotseat = false, ffa = false, seats = 4 } = {}) {
   closeModal();
   setPage("build");
   tone("select");
-  coach("start");
+  // v0.10g: the first local game against the AI starts the guided tutorial; otherwise a short hint
+  tutorial.stop();
+  if (!tutorial.start()) coach("start");
 }
 function dispatch(input, { quiet = false, fromQueue = false } = {}) {
   if (!begun) return;
@@ -1074,7 +1063,11 @@ function dispatch(input, { quiet = false, fromQueue = false } = {}) {
     else if (input.type === "send") sendFx(input.id, catalog.byId[input.id]?.spawnIds?.length || 1);
     return;
   }
+  // The tutorial may hold the setup clock (ui pause "tutorial"); the player's own moves still count.
+  const tutorialHold = !room && game.paused && uiPauses.size > 0 && [...uiPauses].every((r) => r === "tutorial");
+  if (tutorialHold) game.paused = false;
   const result = command(game, { ...input, player: own });
+  if (tutorialHold) game.paused = true;
   if (!result.ok) {
     if (!quiet) {
       toast(result.reason || "Not possible right now.");
@@ -1280,19 +1273,29 @@ function upgradeDeck(tw) {
     refund = typeof sell === "number" ? sell : sell?.gold || 0;
   $("deck-title").textContent = `${t("Upgrade")} · ${itemName(item)}`;
   $("cards").classList.toggle("many", ups.length > 3);
+  // v0.11: the selected tower first (tap for its info), then one big button per upgrade
+  // (figure, green arrow, price) in their own swipe row, and the sell button apart at the right edge.
+  const keepScroll = $("cards").querySelector(".tc-ups")?.scrollLeft || 0;
   $("cards").innerHTML =
+    `<button class="tcard tc-info" id="up-info" type="button" aria-label="${esc(t("{name}, level {n}: show tower info", { name: itemName(item), n: item.level || 1 }))}"><span class="tc-art"><img src="${towerArtUrl(artFor(item))}" alt=""></span><span class="tc-lv">Lv ${item.level || 1}</span><span class="tc-i" aria-hidden="true">i</span><span class="tc-name">${esc(itemName(item))}</span>${tw.buildRemaining > 0 ? `<span class="tc-busy">${t("Building")}</span>` : ""}</button>` +
+    `<div class="tc-ups">` +
     ups
       .map((u) => {
         const a = available(game, own, "upgrade", u.id, tw.id),
-          locked = false,
           waiting = upQueue.some((q) => q.towerId === tw.id && q.id === u.id),
           name = `${itemName(u)} Level ${u.level || 1}`;
         const afterBuild = /Still under construction/.test(a.reason || "");
-        return `<button class="unit-card up-card ${a.ok || afterBuild ? "" : "unaffordable"} ${isPoor(a) ? "poor" : ""} ${waiting ? "queued" : ""}" data-upgrade="${u.id}" aria-label="${esc(t("Upgrade to {name}, {cost} gold", { name, cost: format(u.cost) }))}${a.ok ? "" : ", " + esc(t(a.reason))}" title="${esc(a.ok ? name : t(a.reason))}"><span class="up-title">${esc(name)}</span><span class="up-art"><img src="${towerArtUrl(artFor(u))}" alt=""></span><span class="up-cost"><span class="price">${format(u.cost)}</span>${u.woodCost ? `<span class="price wood-price">${format(u.woodCost)}</span>` : ""}</span><i class="up-arrow" aria-hidden="true"></i>${waiting ? '<span class="up-queued">⏳</span>' : ""}${locked ? `<span class="up-lock">${esc(t(a.reason))}</span>` : ""}</button>`;
+        return `<button class="tcard tc-up${a.ok || afterBuild ? "" : " unaffordable"}${isPoor(a) ? " poor" : ""}${waiting ? " queued" : ""}" type="button" data-upgrade="${u.id}" aria-label="${esc(t("Upgrade to {name}, {cost} gold", { name, cost: format(u.cost) }))}${a.ok ? "" : ", " + esc(t(a.reason))}" title="${esc(a.ok ? name : t(a.reason))}"><span class="tc-name">${esc(itemName(u))}</span><span class="tc-art"><img src="${towerArtUrl(artFor(u))}" alt=""></span><i class="tc-arrow" aria-hidden="true"></i><span class="tc-lv">Lv ${u.level || 1}</span><span class="tc-cost"><span class="price">${format(u.cost)}</span></span>${waiting ? '<span class="tc-queued" aria-hidden="true">⏳</span>' : ""}</button>`;
       })
       .join("") +
-    (ups.length ? "" : `<div class="up-empty">${t("Highest level reached")}</div>`) +
-    `<button class="unit-card up-card sell-card" id="up-sell" aria-label="${esc(t("Sell {name} for {gold} gold", { name: itemName(item), gold: format(refund) }))}"><span class="up-title">${t("Sell")}</span><span class="up-art"><img src="${iconUrl("coin")}" alt=""></span><span class="up-cost"><span class="price">+${format(refund)}</span></span></button>`;
+    (ups.length ? "" : `<div class="tc-empty">${t("Highest level reached")}</div>`) +
+    `</div><span class="tc-gap" aria-hidden="true"></span><button class="tcard tc-sell" id="up-sell" type="button" aria-label="${esc(t("Sell {name} for {gold} gold", { name: itemName(item), gold: format(refund) }))}"><span class="sell-label">${t("Sell")}</span><img class="sell-coin" src="${iconUrl("coin")}" alt=""><span class="sell-gold">+${format(refund)}</span></button>`;
+  $("up-info").onclick = () => itemDetail(tw.typeId, tw.id, own);
+  const row = $("cards").querySelector(".tc-ups"),
+    more = () => row.classList.toggle("more", row.scrollLeft < row.scrollWidth - row.clientWidth - 4);
+  row.scrollLeft = keepScroll;
+  row.onscroll = more;
+  requestAnimationFrame(more);
   $("cards").querySelectorAll("[data-upgrade]").forEach((b) => (b.onclick = () => upgradeTap(tw, b.dataset.upgrade)));
   $("up-sell").onclick = () => {
     dispatch({ type: "sell", towerId: tw.id });
@@ -1346,8 +1349,17 @@ function onTowerTap(tower, at = performance.now(), point = null) {
 function cardMarkup(item) {
   const a = available(game, own, cardAction(item), item.id),
     label = priceLabel(item),
-    kindClass = item.kind === "send" ? "card-send" : item.kind === "research" ? "card-research" : "card-tower";
-  return `<button class="unit-card ${kindClass} ${item.kind === "send" && (item.bossTier || item.flying) ? "framed" : ""} ${selected === item.id && tab === "build" ? "selected" : ""} ${a.ok ? "" : "unaffordable"} ${isPoor(a) ? "poor" : ""}" data-kind="${item.kind}" data-card="${item.id}" aria-label="${esc(itemName(item))}, ${esc(label)} Gold, ${esc(cardHint(item))}${a.ok ? "" : ", " + esc(t(a.reason))}"><span class="unit-name">${esc(itemName(item))}</span><span class="card-art"><img src="${item.kind === "send" ? artUrl(artFor(item)) : towerArtUrl(artFor(item))}" alt=""></span><span class="card-foot${item.kind === "send" && (label + formatInc(incomeFor(item))).length >= (item.bossTier || item.flying ? 6 : 7) ? " long" : ""}"><span class="price${item.kind === "research" && itemPrice(item).wood ? " wood-price" : ""}${isFreeLabel(label) ? " free" : ""}">${label}</span>${item.kind === "send" ? `<span class="card-note${incomeFor(item) > item.income + 0.004 ? " buffed" : ""}">+${formatInc(incomeFor(item))}</span>` : ""}</span><span class="card-status">${cardStatus(item)}</span>${item.kind === "send" ? `<span class="card-stock">${stockCount(item)}</span>${item.bossTier ? '<i class="frame-boss" aria-hidden="true"></i>' : item.flying ? '<i class="frame-air" aria-hidden="true"></i>' : ""}` : ""}</button>`;
+    kindClass = item.kind === "send" ? "card-send" : item.kind === "research" ? "card-research" : "card-tower",
+    send = item.kind === "send",
+    mark = send ? (item.bossTier ? "boss" : item.flying ? "air" : "") : "",
+    name = itemName(item);
+  // v0.11: figure fills the card, price badge top left, name on a parchment banner; creeps show
+  // their income on the banner instead, plus stock, cooldown and a boss/flyer badge.
+  return `<button class="tcard ${kindClass}${mark ? " mark-" + mark : ""}${selected === item.id && tab === "build" ? " selected" : ""}${a.ok ? "" : " unaffordable"}${isPoor(a) ? " poor" : ""}" type="button" data-kind="${item.kind}" data-card="${item.id}" aria-label="${esc(name)}, ${esc(label)} Gold, ${esc(cardHint(item))}${a.ok ? "" : ", " + esc(t(a.reason))}"><span class="tc-art"><img src="${send ? artUrl(artFor(item)) : towerArtUrl(artFor(item))}" alt="" draggable="false"></span><span class="price${item.kind === "research" && itemPrice(item).wood ? " wood-price" : ""}${isFreeLabel(label) ? " free" : ""}">${label}</span>${
+    send
+      ? `<span class="tc-name tc-income"><span class="card-note${incomeFor(item) > item.income + 0.004 ? " buffed" : ""}">+${formatInc(incomeFor(item))}</span></span><span class="card-stock">${stockCount(item)}</span>${mark ? `<i class="tc-mark tc-${mark}" aria-hidden="true"></i>` : ""}`
+      : `<span class="tc-name${name.length > 10 ? " long" : ""}">${esc(name)}</span>`
+  }<span class="card-status">${cardStatus(item)}</span></button>`;
 }
 function renderCards() {
   if (!game) return;
@@ -1380,7 +1392,7 @@ function renderCards() {
   if (sendHold) $("cards").querySelector(`[data-card="${sendHold.id}"]`)?.classList.add("holding");
   $("deck-tip").hidden = tab !== "build";
   $("deck-tip").textContent = "Elementhalle →";
-  $("deck-expand").hidden = list.length <= 4;
+  $("deck-expand").hidden = true; // v0.11: one swipeable row, no "All" sheet
   $("deck-count").textContent = t("All {n}", { n: list.length });
   if (!$("deck-sheet").hidden) renderSheet(list);
   requestAnimationFrame(updateDeckArrows);
@@ -1399,7 +1411,7 @@ function updateDeckArrows() {
 }
 function scrollDeck(direction) {
   const strip = $("cards"),
-    card = strip.querySelector(".unit-card");
+    card = strip.querySelector(".tcard");
   const step = card ? (card.offsetWidth + 6) * 3 : strip.clientWidth * 0.75;
   strip.scrollBy({ left: direction * step, behavior: "smooth" });
 }
@@ -1466,7 +1478,7 @@ function selectCard(id) {
     const a = available(game, own, "build", id);
     // v0.09n: missing gold shows at the placement preview, no extra banner
     if (!drag && !a.ok && !isPoor(a)) toast(a.reason);
-    else if (!drag && tipsEnabled) toast(t("{name} · tap a field or drag the card onto the board", { name: itemName(item) }));
+    else if (!drag && tipsEnabled && !tutorial.active()) toast(t("{name} · tap a field or drag the card onto the board", { name: itemName(item) }));
   } else if (tab === "send") {
     lastSendCards[own] = id;
     dispatch({ type: "send", id });
@@ -1595,21 +1607,7 @@ function refreshLevelButton(p) {
   const fill = Math.round(Math.max(0, Math.min(1, p.exp / Math.max(1, p.expNext))) * 1000) / 10 + "%";
   if (btn.style.getPropertyValue("--xp") !== fill) btn.style.setProperty("--xp", fill);
   btn.classList.toggle("ready", p.picks.length > 0);
-  // Left of the board: the level button on top, the auto-spawn slot at the bottom edge.
-  const z = arena?.geometry?.();
-  if (z?.side) {
-    const dock = $("side-dock"),
-      size = Math.round(z.side.w),
-      x = Math.round(z.side.x) + "px",
-      bottom = z.top + z.bh, // v0.09: no exit strip
-      dockTop = Math.round(bottom - (dock.offsetHeight || size + 34)) + "px",
-      top = Math.round(z.side.y + 14) + "px";
-    if (dock.style.left !== x || dock.style.top !== dockTop) Object.assign(dock.style, { left: x, top: dockTop, width: size + "px" });
-    dock.style.setProperty("--slot", size + "px");
-    if (btn.style.left !== x) btn.style.left = x;
-    if (btn.style.top !== top) btn.style.top = top;
-    btn.style.setProperty("--slot", size + "px");
-  }
+  // v0.11: the level button and the auto-spawn slot have fixed slots in the tray (no board geometry)
   // the opening element choice opens by itself
   const key = `${game.seed}:${own}`;
   if (p.picks[0]?.kind === "element" && p.picks[0].level <= 1 && openingShown !== key && !$("modal").open && game.running) {
@@ -1619,7 +1617,7 @@ function refreshLevelButton(p) {
 }
 /** Tier up: a glare sweeps across every send button. */
 function tierGlow() {
-  [...$("cards").querySelectorAll(".unit-card")].forEach((card, i) => {
+  [...$("cards").querySelectorAll(".tcard")].forEach((card, i) => {
     const glare = document.createElement("i");
     glare.className = "tier-glare";
     glare.style.animationDelay = `${i * 45}ms`;
@@ -2075,7 +2073,7 @@ function bumpNumber(id, value) {
 /** v0.09w: First Blood — a short bloody pop-up and a grim orc shout for everyone. */
 function firstBlood(e) {
   const mine = e.player === own;
-  if (mine) hudPop("#own-level", `+${e.exp ?? 50} EXP`, "exp");
+  if (mine) hudPop(".hud-level", `+${e.exp ?? 50} EXP`, "exp");
   const pop = document.createElement("div");
   pop.className = "first-blood";
   pop.innerHTML = `<svg viewBox="0 0 200 120" aria-hidden="true"><path d="M100 8c14 0 18 14 30 10s22-6 26 6-8 18 4 24 30 4 28 18-20 10-26 18 6 22-8 26-20-8-30-2-10 12-24 10-14-12-26-14-24 10-34 0 4-18-6-26-28-6-30-20 16-14 20-22-10-18 2-26 22 4 30-2S86 8 100 8Z" fill="#9e0b0b"/><circle cx="18" cy="30" r="5" fill="#9e0b0b"/><circle cx="186" cy="92" r="6" fill="#9e0b0b"/><circle cx="168" cy="14" r="3.5" fill="#9e0b0b"/><circle cx="34" cy="104" r="4" fill="#9e0b0b"/><path d="M60 100q2 14 0 18M128 104q3 10 1 14" stroke="#9e0b0b" stroke-width="5" stroke-linecap="round"/></svg><b>${t("First Blood!")}</b><small>${esc(playerName(game.players[e.player]))} · +${e.exp ?? 50} EXP</small>`;
@@ -2118,7 +2116,7 @@ function updateNudge(p) {
     .filter((s) => s.playable && s.tier === p.tier && !s.bossTier)
     .reduce((min, s) => Math.min(min, s.cost), Infinity);
   const sinceAction = game.time - Math.max(lastSendTime, game.rules?.warmup ?? 12);
-  const idle = !game.warmup && game.running && tab !== "send" && sinceAction > 25 && p.gold >= cheapest * 2;
+  const idle = !game.warmup && game.running && tab !== "send" && sinceAction > 25 && p.gold >= cheapest * 2 && !tutorial.active();
   tabButton.classList.toggle("nudge", idle);
   if (idle && tipsEnabled && nudgeShown < 2 && sinceAction > 25 + nudgeShown * 60) {
     nudgeShown++;
@@ -2126,47 +2124,49 @@ function updateNudge(p) {
   }
 }
 
-// ---- first-game coaching --------------------------------------------------------
+// ---- first-game help ------------------------------------------------------------------
+// v0.10g: the first local game against the AI runs a guided tutorial (src/tutorial.js): one small
+// bubble at a time and a pointing hand on the thing to tap. Without it (tutorial done or skipped,
+// hot seat) the old coaching survives as three one-line hints at the bottom edge, never a panel
+// over the board; finishing or skipping the tutorial marks them as seen.
+const tutorial = createTutorial({
+  game: () => game,
+  catalog: () => catalog,
+  arena: () => arena,
+  own: () => own,
+  view: () => view,
+  tab: () => tab,
+  selected: () => selected,
+  selectedTower: () => selectedTower,
+  begun: () => begun,
+  online: () => !!room || sessionMode === "online",
+  session: () => sessionMode,
+  upQueued: () => (queuedFor === game ? upQueue : []),
+  hold: (on) => setUiPause("tutorial", on),
+  tone,
+  onFinish: () => {
+    for (const key of Object.keys(COACH_STEPS)) coachSeen.add(key);
+    savePref(COACH_PREF, JSON.stringify([...coachSeen]));
+  },
+});
 let coachSeen = new Set();
 try {
   coachSeen = new Set(JSON.parse(pref(COACH_PREF, "[]")));
 } catch {}
 const COACH_STEPS = {
-  start: {
-    title: "Build",
-    text: "Pick a tower below and tap a field. Towers lengthen the creeps' path: the longer the path, the longer your towers shoot.",
-  },
-  built: {
-    title: "Attack",
-    text: "After the setup phase: under <b>Send</b>, send creeps to your enemy. Every group raises your income for good. Whoever never sends loses the arms race.",
-    requires: "start",
-    tab: "send",
-  },
-  sent: {
-    title: "Income",
-    text: "Your income arrives every 15 seconds (green ring at the top). The small map on the right shows your creeps at the enemy. If creeps break through on your side, build more.",
-    requires: "built",
-  },
+  start: { text: "Pick a tower below, then tap a field to build it." },
+  built: { text: "Next: open SEND and send monsters. It raises your income.", requires: "start", tab: "send" },
+  sent: { text: "Income comes every 15 s. Stop monsters before they reach the bottom.", requires: "built" },
 };
 function coach(key) {
   const step = COACH_STEPS[key];
-  if (!tipsEnabled || !step || coachSeen.has(key) || sessionMode === "online") return;
+  if (!tipsEnabled || !step || coachSeen.has(key) || sessionMode === "online" || tutorial.active()) return;
   if (step.requires && !coachSeen.has(step.requires)) return;
   coachSeen.add(key);
   savePref(COACH_PREF, JSON.stringify([...coachSeen]));
-  const box = $("coach");
-  box.innerHTML = `<div><b>${esc(t(step.title))}</b><p>${t(step.text)}</p></div><button type="button" id="coach-ok">OK</button>`;
-  box.hidden = false;
-  box.classList.remove("show");
-  void box.offsetWidth;
-  box.classList.add("show");
+  $("coach").hidden = true;
+  toast(step.text, "tip", 4200);
   if (step.tab) document.querySelector(`[data-tab="${step.tab}"]`)?.classList.add("nudge");
-  clearTimeout(coach.timer);
-  coach.timer = setTimeout(() => (box.hidden = true), 14000);
-  $("coach-ok").onclick = () => {
-    box.hidden = true;
-    tone("tap");
-  };
 }
 
 function showTower(towerOrId) {
@@ -2293,8 +2293,8 @@ function catalogModal() {
     );
     $("catalog-grid").innerHTML = list.map(cardMarkup).join("");
     $("catalog-grid")
-      .querySelectorAll(".unaffordable")
-      .forEach((el) => el.classList.remove("unaffordable"));
+      .querySelectorAll(".unaffordable, .poor, .selected")
+      .forEach((el) => el.classList.remove("unaffordable", "poor", "selected"));
     $("catalog-grid")
       .querySelectorAll("[data-card]")
       .forEach((b) => (b.onclick = () => itemDetail(b.dataset.card)));
@@ -2335,7 +2335,7 @@ function rulesModal() {
 const onOff = (v) => t(v ? "On" : "Off");
 function settingsButtons() {
   // v0.09g: no language switch while English is the only language
-  return `<button class="secondary-button" id="menu-music" aria-pressed="${musicEnabled}">${t("Music")}: ${onOff(musicEnabled)}</button><button class="secondary-button" id="menu-sound">${t("Sound effects")}: ${onOff(soundEnabled)}</button><button class="secondary-button" id="menu-tips">${t("Tips")}: ${onOff(tipsEnabled)}</button><button class="secondary-button" id="menu-preview">${t("Build with preview")}: ${onOff(buildPreview)}</button><button class="secondary-button" id="menu-lift">${liftText()}</button><button class="secondary-button" id="menu-dbl">${dblText()}</button>`;
+  return `<button class="secondary-button" id="menu-music" aria-pressed="${musicEnabled}">${t("Music")}: ${onOff(musicEnabled)}</button><button class="secondary-button" id="menu-sound">${t("Sound effects")}: ${onOff(soundEnabled)}</button><button class="secondary-button" id="menu-tips">${t("Tips")}: ${onOff(tipsEnabled)}</button><button class="secondary-button" id="menu-preview">${t("Build with preview")}: ${onOff(buildPreview)}</button><button class="secondary-button" id="menu-lift">${liftText()}</button><button class="secondary-button" id="menu-dbl">${dblText()}</button><button class="secondary-button" id="menu-tutorial">${t("Replay tutorial")}</button>`;
 }
 const dblText = () => `${t("Double tap on a tower")}: ${t({ upgrade: "Upgrade", info: "Tower info", off: "Off" }[dblMode])}`;
 const liftText = () => `${t("Raise controls")}: ${liftChoice ? "+" + liftChoice + " px" : t("Off")}`;
@@ -2381,6 +2381,18 @@ function wireSettings(reopen) {
     applyLift();
     $("menu-lift").textContent = liftText();
     tone("select");
+  };
+  // v0.10g: replay the guided tutorial: at once in a running game against the AI, else next time
+  $("menu-tutorial").onclick = () => {
+    tone("select");
+    if (begun && !room && !shownResult && game?.running && !game.players[own]?.out && ["training", "ffa"].includes(sessionMode)) {
+      closeModal();
+      tutorial.start({ force: true });
+    } else {
+      // the menu dialog covers the toast, so the button itself confirms it
+      tutorial.reset();
+      $("menu-tutorial").textContent = t("Tutorial starts next game");
+    }
   };
   $("menu-rules").onclick = rulesModal;
 }
@@ -2636,10 +2648,10 @@ function tick(dt) {
       if (e.type === "built" && e.player === own) tone("built");
       if (e.type === "income" && e.player === own) {
         tone("bell"); // v0.08c: a new round starts
-        hudPop("#own-gold", `+${resourceNumber(e.gold)}`);
-        if (e.exp > 0) hudPop("#own-level", `+${resourceNumber(e.exp)} EXP`, "exp");
+        hudPop(".hud-gold", `+${resourceNumber(e.gold)}`);
+        if (e.exp > 0) hudPop(".hud-level", `+${resourceNumber(e.exp)} EXP`, "exp");
       }
-      if (e.type === "achievement" && e.player === own && e.exp) hudPop("#own-level", `+${e.exp} EXP`, "exp");
+      if (e.type === "achievement" && e.player === own && e.exp) hudPop(".hud-level", `+${e.exp} EXP`, "exp");
       if (e.type === "firstBlood") firstBlood(e);
       if (e.type === "levelUp" && e.player === own) {
         note(t(e.kind === "element" ? "Level {n}: a new element awaits" : "Level {n}: choose a reward", { n: e.level }), "level");
@@ -2797,6 +2809,9 @@ async function init() {
         hoverCell = cell && tab === "build" && selected && view === own ? cell : null;
       },
       onTick: tick,
+      onZoom: (z) => {
+        $("zoom-reset").hidden = z < 1.05;
+      },
     });
     document.querySelectorAll("[data-tab]").forEach((b) => (b.onclick = () => setPage(b.dataset.tab)));
     $("deck-expand").onclick = () => ($("deck-sheet").hidden ? openSheet() : closeSheet());
@@ -2825,6 +2840,10 @@ async function init() {
       if (p.autoSend) dispatch({ type: "autoSend", active: p.autoSendActive === false });
     };
     $("level-button").onclick = () => pickModal();
+    $("zoom-reset").onclick = () => {
+      arena.resetZoom?.();
+      tone("tap");
+    };
     $("volley-button").innerHTML = `<img src="${svgUrl("volley")}" alt=""><i class="volley-cd" aria-hidden="true"></i><b id="volley-time"></b>`;
     $("volley-button").onclick = volleyPress;
     document.addEventListener("keydown", (e) => {

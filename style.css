@@ -201,37 +201,7 @@ dialog,
 .rival .portrait {
   background: radial-gradient(circle at 50% 30%, #7a3b2f, #2a1010);
 }
-.plate-body {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  line-height: 1;
-}
-.rival .plate-body {
-  align-items: flex-end;
-}
-.plate-name {
-  max-width: 100%;
-  overflow: hidden;
-  font: 800 12px var(--font-display);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--steel-light);
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-.plate-stat {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-top: 3px;
-}
-.plate-stat img {
-  width: 20px;
-  height: 20px;
-  object-fit: contain;
-}
-.plate-stat strong,
+
 .resource strong,
 #income-time {
   font-family: var(--font-number);
@@ -240,9 +210,6 @@ dialog,
   text-shadow:
     0 2px 0 #00000080,
     0 0 1px #000;
-}
-.plate-stat strong {
-  font-size: 23px;
 }
 .round-plate {
   display: grid;
@@ -408,75 +375,6 @@ dialog,
 .cards::-webkit-scrollbar {
   display: none;
 }
-.unit-card {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  flex: 0 0 calc((100% - 18px) / 4);
-  min-width: 78px;
-  height: 110px;
-  min-height: 0;
-  padding: 0;
-  border-radius: 11px;
-  overflow: hidden;
-  scroll-snap-align: start;
-  text-align: center;
-  background: #0b1924;
-  border: 2px solid #050d13;
-  box-shadow:
-    inset 0 0 0 2px #5f7a8c,
-    0 3px 0 #050d13;
-  transition:
-    transform 0.14s,
-    box-shadow 0.14s;
-}
-.unit-name {
-  display: block;
-  padding: 4px 3px 2px;
-  font: 800 12px var(--font-display);
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  line-height: 1.05;
-  color: var(--ink);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  background: linear-gradient(#ffffff14, #ffffff00);
-}
-.card-art {
-  position: relative;
-  flex: 1;
-  min-height: 0;
-  margin: 0 4px;
-  border-radius: 7px;
-  background: radial-gradient(circle at 50% 70%, #2d6a86, #11293a 70%);
-  overflow: hidden;
-}
-.card-send .card-art {
-  background: radial-gradient(circle at 50% 70%, #6a3b5a, #241326 70%);
-}
-.card-research .card-art {
-  background: radial-gradient(circle at 50% 70%, #4b3c86, #181634 70%);
-}
-.card-art img {
-  position: absolute;
-  inset: 2px 0 0;
-  width: 100%;
-  height: calc(100% - 2px);
-  object-fit: contain;
-  object-position: 50% 100%;
-  filter: drop-shadow(0 3px 2px #0009);
-  pointer-events: none;
-}
-.card-foot {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  height: 22px;
-  padding: 0 4px 2px;
-}
 .price {
   display: flex;
   align-items: center;
@@ -531,20 +429,6 @@ dialog,
   height: 18px;
   font-size: 11px;
   background: #3d2a7acc;
-}
-.unit-card.selected {
-  transform: translateY(-7px);
-  box-shadow:
-    inset 0 0 0 2px var(--gold),
-    0 0 0 2px #6b4a0a,
-    0 0 16px #ffcf4a90,
-    0 5px 0 #050d13;
-}
-.unit-card.unaffordable .card-art img {
-  filter: grayscale(0.85) brightness(0.7);
-}
-.unit-card.unaffordable .price {
-  color: #ff8a80;
 }
 .empty-deck {
   display: grid;
@@ -1271,11 +1155,6 @@ dialog[open] {
   grid-template-columns: repeat(auto-fill, minmax(86px, 1fr));
   gap: 7px;
 }
-.catalog-grid .unit-card {
-  flex: none;
-  width: auto;
-  min-width: 0;
-}
 .segmented {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -1414,9 +1293,6 @@ dialog.welcome-modal::backdrop {
   .cards {
     height: 104px;
   }
-  .unit-card {
-    height: 94px;
-  }
   .player-plate,
   .round-plate {
     height: 46px;
@@ -1456,23 +1332,8 @@ dialog.welcome-modal::backdrop {
 }
 
 /* ---- legibility pass ---------------------------------------------------------------- */
-.plate-stat strong {
-  color: #ffffff;
-  text-shadow:
-    -1.5px -1.5px 0 #0a0a0a,
-    1.5px -1.5px 0 #0a0a0a,
-    -1.5px 1.5px 0 #0a0a0a,
-    1.5px 1.5px 0 #0a0a0a,
-    0 3px 0 #000000a0;
-}
 .player-plate.rival {
   background: linear-gradient(180deg, #3f171e, #22090e 70%);
-}
-.plate-name {
-  color: #dce7ef;
-}
-.rival .plate-name {
-  color: #ffd9d9;
 }
 .bump-down,
 .bump-up {
@@ -1495,9 +1356,6 @@ dialog.welcome-modal::backdrop {
 .match-time {
   font-size: 11px;
   color: #c6d6e2;
-}
-.unit-name {
-  text-shadow: 0 1px 0 #000;
 }
 .card-status {
   font-size: 20px;
@@ -1628,9 +1486,6 @@ dialog.welcome-modal::backdrop {
 .cards-wrap {
   position: relative;
   min-width: 0;
-}
-.unit-card {
-  flex: 0 0 calc((100% - 24px) / 4.35);
 }
 .cards.more-right {
   -webkit-mask-image: linear-gradient(90deg, #000 82%, #0000);
@@ -1777,11 +1632,6 @@ dialog.welcome-modal::backdrop {
   overscroll-behavior: contain;
   padding: 2px;
 }
-.sheet-cards .unit-card {
-  flex: none;
-  min-width: 0;
-  height: 110px;
-}
 .game-shell.sheet-open .bottom-nav {
   z-index: 8;
 }
@@ -1810,20 +1660,6 @@ dialog.welcome-modal::backdrop {
   grid-column: 2;
   grid-row: 1 / span 2;
 }
-.unit-card .card-foot {
-  white-space: nowrap;
-}
-.unit-card .card-foot {
-  gap: 3px;
-  padding: 0 2px 2px;
-}
-.unit-card.card-send .price {
-  font-size: 14px;
-}
-.unit-card .card-note {
-  font-size: 12px;
-}
-
 
 /* ---- v0.00: version tag, economy on the plates ---------------------------------- */
 .app-version {
@@ -1849,29 +1685,7 @@ dialog.welcome-modal::backdrop {
   outline: 2px solid #ffe27a;
   outline-offset: 2px;
 }
-.plate-stat {
-  margin-top: 1px;
-}
-.plate-econ {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  margin-top: 2px;
-  font: 700 12px/1 var(--font-number, system-ui), system-ui, sans-serif;
-  font-variant-numeric: tabular-nums;
-  text-shadow: 0 1px 0 #000, 0 0 2px #000;
-  white-space: nowrap;
-}
-.plate-econ img {
-  width: 13px;
-  height: 13px;
-  object-fit: contain;
-}
-.plate-econ b {
-  color: #ffe27a;
-  font-weight: 700;
-}
-.plate-econ em,
+
 .gold-income {
   font-style: normal;
   font-weight: 700;
@@ -1893,129 +1707,8 @@ dialog.welcome-modal::backdrop {
 }
 
 /* ---- v0.01: send deck — all 12 monsters of the tier as squares, art centred ---------- */
-.game-shell[data-page="send"] .cards {
-  display: grid;
-  grid-template-columns: 30px repeat(6, minmax(0, 1fr));
-  grid-auto-flow: row;
-  grid-auto-rows: auto;
-  gap: 4px;
-  height: auto;
-  padding: 4px 2px;
-  overflow: hidden;
-  touch-action: none;
-  -webkit-mask-image: none;
-  mask-image: none;
-}
-.game-shell[data-page="send"] .tier-tag {
-  grid-column: 1;
-  grid-row: 1 / span 2;
-  display: grid;
-  place-content: center;
-  justify-items: center;
-  gap: 2px;
-  border-radius: 9px;
-  background: linear-gradient(#4a2440, #241326);
-  box-shadow: inset 0 0 0 1.5px #a0628c;
-  color: #ffd9f0;
-}
-.tier-tag small {
-  font: 800 8px var(--font-display);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-.tier-tag b {
-  font: 400 19px/1 var(--font-number);
-  color: #fff;
-  text-shadow: 0 2px 0 #000;
-}
-.game-shell[data-page="send"] .unit-card {
-  display: block;
-  position: relative;
-  width: 100%;
-  min-width: 0;
-  height: auto;
-  aspect-ratio: 1;
-  border-radius: 9px;
-  transform: none;
-  -webkit-user-select: none;
-  user-select: none;
-  -webkit-touch-callout: none;
-}
-.game-shell[data-page="send"] .unit-card .unit-name {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  padding: 0;
-}
-.game-shell[data-page="send"] .unit-card .card-art {
-  position: absolute;
-  inset: 3px 3px 15px;
-  margin: 0;
-  border-radius: 6px;
-}
-.game-shell[data-page="send"] .unit-card .card-art img {
-  inset: 6%;
-  width: 88%;
-  height: 88%;
-  object-position: 50% 50%;
-}
-.game-shell[data-page="send"] .unit-card .card-foot {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 1px;
-  height: 14px;
-  padding: 0;
-  justify-content: center;
-}
-.game-shell[data-page="send"] .unit-card .price {
-  font-size: 11px;
-  gap: 1px;
-}
-.game-shell[data-page="send"] .unit-card .price::before {
-  width: 10px;
-  height: 10px;
-}
-.game-shell[data-page="send"] .unit-card .card-note {
-  position: absolute;
-  right: 3px;
-  bottom: 16px;
-  padding: 0 3px;
-  border-radius: 6px;
-  background: #07130fcc;
-  font-size: 10px;
-  line-height: 13px;
-}
-.game-shell[data-page="send"] .unit-card .card-note::before {
-  display: none;
-}
-.game-shell[data-page="send"] .unit-card .card-status {
-  inset: 3px 3px 15px;
-  font-size: 13px;
-  border-radius: 6px;
-}
-.game-shell[data-page="send"] .unit-card.holding {
-  box-shadow: inset 0 0 0 2px #ffe27a, 0 0 10px #ffcf4a90;
-}
-.game-shell[data-page="send"] #deck-expand,
-.game-shell[data-page="send"] .deck-arrow {
+.game-shell[data-page="send"] #deck-expand {
   display: none !important;
-}
-.boss-mark {
-  position: absolute;
-  z-index: 1;
-  left: 0;
-  right: 0;
-  top: 0;
-  font: 800 8px/12px var(--font-display);
-  font-style: normal;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  text-align: center;
-  color: #fff;
-  background: #b8323acc;
 }
 
 /* ---- v0.01: header without resource strip; wood on the plates ---------------------- */
@@ -2027,133 +1720,14 @@ dialog.welcome-modal::backdrop {
   width: 34px;
   height: 34px;
 }
-.plate-econ {
-  gap: 2px;
-  font-size: 11px;
-}
-.plate-econ img {
-  width: 12px;
-  height: 12px;
-}
-.plate-econ img + i {
-  margin-left: 0;
-}
-.plate-econ em {
-  margin-right: 3px;
-}
-.plate-econ i {
-  font-style: normal;
-  font-weight: 700;
-  color: #ffd4a0;
-}
 
 /* ---- v0.01: upgrade bar — upgrades from the left, sell pinned right ----------------- */
-.up-card {
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
-  justify-items: center;
-  align-items: center;
-  padding: 4px 3px 3px;
-  text-align: center;
-}
-.up-title {
-  display: block;
-  width: 100%;
-  font: 800 10px/1.1 var(--font-display);
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-  color: var(--ink);
-  overflow-wrap: anywhere;
-}
-.up-art {
-  display: grid;
-  place-items: center;
-  width: 100%;
-  height: 100%;
-  min-height: 0;
-}
-.up-art img {
-  width: auto;
-  height: 82%;
-  max-width: 62%;
-  object-fit: contain;
-  filter: drop-shadow(0 2px 2px #0009);
-}
-.up-cost {
-  display: flex;
-  gap: 4px;
-  justify-content: center;
-}
-.up-cost .price {
-  font-size: 13px;
-}
-.up-arrow {
-  position: absolute;
-  left: 4px;
-  bottom: 4px;
-  width: 12px;
-  height: 13px;
-  background: #5fe06a;
-  clip-path: polygon(50% 0, 100% 50%, 68% 50%, 68% 100%, 32% 100%, 32% 50%, 0 50%);
-  filter: drop-shadow(0 0 1px #0a3a10);
-}
-.up-card.unaffordable .up-arrow {
-  background: #6f8a72;
-}
-.up-card.unaffordable .up-art img {
-  filter: grayscale(0.8) brightness(0.7);
-}
-.up-card .up-lock {
-  position: absolute;
-  inset: auto 3px 20px;
-  font: 700 9px/1.1 var(--font-display);
-  color: #ffb3a8;
-}
-.sell-card {
-  position: sticky;
-  right: 0;
-  margin-left: auto;
-  z-index: 1;
-  background: linear-gradient(#3a2a10, #1d1508);
-  box-shadow: inset 0 0 0 2px #b8913a, 0 3px 0 #050d13;
-}
-.sell-card .up-art img {
-  height: 58%;
-  max-width: 58%;
-}
-.sell-card .price::before {
-  display: none;
-}
-.up-empty {
-  align-self: center;
-  padding: 0 10px;
-  font: 700 12px var(--font-display);
-  color: var(--muted);
-  text-transform: uppercase;
-}
 .cards.upgrade-mode {
   -webkit-mask-image: none !important;
   mask-image: none !important;
 }
 
 /* ---- v0.02: unlocked but too expensive = translucent red ---------------------------- */
-.unit-card.poor::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  border-radius: inherit;
-  background: #e0303a3d;
-  box-shadow: inset 0 0 0 2px #ff5a5a8c;
-  pointer-events: none;
-}
-.unit-card.poor .card-art img,
-.unit-card.poor .up-art img {
-  filter: drop-shadow(0 2px 2px #0009);
-}
-.unit-card.poor .price {
-  color: #ffb0a8;
-}
 
 /* ---- v0.02: the dock keeps one height on every tab, so the maze never resizes -------- */
 .command-deck {
@@ -2161,24 +1735,9 @@ dialog.welcome-modal::backdrop {
   height: calc(122px + 12px);
   justify-content: flex-end;
 }
-.game-shell[data-page="send"] .cards {
-  height: 122px;
-  grid-template-rows: repeat(2, minmax(0, 1fr));
-  grid-auto-rows: unset;
-  align-items: center;
-}
-.game-shell[data-page="send"] .unit-card {
-  width: auto;
-  height: 100%;
-  max-width: 100%;
-  justify-self: center;
-}
 @media (max-height: 700px) {
   .command-deck {
     height: calc(104px + 12px);
-  }
-  .game-shell[data-page="send"] .cards {
-    height: 104px;
   }
 }
 
@@ -2186,81 +1745,6 @@ dialog.welcome-modal::backdrop {
 .game-shell[data-page="send"] .command-deck {
   padding-left: 4px;
   padding-right: 4px;
-}
-.game-shell[data-page="send"] .cards {
-  grid-template-columns: 20px repeat(6, minmax(0, 1fr));
-  gap: 2px;
-  padding: 2px 0;
-}
-.game-shell[data-page="send"] .tier-tag {
-  border-radius: 6px;
-  gap: 0;
-}
-.game-shell[data-page="send"] .tier-tag small {
-  font-size: 7px;
-  letter-spacing: 0.04em;
-}
-.game-shell[data-page="send"] .tier-tag b {
-  font-size: 16px;
-}
-.game-shell[data-page="send"] .unit-card {
-  width: 100%;
-  height: 100%;
-  aspect-ratio: auto;
-  border-radius: 6px;
-  border-width: 1px;
-  box-shadow: inset 0 0 0 1px #6a3b5a, 0 1px 0 #050d13;
-  background: radial-gradient(circle at 50% 62%, #6a3b5a, #241326 72%);
-  overflow: hidden;
-}
-.game-shell[data-page="send"] .unit-card .card-art {
-  inset: 0;
-  border-radius: 0;
-  background: none;
-}
-.game-shell[data-page="send"] .unit-card .card-art img {
-  inset: -4% -8% 0;
-  width: 116%;
-  height: 104%;
-  object-fit: contain;
-  object-position: 50% 30%;
-}
-.game-shell[data-page="send"] .unit-card .card-foot {
-  inset: 0;
-  height: auto;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  padding-bottom: 1px;
-  background: linear-gradient(#0a081000 68%, #0a0810d9 90%);
-  pointer-events: none;
-}
-.game-shell[data-page="send"] .unit-card .price {
-  font-size: 11px;
-  text-shadow: 0 1px 0 #000, 0 0 2px #000;
-}
-.game-shell[data-page="send"] .unit-card .card-note {
-  position: absolute;
-  top: 1px;
-  right: 1px;
-  bottom: auto;
-  padding: 0 2px;
-  border-radius: 4px;
-  font-size: 9px;
-  line-height: 11px;
-}
-.game-shell[data-page="send"] .unit-card .card-status {
-  inset: 0;
-  border-radius: 0;
-  background: #050d1373;
-  font-size: 12px;
-}
-.game-shell[data-page="send"] .boss-mark {
-  font-size: 7px;
-  line-height: 10px;
-}
-.game-shell[data-page="send"] .unit-card:has(.boss-mark) .card-note {
-  top: 11px;
 }
 
 /* ---- v0.05: options button on the main menu ------------------------------------------- */
@@ -2321,9 +1805,6 @@ dialog.welcome-modal::backdrop {
 }
 
 /* ---- v0.05: send buttons pulse when pressed, a counter rises from them --------------- */
-.unit-card.sent-pulse {
-  animation: sent-pulse 0.22s ease-out;
-}
 @keyframes sent-pulse {
   0% { transform: scale(0.9); filter: brightness(1.6); }
   100% { transform: scale(1); filter: none; }
@@ -2345,10 +1826,8 @@ dialog.welcome-modal::backdrop {
   100% { opacity: 0; transform: translate(-50%, -280%) scale(1); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .unit-card.sent-pulse { animation: none; }
   .send-count { animation-duration: 0.5s; }
 }
-
 
 /* ---- v0.06: player plates — portrait with lives below, big gold and income, EXP bar ---- */
 .player-plate,
@@ -2375,83 +1854,6 @@ dialog.welcome-modal::backdrop {
 .player-plate .plate-face .portrait {
   width: 32px;
   height: 32px;
-}
-.plate-lives {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  line-height: 1;
-}
-.plate-lives img {
-  width: 13px;
-  height: 13px;
-  object-fit: contain;
-}
-.plate-lives strong {
-  font: 400 15px/1 var(--font-number);
-  color: #fff;
-  text-shadow: -1px -1px 0 #0a0a0a, 1px -1px 0 #0a0a0a, -1px 1px 0 #0a0a0a, 1px 1px 0 #0a0a0a;
-}
-.plate-body {
-  gap: 2px;
-}
-.plate-gold {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-}
-.plate-gold img {
-  width: 17px;
-  height: 17px;
-  object-fit: contain;
-}
-.plate-gold b {
-  font: 400 20px/1 var(--font-number);
-  color: #ffe27a;
-  font-variant-numeric: tabular-nums;
-  text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
-}
-.plate-inc {
-  font: 400 16px/1 var(--font-number);
-  font-style: normal;
-  color: #6ee87a;
-  text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
-}
-.plate-exp {
-  position: absolute;
-  left: 7px;
-  right: 7px;
-  bottom: 3px;
-  height: 5px;
-  border-radius: 3px;
-  background: #1a0f2a;
-  box-shadow: inset 0 0 0 1px #3c2560;
-}
-.plate-exp i {
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: 0;
-  border-radius: 3px;
-  background: linear-gradient(90deg, #7d3cff, #c48bff);
-  box-shadow: 0 0 6px #a066ff;
-  transition: width 0.4s;
-}
-.plate-exp span {
-  position: absolute;
-  right: 0;
-  bottom: 4px;
-  font: 800 9px/1 var(--font-display);
-  letter-spacing: 0.04em;
-  color: #d8bfff;
-  text-shadow: 0 1px 0 #000;
-}
-.player-plate.rival .plate-exp span {
-  right: auto;
-  left: 0;
-}
-.plate-exp b {
-  font-weight: 800;
-  color: #fff;
 }
 .hud-pop.exp {
   color: #d2b0ff;
@@ -2561,56 +1963,6 @@ dialog.welcome-modal::backdrop {
 }
 
 /* ---- v0.06: send deck — recruits left, even income badges, boss and flyer frames ------- */
-.game-shell[data-page="send"] .cards {
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-}
-.unit-card .card-stock {
-  display: none;
-}
-.game-shell[data-page="send"] .unit-card .card-stock {
-  display: block;
-  position: absolute;
-  z-index: 3;
-  left: 3px;
-  bottom: 13px;
-  font: 400 13px/1 var(--font-number);
-  color: #fff;
-  text-shadow: -1.2px -1.2px 0 #000, 1.2px -1.2px 0 #000, -1.2px 1.2px 0 #000, 1.2px 1.2px 0 #000, 0 0 2px #000;
-  pointer-events: none;
-}
-.game-shell[data-page="send"] .unit-card .card-note {
-  min-width: 26px;
-  padding: 0 3px;
-  font-size: 11px;
-  line-height: 13px;
-  text-align: center;
-  justify-content: center;
-}
-.frame-boss,
-.frame-air {
-  position: absolute;
-  z-index: 4;
-  inset: 0;
-  pointer-events: none;
-  background: center / 100% 100% no-repeat;
-}
-.frame-boss {
-  background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20100%20100%22%20preserveAspectRatio%3D%22none%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22m%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23e3e8ec%22/%3E%3Cstop%20offset%3D%22.45%22%20stop-color%3D%22%237d8890%22/%3E%3Cstop%20offset%3D%22.55%22%20stop-color%3D%22%23a9b3ba%22/%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%233d464d%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect%20x%3D%222.5%22%20y%3D%222.5%22%20width%3D%2295%22%20height%3D%2295%22%20rx%3D%227%22%20fill%3D%22none%22%20stroke%3D%22%231a1f23%22%20stroke-width%3D%225%22/%3E%3Crect%20x%3D%222.5%22%20y%3D%222.5%22%20width%3D%2295%22%20height%3D%2295%22%20rx%3D%227%22%20fill%3D%22none%22%20stroke%3D%22url%28%23m%29%22%20stroke-width%3D%223.4%22/%3E%3Ccircle%20cx%3D%2230%22%20cy%3D%223%22%20r%3D%221.6%22%20fill%3D%22%23d9dee2%22%20stroke%3D%22%232a3136%22%20stroke-width%3D%22.6%22/%3E%3Ccircle%20cx%3D%2250%22%20cy%3D%223%22%20r%3D%221.6%22%20fill%3D%22%23d9dee2%22%20stroke%3D%22%232a3136%22%20stroke-width%3D%22.6%22/%3E%3Ccircle%20cx%3D%2270%22%20cy%3D%223%22%20r%3D%221.6%22%20fill%3D%22%23d9dee2%22%20stroke%3D%22%232a3136%22%20stroke-width%3D%22.6%22/%3E%3Ccircle%20cx%3D%2230%22%20cy%3D%2297%22%20r%3D%221.6%22%20fill%3D%22%23d9dee2%22%20stroke%3D%22%232a3136%22%20stroke-width%3D%22.6%22/%3E%3Ccircle%20cx%3D%2250%22%20cy%3D%2297%22%20r%3D%221.6%22%20fill%3D%22%23d9dee2%22%20stroke%3D%22%232a3136%22%20stroke-width%3D%22.6%22/%3E%3Ccircle%20cx%3D%2270%22%20cy%3D%2297%22%20r%3D%221.6%22%20fill%3D%22%23d9dee2%22%20stroke%3D%22%232a3136%22%20stroke-width%3D%22.6%22/%3E%3Ccircle%20cx%3D%223%22%20cy%3D%2230%22%20r%3D%221.6%22%20fill%3D%22%23d9dee2%22%20stroke%3D%22%232a3136%22%20stroke-width%3D%22.6%22/%3E%3Ccircle%20cx%3D%223%22%20cy%3D%2250%22%20r%3D%221.6%22%20fill%3D%22%23d9dee2%22%20stroke%3D%22%232a3136%22%20stroke-width%3D%22.6%22/%3E%3Ccircle%20cx%3D%223%22%20cy%3D%2270%22%20r%3D%221.6%22%20fill%3D%22%23d9dee2%22%20stroke%3D%22%232a3136%22%20stroke-width%3D%22.6%22/%3E%3Ccircle%20cx%3D%2297%22%20cy%3D%2230%22%20r%3D%221.6%22%20fill%3D%22%23d9dee2%22%20stroke%3D%22%232a3136%22%20stroke-width%3D%22.6%22/%3E%3Ccircle%20cx%3D%2297%22%20cy%3D%2250%22%20r%3D%221.6%22%20fill%3D%22%23d9dee2%22%20stroke%3D%22%232a3136%22%20stroke-width%3D%22.6%22/%3E%3Ccircle%20cx%3D%2297%22%20cy%3D%2270%22%20r%3D%221.6%22%20fill%3D%22%23d9dee2%22%20stroke%3D%22%232a3136%22%20stroke-width%3D%22.6%22/%3E%3Cg%20transform%3D%22translate%289%2010%29%20scale%280.95%29%22%3E%3Cpath%20d%3D%22M0-6c-4%200-7%203-7%206.5%200%202.2%201.1%203.6%202.6%204.4V8h8.8V4.9C5.9%204.1%207%202.7%207%20.5%207-3%204-6%200-6z%22%20fill%3D%22%23efe6d2%22%20stroke%3D%22%231b1410%22%20stroke-width%3D%221.2%22/%3E%3Ccircle%20cx%3D%22-2.6%22%20cy%3D%220.6%22%20r%3D%221.7%22%20fill%3D%22%231b1410%22/%3E%3Ccircle%20cx%3D%222.6%22%20cy%3D%220.6%22%20r%3D%221.7%22%20fill%3D%22%231b1410%22/%3E%3Cpath%20d%3D%22M-2%206v2M0%206v2M2%206v2%22%20stroke%3D%22%231b1410%22%20stroke-width%3D%220.9%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%2891%2010%29%20scale%280.95%29%22%3E%3Cpath%20d%3D%22M0-6c-4%200-7%203-7%206.5%200%202.2%201.1%203.6%202.6%204.4V8h8.8V4.9C5.9%204.1%207%202.7%207%20.5%207-3%204-6%200-6z%22%20fill%3D%22%23efe6d2%22%20stroke%3D%22%231b1410%22%20stroke-width%3D%221.2%22/%3E%3Ccircle%20cx%3D%22-2.6%22%20cy%3D%220.6%22%20r%3D%221.7%22%20fill%3D%22%231b1410%22/%3E%3Ccircle%20cx%3D%222.6%22%20cy%3D%220.6%22%20r%3D%221.7%22%20fill%3D%22%231b1410%22/%3E%3Cpath%20d%3D%22M-2%206v2M0%206v2M2%206v2%22%20stroke%3D%22%231b1410%22%20stroke-width%3D%220.9%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%289%2089%29%20scale%280.95%29%22%3E%3Cpath%20d%3D%22M0-6c-4%200-7%203-7%206.5%200%202.2%201.1%203.6%202.6%204.4V8h8.8V4.9C5.9%204.1%207%202.7%207%20.5%207-3%204-6%200-6z%22%20fill%3D%22%23efe6d2%22%20stroke%3D%22%231b1410%22%20stroke-width%3D%221.2%22/%3E%3Ccircle%20cx%3D%22-2.6%22%20cy%3D%220.6%22%20r%3D%221.7%22%20fill%3D%22%231b1410%22/%3E%3Ccircle%20cx%3D%222.6%22%20cy%3D%220.6%22%20r%3D%221.7%22%20fill%3D%22%231b1410%22/%3E%3Cpath%20d%3D%22M-2%206v2M0%206v2M2%206v2%22%20stroke%3D%22%231b1410%22%20stroke-width%3D%220.9%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%2891%2089%29%20scale%280.95%29%22%3E%3Cpath%20d%3D%22M0-6c-4%200-7%203-7%206.5%200%202.2%201.1%203.6%202.6%204.4V8h8.8V4.9C5.9%204.1%207%202.7%207%20.5%207-3%204-6%200-6z%22%20fill%3D%22%23efe6d2%22%20stroke%3D%22%231b1410%22%20stroke-width%3D%221.2%22/%3E%3Ccircle%20cx%3D%22-2.6%22%20cy%3D%220.6%22%20r%3D%221.7%22%20fill%3D%22%231b1410%22/%3E%3Ccircle%20cx%3D%222.6%22%20cy%3D%220.6%22%20r%3D%221.7%22%20fill%3D%22%231b1410%22/%3E%3Cpath%20d%3D%22M-2%206v2M0%206v2M2%206v2%22%20stroke%3D%22%231b1410%22%20stroke-width%3D%220.9%22/%3E%3C/g%3E%3C/svg%3E");
-}
-.frame-air {
-  background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20100%20100%22%20preserveAspectRatio%3D%22none%22%3E%3Crect%20x%3D%222%22%20y%3D%222%22%20width%3D%2296%22%20height%3D%2296%22%20rx%3D%227%22%20fill%3D%22none%22%20stroke%3D%22%238fd3ff%22%20stroke-width%3D%222.4%22%20stroke-dasharray%3D%226%203%22/%3E%3Cg%20transform%3D%22translate%2825%2095%29%20scale%28-1%201%29%22%3E%3Cpath%20d%3D%22M0%200C3-5%209-9%2021-11c-2.5%202-3.6%203.6-4%205%203-.8%205.6-.6%208%20.5-3%20.9-5%202.3-6.4%204%202%20.1%203.8.7%205.2%201.8C16%202.4%207%203%200%202z%22%20fill%3D%22%23f4f8fc%22%20stroke%3D%22%2322324a%22%20stroke-width%3D%221.4%22%20stroke-linejoin%3D%22round%22/%3E%3Cpath%20d%3D%22M4-.5c4-2%209-4.6%2014-6.6M5%201c4-.6%208-1.2%2012-1%22%20stroke%3D%22%239cb4cc%22%20stroke-width%3D%22.9%22%20fill%3D%22none%22%20stroke-linecap%3D%22round%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%2875%2095%29%20scale%281%201%29%22%3E%3Cpath%20d%3D%22M0%200C3-5%209-9%2021-11c-2.5%202-3.6%203.6-4%205%203-.8%205.6-.6%208%20.5-3%20.9-5%202.3-6.4%204%202%20.1%203.8.7%205.2%201.8C16%202.4%207%203%200%202z%22%20fill%3D%22%23f4f8fc%22%20stroke%3D%22%2322324a%22%20stroke-width%3D%221.4%22%20stroke-linejoin%3D%22round%22/%3E%3Cpath%20d%3D%22M4-.5c4-2%209-4.6%2014-6.6M5%201c4-.6%208-1.2%2012-1%22%20stroke%3D%22%239cb4cc%22%20stroke-width%3D%22.9%22%20fill%3D%22none%22%20stroke-linecap%3D%22round%22/%3E%3C/g%3E%3C/svg%3E");
-}
-.game-shell[data-page="send"] .unit-card:has(.frame-boss) .card-note {
-  top: 9px;
-  right: 7px;
-}
-.game-shell[data-page="send"] .unit-card:has(.frame-boss) .card-stock {
-  left: 7px;
-  bottom: 16px;
-}
-.boss-mark {
-  display: none;
-}
 .tier-glare {
   position: absolute;
   z-index: 6;
@@ -2632,16 +1984,6 @@ dialog.welcome-modal::backdrop {
 }
 
 /* ---- v0.06: auto-spawn slot (drag a creep in; tap to pause; drag out to clear) -------- */
-.auto-slot-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  height: 40px;
-  padding: 0 4px;
-}
-.auto-slot-row[hidden] {
-  display: none;
-}
 .auto-slot {
   position: relative;
   flex: none;
@@ -2690,20 +2032,6 @@ dialog.welcome-modal::backdrop {
   border: 2px solid #6ee87a;
   box-shadow: 0 0 14px #6ee87a;
 }
-.auto-slot-text {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  min-width: 0;
-  flex: 1;
-}
-.auto-slot-text strong {
-  font: 700 13px var(--font-display);
-  color: var(--ink);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
 .tier-badge {
   flex: none;
   padding: 3px 9px;
@@ -2725,19 +2053,6 @@ dialog.welcome-modal::backdrop {
 .cards.upgrade-mode {
   overflow: hidden;
 }
-.cards.upgrade-mode .up-card {
-  min-width: 0;
-  flex: 0 1 calc((100% - 18px) / 4.35);
-}
-.cards.upgrade-mode.many .up-card {
-  flex: 1 1 0;
-}
-.cards.upgrade-mode.many .up-title {
-  font-size: 8.5px;
-}
-.cards.upgrade-mode.many .up-cost .price {
-  font-size: 11px;
-}
 .pick-element img {
   width: 60px;
   height: 60px;
@@ -2747,35 +2062,6 @@ dialog.welcome-modal::backdrop {
 /* many upgrades: compact buttons like the creep grid, art larger, arrow tucked into the corner */
 .cards.upgrade-mode.many {
   gap: 3px;
-}
-.cards.upgrade-mode.many .up-card {
-  padding: 3px 1px 2px;
-}
-.cards.upgrade-mode.many .up-title {
-  font-size: 8px;
-  letter-spacing: 0;
-  overflow-wrap: break-word;
-  hyphens: auto;
-}
-.cards.upgrade-mode.many .up-art img {
-  height: 92%;
-  max-width: 96%;
-}
-.cards.upgrade-mode.many .up-arrow {
-  left: 2px;
-  top: auto;
-  bottom: 15px;
-  width: 9px;
-  height: 10px;
-}
-.cards.upgrade-mode.many .up-cost .price {
-  font-size: 10.5px;
-  white-space: nowrap;
-}
-.cards.upgrade-mode.many .up-cost .price::before {
-  width: 9px;
-  height: 9px;
-  margin-right: 1px;
 }
 
 /* ---- v0.07: left column — auto-spawn slot and level button ------------------------------ */
@@ -2840,155 +2126,15 @@ dialog.welcome-modal::backdrop {
   transition: none;
 }
 /* queued upgrade: dashed green frame and an hourglass, tap again to cancel */
-.up-card.queued {
-  box-shadow: inset 0 0 0 2px #6ee87a, 0 0 10px #6ee87a80, 0 3px 0 #050d13;
-  outline: 2px dashed #6ee87a;
-  outline-offset: -5px;
-}
-.up-queued {
-  position: absolute;
-  top: 3px;
-  right: 3px;
-  font-size: 12px;
-  line-height: 1;
-  filter: drop-shadow(0 1px 1px #000);
-  animation: up-wait 1.2s ease-in-out infinite alternate;
-}
 @keyframes up-wait {
   to {
     transform: rotate(180deg);
   }
 }
 
-
 /* ---- v0.07: send buttons — icon on top, gold and income side by side below ------------- */
-.game-shell[data-page="send"] .cards {
-  height: 162px;
-  row-gap: 10px;
-  column-gap: 3px;
-  padding: 2px 1px 10px;
-  overflow: visible;
-}
-@media (max-height: 700px) {
-  .game-shell[data-page="send"] .cards {
-    height: 146px;
-  }
-}
-.game-shell[data-page="send"] .unit-card {
-  overflow: visible;
-}
-.game-shell[data-page="send"] .unit-card .card-art {
-  inset: 1px 1px 16px;
-  overflow: hidden;
-  border-radius: 6px 6px 2px 2px;
-}
-.game-shell[data-page="send"] .unit-card .card-art img {
-  inset: 2%;
-  width: 96%;
-  height: 96%;
-}
-.game-shell[data-page="send"] .unit-card .card-foot {
-  inset: auto 0 0;
-  height: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
-  padding: 0 2px;
-  border-radius: 0 0 6px 6px;
-  background: linear-gradient(#0a0810cc, #0a0810f2);
-}
-.game-shell[data-page="send"] .unit-card .card-foot .price {
-  font-size: 11px;
-  line-height: 1;
-}
-.game-shell[data-page="send"] .unit-card .card-note,
-.game-shell[data-page="send"] .unit-card.framed .card-note {
-  position: static;
-  min-width: 0;
-  padding: 0;
-  border-radius: 0;
-  background: none;
-  font: 400 10.5px/1 var(--font-number);
-  color: #7ef08a;
-  text-shadow: 0 1px 0 #000, 0 0 2px #000;
-  white-space: nowrap;
-}
-.game-shell[data-page="send"] .unit-card .card-foot.long .price,
-.game-shell[data-page="send"] .unit-card .card-foot.long .card-note {
-  font-size: 9.5px;
-  letter-spacing: -0.02em;
-}
-.game-shell[data-page="send"] .unit-card .card-foot.long .price::before {
-  width: 8px;
-  height: 8px;
-}
-.game-shell[data-page="send"] .unit-card .card-stock,
-.game-shell[data-page="send"] .unit-card.framed .card-stock {
-  left: 4px;
-  bottom: 18px;
-}
-.game-shell[data-page="send"] .unit-card .card-status {
-  inset: 1px 1px 16px;
-  border-radius: 6px 6px 2px 2px;
-}
 /* framed creeps: the frame owns the edge, the art sits inside it */
-.game-shell[data-page="send"] .unit-card.framed .card-art,
-.game-shell[data-page="send"] .unit-card.framed .card-status {
-  inset: 6px 6px 21px;
-}
-.game-shell[data-page="send"] .unit-card.framed .card-foot {
-  bottom: 6px;
-  left: 2px;
-  right: 2px;
-  height: 15px;
-  border-radius: 0;
-}
-.game-shell[data-page="send"] .unit-card.framed .card-stock {
-  left: 8px;
-  bottom: 23px;
-}
-.frame-boss,
-.frame-air {
-  position: absolute;
-  z-index: 4;
-  inset: 0;
-  pointer-events: none;
-  background: none;
-  border-style: solid;
-  border-color: transparent;
-  filter: drop-shadow(0 1px 1px #000c);
-}
-.frame-boss {
-  border-width: 7px;
-  border-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2048%2048%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22m%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23f6f9fb%22/%3E%3Cstop%20offset%3D%22.22%22%20stop-color%3D%22%23b6c0c7%22/%3E%3Cstop%20offset%3D%22.5%22%20stop-color%3D%22%23626c74%22/%3E%3Cstop%20offset%3D%22.74%22%20stop-color%3D%22%2399a4ab%22/%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23262c31%22/%3E%3C/linearGradient%3E%3ClinearGradient%20id%3D%22b%22%20x1%3D%221%22%20y1%3D%221%22%20x2%3D%220%22%20y2%3D%220%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23f2f6f8%22/%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%2320262a%22/%3E%3C/linearGradient%3E%3CradialGradient%20id%3D%22r%22%20cx%3D%22.35%22%20cy%3D%22.3%22%20r%3D%22.85%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23ffffff%22/%3E%3Cstop%20offset%3D%22.4%22%20stop-color%3D%22%23c2cbd1%22/%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%233b4349%22/%3E%3C/radialGradient%3E%3C/defs%3E%3Crect%20x%3D%221%22%20y%3D%221%22%20width%3D%2246%22%20height%3D%2246%22%20rx%3D%227%22%20fill%3D%22none%22%20stroke%3D%22%230c0f12%22%20stroke-width%3D%222%22/%3E%3Crect%20x%3D%223.6%22%20y%3D%223.6%22%20width%3D%2240.8%22%20height%3D%2240.8%22%20rx%3D%225%22%20fill%3D%22none%22%20stroke%3D%22url%28%23m%29%22%20stroke-width%3D%225.2%22/%3E%3Crect%20x%3D%222.3%22%20y%3D%222.3%22%20width%3D%2243.4%22%20height%3D%2243.4%22%20rx%3D%226.2%22%20fill%3D%22none%22%20stroke%3D%22%23ffffff%22%20stroke-opacity%3D%22.55%22%20stroke-width%3D%22.7%22/%3E%3Crect%20x%3D%225.3%22%20y%3D%225.3%22%20width%3D%2237.4%22%20height%3D%2237.4%22%20rx%3D%223.6%22%20fill%3D%22none%22%20stroke%3D%22url%28%23b%29%22%20stroke-width%3D%221%22/%3E%3Crect%20x%3D%226.6%22%20y%3D%226.6%22%20width%3D%2234.8%22%20height%3D%2234.8%22%20rx%3D%222.8%22%20fill%3D%22none%22%20stroke%3D%22%230c0f12%22%20stroke-width%3D%221.1%22/%3E%3Crect%20x%3D%220.6%22%20y%3D%220.6%22%20width%3D%2210%22%20height%3D%2210%22%20rx%3D%222%22%20fill%3D%22url%28%23m%29%22%20stroke%3D%22%230c0f12%22%20stroke-width%3D%221.1%22/%3E%3Crect%20x%3D%221.6%22%20y%3D%221.6%22%20width%3D%228%22%20height%3D%228%22%20rx%3D%221.5%22%20fill%3D%22none%22%20stroke%3D%22%23fff%22%20stroke-opacity%3D%22.45%22%20stroke-width%3D%22.6%22/%3E%3Ccircle%20cx%3D%225.6%22%20cy%3D%225.6%22%20r%3D%222.1%22%20fill%3D%22url%28%23r%29%22%20stroke%3D%22%230c0f12%22%20stroke-width%3D%22.6%22/%3E%3Crect%20x%3D%2237.4%22%20y%3D%220.6%22%20width%3D%2210%22%20height%3D%2210%22%20rx%3D%222%22%20fill%3D%22url%28%23m%29%22%20stroke%3D%22%230c0f12%22%20stroke-width%3D%221.1%22/%3E%3Crect%20x%3D%2238.4%22%20y%3D%221.6%22%20width%3D%228%22%20height%3D%228%22%20rx%3D%221.5%22%20fill%3D%22none%22%20stroke%3D%22%23fff%22%20stroke-opacity%3D%22.45%22%20stroke-width%3D%22.6%22/%3E%3Ccircle%20cx%3D%2242.4%22%20cy%3D%225.6%22%20r%3D%222.1%22%20fill%3D%22url%28%23r%29%22%20stroke%3D%22%230c0f12%22%20stroke-width%3D%22.6%22/%3E%3Crect%20x%3D%220.6%22%20y%3D%2237.4%22%20width%3D%2210%22%20height%3D%2210%22%20rx%3D%222%22%20fill%3D%22url%28%23m%29%22%20stroke%3D%22%230c0f12%22%20stroke-width%3D%221.1%22/%3E%3Crect%20x%3D%221.6%22%20y%3D%2238.4%22%20width%3D%228%22%20height%3D%228%22%20rx%3D%221.5%22%20fill%3D%22none%22%20stroke%3D%22%23fff%22%20stroke-opacity%3D%22.45%22%20stroke-width%3D%22.6%22/%3E%3Ccircle%20cx%3D%225.6%22%20cy%3D%2242.4%22%20r%3D%222.1%22%20fill%3D%22url%28%23r%29%22%20stroke%3D%22%230c0f12%22%20stroke-width%3D%22.6%22/%3E%3Crect%20x%3D%2237.4%22%20y%3D%2237.4%22%20width%3D%2210%22%20height%3D%2210%22%20rx%3D%222%22%20fill%3D%22url%28%23m%29%22%20stroke%3D%22%230c0f12%22%20stroke-width%3D%221.1%22/%3E%3Crect%20x%3D%2238.4%22%20y%3D%2238.4%22%20width%3D%228%22%20height%3D%228%22%20rx%3D%221.5%22%20fill%3D%22none%22%20stroke%3D%22%23fff%22%20stroke-opacity%3D%22.45%22%20stroke-width%3D%22.6%22/%3E%3Ccircle%20cx%3D%2242.4%22%20cy%3D%2242.4%22%20r%3D%222.1%22%20fill%3D%22url%28%23r%29%22%20stroke%3D%22%230c0f12%22%20stroke-width%3D%22.6%22/%3E%3C/svg%3E") 12 / 7px stretch;
-}
-.frame-air {
-  border-width: 6px;
-  border-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2048%2048%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22m%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23ffffff%22/%3E%3Cstop%20offset%3D%22.25%22%20stop-color%3D%22%23cfe6f6%22/%3E%3Cstop%20offset%3D%22.52%22%20stop-color%3D%22%236f98b8%22/%3E%3Cstop%20offset%3D%22.76%22%20stop-color%3D%22%23b3d4ea%22/%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%232b4660%22/%3E%3C/linearGradient%3E%3ClinearGradient%20id%3D%22b%22%20x1%3D%221%22%20y1%3D%221%22%20x2%3D%220%22%20y2%3D%220%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23f4fbff%22/%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%231d3247%22/%3E%3C/linearGradient%3E%3CradialGradient%20id%3D%22r%22%20cx%3D%22.35%22%20cy%3D%22.3%22%20r%3D%22.85%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23ffffff%22/%3E%3Cstop%20offset%3D%22.35%22%20stop-color%3D%22%239fe2ff%22/%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%231b5d8f%22/%3E%3C/radialGradient%3E%3C/defs%3E%3Crect%20x%3D%221%22%20y%3D%221%22%20width%3D%2246%22%20height%3D%2246%22%20rx%3D%227%22%20fill%3D%22none%22%20stroke%3D%22%230e1c2a%22%20stroke-width%3D%222%22/%3E%3Crect%20x%3D%223.6%22%20y%3D%223.6%22%20width%3D%2240.8%22%20height%3D%2240.8%22%20rx%3D%225%22%20fill%3D%22none%22%20stroke%3D%22url%28%23m%29%22%20stroke-width%3D%225.2%22/%3E%3Crect%20x%3D%222.3%22%20y%3D%222.3%22%20width%3D%2243.4%22%20height%3D%2243.4%22%20rx%3D%226.2%22%20fill%3D%22none%22%20stroke%3D%22%23ffffff%22%20stroke-opacity%3D%22.55%22%20stroke-width%3D%22.7%22/%3E%3Crect%20x%3D%225.3%22%20y%3D%225.3%22%20width%3D%2237.4%22%20height%3D%2237.4%22%20rx%3D%223.6%22%20fill%3D%22none%22%20stroke%3D%22url%28%23b%29%22%20stroke-width%3D%221%22/%3E%3Crect%20x%3D%226.6%22%20y%3D%226.6%22%20width%3D%2234.8%22%20height%3D%2234.8%22%20rx%3D%222.8%22%20fill%3D%22none%22%20stroke%3D%22%230e1c2a%22%20stroke-width%3D%221.1%22/%3E%3Ccircle%20cx%3D%225.5%22%20cy%3D%225.5%22%20r%3D%224.6%22%20fill%3D%22url%28%23m%29%22%20stroke%3D%22%230e1c2a%22%20stroke-width%3D%221%22/%3E%3Ccircle%20cx%3D%225.5%22%20cy%3D%225.5%22%20r%3D%222.3%22%20fill%3D%22url%28%23r%29%22%20stroke%3D%22%230e1c2a%22%20stroke-width%3D%22.6%22/%3E%3Ccircle%20cx%3D%2242.5%22%20cy%3D%225.5%22%20r%3D%224.6%22%20fill%3D%22url%28%23m%29%22%20stroke%3D%22%230e1c2a%22%20stroke-width%3D%221%22/%3E%3Ccircle%20cx%3D%2242.5%22%20cy%3D%225.5%22%20r%3D%222.3%22%20fill%3D%22url%28%23r%29%22%20stroke%3D%22%230e1c2a%22%20stroke-width%3D%22.6%22/%3E%3Ccircle%20cx%3D%225.5%22%20cy%3D%2242.5%22%20r%3D%224.6%22%20fill%3D%22url%28%23m%29%22%20stroke%3D%22%230e1c2a%22%20stroke-width%3D%221%22/%3E%3Ccircle%20cx%3D%225.5%22%20cy%3D%2242.5%22%20r%3D%222.3%22%20fill%3D%22url%28%23r%29%22%20stroke%3D%22%230e1c2a%22%20stroke-width%3D%22.6%22/%3E%3Ccircle%20cx%3D%2242.5%22%20cy%3D%2242.5%22%20r%3D%224.6%22%20fill%3D%22url%28%23m%29%22%20stroke%3D%22%230e1c2a%22%20stroke-width%3D%221%22/%3E%3Ccircle%20cx%3D%2242.5%22%20cy%3D%2242.5%22%20r%3D%222.3%22%20fill%3D%22url%28%23r%29%22%20stroke%3D%22%230e1c2a%22%20stroke-width%3D%22.6%22/%3E%3C/svg%3E") 12 / 6px stretch;
-}
 /* the appliqué sits on the bottom rail and hangs below the button, never over the creep */
-.frame-boss::after,
-.frame-air::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  background: center / contain no-repeat;
-  filter: drop-shadow(0 1.5px 1px #000d);
-}
-.frame-boss::after {
-  top: calc(100% - 1px);
-  width: 23px;
-  height: 17px;
-  background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2030%2022%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22m%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23f6f9fb%22/%3E%3Cstop%20offset%3D%22.22%22%20stop-color%3D%22%23b6c0c7%22/%3E%3Cstop%20offset%3D%22.5%22%20stop-color%3D%22%23626c74%22/%3E%3Cstop%20offset%3D%22.74%22%20stop-color%3D%22%2399a4ab%22/%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23262c31%22/%3E%3C/linearGradient%3E%3CradialGradient%20id%3D%22r%22%20cx%3D%22.35%22%20cy%3D%22.3%22%20r%3D%22.85%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23ffffff%22/%3E%3Cstop%20offset%3D%22.4%22%20stop-color%3D%22%23c2cbd1%22/%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%233b4349%22/%3E%3C/radialGradient%3E%3ClinearGradient%20id%3D%22h%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%220%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23ffffff%22%20stop-opacity%3D%22.9%22/%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23ffffff%22%20stop-opacity%3D%220%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect%20x%3D%221%22%20y%3D%227.5%22%20width%3D%2228%22%20height%3D%227%22%20rx%3D%223%22%20fill%3D%22url%28%23m%29%22%20stroke%3D%22%230c0f12%22%20stroke-width%3D%221%22/%3E%3Ccircle%20cx%3D%224.6%22%20cy%3D%2211%22%20r%3D%221.7%22%20fill%3D%22url%28%23r%29%22%20stroke%3D%22%230c0f12%22%20stroke-width%3D%22.5%22/%3E%3Ccircle%20cx%3D%2225.4%22%20cy%3D%2211%22%20r%3D%221.7%22%20fill%3D%22url%28%23r%29%22%20stroke%3D%22%230c0f12%22%20stroke-width%3D%22.5%22/%3E%3Cpath%20d%3D%22M15%201.2c-4.9%200-8.3%203.3-8.3%207.6%200%202.6%201.2%204.5%203%205.6v3.3c0%201.3%201%202.3%202.3%202.3h6c1.3%200%202.3-1%202.3-2.3v-3.3c1.8-1.1%203-3%203-5.6%200-4.3-3.4-7.6-8.3-7.6z%22%20fill%3D%22url%28%23m%29%22%20stroke%3D%22%230c0f12%22%20stroke-width%3D%221.1%22/%3E%3Cpath%20d%3D%22M9.2%206.6c.8-2.5%203-3.9%205.8-3.9%22%20fill%3D%22none%22%20stroke%3D%22url%28%23h%29%22%20stroke-width%3D%221.3%22%20stroke-linecap%3D%22round%22/%3E%3Cellipse%20cx%3D%2211.9%22%20cy%3D%229.4%22%20rx%3D%222.3%22%20ry%3D%222.5%22%20fill%3D%22%2314181b%22/%3E%3Cellipse%20cx%3D%2218.1%22%20cy%3D%229.4%22%20rx%3D%222.3%22%20ry%3D%222.5%22%20fill%3D%22%2314181b%22/%3E%3Cpath%20d%3D%22M10.3%208.4c.6-.9%201.6-1.3%202.6-1.1M16.5%208.4c.6-.9%201.6-1.3%202.6-1.1%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%22.6%22%20opacity%3D%22.6%22/%3E%3Cpath%20d%3D%22M11%2011.6c.5.6%201.3.9%202%20.7M17%2011.6c.5.6%201.3.9%202%20.7%22%20fill%3D%22none%22%20stroke%3D%22%23fff%22%20stroke-opacity%3D%22.55%22%20stroke-width%3D%22.6%22/%3E%3Cpath%20d%3D%22M15%2011.4l-1.3%202.4h2.6z%22%20fill%3D%22%2314181b%22/%3E%3Cpath%20d%3D%22M12.6%2016v3.2M15%2016v3.4M17.4%2016v3.2%22%20stroke%3D%22%2314181b%22%20stroke-width%3D%22.9%22/%3E%3C/svg%3E");
-}
-.frame-air::after {
-  top: calc(100% - 3px);
-  width: 37px;
-  height: 15px;
-  background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2044%2018%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22m%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23ffffff%22/%3E%3Cstop%20offset%3D%22.25%22%20stop-color%3D%22%23cfe6f6%22/%3E%3Cstop%20offset%3D%22.52%22%20stop-color%3D%22%236f98b8%22/%3E%3Cstop%20offset%3D%22.76%22%20stop-color%3D%22%23b3d4ea%22/%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%232b4660%22/%3E%3C/linearGradient%3E%3CradialGradient%20id%3D%22r%22%20cx%3D%22.35%22%20cy%3D%22.3%22%20r%3D%22.85%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23ffffff%22/%3E%3Cstop%20offset%3D%22.35%22%20stop-color%3D%22%239fe2ff%22/%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%231b5d8f%22/%3E%3C/radialGradient%3E%3C/defs%3E%3Cg%20id%3D%22w%22%3E%3Cpath%20d%3D%22M18%2010.5C14%207%209%203.6%202.2%202.6c1.6%201.4%202.4%202.6%202.6%203.7-1.2-.2-2.3-.1-3.4.3%201.8%201%202.9%202.1%203.4%203.3-1%20.1-1.9.5-2.6%201.1%203.8.9%209.2%201.6%2015.8%201.4z%22%20fill%3D%22url%28%23m%29%22%20stroke%3D%22%230e1c2a%22%20stroke-width%3D%221%22%20stroke-linejoin%3D%22round%22/%3E%3Cpath%20d%3D%22M16.5%2010.2C12.5%208.3%209%206.8%205%206.4M16%2011.4c-3.6-.6-7.4-1-10.7-.8%22%20fill%3D%22none%22%20stroke%3D%22%232b4660%22%20stroke-width%3D%22.7%22%20stroke-linecap%3D%22round%22/%3E%3Cpath%20d%3D%22M4.2%203.6C8.4%204.6%2012.4%206.6%2015.6%209%22%20fill%3D%22none%22%20stroke%3D%22%23fff%22%20stroke-opacity%3D%22.7%22%20stroke-width%3D%22.7%22%20stroke-linecap%3D%22round%22/%3E%3C/g%3E%3Cuse%20href%3D%22%23w%22%20transform%3D%22translate%2844%200%29%20scale%28-1%201%29%22/%3E%3Ccircle%20cx%3D%2222%22%20cy%3D%2210%22%20r%3D%225.2%22%20fill%3D%22url%28%23m%29%22%20stroke%3D%22%230e1c2a%22%20stroke-width%3D%221%22/%3E%3Ccircle%20cx%3D%2222%22%20cy%3D%2210%22%20r%3D%222.8%22%20fill%3D%22url%28%23r%29%22%20stroke%3D%22%230e1c2a%22%20stroke-width%3D%22.6%22/%3E%3C/svg%3E");
-}
 /* four AI levels on the main menu */
 .segmented.ai-levels button {
   padding-left: 2px;
@@ -3001,29 +2147,6 @@ dialog.welcome-modal::backdrop {
   grid-template-columns: repeat(4, 1fr);
 }
 /* condensed numbers so gold and income always fit side by side, also inside a frame */
-.game-shell[data-page="send"] .unit-card .card-foot .price,
-.game-shell[data-page="send"] .unit-card .card-note,
-.game-shell[data-page="send"] .unit-card.framed .card-note,
-.game-shell[data-page="send"] .unit-card .card-foot.long .price,
-.game-shell[data-page="send"] .unit-card .card-foot.long .card-note {
-  font-family: var(--font-display);
-  font-weight: 800;
-  font-size: 12px;
-  letter-spacing: 0;
-}
-.game-shell[data-page="send"] .unit-card .card-foot.long .price,
-.game-shell[data-page="send"] .unit-card .card-foot.long .card-note {
-  font-size: 11px;
-}
-.game-shell[data-page="send"] .unit-card .card-foot {
-  gap: 2px;
-}
-.up-card .up-queued {
-  top: auto;
-  bottom: 20px;
-  right: 4px;
-  font-size: 13px;
-}
 
 /* ---- v0.07b: help button and tooltips -------------------------------------------------- */
 .help-button span {
@@ -3425,19 +2548,8 @@ dialog.welcome-modal::backdrop {
 }
 
 /* v0.08c: the free first archer */
-.unit-card .price.free {
-  color: #9dff8a;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-.unit-card .price.free::before {
-  display: none;
-}
 
 /* v0.08d: buffed income on creep cards */
-.unit-card .card-note.buffed {
-  color: #9dff8a;
-}
 
 /* ---- v0.09: enemy plates for four players, knocked-out players, surrender flag, tips ---- */
 .plate-skull {
@@ -3455,16 +2567,13 @@ dialog.welcome-modal::backdrop {
 .plate-face {
   position: relative;
 }
-.player-plate.out,
-.enemy-cell.out {
+.player-plate.out {
   opacity: 0.6; /* 40 % transparent */
 }
-.player-plate.out .plate-skull,
-.enemy-cell.out .plate-skull {
+.player-plate.out .plate-skull {
   display: block;
 }
-.player-plate.out .portrait,
-.enemy-cell.out .portrait {
+.player-plate.out .portrait {
   filter: grayscale(1) brightness(0.7);
 }
 /* four players: all enemies side by side in the rival plate */
@@ -3478,9 +2587,8 @@ dialog.welcome-modal::backdrop {
     inset 0 3px 0 3px #ffffff12,
     0 4px 10px #0009;
 }
-.player-plate.rival.multi > .plate-body,
-.player-plate.rival.multi > .plate-face,
-.player-plate.rival.multi > .plate-exp {
+
+.player-plate.rival.multi > .plate-face {
   display: none;
 }
 .player-plate.rival.multi.out {
@@ -3496,85 +2604,6 @@ dialog.welcome-modal::backdrop {
 }
 .enemy-stack[hidden] {
   display: none;
-}
-.enemy-cell {
-  position: relative;
-  display: grid;
-  justify-items: center;
-  align-content: center;
-  gap: 1px;
-  min-width: 0;
-  padding: 2px 1px 1px;
-  border: 0;
-  border-radius: 8px;
-  color: #fff;
-  background: color-mix(in srgb, var(--pc) 22%, #0a141c);
-  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--pc) 75%, #000);
-  cursor: pointer;
-  font: inherit;
-}
-.enemy-cell.viewing {
-  box-shadow:
-    inset 0 0 0 1.5px color-mix(in srgb, var(--pc) 75%, #000),
-    0 0 0 2px #ffe27a;
-}
-.enemy-cell.out {
-  cursor: default;
-}
-.ec-face {
-  position: relative;
-  display: grid;
-  place-items: center;
-}
-.enemy-cell .portrait {
-  width: 26px;
-  height: 26px;
-  border-radius: 7px;
-  border: 2px solid var(--pc);
-  box-shadow: 0 0 0 1px #000;
-}
-.enemy-cell .plate-skull {
-  top: 1px;
-  width: 22px;
-  height: 22px;
-}
-.ec-target {
-  display: none;
-  position: absolute;
-  right: -9px;
-  top: -5px;
-  width: 17px;
-  height: 17px;
-  object-fit: contain;
-  filter: drop-shadow(0 1px 1px #000);
-}
-.enemy-cell.target .ec-target {
-  display: block;
-}
-.enemy-cell.target {
-  background: color-mix(in srgb, var(--pc) 34%, #1a1206);
-}
-.ec-lives {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  line-height: 1;
-}
-.ec-lives img {
-  width: 10px;
-  height: 10px;
-  object-fit: contain;
-}
-.ec-lives b {
-  font: 400 13px/1 var(--font-number);
-  color: #fff;
-  text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
-}
-.ec-inc {
-  font: 400 11px/1 var(--font-number);
-  font-style: normal;
-  color: #6ee87a;
-  text-shadow: -1px -1px 0 #000, 1px 1px 0 #000;
 }
 /* surrender: a square white flag in the top left corner of the pause menu */
 .surrender-flag {
@@ -3676,106 +2705,12 @@ dialog.with-flag .modal-header {
   color: #ffd75a;
 }
 /* v0.09a: enemy cells — lives beside the portrait, gold and income below */
-.enemy-cell {
-  gap: 2px;
-  padding: 3px 2px 2px;
-}
-.ec-top {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
-  max-width: 100%;
-}
-.enemy-cell .portrait {
-  width: 24px;
-  height: 24px;
-}
-.enemy-cell .plate-skull {
-  width: 20px;
-  height: 20px;
-}
-.ec-target {
-  right: -6px;
-  top: -6px;
-  width: 15px;
-  height: 15px;
-}
-.ec-lives {
-  flex-direction: column;
-  gap: 1px;
-}
-.ec-gold {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  line-height: 1;
-}
-.ec-gold img {
-  width: 11px;
-  height: 11px;
-  object-fit: contain;
-}
-.ec-gold b {
-  font: 400 12px/1 var(--font-number);
-  color: #ffe27a;
-  font-variant-numeric: tabular-nums;
-  text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
-}
-.ec-inc {
-  font-size: 10px;
-}
 /* v0.09b: AI portraits: head crops of creep figures */
 .portrait.creep-portrait {
   object-fit: cover;
 }
 /* v0.09b: portrait to the left so the heart and lives fit beside it */
-.ec-top {
-  justify-content: flex-start;
-  align-self: stretch;
-  gap: 2px;
-  padding-left: 1px;
-}
-.ec-target {
-  right: auto;
-  left: -7px;
-}
-.ec-lives b {
-  font-size: 12px;
-}
 /* v0.09c: sword back at the top right; picture further left, heart beside the lives */
-.ec-target {
-  left: auto;
-  right: -6px;
-  top: -6px;
-}
-.ec-top {
-  gap: 1px;
-  padding-left: 0;
-  margin-left: -1px;
-}
-.enemy-cell {
-  padding-left: 1px;
-  padding-right: 1px;
-}
-.enemy-cell .portrait {
-  width: 23px;
-  height: 23px;
-}
-.ec-lives {
-  flex-direction: row;
-  gap: 1px;
-}
-.ec-lives img {
-  width: 9px;
-  height: 9px;
-}
-.ec-target {
-  right: -9px;
-  top: -5px;
-  width: 17px;
-  height: 17px;
-}
 /* ---- v0.09m: element frames — an ornament band all around element perks (border-image) ---- */
 .pick-grid {
   gap: 14px;
@@ -3801,122 +2736,11 @@ dialog.with-flag .modal-header {
 .pick-card.el-arcane { border-image-source: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48' width='48' height='48'%3E%3Cdefs%3E%3CclipPath id='c'%3E%3Crect width='48' height='14'/%3E%3C/clipPath%3E%3CradialGradient id='g' cx='.4' cy='.35' r='.7'%3E%3Cstop offset='0' stop-color='%23fff'/%3E%3Cstop offset='.35' stop-color='%23f59eda'/%3E%3Cstop offset='1' stop-color='%234d0f45'/%3E%3C/radialGradient%3E%3Cg id='b' clip-path='url(%23c)'%3E%3Crect x='-2' y='2' width='52' height='11' fill='%234d0f45'/%3E%3Crect x='-2' y='12' width='52' height='2' fill='%23ffb8f0'/%3E%3Cpath d='M-1 1.5 L0.3 6 L3 7.3 L0.3 8.6 L-1 13 L-2.3 8.6 L-5 7.3 L-2.3 6Z' fill='%23ff7fe6'/%3E%3Ccircle cx='-6' cy='7.3' r='0.9' fill='%23fff'/%3E%3Cpath d='M9 1.5 L10.3 6 L13 7.3 L10.3 8.6 L9 13 L7.7 8.6 L5 7.3 L7.7 6Z' fill='%23ff7fe6'/%3E%3Ccircle cx='4' cy='7.3' r='0.9' fill='%23fff'/%3E%3Cpath d='M19 1.5 L20.3 6 L23 7.3 L20.3 8.6 L19 13 L17.7 8.6 L15 7.3 L17.7 6Z' fill='%23ff7fe6'/%3E%3Ccircle cx='14' cy='7.3' r='0.9' fill='%23fff'/%3E%3Cpath d='M29 1.5 L30.3 6 L33 7.3 L30.3 8.6 L29 13 L27.7 8.6 L25 7.3 L27.7 6Z' fill='%23ff7fe6'/%3E%3Ccircle cx='24' cy='7.3' r='0.9' fill='%23fff'/%3E%3Cpath d='M39 1.5 L40.3 6 L43 7.3 L40.3 8.6 L39 13 L37.7 8.6 L35 7.3 L37.7 6Z' fill='%23ff7fe6'/%3E%3Ccircle cx='34' cy='7.3' r='0.9' fill='%23fff'/%3E%3Cpath d='M49 1.5 L50.3 6 L53 7.3 L50.3 8.6 L49 13 L47.7 8.6 L45 7.3 L47.7 6Z' fill='%23ff7fe6'/%3E%3Ccircle cx='44' cy='7.3' r='0.9' fill='%23fff'/%3E%3Cpath d='M59 1.5 L60.3 6 L63 7.3 L60.3 8.6 L59 13 L57.7 8.6 L55 7.3 L57.7 6Z' fill='%23ff7fe6'/%3E%3Ccircle cx='54' cy='7.3' r='0.9' fill='%23fff'/%3E%3C/g%3E%3Cg id='k'%3E%3Ccircle cx='7' cy='7' r='6.2' fill='%234d0f45' stroke='%230a0a0a' stroke-width='1'/%3E%3Ccircle cx='7' cy='7' r='4.2' fill='url(%23g)'/%3E%3Ccircle cx='5.6' cy='5.6' r='1.2' fill='%23fff' opacity='.85'/%3E%3C/g%3E%3C/defs%3E%3Cuse href='%23b' transform='rotate(0 24 24)'/%3E%3Cuse href='%23b' transform='rotate(90 24 24)'/%3E%3Cuse href='%23b' transform='rotate(180 24 24)'/%3E%3Cuse href='%23b' transform='rotate(270 24 24)'/%3E%3Cuse href='%23k' transform='rotate(0 24 24)'/%3E%3Cuse href='%23k' transform='rotate(90 24 24)'/%3E%3Cuse href='%23k' transform='rotate(180 24 24)'/%3E%3Cuse href='%23k' transform='rotate(270 24 24)'/%3E%3C/svg%3E"); }
 .pick-card.el-plague { border-image-source: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48' width='48' height='48'%3E%3Cdefs%3E%3CclipPath id='c'%3E%3Crect width='48' height='14'/%3E%3C/clipPath%3E%3CradialGradient id='g' cx='.4' cy='.35' r='.7'%3E%3Cstop offset='0' stop-color='%23fff'/%3E%3Cstop offset='.35' stop-color='%23a9de7e'/%3E%3Cstop offset='1' stop-color='%232d5a12'/%3E%3C/radialGradient%3E%3Cg id='b' clip-path='url(%23c)'%3E%3Crect x='-2' y='1' width='52' height='9' fill='%232d5a12'/%3E%3Crect x='-2' y='12' width='52' height='2' fill='%23b8ff6a'/%3E%3Cpath d='M-3 9 C-3 12 -0.5 12.5 -0.5 9.5 Z' fill='%237fd23a'/%3E%3Ccircle cx='-1.7' cy='11.6' r='1.6' fill='%237fd23a'/%3E%3Ccircle cx='2' cy='5' r='1.8' fill='none' stroke='%23c8ff8a' stroke-width='0.9'/%3E%3Ccircle cx='-5' cy='4' r='1' fill='%23a9de7e'/%3E%3Cpath d='M7 9 C7 12 9.5 12.5 9.5 9.5 Z' fill='%237fd23a'/%3E%3Ccircle cx='8.3' cy='11.6' r='1.6' fill='%237fd23a'/%3E%3Ccircle cx='12' cy='5' r='1.8' fill='none' stroke='%23c8ff8a' stroke-width='0.9'/%3E%3Ccircle cx='5' cy='4' r='1' fill='%23a9de7e'/%3E%3Cpath d='M17 9 C17 12 19.5 12.5 19.5 9.5 Z' fill='%237fd23a'/%3E%3Ccircle cx='18.3' cy='11.6' r='1.6' fill='%237fd23a'/%3E%3Ccircle cx='22' cy='5' r='1.8' fill='none' stroke='%23c8ff8a' stroke-width='0.9'/%3E%3Ccircle cx='15' cy='4' r='1' fill='%23a9de7e'/%3E%3Cpath d='M27 9 C27 12 29.5 12.5 29.5 9.5 Z' fill='%237fd23a'/%3E%3Ccircle cx='28.3' cy='11.6' r='1.6' fill='%237fd23a'/%3E%3Ccircle cx='32' cy='5' r='1.8' fill='none' stroke='%23c8ff8a' stroke-width='0.9'/%3E%3Ccircle cx='25' cy='4' r='1' fill='%23a9de7e'/%3E%3Cpath d='M37 9 C37 12 39.5 12.5 39.5 9.5 Z' fill='%237fd23a'/%3E%3Ccircle cx='38.3' cy='11.6' r='1.6' fill='%237fd23a'/%3E%3Ccircle cx='42' cy='5' r='1.8' fill='none' stroke='%23c8ff8a' stroke-width='0.9'/%3E%3Ccircle cx='35' cy='4' r='1' fill='%23a9de7e'/%3E%3Cpath d='M47 9 C47 12 49.5 12.5 49.5 9.5 Z' fill='%237fd23a'/%3E%3Ccircle cx='48.3' cy='11.6' r='1.6' fill='%237fd23a'/%3E%3Ccircle cx='52' cy='5' r='1.8' fill='none' stroke='%23c8ff8a' stroke-width='0.9'/%3E%3Ccircle cx='45' cy='4' r='1' fill='%23a9de7e'/%3E%3Cpath d='M57 9 C57 12 59.5 12.5 59.5 9.5 Z' fill='%237fd23a'/%3E%3Ccircle cx='58.3' cy='11.6' r='1.6' fill='%237fd23a'/%3E%3Ccircle cx='62' cy='5' r='1.8' fill='none' stroke='%23c8ff8a' stroke-width='0.9'/%3E%3Ccircle cx='55' cy='4' r='1' fill='%23a9de7e'/%3E%3C/g%3E%3Cg id='k'%3E%3Ccircle cx='7' cy='7' r='6.2' fill='%232d5a12' stroke='%230a0a0a' stroke-width='1'/%3E%3Ccircle cx='7' cy='7' r='4.2' fill='url(%23g)'/%3E%3Ccircle cx='5.6' cy='5.6' r='1.2' fill='%23fff' opacity='.85'/%3E%3C/g%3E%3C/defs%3E%3Cuse href='%23b' transform='rotate(0 24 24)'/%3E%3Cuse href='%23b' transform='rotate(90 24 24)'/%3E%3Cuse href='%23b' transform='rotate(180 24 24)'/%3E%3Cuse href='%23b' transform='rotate(270 24 24)'/%3E%3Cuse href='%23k' transform='rotate(0 24 24)'/%3E%3Cuse href='%23k' transform='rotate(90 24 24)'/%3E%3Cuse href='%23k' transform='rotate(180 24 24)'/%3E%3Cuse href='%23k' transform='rotate(270 24 24)'/%3E%3C/svg%3E"); }
 /* v0.09o: small enemy plates — portrait top left, big lives and a level star beside it */
-.enemy-cell {
-  justify-items: stretch;
-  align-content: start;
-  padding: 3px 3px 2px;
-}
-.ec-top {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  align-items: center;
-  justify-content: stretch;
-  gap: 2px;
-  margin-left: 0;
-  padding-left: 0;
-}
-.ec-stats {
-  display: grid;
-  justify-items: center;
-  gap: 1px;
-  min-width: 0;
-}
-.enemy-cell .ec-lives {
-  flex-direction: row;
-  gap: 1px;
-}
-.enemy-cell .ec-lives img {
-  width: 12px;
-  height: 12px;
-}
-.enemy-cell .ec-lives b {
-  font-size: 17px;
-}
-.ec-level {
-  display: flex;
-  align-items: center;
-  gap: 1px;
-  line-height: 1;
-}
-.ec-level svg {
-  width: 10px;
-  height: 10px;
-}
-.ec-level b {
-  font: 400 10px/1 var(--font-number);
-  color: #e6d2ff;
-  text-shadow: -1px -1px 0 #000, 1px 1px 0 #000;
-}
-.enemy-cell .ec-gold,
-.enemy-cell .ec-inc {
-  justify-self: center;
-}
 /* v0.09o: with several enemies the enemy plate gets a little more room */
 .game-header:has(.player-plate.rival.multi) {
   grid-template-columns: 0.86fr auto 1.14fr;
 }
-.enemy-cell .portrait {
-  width: 21px;
-  height: 21px;
-  border-width: 1.5px;
-}
-.enemy-cell .plate-skull {
-  width: 18px;
-  height: 18px;
-}
-.enemy-cell .ec-lives img {
-  width: 10px;
-  height: 10px;
-}
-.enemy-cell .ec-lives b {
-  font-size: 16px;
-  letter-spacing: -0.02em;
-}
-.enemy-cell {
-  padding: 3px 2px 2px;
-  overflow: visible;
-}
-@media (max-width: 375px) {
-  .enemy-cell .portrait {
-    width: 18px;
-    height: 18px;
-  }
-  .enemy-cell .ec-lives b {
-    font-size: 14px;
-  }
-  .enemy-cell .ec-lives img {
-    width: 9px;
-    height: 9px;
-  }
-}
 /* v0.09p: gold and income on the left, the level star in the bottom right corner */
-.enemy-cell {
-  grid-template-columns: 1fr auto;
-  grid-template-rows: auto auto auto;
-  column-gap: 1px;
-}
-.enemy-cell .ec-top {
-  grid-column: 1 / -1;
-}
-.enemy-cell .ec-gold {
-  grid-column: 1;
-  grid-row: 2;
-  justify-self: start;
-  padding-left: 2px;
-}
-.enemy-cell .ec-inc {
-  grid-column: 1;
-  grid-row: 3;
-  justify-self: start;
-  padding-left: 3px;
-}
-.enemy-cell .ec-level {
-  grid-column: 2;
-  grid-row: 2 / 4;
-  align-self: end;
-  justify-self: end;
-  padding: 0 1px 1px 0;
-}
 /* v0.09q: Arrow Volley button beside the board (below the level button) */
 .volley-button {
   position: absolute;
@@ -4005,41 +2829,11 @@ dialog.with-flag .modal-header {
 }
 /* v0.09u: art never spills over a card's text — the picture is clipped to its own area and
    names, prices, income, stock and arrows always sit on the front layer */
-.up-art {
-  position: relative;
-  overflow: hidden;
-  align-self: stretch;
-}
-.up-art img,
-.cards.upgrade-mode.many .up-art img {
-  position: absolute;
-  inset: 1px 0 0;
-  width: 100%;
-  height: calc(100% - 1px);
-  max-width: none;
-  object-fit: contain;
-  object-position: 50% 100%;
-}
-.sell-card .up-art img {
-  inset: 12% 12% 6%;
-  width: 76%;
-  height: 82%;
-  object-position: center;
-}
-.unit-name,
-.card-foot,
-.up-title,
-.up-cost {
-  position: relative;
-  z-index: 2;
-}
 .price,
 .card-note,
 .card-stock,
 .card-status,
-.up-arrow,
-.up-lock,
-.up-queued {
+.up-lock {
   z-index: 3;
 }
 /* v0.09w: First Blood pop-up — a blood splash with the shout, shaking in and fading out */
@@ -4278,28 +3072,6 @@ dialog.with-flag .modal-header {
   font-size: 18px;
 }
 /* five or six enemies: slimmer cells in the rival plate */
-.enemy-stack[data-count="5"] .enemy-cell .portrait,
-.enemy-stack[data-count="6"] .enemy-cell .portrait {
-  width: 20px;
-  height: 20px;
-  border-width: 1.5px;
-}
-.enemy-stack[data-count="5"] .enemy-cell .plate-skull,
-.enemy-stack[data-count="6"] .enemy-cell .plate-skull {
-  width: 17px;
-  height: 17px;
-}
-.enemy-stack[data-count="5"] .ec-inc,
-.enemy-stack[data-count="6"] .ec-inc,
-.enemy-stack[data-count="5"] .ec-level,
-.enemy-stack[data-count="6"] .ec-level {
-  display: none;
-}
-.enemy-stack[data-count="5"] .enemy-cell,
-.enemy-stack[data-count="6"] .enemy-cell {
-  font-size: 10px;
-  padding: 1px 0;
-}
 .enemy-stack[data-count="5"],
 .enemy-stack[data-count="6"] {
   gap: 2px;
@@ -4342,9 +3114,1429 @@ html:root {
 }
 
 /* v0.10f: seven enemies, same slim cells as five or six */
-.enemy-stack[data-count="7"] .enemy-cell .portrait { width: 18px; height: 18px; border-width: 1.5px; }
-.enemy-stack[data-count="7"] .enemy-cell .plate-skull { width: 15px; height: 15px; }
-.enemy-stack[data-count="7"] .ec-inc,
-.enemy-stack[data-count="7"] .ec-level { display: none; }
-.enemy-stack[data-count="7"] .enemy-cell { font-size: 9px; padding: 1px 0; }
 .enemy-stack[data-count="7"] { gap: 2px; }
+
+/* =================================================================================================
+   v0.11 mobile layout
+   The whole screen is the board. A slim HUD row on top and one tray at the bottom sit over it:
+   one row of cards (or the upgrade bar) with the level button and volley on the left and the
+   auto-spawn slot on the right in Send, then the nav row. Look: stone panels with gold trim,
+   parchment labels, chunky buttons, as on the tower concept sheet.
+   Everything here overrides the older layers above; ids and the `tc-`/`hud-`/`fc-` classes are
+   new so the old card, plate and enemy-cell rules no longer reach them.
+   ================================================================================================= */
+.game-shell {
+  --nav-h: 52px;
+  --deck-h: 98px;
+  --tray-h: calc(var(--nav-h) + var(--deck-h));
+  --nav-size: var(--nav-h); /* older rules (coach, sheet) measure from this */
+}
+/* palette on the root: dialogs (card book, level rewards) live outside the shell */
+:root {
+  --stone: linear-gradient(180deg, #5c6672 0%, #3d4551 48%, #272d35 100%);
+  --stone-flat: #343b45;
+  --trim: #cfa24e;
+  --trim-hi: #ffe39a;
+  --edge: #140f08;
+  --parch: linear-gradient(180deg, #fff6dc 0%, #f1dca6 55%, #d8b674 100%);
+  --parch-ink: #3d2611;
+  --outline: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, 0 2px 0 #0009;
+}
+
+/* ---- HUD: one slim row over a soft dark gradient ------------------------------------------------ */
+.game-shell .mini-hud {
+  padding: calc(3px + env(safe-area-inset-top)) 8px 2px;
+  background: linear-gradient(180deg, #03070bd9 0%, #03070b8c 62%, #03070b00 100%);
+}
+.game-shell .hud-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+  height: 46px;
+}
+.game-shell .mini-hud .player-plate.hud-own,
+.game-shell .mini-hud .player-plate.hud-rival {
+  position: relative;
+  height: 46px;
+  min-width: 0;
+  padding: 0 2px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  box-shadow: none;
+  pointer-events: auto;
+}
+.game-shell .mini-hud .player-plate.hud-own {
+  display: grid;
+  align-content: center;
+  justify-items: start;
+  gap: 4px;
+}
+.hud-gold,
+.hud-sub,
+.hud-lives,
+.hud-level {
+  position: relative;
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+}
+.hud-gold {
+  gap: 4px;
+}
+.hud-gold img {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  filter: drop-shadow(0 1px 1px #000c);
+}
+.hud-gold b {
+  font: 400 23px/1 var(--font-number);
+  color: #ffe27a;
+  font-variant-numeric: tabular-nums;
+  text-shadow: var(--outline);
+}
+.game-shell .hud-inc {
+  align-self: flex-end;
+  margin-left: 1px;
+  padding-bottom: 1px;
+  font: 400 13px/1 var(--font-number);
+  font-style: normal;
+  color: #7ef08a;
+  text-shadow: var(--outline);
+}
+.hud-sub {
+  gap: 9px;
+}
+.hud-lives {
+  gap: 3px;
+}
+.hud-lives img {
+  width: 15px;
+  height: 15px;
+  object-fit: contain;
+}
+.hud-lives strong {
+  font: 400 15px/1 var(--font-number);
+  color: #fff;
+  text-shadow: var(--outline);
+}
+.hud-level {
+  gap: 2px;
+  font: 800 10px/1 var(--font-display);
+  letter-spacing: 0.04em;
+  color: #dcc6ff;
+  text-shadow: 0 1px 0 #000;
+}
+.hud-level b {
+  font: 400 14px/1 var(--font-number);
+  color: #fff;
+  text-shadow: var(--outline);
+}
+.hud-xp {
+  position: relative;
+  width: 30px;
+  height: 6px;
+  margin-left: 3px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: #170c26;
+  box-shadow: inset 0 0 0 1px #4a2f74;
+}
+.hud-xp i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #7d3cff, #c48bff);
+  box-shadow: 0 0 5px #a066ff;
+  transition: width 0.4s;
+}
+.player-plate.hud-own.out {
+  opacity: 0.6;
+}
+
+/* centre: the income ring with a small parchment tab for the round */
+.game-shell .mini-hud .round-plate {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 48px;
+  min-width: 0;
+  height: 46px;
+  padding: 0 0 6px;
+  border: 0;
+  background: none;
+  box-shadow: none;
+}
+.game-shell .round-plate .income-timer {
+  width: 40px;
+  height: 40px;
+  filter: drop-shadow(0 2px 3px #000b);
+}
+.game-shell .round-plate .income-timer circle {
+  fill: #0b1016e6;
+  stroke: #ffffff22;
+  stroke-width: 3.5;
+}
+.game-shell .round-plate .income-timer #income-ring {
+  fill: none;
+  stroke: #79e660;
+  stroke-width: 4;
+}
+.game-shell .round-plate #income-time {
+  font-size: 17px;
+  color: #fff;
+}
+.game-shell .round-plate .round-label {
+  position: absolute;
+  z-index: 1;
+  left: 50%;
+  bottom: -1px;
+  transform: translateX(-50%);
+  padding: 2px 5px 1px;
+  border-radius: 5px;
+  background: var(--parch);
+  box-shadow: inset 0 0 0 1px #8a6326, 0 1px 2px #000b;
+  color: var(--parch-ink);
+  font: 800 9px/1 var(--font-display);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* right: the enemy as a chip (1v1) or one chip per enemy */
+.game-shell .mini-hud .player-plate.hud-rival {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  justify-self: stretch;
+}
+.rival-chip {
+  display: flex;
+  flex-direction: row-reverse;
+  align-items: center;
+  gap: 6px;
+}
+.rival-chip .plate-face {
+  position: relative;
+  display: block;
+  flex: none;
+}
+.game-shell .rival-chip .portrait {
+  display: block;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 2.5px solid var(--rival-color);
+  box-shadow: 0 0 0 1.5px var(--edge), 0 2px 5px #000b;
+  background: radial-gradient(circle at 50% 30%, #7a3b2f, #2a1010);
+  object-fit: cover;
+}
+.rival-stats {
+  display: grid;
+  justify-items: end;
+  gap: 3px;
+}
+.rival-lives {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+.rival-lives img {
+  width: 15px;
+  height: 15px;
+  object-fit: contain;
+}
+.rival-lives strong {
+  font: 400 18px/1 var(--font-number);
+  color: #fff;
+  text-shadow: var(--outline);
+}
+.rival-level {
+  font: 800 10px/1 var(--font-display);
+  letter-spacing: 0.04em;
+  color: #dcc6ff;
+  text-shadow: 0 1px 0 #000;
+}
+.rival-level b {
+  font: 400 13px/1 var(--font-number);
+  color: #fff;
+}
+.player-plate.hud-rival.out .rival-chip {
+  opacity: 0.6;
+}
+.player-plate.hud-rival.out .rival-chip .portrait {
+  filter: grayscale(1) brightness(0.7);
+}
+.player-plate.hud-rival .plate-skull {
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+.player-plate.hud-rival.out .plate-skull {
+  display: block;
+}
+.player-plate.hud-rival.multi .rival-chip {
+  display: none;
+}
+.game-header.hud-row:has(.player-plate.rival.multi) {
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+}
+/* five or more enemies: the own stats keep their width, the chips get the rest */
+.game-header.hud-row:has(#enemy-stack[data-count="5"]),
+.game-header.hud-row:has(#enemy-stack[data-count="6"]),
+.game-header.hud-row:has(#enemy-stack[data-count="7"]) {
+  grid-template-columns: auto auto minmax(0, 1fr);
+}
+.game-shell #enemy-stack {
+  display: flex;
+  flex: 1 1 auto;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+  width: auto;
+  height: 46px;
+}
+.game-shell #enemy-stack[hidden] {
+  display: none;
+}
+/* chips share the room: at most 38 px each, smaller with many enemies */
+.foe-chip {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 38px;
+  height: 46px;
+  min-height: 0;
+  padding: 0;
+  border-radius: 10px;
+}
+.fc-face {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+}
+.game-shell .foe-chip .portrait {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  border: 2.5px solid var(--pc);
+  box-shadow: 0 0 0 1.5px var(--edge), 0 2px 4px #000b;
+  background: radial-gradient(circle at 50% 30%, #4b5563, #1a1f26);
+  object-fit: cover;
+}
+.foe-chip .plate-skull {
+  top: 50%;
+  width: 70%;
+  height: 70%;
+  transform: translate(-50%, -50%);
+}
+.fc-target {
+  position: absolute;
+  top: -4px;
+  right: -6px;
+  width: 17px;
+  height: 17px;
+  object-fit: contain;
+  filter: drop-shadow(0 1px 1px #000);
+  display: none;
+}
+.foe-chip.target .fc-target {
+  display: block;
+}
+.foe-chip.target .portrait {
+  box-shadow: 0 0 0 1.5px var(--edge), 0 0 0 3.5px #ffcf4a, 0 0 10px #ffcf4a99;
+}
+.foe-chip.viewing::after {
+  content: "";
+  position: absolute;
+  left: 20%;
+  right: 20%;
+  bottom: -2px;
+  height: 3px;
+  border-radius: 2px;
+  background: #fff;
+  box-shadow: 0 0 6px #fff;
+}
+.fc-lives {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  margin-top: -6px;
+  padding: 1px 4px 1px 3px;
+  border-radius: 7px;
+  background: #0b0f14e6;
+  box-shadow: inset 0 0 0 1px #ffffff2a;
+  white-space: nowrap;
+}
+.fc-lives img {
+  width: 10px;
+  height: 10px;
+  object-fit: contain;
+}
+.fc-lives b {
+  font: 400 11px/1 var(--font-number);
+  color: #fff;
+}
+.foe-chip.out {
+  opacity: 0.55;
+}
+.foe-chip.out .plate-skull {
+  display: block;
+}
+.foe-chip.out .portrait {
+  filter: grayscale(1) brightness(0.7);
+}
+#enemy-stack[data-count="5"] .fc-lives img,
+#enemy-stack[data-count="6"] .fc-lives img,
+#enemy-stack[data-count="7"] .fc-lives img {
+  display: none;
+}
+#enemy-stack[data-count="6"] .fc-lives,
+#enemy-stack[data-count="7"] .fc-lives {
+  padding: 1px 3px;
+}
+#enemy-stack[data-count="6"] .fc-target,
+#enemy-stack[data-count="7"] .fc-target {
+  width: 13px;
+  height: 13px;
+  right: -4px;
+}
+
+/* wave info: a tiny line under the row */
+.game-shell .wave-chip {
+  gap: 5px;
+  height: 18px;
+  margin: 1px auto 0;
+  padding: 0 3px 0 5px;
+  border: 0;
+  border-radius: 9px;
+  background: #0b0f14c4;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--wave) 60%, #000);
+  font: 800 10.5px/1 var(--font-display);
+  letter-spacing: 0.04em;
+}
+.game-shell .wave-chip i {
+  width: 9px;
+  height: 9px;
+}
+.game-shell .wave-chip b {
+  min-width: 2em;
+  padding: 2px 5px;
+  font-size: 10.5px;
+  line-height: 1;
+}
+
+/* ---- the tray ------------------------------------------------------------------------------------ */
+#tray.command-deck {
+  position: absolute;
+  z-index: 4;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--nav-h) + env(safe-area-inset-bottom));
+  display: block;
+  height: var(--deck-h);
+  padding: 0 6px;
+  background: linear-gradient(180deg, #0a0e1300 0, #0a0e13a8 16px, #0a0e13d9 100%);
+}
+#tray.command-deck::before {
+  content: "";
+  position: absolute;
+  left: 4%;
+  right: 4%;
+  top: 2px;
+  height: 1.5px;
+  border-radius: 1px;
+  background: linear-gradient(90deg, #cfa24e00, #cfa24e99 18%, #ffe39acc 50%, #cfa24e99 82%, #cfa24e00);
+  pointer-events: none;
+}
+.game-shell .deck-handle,
+.game-shell #deck-expand {
+  display: none !important;
+}
+.tray-row {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  height: 100%;
+  padding: 6px 0 3px;
+}
+.tray-side {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.tray-left:not(:has(> :not([hidden]))) {
+  display: none;
+}
+.game-shell #tray .cards-wrap {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.game-shell #cards {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  gap: 6px;
+  height: 100%;
+  padding: 4px 4px 3px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+  touch-action: pan-x;
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+.game-shell #cards.more-right {
+  -webkit-mask-image: linear-gradient(90deg, #000 86%, #0003);
+  mask-image: linear-gradient(90deg, #000 86%, #0003);
+}
+.game-shell #cards.more-left {
+  -webkit-mask-image: linear-gradient(90deg, #0003, #000 14%);
+  mask-image: linear-gradient(90deg, #0003, #000 14%);
+}
+.game-shell #cards.more-left.more-right {
+  -webkit-mask-image: linear-gradient(90deg, #0003, #000 14%, #000 86%, #0003);
+  mask-image: linear-gradient(90deg, #0003, #000 14%, #000 86%, #0003);
+}
+.game-shell #cards.upgrade-mode {
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+/* arrows only for a mouse; fingers swipe */
+.game-shell #tray .deck-arrow {
+  display: none;
+}
+@media (hover: hover) and (pointer: fine) {
+  .game-shell #tray .deck-arrow:not([hidden]) {
+    display: block;
+    top: 50%;
+    width: 24px;
+    height: 44px;
+    margin-top: -22px;
+    border-radius: 9px;
+    border: 2px solid var(--edge);
+    background: var(--stone);
+    box-shadow: inset 0 0 0 1px var(--trim), 0 3px 8px #000a;
+  }
+}
+
+/* ---- cards: figure, price badge, parchment name ------------------------------------------------- */
+.tcard {
+  position: relative;
+  flex: 0 0 auto;
+  width: 72px;
+  height: 100%;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 12px;
+  border: 2px solid var(--edge);
+  background: radial-gradient(120% 78% at 50% 60%, #6f7f8f 0%, #3f4955 52%, #262c34 100%);
+  box-shadow:
+    inset 0 0 0 1.5px #b58a40,
+    inset 0 2px 0 1.5px #ffffff26,
+    0 3px 0 #0b0805;
+  color: var(--ink);
+  text-align: center;
+  scroll-snap-align: start;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  transition: transform 0.12s, box-shadow 0.12s;
+}
+.tcard .tc-art {
+  position: absolute;
+  inset: 4px 2px 18px;
+  pointer-events: none;
+}
+.tcard .tc-art img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: 50% 100%;
+  filter: drop-shadow(0 3px 2px #000a);
+  -webkit-user-drag: none;
+}
+.tcard .tc-name {
+  position: absolute;
+  z-index: 2;
+  left: 3px;
+  right: 3px;
+  bottom: 3px;
+  display: grid;
+  place-items: center;
+  min-height: 16px;
+  padding: 1px 3px 0;
+  overflow: hidden;
+  border-radius: 3px 3px 8px 8px;
+  background: var(--parch);
+  box-shadow: inset 0 0 0 1px #8a6326, 0 -1px 0 #0005;
+  color: var(--parch-ink);
+  font: 800 11px/1 var(--font-display);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.tcard .tc-name.long {
+  white-space: normal;
+  font-size: 9.5px;
+  line-height: 0.95;
+  letter-spacing: 0;
+  padding: 2px 2px 1px;
+}
+.tcard > .price {
+  position: absolute;
+  z-index: 3;
+  top: 3px;
+  left: 3px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 19px;
+  padding: 0 6px 0 2px;
+  border-radius: 10px;
+  background: linear-gradient(#2c1f0e, #140e07);
+  box-shadow: inset 0 0 0 1.5px #d9ac52, 0 1px 3px #000c;
+  font: 400 14px/1 var(--font-number);
+  color: #ffe27a;
+  text-shadow: 0 1px 0 #000;
+}
+.tcard > .price::before {
+  width: 15px;
+  height: 15px;
+}
+.tcard > .price.free {
+  padding: 0 6px;
+  color: #a4ff8e;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  box-shadow: inset 0 0 0 1.5px #6ee87a, 0 1px 3px #000c;
+}
+.tcard > .price.free::before {
+  display: none;
+}
+.tcard .card-status {
+  position: absolute;
+  z-index: 4;
+  inset: 0 0 19px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px 10px 0 0;
+  background: #05080cb3;
+  font: 400 20px/1 var(--font-number);
+  color: #fff;
+  text-shadow: 0 2px 0 #000;
+}
+.tcard .card-status:empty {
+  display: none;
+}
+.tcard.card-research .card-status {
+  inset: auto 3px 20px;
+  height: 16px;
+  font-size: 11px;
+  border-radius: 4px;
+  background: #3d2a7acc;
+}
+/* chosen card: a gold frame that shines */
+.tcard.selected {
+  border-color: #ffcf4a;
+  box-shadow:
+    inset 0 0 0 2px var(--trim-hi),
+    inset 0 0 14px #ffcf4a99,
+    0 0 0 1.5px #6b4a0a,
+    0 0 7px #ffcf4acc;
+}
+.tcard.selected .tc-name {
+  background: linear-gradient(180deg, #fff9e6, #ffe08a 60%, #e8b44a);
+}
+/* not affordable (or not possible right now): grey */
+.tcard.unaffordable .tc-art img {
+  filter: grayscale(0.9) brightness(0.62) drop-shadow(0 3px 2px #000a);
+}
+.tcard.unaffordable {
+  background: radial-gradient(120% 78% at 50% 60%, #4c545d 0%, #30363e 55%, #1f242a 100%);
+  box-shadow:
+    inset 0 0 0 1.5px #6d6352,
+    0 3px 0 #0b0805;
+}
+.tcard.unaffordable .tc-name {
+  filter: saturate(0.4) brightness(0.8);
+}
+.tcard.poor > .price,
+.tcard.unaffordable > .price {
+  color: #ff9a8a;
+  box-shadow: inset 0 0 0 1.5px #b8524a, 0 1px 3px #000c;
+}
+.tcard.sent-pulse {
+  animation: sent-pulse 0.22s ease-out;
+}
+
+/* creep cards: dark red stage, income on the banner, stock, boss and flyer badges */
+.tcard.card-send {
+  width: 66px;
+  background: radial-gradient(120% 78% at 50% 58%, #7c4a66 0%, #46263f 50%, #241321 100%);
+}
+.tcard.card-send .tc-art {
+  inset: 3px 2px 18px;
+}
+.tcard.card-send .tc-art img {
+  object-position: 50% 60%;
+}
+.tcard .tc-income {
+  font-size: 12px;
+}
+.tcard .tc-income .card-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  font: 400 13px/1 var(--font-number);
+  color: #1d6b12;
+  text-shadow: 0 1px 0 #fff6;
+}
+.tcard .tc-income .card-note::before {
+  width: 11px;
+  height: 11px;
+}
+.tcard .tc-income .card-note.buffed {
+  color: #0b8a00;
+}
+.tcard .card-stock {
+  position: absolute;
+  z-index: 3;
+  right: 3px;
+  bottom: 21px;
+  display: block;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: 9px;
+  background: #0b0f14e0;
+  box-shadow: inset 0 0 0 1.5px #a9b4c0;
+  font: 400 11px/17px var(--font-number);
+  color: #fff;
+}
+.tcard.holding {
+  box-shadow:
+    inset 0 0 0 2.5px #ffe27a,
+    0 0 12px #ffcf4acc,
+    0 3px 0 #0b0805;
+}
+.tc-mark {
+  position: absolute;
+  z-index: 3;
+  top: 3px;
+  right: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: center / 78% no-repeat;
+  box-shadow: 0 0 0 1.5px var(--edge), 0 1px 3px #000c;
+  pointer-events: none;
+}
+.tc-boss {
+  background-color: #b8322a;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 3C9 3 4.5 7.6 4.5 13.6c0 3.6 1.7 6.3 4.3 7.8V25a2 2 0 0 0 2 2h1.4v-2.6h1.6V27h4.4v-2.6h1.6V27h1.4a2 2 0 0 0 2-2v-3.6c2.6-1.5 4.3-4.2 4.3-7.8C27.5 7.6 23 3 16 3z' fill='%23f4efe2' stroke='%23161616' stroke-width='1.6'/%3E%3Cellipse cx='11.2' cy='14.6' rx='3.2' ry='3.5' fill='%23161616'/%3E%3Cellipse cx='20.8' cy='14.6' rx='3.2' ry='3.5' fill='%23161616'/%3E%3Cpath d='M16 18.2l-1.9 3.4h3.8z' fill='%23161616'/%3E%3C/svg%3E");
+}
+.tc-air {
+  background-color: #2f7fc0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M3 20c5-1 9-4 12-10 1 5 0 9-3 12 4-1 7-3 9-6 0 4-2 7-5 9 3 0 6-1 8-3-2 4-6 6-11 6-5 0-8-3-10-8z' fill='%23f4f8fc' stroke='%23142a40' stroke-width='1.5' stroke-linejoin='round'/%3E%3Cpath d='M29 20c-3-.6-5.4-2-7.3-4.4' fill='none' stroke='%23f4f8fc' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E");
+}
+.tcard.mark-boss {
+  box-shadow:
+    inset 0 0 0 2px #ff6a5a,
+    inset 0 2px 0 2px #ffffff22,
+    0 3px 0 #0b0805;
+}
+.tcard.mark-air {
+  box-shadow:
+    inset 0 0 0 2px #8fd8ff,
+    inset 0 2px 0 2px #ffffff22,
+    0 3px 0 #0b0805;
+}
+
+/* ---- the upgrade bar (a tower of yours is selected) ---------------------------------------------- */
+.tcard.tc-info {
+  width: 62px;
+  background: radial-gradient(120% 78% at 50% 60%, #5c6b7a 0%, #36404b 55%, #232930 100%);
+}
+.tcard.tc-info .tc-art {
+  inset: 14px 3px 18px;
+}
+.tc-lv {
+  position: absolute;
+  z-index: 3;
+  display: block;
+  padding: 2px 4px 1px;
+  border-radius: 6px;
+  background: #0b0f14e0;
+  box-shadow: inset 0 0 0 1px #d9ac52;
+  font: 400 10.5px/1 var(--font-number);
+  color: #ffe27a;
+  white-space: nowrap;
+}
+.tc-info .tc-lv {
+  top: 3px;
+  left: 3px;
+}
+.tc-i {
+  position: absolute;
+  z-index: 3;
+  top: 3px;
+  right: 3px;
+  width: 16px;
+  height: 16px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: linear-gradient(#6cb8ff, #2a6cc0);
+  box-shadow: 0 0 0 1.5px var(--edge);
+  font: 800 11px/1 Georgia, serif;
+  font-style: italic;
+  color: #fff;
+}
+.tc-busy {
+  position: absolute;
+  z-index: 4;
+  inset: 0 0 19px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px 10px 0 0;
+  background: #05080ca6;
+  font: 800 10px/1 var(--font-display);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #ffe27a;
+}
+.tcard.tc-up {
+  width: 86px;
+  background: radial-gradient(120% 78% at 50% 55%, #6f8a6c 0%, #3c4f42 52%, #222c26 100%);
+  box-shadow:
+    inset 0 0 0 1.5px #b58a40,
+    inset 0 2px 0 1.5px #ffffff26,
+    0 3px 0 #0b0805;
+}
+.tcard.tc-up .tc-name {
+  top: 3px;
+  bottom: auto;
+  border-radius: 8px 8px 3px 3px;
+}
+.tcard.tc-up .tc-art {
+  inset: 18px 3px 24px;
+}
+.tc-arrow {
+  position: absolute;
+  z-index: 3;
+  left: 3px;
+  top: 21px;
+  width: 20px;
+  height: 22px;
+  background: url("assets/art/icon-income.webp") center / contain no-repeat;
+  filter: drop-shadow(0 1px 1px #000c);
+  pointer-events: none;
+}
+.tcard.tc-up:not(.unaffordable) .tc-arrow {
+  animation: tc-bob 1.2s ease-in-out infinite;
+}
+@keyframes tc-bob {
+  50% {
+    transform: translateY(-3px);
+  }
+}
+.tc-up .tc-lv {
+  top: 22px;
+  right: 3px;
+}
+.tc-cost {
+  position: absolute;
+  z-index: 3;
+  left: 3px;
+  right: 3px;
+  bottom: 3px;
+  display: grid;
+  place-items: center;
+  height: 21px;
+  border-radius: 3px 3px 8px 8px;
+  background: linear-gradient(#67d65c, #2c9a35 60%, #1d6e25);
+  box-shadow: inset 0 0 0 1.5px #ffe08a, inset 0 2px 0 1px #ffffff55;
+}
+.tc-cost .price {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font: 400 15px/1 var(--font-number);
+  color: #fff;
+  text-shadow: var(--outline);
+}
+.tc-cost .price::before {
+  width: 15px;
+  height: 15px;
+}
+.tcard.tc-up.unaffordable .tc-cost {
+  background: linear-gradient(#7a8088, #4a5058);
+  box-shadow: inset 0 0 0 1.5px #9b9284;
+}
+.tcard.tc-up.poor .tc-cost {
+  background: linear-gradient(#d4584a, #8e2a22);
+  box-shadow: inset 0 0 0 1.5px #ffb0a0, inset 0 2px 0 1px #ffffff40;
+}
+.tcard.tc-up.poor .tc-cost .price {
+  color: #ffe6e0;
+}
+.tcard.tc-up.queued {
+  box-shadow:
+    inset 0 0 0 2px #6ee87a,
+    0 0 10px #6ee87a80,
+    0 3px 0 #0b0805;
+  outline: 2px dashed #6ee87a;
+  outline-offset: -6px;
+}
+.tc-queued {
+  position: absolute;
+  z-index: 4;
+  right: 4px;
+  bottom: 27px;
+  font-size: 14px;
+  line-height: 1;
+  filter: drop-shadow(0 1px 1px #000);
+  animation: up-wait 1.2s ease-in-out infinite alternate;
+}
+.tc-empty {
+  flex: 0 1 auto;
+  align-self: center;
+  max-width: 120px;
+  padding: 0 8px;
+  font: 800 12px/1.2 var(--font-display);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #c9d3dc;
+}
+/* upgrade mode: the info tile and the sell button stay put, the upgrades swipe between them */
+.game-shell #cards.upgrade-mode {
+  overflow: visible;
+  scroll-snap-type: none;
+}
+.tc-ups {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: stretch;
+  gap: 6px;
+  min-width: 0;
+  padding: 0 1px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+  touch-action: pan-x;
+}
+.tc-ups::-webkit-scrollbar {
+  display: none;
+}
+.tc-ups.more {
+  -webkit-mask-image: linear-gradient(90deg, #000 84%, #0003);
+  mask-image: linear-gradient(90deg, #000 84%, #0003);
+}
+.tc-ups > .tcard {
+  scroll-snap-align: start;
+}
+.tc-gap {
+  flex: 0 0 10px;
+  align-self: stretch;
+  display: grid;
+  place-items: center;
+}
+.tc-gap::after {
+  content: "";
+  width: 2px;
+  height: 70%;
+  border-radius: 1px;
+  background: linear-gradient(#cfa24e00, #cfa24eaa, #cfa24e00);
+}
+.tcard.tc-sell {
+  position: relative;
+  z-index: 1;
+  width: 60px;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  justify-items: center;
+  align-items: center;
+  padding: 4px 2px 3px;
+  background: radial-gradient(120% 80% at 50% 45%, #8a3a2a 0%, #55201a 55%, #2e0f0c 100%);
+  box-shadow:
+    inset 0 0 0 1.5px #d28a5a,
+    inset 0 2px 0 1.5px #ffffff22,
+    0 3px 0 #0b0805;
+}
+.sell-label {
+  font: 800 12px/1 var(--font-display);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #ffe6d0;
+  text-shadow: 0 1px 0 #000;
+}
+.sell-coin {
+  width: 30px;
+  height: 30px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 2px #000a);
+}
+.sell-gold {
+  font: 400 16px/1 var(--font-number);
+  color: #ffe27a;
+  text-shadow: var(--outline);
+}
+
+/* ---- tray side slots: level, volley (left) and auto-spawn (right, Send only) --------------------- */
+.game-shell #level-button,
+.game-shell #volley-button,
+.game-shell #auto-slot {
+  position: relative;
+  inset: auto;
+  width: 46px;
+  height: 46px;
+  min-height: 0;
+  flex: none;
+}
+.game-shell #level-button {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  border-radius: 12px;
+  border: 2px solid var(--edge);
+  background: radial-gradient(circle at 50% 30%, #4a3a6a, #251b38 75%);
+  box-shadow:
+    inset 0 0 0 1.5px var(--trim),
+    0 3px 0 #0b0805;
+}
+.game-shell #level-button .level-fill {
+  border-radius: 0 0 9px 9px;
+  background: linear-gradient(#b884ff, #6a33d6);
+  box-shadow: inset 0 2px 0 #e6d4ff;
+}
+.game-shell #level-button span {
+  font: 800 10px/1 var(--font-display);
+  letter-spacing: 0.06em;
+  color: #f0e4ff;
+  text-shadow: 0 1px 0 #000;
+}
+.game-shell #level-button b {
+  font: 400 19px/1 var(--font-number);
+  color: #fff;
+  text-shadow: var(--outline);
+}
+.game-shell #level-button i {
+  top: -7px;
+  right: -7px;
+  min-width: 19px;
+  height: 19px;
+  font-size: 12px;
+}
+.game-shell #level-button.ready {
+  box-shadow:
+    inset 0 0 0 2px var(--trim-hi),
+    0 3px 0 #0b0805,
+    0 0 14px #c48bff;
+}
+.game-shell #volley-button {
+  border-radius: 12px;
+  border: 2px solid var(--edge);
+  background: radial-gradient(circle at 50% 30%, #6a8a3a, #2c3d16 75%);
+  box-shadow:
+    inset 0 0 0 1.5px var(--trim),
+    0 3px 0 #0b0805;
+}
+.game-shell #volley-button.ready {
+  box-shadow:
+    inset 0 0 0 1.5px var(--trim-hi),
+    0 3px 0 #0b0805,
+    0 0 10px #c8ff6a88;
+}
+.game-shell #volley-button.aiming {
+  box-shadow:
+    inset 0 0 0 2px #fff,
+    0 0 0 2px #ffe27a,
+    0 0 16px #ffe27a;
+}
+.game-shell #side-dock {
+  position: relative;
+  inset: auto;
+  z-index: 1;
+  width: 52px;
+  gap: 3px;
+}
+.game-shell[data-page="build"] #side-dock,
+.game-shell[data-page="research"] #side-dock {
+  display: none;
+}
+.game-shell #side-dock .side-label {
+  font: 800 10px/1 var(--font-display);
+  letter-spacing: 0.1em;
+  color: #ffd75a;
+}
+.game-shell #auto-slot {
+  border-radius: 12px;
+  border: 2px dashed #b48ad0;
+  background: radial-gradient(circle at 50% 60%, #3a2448, #1a0f22 72%);
+}
+.game-shell #auto-slot.filled {
+  border: 2px solid var(--trim-hi);
+  box-shadow: 0 0 10px #ffcf4a80;
+  background: radial-gradient(circle at 50% 60%, #7c4a66, #241321 72%);
+}
+.game-shell #auto-slot.filled.off {
+  border-color: #6c7680;
+  box-shadow: none;
+}
+.game-shell #auto-slot.drop-target {
+  border: 2px solid #6ee87a;
+  box-shadow: 0 0 14px #6ee87a;
+}
+.game-shell #side-dock .tier-badge {
+  padding: 2px 8px;
+  border-radius: 8px;
+  background: var(--parch);
+  box-shadow: inset 0 0 0 1px #8a6326, 0 1px 2px #000a;
+  color: var(--parch-ink);
+  font: 800 10px/1.1 var(--font-display);
+  letter-spacing: 0.06em;
+}
+
+/* ---- nav row ------------------------------------------------------------------------------------- */
+.game-shell .bottom-nav {
+  z-index: 5;
+  gap: 6px;
+  height: calc(var(--nav-h) + env(safe-area-inset-bottom));
+  padding: 2px 6px calc(6px + env(safe-area-inset-bottom));
+  background: #0a0e13e0;
+  border-top: 0;
+}
+.game-shell .bottom-nav [data-tab] {
+  height: 44px;
+  min-height: 44px;
+  gap: 6px;
+  border-radius: 14px;
+  border: 2px solid var(--edge);
+  background: var(--stone);
+  box-shadow:
+    inset 0 0 0 1.5px #a98543,
+    inset 0 2px 0 1.5px #ffffff2a,
+    0 3px 0 #0b0805;
+  font: 800 18px var(--font-display);
+  letter-spacing: 0.08em;
+  color: #e9e2cf;
+  text-shadow: 0 2px 0 #000a;
+}
+.game-shell .bottom-nav [data-tab] img {
+  width: 26px;
+  height: 26px;
+  filter: drop-shadow(0 2px 1px #0009) grayscale(0.3);
+}
+.game-shell .bottom-nav .tab-build.active {
+  background: linear-gradient(180deg, #67bcff 0%, #2b7fd6 52%, #1a4f96 100%);
+  box-shadow:
+    inset 0 0 0 2px var(--trim-hi),
+    inset 0 3px 0 2px #ffffff55,
+    0 3px 0 #0b0805,
+    0 0 12px #3f9fff8c;
+  color: #fff;
+}
+.game-shell .bottom-nav .tab-send.active {
+  background: linear-gradient(180deg, #ff8f6c 0%, #d9452f 52%, #93231a 100%);
+  box-shadow:
+    inset 0 0 0 2px var(--trim-hi),
+    inset 0 3px 0 2px #ffffff55,
+    0 3px 0 #0b0805,
+    0 0 12px #ff5a3a8c;
+  color: #fff;
+}
+.game-shell .bottom-nav [data-tab].active img {
+  filter: drop-shadow(0 2px 1px #0009);
+}
+.game-shell .bottom-nav .side-button {
+  width: 46px;
+  height: 44px;
+  min-height: 44px;
+  border-radius: 14px;
+  border: 2px solid var(--edge);
+  background: var(--stone);
+  box-shadow:
+    inset 0 0 0 1.5px #a98543,
+    inset 0 2px 0 1.5px #ffffff2a,
+    0 3px 0 #0b0805;
+}
+.game-shell .bottom-nav .side-button img {
+  width: 27px;
+  height: 27px;
+}
+.game-shell .bottom-nav .help-button.active {
+  background: linear-gradient(#ffe48f, #e8a52e);
+  box-shadow:
+    inset 0 1px 0 #fff8,
+    0 0 12px #ffd84a,
+    0 3px 0 #6b4a0a;
+}
+
+/* ---- floating: zoom reset, notes, tower info ----------------------------------------------------- */
+.zoom-reset {
+  position: absolute;
+  z-index: 6;
+  right: 10px;
+  bottom: calc(var(--tray-h) + env(safe-area-inset-bottom) + 10px);
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  min-height: 0;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid var(--edge);
+  background: var(--stone);
+  box-shadow:
+    inset 0 0 0 1.5px var(--trim),
+    inset 0 2px 0 1.5px #ffffff2a,
+    0 3px 0 #0b0805,
+    0 4px 10px #000a;
+  color: #fff3d2;
+  animation: pop-in 0.2s ease-out;
+}
+.zoom-reset svg {
+  width: 26px;
+  height: 26px;
+  filter: drop-shadow(0 1px 0 #000);
+}
+.game-shell #toast,
+.game-shell:has(.auto-send:not([hidden])) #toast,
+.game-shell:has(.tower-panel:not([hidden])) #toast {
+  top: auto;
+  left: 10px;
+  right: 10px;
+  bottom: calc(var(--tray-h) + env(safe-area-inset-bottom) + 10px);
+  border-color: var(--trim);
+  background: #0b0f14eb;
+}
+.game-shell:has(#zoom-reset:not([hidden])) #toast {
+  right: 64px;
+}
+.game-shell:has(.coach:not([hidden])) #toast {
+  top: calc(env(safe-area-inset-top) + 74px);
+  bottom: auto;
+}
+.game-shell:has(.tower-panel:not([hidden])) #toast {
+  top: calc(env(safe-area-inset-top) + 74px);
+  bottom: auto;
+}
+.game-shell .tower-panel {
+  left: 8px;
+  right: 8px;
+  bottom: calc(var(--tray-h) + env(safe-area-inset-bottom) + 8px);
+  max-height: calc(100% - var(--tray-h) - 90px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  padding: 10px 10px 8px;
+  border-radius: 16px;
+  border: 2px solid var(--edge);
+  background: var(--stone);
+  box-shadow:
+    inset 0 0 0 2px var(--trim),
+    inset 0 3px 0 2px #ffffff1c,
+    0 8px 20px #000c;
+}
+.game-shell .tower-panel h3 {
+  font-size: 19px;
+  color: #fff3d2;
+  text-shadow: 0 2px 0 #000a;
+}
+.game-shell .tower-panel .tower-stats {
+  color: #d6dde4;
+}
+.game-shell .tower-panel #tower-more {
+  min-height: 34px;
+  color: var(--trim-hi);
+}
+
+/* ---- dialogs: stone with gold trim, parchment title banner --------------------------------------- */
+dialog:not(.welcome-modal) {
+  width: calc(100% - 20px);
+  border: 2px solid #140f08;
+  background: linear-gradient(180deg, #4b5560 0%, #353d47 42%, #262c34 100%);
+  box-shadow:
+    inset 0 0 0 2px #cfa24e,
+    inset 0 0 0 4px #140f0880,
+    inset 0 5px 0 4px #ffffff12,
+    0 12px 32px #000d;
+  overflow-x: hidden;
+}
+dialog:not(.welcome-modal) .modal-header {
+  margin: -4px -4px 6px;
+  padding: 6px 6px 6px 14px;
+  border-radius: 11px;
+  background: linear-gradient(180deg, #fff6dc 0%, #f1dca6 55%, #d8b674 100%);
+  box-shadow:
+    inset 0 0 0 1.5px #8a6326,
+    inset 0 -3px 0 #b8914f66,
+    0 3px 0 #0008;
+}
+dialog:not(.welcome-modal) .modal-header h2 {
+  color: #3d2611;
+  font-size: 21px;
+  text-shadow: 0 1px 0 #fff9;
+  overflow-wrap: anywhere;
+}
+dialog:not(.welcome-modal) .secondary-button {
+  background: linear-gradient(180deg, #67727f 0%, #45505c 52%, #323a44 100%);
+  border-color: #140f08;
+  box-shadow:
+    inset 0 0 0 1.5px #b58a40,
+    inset 0 2px 0 1.5px #ffffff30,
+    0 4px 0 #0b0805;
+}
+dialog:not(.welcome-modal) .rule-row,
+dialog:not(.welcome-modal) .info-disclosure {
+  background: #10141acc;
+  box-shadow: inset 0 0 0 1px #cfa24e33;
+}
+dialog:not(.welcome-modal) .modal-note,
+dialog:not(.welcome-modal) .modal-copy {
+  color: #e2e6ea;
+}
+dialog:not(.welcome-modal) .modal-note {
+  color: #b9c3cc;
+}
+dialog:not(.welcome-modal) .pills button {
+  background: #1a2028;
+  box-shadow: inset 0 0 0 1px #cfa24e44;
+}
+dialog:not(.welcome-modal) .pills button.active {
+  background: linear-gradient(#ffe48f, #e8a52e);
+  color: #3d2611;
+}
+.catalog-grid {
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+}
+.catalog-grid .tcard,
+.sheet-cards .tcard {
+  width: auto;
+  height: 98px;
+}
+.pick-grid {
+  gap: 6px;
+}
+@media (max-width: 374px) {
+  .pick-card {
+    padding-left: 3px;
+    padding-right: 3px;
+  }
+  .pick-card span {
+    font-size: 10.5px;
+  }
+}
+
+/* ---- sizes: small phones, short views and the Claude app band ------------------------------------ */
+@media (max-width: 374px) {
+  .game-shell {
+    --deck-h: 94px;
+  }
+  .tcard {
+    width: 68px;
+  }
+  .tcard.card-send {
+    width: 62px;
+  }
+  .tcard.tc-up {
+    width: 80px;
+  }
+  .game-shell .bottom-nav [data-tab] {
+    font-size: 16px;
+    letter-spacing: 0.05em;
+  }
+  .game-shell .bottom-nav [data-tab] img {
+    width: 23px;
+    height: 23px;
+  }
+  .hud-gold b {
+    font-size: 21px;
+  }
+  .hud-sub {
+    gap: 6px;
+  }
+  .hud-xp {
+    width: 22px;
+  }
+}
+@media (max-height: 680px) {
+  .game-shell {
+    --deck-h: 88px;
+    --nav-h: 48px;
+  }
+  .game-shell .bottom-nav [data-tab],
+  .game-shell .bottom-nav .side-button {
+    height: 40px;
+    min-height: 40px;
+  }
+  .game-shell #level-button,
+  .game-shell #volley-button,
+  .game-shell #auto-slot {
+    width: 40px;
+    height: 40px;
+  }
+  .game-shell .tray-left {
+    gap: 4px;
+  }
+}
+.game-shell.top-band .mini-hud {
+  padding-bottom: 2px;
+}
+.game-shell.top-band .wave-chip {
+  height: 22px;
+  top: calc(env(safe-area-inset-top) - 32px);
+}
+dialog.with-flag:not(.welcome-modal) .modal-header {
+  padding-left: 58px;
+}
+dialog:not(.welcome-modal) .surrender-flag {
+  top: 13px;
+  left: 13px;
+  border-color: var(--edge, #140f08);
+  background: linear-gradient(180deg, #5c6672, #2f363f);
+  box-shadow: inset 0 0 0 1.5px #cfa24e, 0 3px 0 #0b0805;
+}
+/* gold and EXP pops float out beside their numbers, not over the second line */
+.hud-gold .hud-pop {
+  left: calc(100% + 20px);
+  top: 2px;
+}
+.hud-level .hud-pop {
+  left: calc(100% + 22px);
+  top: -3px;
+  font-size: 14px;
+}
+@media (max-width: 374px) {
+  .tcard.tc-info {
+    width: 56px;
+  }
+  .tcard.tc-up {
+    width: 76px;
+  }
+  .tcard.tc-sell {
+    width: 56px;
+  }
+}
