@@ -508,6 +508,7 @@ export const CREEP_TUNING = {
   n00K: { income: 3.5 }, // Gnoll: income 3 → 3.5 (v0.08d)
   n00M: { hp: 156, name: "[06] Orc", shortName: "Orc", abilities: ["A01A", "XA02"] }, // Grunt → Orc (v0.17b): hit points +30 %, 120 → 156 (v0.09s); Siege Resistance 33 % (v0.17b)
   n00R: { abilities: ["A01A", "XA01"] }, // Skeleton: Arrow Resistance now 33 % less damage from Archer-line towers (v0.17b, was: ignores 1 ranged damage)
+  n00N: { hp: 180 }, // Necromancer: hit points 170 → 180 (v0.17f)
   n00P: { hp: 85, speed: 138.56 }, // Flying Sheep: hit points 80 → 85, speed 1.06 → 1.08 fields/s (v0.17b)
   n00L: { speed: 375 }, // Wolf: 25 % faster, 300 → 375 (v0.08d)
   n00S: { speed: 420 }, // Raider: 25 % faster (v0.07b)
