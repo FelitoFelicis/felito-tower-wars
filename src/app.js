@@ -80,7 +80,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.16h",
+const APP_VERSION = "0.16k",
   APP_DATE = "16.10.2026";
 const WAVES_PREF = "felito.waves";
 const COACH_PREF = "felito.coach.v1";
@@ -939,8 +939,7 @@ const ABILITY_DESC = {
   "Critical Shot": "Chance to deal double damage",
   "Multi Shot": "Shoots several arrows at once",
   "Frost Attack": "Hits slow the target",
-  "Immolation Aura": "Burns creeps around the tower",
-  "Firecloud Aura": "Burns flying creeps around the tower",
+  "Immolation Aura": "Burns creeps around the tower; flying creeps take 50% less damage",
   "Flash Execution": "Extra damage to creeps on low health",
   "Blitz Weapon": "Hits now and then with a lightning blow",
   Feedback: "Extra damage to summoned creeps",
@@ -1168,10 +1167,24 @@ function toast(message, kind = "", force = false) {
   el.textContent = t(message); // literal German messages and simulation reasons translate here
   el.dataset.kind = kind;
   el.classList.remove("show");
+  placeToast(el);
   void el.offsetWidth;
   el.classList.add("show");
   clearTimeout(toastTimeout);
   toastTimeout = setTimeout(() => el.classList.remove("show"), 2200);
+}
+/** v0.16i: the bottom banner always sits on the bottom edge of the playing field, not over its lower third. */
+function placeToast(el = $("toast")) {
+  const z = arena?.geometry?.(),
+    box = $("arena")?.getBoundingClientRect(),
+    shell = el.offsetParent?.getBoundingClientRect();
+  if (!z || !box || !shell || !(z.bh > 0)) {
+    el.style.top = el.style.bottom = "";
+    return;
+  }
+  const edge = box.top + z.top + z.bh - shell.top;
+  el.style.bottom = "auto";
+  el.style.top = Math.round(edge - el.offsetHeight - 4) + "px";
 }
 /** Minor hints go to the bottom banner only while tips are switched on (v0.09). */
 function note(message, kind = "") {
@@ -3215,7 +3228,7 @@ const RULES_DE = [
 ];
 function rulesModal() {
   showModal(
-    `${modalHeader(t("The rulebook"))}<div class="rules-credits"><b>${t("Created by Stevito and Felito in October 2026")}</b><span>${t("In loving memory of our friend Kos, who was terrible at Line Tower Wars but excelled at being a good-hearted and patient version of himself.")}</span></div>${RULES_DE.filter(([h]) => h !== "Neutral waves" || !game || game.waves).map(([h, text]) => `<div class="rule-row"><strong>${t(h)}</strong>${t(text)}</div>`).join("")}<button class="primary-button" data-close>${t("Back to the arena")}</button>`,
+    `${modalHeader(t("The rulebook"))}<div class="rules-credits"><b>${t("Created by Stevito and Felito in October 2026")}</b><span>${t("In loving memory of our friend Kos, who was terrible at Line Tower Wars but excelled at being a good-hearted and patient version of himself.")}</span><div class="credits-team"><b>${t("Team")}</b><span>Marina Zumziel · ${t("Head of In-Game AI Development")}</span></div></div>${RULES_DE.filter(([h]) => h !== "Neutral waves" || !game || game.waves).map(([h, text]) => `<div class="rule-row"><strong>${t(h)}</strong>${t(text)}</div>`).join("")}<button class="primary-button" data-close>${t("Back to the arena")}</button>`,
   );
 }
 /** Shared settings, used by the in-game menu and the main-menu options. */

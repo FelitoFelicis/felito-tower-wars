@@ -683,7 +683,7 @@ export const PERKS = Object.freeze({
   summon: { name: "Summon Tower", max: 1, element: "arcane", powerup: true, text: "Summons a random level 1-3 tower of any element on a free field (sells for 10% of its value)" },
   nobility: { name: "Heavy Nobility", max: 3, element: "earth", text: "Buffs heavy creeps (single, no boss, no death spawn): {nobility} cheaper, {nobilityHp} more hit points, restock 10% faster" },
   breeding: { name: "Breeding Pools", max: 3, element: "plague", text: "Buffs creeps that spawn creeps on death: {breeding} chance of one more; spawned creeps get {breedingHp} more hit points" },
-  pillar: { name: "Pillar of Fire", max: 5, element: "fire", text: "Active ability: a pillar of fire burns an area for 1.5 s, {pillar} damage every 0.3 s (75 s cooldown)" },
+  pillar: { name: "Pillar of Fire", max: 5, element: "fire", text: "Active ability: a pillar of fire burns an area for 1.5 s, {pillar} damage every 0.3 s, up to 75% more in its centre (75 s cooldown)" },
   fort: { name: "Fortifications", max: 1, element: ["earth", "water"], text: "Unlocks the Wall: 5 gold, no attack, for cheap mazes. Double-tap sells it for 1 gold" },
   agolem: { name: "Arcane Golem", max: 5, element: "arcane", text: "Active ability: a golem walks your path upwards and knocks creeps back, then runs on into the next lane (50 s cooldown)" },
   // v0.14: two new perks
@@ -711,7 +711,7 @@ export const NOBILITY = { discount: [0.1, 0.18, 0.24], hp: 0.12, restock: 1.1 };
 /** Breeding Pools (Plague): chance of an extra death spawn by level, hit points per level. */
 export const BREEDING = { chance: [0.33, 0.6, 0.75], hp: 0.1 };
 /** Pillar of Fire (Fire): cooldown, radius in fields, delay, burn time, damage interval, scorch time. */
-export const PILLAR = { cooldown: 75, radius: 2.5, delay: 0.5, duration: 1.5, interval: 0.3, scorch: 15, air: 0.5, budget: 1.5 };
+export const PILLAR = { cooldown: 75, radius: 2.2, core: 0.75, delay: 0.5, duration: 1.5, interval: 0.3, scorch: 15, air: 0.5, budget: 1.5 };
 export const pillarDamage = (p, level = perkLevel(p, "pillar")) => level * (p?.tier || 1) * 6 + 12;
 /** Arcane Golem (Arcane): cooldown, knock-back in fields and hit point loss per collision by level. */
 export const AGOLEM = { cooldown: 50, knock: [1, 1.25, 1.5, 1.75, 2], loss: [0.01, 0.009, 0.008, 0.0075, 0.007], heavy: 3, damage: 10, reach: 0.45 };
@@ -889,8 +889,11 @@ function tickPillars(game) {
       f.next += PILLAR.interval;
       const r = f.radius * game.grid.cellUnits;
       for (const c of p.creeps) {
-        if (c.dead || c.hp <= 0 || dist(game, c, f) > r || divineShield(game, c)) continue;
-        c.hp -= guardCut(game, c, f.damage * (c.flying ? PILLAR.air : 1) * (!c.wave && isBudget(c.typeId) ? PILLAR.budget : 1), true);
+        const d = dist(game, c, f);
+        if (c.dead || c.hp <= 0 || d > r || divineShield(game, c)) continue;
+        // v0.16i: hotter core: up to +75 % damage in the centre, the full value at the edge
+        const core = 1 + PILLAR.core * (1 - d / Math.max(1, r));
+        c.hp -= guardCut(game, c, f.damage * core * (c.flying ? PILLAR.air : 1) * (!c.wave && isBudget(c.typeId) ? PILLAR.budget : 1), true);
         if (c.hp <= 0) killCreep(game, p, c);
       }
     }
@@ -3364,7 +3367,7 @@ function aiPick(game, p, persona) {
   const pick = p.picks[0],
     score = (o) => {
       // Self-play: storm and arcane win most often for the bot; the order still varies per match.
-      if (o.type === "element") return 10 - persona.elementOrder.indexOf(o.id) + (persona.smartElements ? ELEMENT_BONUS[o.id] || 0 : 0);
+      if (o.type === "element") return 10 - persona.elementOrder.indexOf(o.id) + (persona.smartElements ? ((persona.newElements ?? 1) ? ELEMENT_BONUS_NEW : ELEMENT_BONUS)[o.id] || 0 : 0);
       if (o.type === "income") return (game.round < 30 ? 6 : 2) * o.amount + random(game);
       if (o.type === "gold") return o.amount / 40 + random(game);
       if (o.type === "lives") return p.lives < 12 ? 9 : 1 + random(game);
@@ -3770,7 +3773,7 @@ function think(game, p) {
       const next = (persona.waveTiming ?? 0) > 0 ? nextWave(game) : null;
       if (next && next.seconds > 0.6 && next.seconds < persona.waveTiming && game.round < plan.until - 1) return;
       // Gold is ready: check the opponent again before committing.
-      const now = breakthroughPlan(game, p, enemy, persona, plan.id);
+      const now = plan.saved ? savePlan(game, p, enemy, persona, plan.id) : breakthroughPlan(game, p, enemy, persona, plan.id);
       if (now && p.gold >= item.cost * now.left) {
         plan.left = now.left;
         plan.sending = true;
@@ -3827,6 +3830,15 @@ function think(game, p) {
   // A push: saved-up gold for one wave big enough to break through. The smart planner sizes it
   // against the opponent's real kill capacity (flyers win when their anti-air is thin); the
   // legacy planner just buys the toughest creep per gold.
+  // v0.16j: now and then (rarely in tier 1, more often from tier 2) the bot checks whether a
+  // saved-up wave of one strong or fast creep type would really break through, and saves for it
+  if (!p.aiPush && game.round >= 4 && persona.smartPush && random(game) < aiSaveChance(p) * (persona.saveMore ?? 1)) {
+    const plan = savePlan(game, p, enemy, persona);
+    if (plan) {
+      p.aiPush = plan;
+      return;
+    }
+  }
   if (!p.aiPush && game.round >= (persona.smartPush ? 4 : 6) && random(game) < persona.push * 0.12) {
     const plan = persona.smartPush ? breakthroughPlan(game, p, enemy, persona) : legacyPushPlan(game, p, enemy, persona);
     if (plan) {
@@ -3847,6 +3859,52 @@ function think(game, p) {
     const chosen = economical[Math.floor(random(game) * Math.min(Math.max(1, Math.floor(persona.sendPick ?? 3)), economical.length))];
     if (p.gold - chosen.cost < reserve || !command(game, { type: "send", player: p.id, id: chosen.id }).ok) return;
   }
+}
+/**
+ * v0.16j: saved-up waves. Tier 1 and 2 keep income first: the bot only strikes when the
+ * opponent's defence is very weak (a cheap wave takes several lives) – in tier 1 just with
+ * Raiders or Necromancers, in tier 2 with the strong half of the tier (Trolls and up). From
+ * tier 3 on saving is a tactic to kill: more often, pricier waves, above all when they could
+ * end the opponent. Fast creeps count with their speed: the towers have less time for them.
+ */
+const AI_SAVE = {
+  1: { chance: 0.0008, ids: ["n00S", "n00N"], minLives: 4, rounds: 1.5 },
+  2: { chance: 0.0015, strong: 0.5, minLives: 4, rounds: 2 },
+  3: { chance: 0.003, perTier: 0.0008, minLives: 3, rounds: 2.5, kill: 4 },
+  margin: 1.25,
+  refSpeed: 240,
+};
+const saveRule = (p) => AI_SAVE[Math.min(3, p.tier || 1)];
+const aiSaveChance = (p) => saveRule(p).chance + (saveRule(p).perTier || 0) * Math.max(0, p.tier - 3);
+function savePlan(game, p, enemy, persona, onlyId = null) {
+  const rule = saveRule(p),
+    theirs = laneCapacity(game, enemy),
+    pool = tierSends(p.tier).filter((s) => !s.bossTier && s.playable && s.cost > 0),
+    costs = pool.map((s) => s.cost).sort((a, b) => a - b),
+    minCost = rule.strong ? costs[Math.floor(costs.length * rule.strong)] || 0 : 0;
+  let best = null;
+  for (const s of pool) {
+    if ((onlyId && s.id !== onlyId) || (rule.ids && !rule.ids.includes(s.id)) || s.cost < minCost) continue;
+    const stock = p.stock[s.id],
+      unit = obj(s.spawnIds[0]);
+    if (!stock || !unit) continue;
+    const hp = hpOf(s),
+      bodies = Math.max(1, s.spawnIds.length),
+      cap = (persona.armorAware ? capacityVs(game, p, enemy, s) : s.flying ? theirs.air : theirs.ground) * (AI_SAVE.refSpeed / Math.max(60, unit.speed || AI_SAVE.refSpeed)),
+      kill = rule.kill && enemy.lives <= 12, // tier 3+: a kill in reach may cost more
+      rounds = kill ? rule.kill : rule.rounds,
+      budget = onlyId ? p.gold : p.gold + p.income * rounds, // the final check spends only gold in hand
+      reachable = Math.min(stockMaxOf(p, s), stock.count + Math.floor((rounds * game.incomeInterval) / Math.max(0.5, s.stockRegen || 1))),
+      n = Math.min(reachable, Math.floor(budget / s.cost));
+    if (n < 2) continue;
+    // creeps beyond the lane's capacity (with a safety margin) get through
+    const lives = Math.floor((n * hp - cap * AI_SAVE.margin) / Math.max(1, hp / bodies)),
+      price = n * (s.cost - s.income * 2);
+    if (lives < Math.min(rule.minLives, enemy.lives) || price > p.income * rounds) continue;
+    const value = (lives >= enemy.lives ? 3 : 1) * Math.min(lives, enemy.lives) / Math.max(1, price);
+    if (!best || value > best.value) best = { id: s.id, left: n, value, rounds };
+  }
+  return best && { id: best.id, left: best.left, until: game.round + Math.ceil(best.rounds) + 2, smart: true, saved: true };
 }
 const hpOf = (s) => s.spawnIds.reduce((h, id) => h + (obj(id)?.hp || 0), 0);
 /**
@@ -3876,7 +3934,9 @@ function toughnessOf(game, p, enemy, list, s) {
     mean = caps.reduce((a, b) => a + b, 0) / Math.max(1, caps.length);
   return clamp(mean / Math.max(1, capacityVs(game, p, enemy, s)), 0.5, 3);
 }
-const ELEMENT_BONUS = { storm: 2.5, arcane: 1.8, plague: 0.8 };
+const ELEMENT_BONUS = { storm: 2.5, arcane: 1.8, plague: 0.8 },
+  // v0.16i: self-play (36 hard games): storm won only 30 %, plague, fire and earth about 60 %
+  ELEMENT_BONUS_NEW = { storm: 0.6, arcane: 1.4, plague: 1.6, fire: 1.4, earth: 1.4 };
 /** Is the opponent's anti-air thin? Re-checked every few seconds (it scans every flyer column). */
 function weakAirOf(game, p, enemy, persona) {
   if (!p.aiAirCheck || game.tick - p.aiAirCheck.tick > 100) {

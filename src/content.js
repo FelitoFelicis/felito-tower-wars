@@ -475,6 +475,7 @@ export const CREEP_TUNING = {
   n00M: { hp: 156 }, // Grunt: hit points +30 %, 120 → 156 (v0.09s)
   n00L: { speed: 375 }, // Wolf: 25 % faster, 300 → 375 (v0.08d)
   n00S: { speed: 420 }, // Raider: 25 % faster (v0.07b)
+  n010: { hp: 1300 }, // Forest Troll: hit points −10 %, 1450 → 1300 (v0.16i: broke through 5–8× as often as other tier-2 creeps in self-play)
 };
 function applyCreepTuning(byId) {
   // v0.09s: every creep except flyers and bosses wears medium armour
