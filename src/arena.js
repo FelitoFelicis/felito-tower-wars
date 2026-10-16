@@ -182,7 +182,7 @@ export function mountArena({
   // Every other figure streams in the background right after (entry-level towers first);
   // until a figure has arrived, its base art or a stand-in is drawn.
   const ESSENTIAL = [...GRASS, "tile-path", ...DECO, "tower-archer", "creep-goblin"];
-  const FIRST = ["tower-archer-v2", "tower-guard-l1", "tower-cannon-v3", "tower-hall", "tower-arcane-v2", "tower-farm"];
+  const FIRST = ["tower-guard", "tower-cannon", "tower-hall", "tower-magic", "tower-farm", "tower-exp-generator"];
   const BACKGROUND = [
     ...FIRST,
     ...CREEP_ART,
@@ -240,6 +240,8 @@ export function mountArena({
      */
     /** The art in a player's colour: team blue moved to that colour's hue (cached per colour). */
     teamTexture(key, colorId) {
+      // v0.11: the tower art has no team cloth any more; lanes show their colour on the wall frame.
+      if (/^tower-/.test(key)) return key;
       const color = TEAM_COLORS[colorId];
       if (!color || color.hue === null || !this.stage.hasTexture(key)) return key;
       const red = key + "#" + colorId;

@@ -354,7 +354,8 @@ applyLift();
 const teamArt = new Map();
 function towerArtUrl(key) {
   const url = artUrl(key);
-  if (TEAM_COLORS[colorChoice].hue === null || !/^tower-/.test(key)) return url;
+  // v0.11: tower art has no team cloth to recolour
+  if (TEAM_COLORS[colorChoice].hue === null || /^tower-/.test(key)) return url;
   const id = key + "#" + colorChoice,
     hit = teamArt.get(id);
   if (typeof hit === "string") return hit;
