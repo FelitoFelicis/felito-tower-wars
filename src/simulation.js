@@ -630,7 +630,7 @@ export const PERKS = Object.freeze({
   gold: { name: "Gold", max: 5, text: "Instantly +{gold} gold" },
   novice: { name: "Novice", max: 5, text: "Gain experience 20% faster" },
   volley: { name: "Arrow Volley", max: 5, text: "Active ability: arrows rain on an area (20 s cooldown)" },
-  crowd: { name: "Crowd Control", max: 3, text: "Above 50 creeps in your field: every 5 s the 3 weakest die" }, // v0.10l: 3 per level
+  crowd: { name: "Crowd Control", max: 3, text: "Above 50 creeps in your field: every 5 s the 3 weakest die per level" }, // v0.10l: 3 per level
   pillage: { name: "Pillage", max: 5, text: "Steal 1% of a player's gold on each breakthrough" }, // v0.10k: 1 % per level
 });
 /** v0.09q: Arrow Volley: cooldown, area radius in fields, arrows per perk level, extra base damage. */
