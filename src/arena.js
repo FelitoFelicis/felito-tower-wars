@@ -692,7 +692,8 @@ export function mountArena({
             this.floatText(tq.x, tq.y - cell * 0.9, t("MAGIC BURST"), "#d8b8ff", 13, 34, 1);
             this.ring(q.x, q.y, cell * 0.1, cell * 0.75, 0xb88cff, 0.75, 4);
             this.burst(q.x, q.y - cell * 0.2, 0xd0b0ff, 12, 100, 2.8, 0.5, 0, true);
-          } else if (e.kind === "miss") this.floatText(q.x, q.y - cell * 0.5, t("DODGED"), "#c9d4dc", 11, 26, 0.7);
+          } else if (e.kind === "crowd") this.floatText(q.x, q.y - cell * 0.55, t("CULLED"), "#ff9a5a", 12, 30, 0.9);
+          else if (e.kind === "miss") this.floatText(q.x, q.y - cell * 0.5, t("DODGED"), "#c9d4dc", 11, 26, 0.7);
           else if (e.kind === "bloodlust") this.floatText(q.x, q.y - cell * 0.8, t("BLOODLUST"), "#ff8a7a", 11, 26, 0.9);
           else if (e.kind === "raise") this.floatText(q.x, q.y - cell * 0.8, t("+{n} INCOME", { n: e.amount }), "#b8ff8a", 12, 30, 1.1);
           else if (e.kind === "ultimate") {

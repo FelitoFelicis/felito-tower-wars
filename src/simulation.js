@@ -630,6 +630,7 @@ export const PERKS = Object.freeze({
   gold: { name: "Gold", max: 5, text: "Instantly +{gold} gold" },
   novice: { name: "Novice", max: 5, text: "Gain experience 20% faster" },
   volley: { name: "Arrow Volley", max: 5, text: "Active ability: arrows rain on an area (20 s cooldown)" },
+  crowd: { name: "Crowd Control", max: 3, text: "Above 50 creeps in your field: every 5 s the 3 weakest die" }, // v0.10l: 3 per level
   pillage: { name: "Pillage", max: 5, text: "Steal 1% of a player's gold on each breakthrough" }, // v0.10k: 1 % per level
 });
 /** v0.09q: Arrow Volley: cooldown, area radius in fields, arrows per perk level, extra base damage. */
@@ -725,6 +726,7 @@ export const PERK_AVAILABILITY = {
   novice: "3-6",
   volley: "2-5",
   pillage: "6+",
+  crowd: "6+",
   // research (needs the matching element)
   R00K: "1+", // Watcher Owl
   R00U: "1+", // Creep Armor
@@ -2037,6 +2039,23 @@ function secondWeapon(game, p, tower, item, stats, aura, dt, cursed) {
   tower.cooldown2 += Math.max(0.08, w.cooldown / aura.attack / Math.max(0.1, 1 - cursed));
   emit(game, "shot", { player: p.id, towerId: tower.id, targetId: target.id, from: { x: tower.x, y: tower.y }, to: { x: target.x, y: target.y }, damage: dealt, element: item.element, air: true });
 }
+/** v0.10l: Crowd Control: every 5 s, above 50 creeps in the field, the 3 (per level) with the least health die. */
+export const CROWD = { interval: 5, threshold: 50, perLevel: 3 };
+function crowdControl(game, p) {
+  const level = perkLevel(p, "crowd");
+  if (!level) return;
+  if (!(p.crowdNext > 0)) p.crowdNext = game.time + CROWD.interval;
+  if (game.time + EPS < p.crowdNext) return;
+  p.crowdNext = game.time + CROWD.interval;
+  const alive = p.creeps.filter((c) => !c.dead && c.hp > 0);
+  if (alive.length <= CROWD.threshold) return;
+  const victims = alive.sort((a, b) => a.hp - b.hp || a.id.localeCompare(b.id)).slice(0, CROWD.perLevel * level);
+  for (const c of victims) {
+    emit(game, "skill", { player: p.id, kind: "crowd", x: c.x, y: c.y });
+    c.hp = 0;
+    killCreep(game, p, c);
+  }
+}
 function killCreep(game, p, c) {
   if (c.dead) return;
   c.dead = true;
@@ -3249,6 +3268,7 @@ function fixedTick(game) {
         stock.next = game.time + Math.max(TICK, stockRegenOf(p, item));
       }
     }
+    crowdControl(game, p); // v0.10l
     for (const q of p.researchQueue) {
       q.remaining -= TICK;
       if (q.remaining <= EPS) finishResearch(game, p, q.id);
