@@ -590,6 +590,9 @@ function sendIncomeParts(p, item) {
   // v0.10p: Wings of War: +10 % income per level for flying creeps
   const wings = item.flying ? perkLevel(p, "wings") : 0;
   if (wings) decimal += Math.round((base * 100 + (item.incomeHundredths || 0)) * WINGS.income * wings);
+  // v0.10r: Red Boots: +1 % income per level for ground creeps
+  const boots = item.flying ? 0 : perkLevel(p, "boots");
+  if (boots) decimal += Math.round((base * 100 + (item.incomeHundredths || 0)) * BOOTS.income * boots);
   return { base, decimal };
 }
 /** v0.08d: the income a purchase really adds for this player, buffs included (for the cards). */
@@ -647,6 +650,11 @@ export const PERKS = Object.freeze({
   wings: { name: "Wings of War", max: 5, element: "storm", text: "Your flying creeps: +6% hit points, +3% speed and +10% income per level" }, // v0.10p
   hellfire: { name: "Hellfire", max: 5, element: "fire", text: "Creeps in your 6th row take tier × level + 3 damage per second (+5 at level 4, +10 at level 5)" }, // v0.10p
   burst: { name: "Arcane Burst", max: 5, element: "arcane", text: "Active ability: level × 200 × tier damage, split among the creeps in an area (40 s cooldown)" }, // v0.10p
+  treasure: { name: "Gold Treasure", max: 1, text: "Instantly +{treasure} gold and +25 income" }, // v0.10r
+  voltage: { name: "High Voltage", max: 3, element: "storm", text: "EXP generators give 50% more EXP per level" }, // v0.10r
+  boots: { name: "Red Boots", max: 3, element: "fire", text: "Your ground creeps: 25% less slowed and +1% income per level" }, // v0.10r
+  exhume: { name: "Exhumination", max: 3, element: "plague", text: "Undead creeps cost 20% less per level" }, // v0.10r
+  waterblock: { name: "Water Block", max: 3, element: "water", text: "Every 15/13/11 s the first breach is denied: the creep is frozen and pushed back 6/9/12 fields" }, // v0.10r
   pocks: { name: "Giant's Pocks", max: 5, element: "plague", text: "Every 4 s the strongest creep in your field loses 5% of its health per level and is poisoned" }, // v0.10q
   permafrost: { name: "Permafrost", max: 5, element: "water", text: "Ground creeps in your field are 4% slower per level" }, // v0.10o
   golem: { name: "Golem Whisperer", max: 1, element: "earth", text: "Boss creeps cost 25% less and have +10% hit points" }, // v0.10n
@@ -719,7 +727,46 @@ function launchBurst(game, p, x, y) {
   emit(game, "burst", { player: p.id, x, y, radius: burstRadius(level), hits: inside.length, damage: Math.round(share) });
 }
 function bossDiscount(p, item, gold) {
-  return item?.isSend && item.bossTier && perkLevel(p, "golem") ? Math.round(gold * (1 - GOLEM.discount)) : gold;
+  if (!item?.isSend) return gold;
+  let share = 1;
+  if (item.bossTier && perkLevel(p, "golem")) share *= 1 - GOLEM.discount;
+  if (UNDEAD_SENDS.has(item.id) && perkLevel(p, "exhume")) share *= Math.max(0, 1 - EXHUME.discount * perkLevel(p, "exhume")); // v0.10r
+  return share === 1 ? gold : Math.round(gold * share);
+}
+/** v0.10r: undead creeps (Exhumination). */
+export const UNDEAD_SENDS = new Set(["n00R", "n011", "n016", "n019", "n01B", "n01H", "n013", "n01D", "n02N", "n02E"]);
+export const EXHUME = { discount: 0.2 };
+/** v0.10r: Red Boots (per level), High Voltage (per level), Water Block (per level 1-3), Gold Treasure. */
+export const BOOTS = { slow: 0.25, income: 0.01 };
+export const VOLTAGE = { bonus: 0.5 };
+export const WATERBLOCK = { cooldown: [15, 13, 11], back: [6, 9, 12], frost: 5, slow: 0.5 };
+export const treasureGold = (game) => Math.max(1, game?.round || 0) * 25;
+/** Water Block: true when the breach was denied (creep frozen and pushed back up its path). */
+function waterBlock(game, p, c) {
+  const level = Math.min(3, perkLevel(p, "waterblock"));
+  if (!level || p.blockReady > game.time + EPS) return false;
+  p.blockReady = game.time + WATERBLOCK.cooldown[level - 1];
+  const back = WATERBLOCK.back[level - 1];
+  if (c.flying) {
+    const column = gridAt(game, c).x,
+      from = pos(game, column, Math.max(0, game.grid.rows - back));
+    c.path = [from, pos(game, column, game.grid.rows)];
+    c.pathIndex = 1;
+    c.x = from.x;
+    c.y = from.y;
+  } else if (c.path?.length) {
+    const i = Math.max(0, c.path.length - back);
+    c.x = c.path[i].x;
+    c.y = c.path[i].y;
+    c.pathIndex = i + 1;
+  }
+  const frost = c.statuses.find((st) => st.abilityId === "frost");
+  if (frost) {
+    frost.remaining += WATERBLOCK.frost;
+    frost.slow = Math.max(frost.slow, WATERBLOCK.slow);
+  } else c.statuses.push({ abilityId: "frost", remaining: WATERBLOCK.frost, slow: WATERBLOCK.slow, dps: 0, owner: p.id });
+  emit(game, "skill", { player: p.id, kind: "waterblock", x: c.x, y: c.y });
+  return true;
 }
 /** Archer (h003) and every tower that grows out of it. */
 let ARCHER_LINE = null;
@@ -818,6 +865,11 @@ export const PERK_AVAILABILITY = {
   hellfire: "3+",
   burst: "3+",
   pocks: "3+",
+  treasure: "9",
+  voltage: "6-19",
+  boots: "6+",
+  exhume: "3+",
+  waterblock: "3+",
   // research (needs the matching element)
   R00K: "1+", // Watcher Owl
   R00U: "1+", // Creep Armor
@@ -924,6 +976,12 @@ function resolvePick(game, p, index) {
     }
     if (option.id === "volley" && !(p.volleyReady > game.time)) p.volleyReady = game.time;
     if (option.id === "burst" && !(p.burstReady > game.time)) p.burstReady = game.time;
+    if (option.id === "treasure") {
+      const gold = treasureGold(game);
+      p.gold += gold;
+      p.stats.goldEarned += gold;
+      p.income += 25;
+    }
     if (option.id === "recruit")
       for (const s of tierSends(p.tier).slice(0, 3)) if (p.stock[s.id]) p.stock[s.id].count = Math.min(stockMaxOf(p, s), p.stock[s.id].count + 1);
   }
@@ -2312,11 +2370,14 @@ function moveCreep(game, p, c, dt) {
   // c.speed is already scaled once by statsFor; scale both clamp limits too.
   // This equals clamp(original speed with modifiers,24,1000)*modeMultiplier.
   const mobility = movementMultiplier(game);
-  const frozen = c.flying ? 1 : 1 - 0.04 * perkLevel(p, "permafrost"); // v0.10o: Permafrost of the defender
-  let remaining = clamp(c.speed * (1 - clamp(slow, 0, 0.9)) * aura.speed * frozen, 24 * mobility, 1000 * mobility) * dt;
+  // v0.10r: Red Boots of the sender: ground creeps 25 % less slowed per level
+  const boots = c.flying || c.owner < 0 ? 1 : Math.max(0, 1 - BOOTS.slow * perkLevel(game.players[c.owner], "boots"));
+  const frozen = c.flying ? 1 : 1 - 0.04 * perkLevel(p, "permafrost") * boots; // v0.10o: Permafrost of the defender
+  let remaining = clamp(c.speed * (1 - clamp(slow * boots, 0, 0.9)) * aura.speed * frozen, 24 * mobility, 1000 * mobility) * dt;
   while (remaining > EPS && game.running) {
     const next = c.path[c.pathIndex];
     if (!next) {
+      if (waterBlock(game, p, c)) break; // v0.10r
       touchdown(game, p, c);
       break;
     }
@@ -2361,8 +2422,9 @@ function incomeTick(game) {
     }
     p.gold += p.income;
     p.stats.goldEarned += p.income;
-    gainExp(game, p, p.woodIncome);
-    emit(game, "income", { player: p.id, gold: p.income, exp: p.woodIncome });
+    const expGen = p.woodIncome * (1 + VOLTAGE.bonus * perkLevel(p, "voltage")); // v0.10r: High Voltage
+    gainExp(game, p, expGen);
+    emit(game, "income", { player: p.id, gold: p.income, exp: expGen });
   }
   if (game.round >= RULES.suddenDeathRound) {
     if (!game.suddenDeath) {
