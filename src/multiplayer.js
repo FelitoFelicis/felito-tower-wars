@@ -880,7 +880,7 @@ class Session {
     this.cancel(this.handshakeTimer);
     this.cancel(this.connectionTimer);
     this.lastReceived = this.now();
-    this.status("connected", "Directly connected. The duel can start.");
+    this.status("connected", this.connection?.relay ? "Connected through the relay server. The duel can start." : "Directly connected. The duel can start.");
     callback(this.callbacks, "onConnect", this.room);
     const heartbeat = () => {
       if (this.closed) return;
