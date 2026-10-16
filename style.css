@@ -4592,3 +4592,91 @@ dialog.welcome-modal {
   width: 18px;
   height: 18px;
 }
+
+/* ---- v0.13: player name, option sub-menus, volume sliders, credits ---------------------- */
+.name-input {
+  width: 100%;
+  min-height: 42px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  border: 2px solid #050d13;
+  background: #07131b;
+  box-shadow: inset 0 2px 6px #000a;
+  color: var(--ink);
+  font: 700 17px var(--font-body);
+  letter-spacing: 0.02em;
+}
+.name-input::placeholder {
+  color: #7f95a3;
+  font-weight: 500;
+}
+.name-input:focus {
+  outline: 2px solid var(--gold, #f2c75c);
+  outline-offset: 1px;
+}
+.submenu-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.submenu-button i {
+  font: 800 22px/1 var(--font-display);
+  font-style: normal;
+  color: var(--gold, #f2c75c);
+}
+.sub-header {
+  padding-left: 8px;
+}
+.volume-list {
+  display: grid;
+  gap: 10px;
+}
+.volume-row {
+  display: grid;
+  grid-template-columns: 1fr 52px;
+  grid-template-areas: "label value" "slider slider";
+  align-items: center;
+  gap: 6px 10px;
+  padding: 10px 14px 12px;
+  border-radius: 12px;
+  background: #07131b99;
+  font: 700 15px var(--font-body);
+  color: #dfe8ee;
+}
+.volume-row span {
+  grid-area: label;
+}
+.volume-row b {
+  grid-area: value;
+  text-align: right;
+  font: 400 17px var(--font-number);
+  color: var(--gold, #f2c75c);
+}
+.volume-row input[type="range"] {
+  grid-area: slider;
+  width: 100%;
+  height: 28px;
+  margin: 0;
+  accent-color: var(--gold, #f2c75c);
+  cursor: pointer;
+}
+.rules-credits {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: linear-gradient(#2a1f0b, #17120a);
+  box-shadow: inset 0 0 0 1px #d9b45a66;
+  text-align: center;
+  font: 500 14px/1.45 var(--font-body);
+  color: #e8dcc0;
+}
+.rules-credits b {
+  font: 800 16px var(--font-display);
+  letter-spacing: 0.05em;
+  color: var(--gold, #f2c75c);
+}
+.rules-credits span {
+  font-style: italic;
+}

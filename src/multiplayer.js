@@ -13,6 +13,48 @@ const SCRIPT_URL = new URL("../vendor/peerjs.min.js", import.meta.url).href;
 const encoder = new TextEncoder();
 let peerLoader;
 
+
+/**
+ * v0.13: ICE servers. PeerJS's own TURN relays (eu-0/us-0.turn.peerjs.com) no longer hand out
+ * relay candidates, so two players behind strict NATs (mobile data, many home routers) could
+ * never connect. Several STUN servers find direct routes; a TURN relay carries the rest.
+ * TURN_SERVICE: a Metered.ca app (free tier). Its API key is meant for browsers and only
+ * returns short-lived TURN credentials. Empty = STUN only.
+ */
+export const TURN_SERVICE = { app: "", apiKey: "" };
+const STUN_SERVERS = [
+  { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] },
+  { urls: "stun:stun.cloudflare.com:3478" },
+];
+let iceCache = null;
+async function iceServers() {
+  if (iceCache && iceCache.until > Date.now()) return iceCache.servers;
+  let turn = [];
+  if (TURN_SERVICE.app && TURN_SERVICE.apiKey) {
+    try {
+      const ctrl = new AbortController(),
+        timer = setTimeout(() => ctrl.abort(), 4000);
+      const r = await fetch(`https://${TURN_SERVICE.app}.metered.live/api/v1/turn/credentials?apiKey=${encodeURIComponent(TURN_SERVICE.apiKey)}`, { signal: ctrl.signal });
+      clearTimeout(timer);
+      if (r.ok) turn = (await r.json()).filter((s) => s && s.urls && !String(s.urls).startsWith("stun"));
+    } catch {}
+  }
+  const servers = [...STUN_SERVERS, ...turn];
+  iceCache = { servers, until: Date.now() + (turn.length ? 10 * 60 * 1000 : 60 * 1000) };
+  return servers;
+}
+async function peerOptions(dependencies = {}) {
+  return {
+    host: "0.peerjs.com",
+    port: 443,
+    path: "/",
+    secure: true,
+    debug: 0,
+    config: { iceServers: await iceServers() },
+    ...(dependencies.peerOptions || {}),
+  };
+}
+
 export class MultiplayerError extends Error {
   constructor(code, message) {
     super(message);
@@ -240,6 +282,7 @@ class Session {
 
   async start(PeerClass) {
     this.status("connecting", "Connecting to the room service …");
+    const options = await peerOptions(this.dependencies);
     return new Promise((resolve, reject) => {
       this.resolve = resolve;
       this.reject = reject;
@@ -254,14 +297,6 @@ class Session {
         this.timeout,
       );
       try {
-        const options = {
-          host: "0.peerjs.com",
-          port: 443,
-          path: "/",
-          secure: true,
-          debug: 0,
-          ...(this.dependencies.peerOptions || {}),
-        };
         this.peer = this.role === "host" ? new PeerClass("felito-v1-" + this.code, options) : new PeerClass(options);
         this.listen(this.peer, "open", () => this.open(), this.peerListeners);
         this.listen(
@@ -636,7 +671,7 @@ export const QUICK_SLOTS = 6;
 const lobbyId = (slot) => `felito-qm-p${PROTOCOL_VERSION}-${slot}`;
 export async function findQuickMatch({ signal, onStatus } = {}, dependencies = {}) {
   const PeerClass = await peerClass(dependencies, signal);
-  const options = { host: "0.peerjs.com", port: 443, path: "/", secure: true, debug: 0, ...(dependencies.peerOptions || {}) };
+  const options = await peerOptions(dependencies);
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   const check = () => {
     if (signal?.aborted) throw error("aborted", "Search cancelled.");
@@ -654,69 +689,106 @@ export async function findQuickMatch({ signal, onStatus } = {}, dependencies = {
       peer.on("open", () => done("open"));
       peer.on("error", (e) => done(e?.type || "error"));
     });
-  // Waits on a claimed slot for one opponent; hands it a fresh room code.
+  // Waits on a claimed slot for one opponent; hands it a fresh room code. v0.13: the match only
+  // counts once the opponent confirms the code (qm-ack); otherwise the slot keeps waiting.
   const hostSlot = (peer) =>
     new Promise((resolve, reject) => {
-      let matched = false;
+      let matched = false,
+        offering = null,
+        settled = false;
       const stop = () => {
         try {
           peer.destroy();
         } catch {}
       };
-      const abort = () => {
+      const settle = (value, err) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(rescan);
+        signal?.removeEventListener("abort", abort);
+        if (err) reject(err);
+        else resolve(value);
         stop();
-        reject(error("aborted", "Search cancelled."));
       };
+      const abort = () => settle(null, error("aborted", "Search cancelled."));
       signal?.addEventListener("abort", abort, { once: true });
       // Give other free slots a chance: re-scan every 20 s so two waiting players find each other.
       const rescan = setTimeout(() => {
-        if (matched) return;
-        signal?.removeEventListener("abort", abort);
-        stop();
-        resolve(null);
+        if (!matched && !offering) settle(null);
       }, 20000);
       peer.on("connection", (conn) => {
         conn.on("open", () => {
-          if (matched) {
-            conn.send({ protocol: PROTOCOL, kind: "qm-busy" });
+          if (matched || offering || settled) {
+            try {
+              conn.send({ protocol: PROTOCOL, kind: "qm-busy" });
+            } catch {}
             setTimeout(() => conn.close(), 300);
             return;
           }
-          matched = true;
-          clearTimeout(rescan);
           const code = randomCode(dependencies);
+          offering = conn;
+          const giveUp = setTimeout(() => {
+            if (matched || offering !== conn) return;
+            offering = null;
+            try {
+              conn.close();
+            } catch {}
+          }, 5000);
+          conn.on("data", (msg) => {
+            if (offering !== conn || msg?.protocol !== PROTOCOL || msg.kind !== "qm-ack" || msg.code !== code) return;
+            matched = true;
+            clearTimeout(giveUp);
+            // let the ack's channel settle, then free the slot and open the room
+            setTimeout(() => settle({ role: "host", code }), 250);
+          });
+          conn.on("close", () => {
+            if (!matched && offering === conn) offering = null;
+          });
           conn.send({ protocol: PROTOCOL, kind: "qm-match", code });
-          setTimeout(() => {
-            signal?.removeEventListener("abort", abort);
-            stop();
-            resolve({ role: "host", code });
-          }, 400);
         });
       });
+      peer.on("error", (e) => {
+        if (!matched && ["network", "server-error", "socket-error", "socket-closed"].includes(e?.type)) settle(null);
+      });
     });
-  // Asks a waiting slot for a match; resolves the room code or null.
+  // Asks a waiting slot for a match; resolves the room code or null. v0.13: guarded against the
+  // close event that destroy() fires synchronously (it used to resolve null before the code).
   const askSlot = (slot) =>
     new Promise((resolve) => {
       openPeer().then(({ peer, result }) => {
+        let done = false;
         const finish = (code) => {
+          if (done) return;
+          done = true;
           clearTimeout(timer);
-          try {
-            peer.destroy();
-          } catch {}
           resolve(code);
+          setTimeout(
+            () => {
+              try {
+                peer.destroy();
+              } catch {}
+            },
+            code ? 400 : 0,
+          );
         };
-        const timer = setTimeout(() => finish(null), 6000);
+        const timer = setTimeout(() => finish(null), 9000);
         if (result !== "open") return finish(null);
         peer.on("error", () => finish(null));
         const conn = peer.connect(lobbyId(slot), { reliable: true });
         conn.on("data", (msg) => {
           if (msg?.protocol !== PROTOCOL) return finish(null);
           if (msg.kind === "qm-match") {
+            let code = null;
             try {
-              finish(normalizeRoomCode(msg.code));
+              code = normalizeRoomCode(msg.code);
+            } catch {}
+            if (!code) return finish(null);
+            try {
+              conn.send({ protocol: PROTOCOL, kind: "qm-ack", code });
             } catch {
-              finish(null);
+              return finish(null);
             }
+            finish(code);
           } else finish(null);
         });
         conn.on("close", () => finish(null));

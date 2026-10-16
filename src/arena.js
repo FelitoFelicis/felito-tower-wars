@@ -1,4 +1,4 @@
-import { getStats, divineShield, isMagicTower, isMeleeTower, towerAt, towerSize, footprintOf, STRIP, HELLFIRE } from "./simulation.js";
+import { getStats, divineShield, isMagicTower, isMeleeTower, towerAt, towerSize, footprintOf, STRIP, HELLFIRE, LONE } from "./simulation.js";
 import { ART_MANIFEST, ANIM_MANIFEST, animUrl, artFor, artUrl, towerTier, TOWER_ART, CREEP_ART, TEAM_COLORS, recolorTeam } from "./art.js";
 import { t } from "./i18n.js";
 import { Stage, BLEND, TINT, hsvToColor } from "./b2d.js";
@@ -160,6 +160,8 @@ export function mountArena({
   getMode = () => "build",
   onCell,
   onTower,
+  onTowerRight = () => {},
+  popups = { numbers: true, notes: true },
   onPip = () => {},
   onSwipe = () => {},
   onHover = () => {},
@@ -352,6 +354,16 @@ export function mountArena({
         }
       });
       canvas.addEventListener("pointerleave", () => onHover(null));
+      // v0.13: right click on a tower (a double right click sells it, see app.js)
+      canvas.addEventListener("contextmenu", (ev) => {
+        const state = getState();
+        if (!state || getMode() !== "build") return;
+        const box = canvas.getBoundingClientRect(),
+          pos = this.toGrid(ev.clientX - box.left, ev.clientY - box.top);
+        if (pos.gridX < 0 || pos.gridX >= state.grid.cols || pos.gridY < 0 || pos.gridY >= state.grid.rows) return;
+        const tower = towerAt(state.players[getViewPlayer()], pos.gridX, pos.gridY);
+        if (tower) onTowerRight(tower, ev.timeStamp);
+      });
       canvas.addEventListener("pointerup", (ev) => {
         const p = at(ev);
         const press = this.press;
@@ -631,6 +643,9 @@ export function mountArena({
     }
     // ---- pooled floating text -----------------------------------------------------
     floatText(x, y, text, color = "#ffe27a", size = 15, rise = 34, life = 0.9) {
+      // v0.13: Options › Graphic can hide the numbers (+gold, hearts, damage) and the word pop-ups
+      const numeric = /\d/.test(text);
+      if (numeric ? !popups.numbers : !popups.notes) return;
       if (this.floaters.length > 36) this.recycle(this.floaters.shift());
       const t =
         this.textPool.pop() ||
@@ -1020,6 +1035,30 @@ export function mountArena({
         // team glow under the pedestal
         glow.fillStyle(team, 0.16);
         glow.fillEllipse(cx, cy + tc * 0.06, tc * 1.0, tc * 0.5);
+        // v0.13: Lone Guardians active: a white aura with beams turning outwards
+        if (!building && def.attacks && player.perks?.lone && player.towers.length <= LONE.towers) {
+          const pulse = 0.5 + 0.5 * Math.sin(time * 0.005 + phase),
+            ay = cy - tc * 0.12;
+          glow.fillStyle(0xffffff, 0.1 + 0.07 * pulse);
+          glow.fillEllipse(cx, ay, tc * 1.2, tc * 1.0);
+          glow.fillStyle(0xffffff, 0.12 + 0.08 * pulse);
+          glow.fillEllipse(cx, ay, tc * 0.7, tc * 0.6);
+          const beams = 8,
+            spin = time * 0.0007 + phase;
+          for (let k = 0; k < beams; k++) {
+            const a = spin + (Math.PI * 2 * k) / beams,
+              run = ((time * 0.0012 + k * 0.37 + phase) % 1),
+              r0 = tc * (0.22 + run * 0.18),
+              r1 = tc * (0.5 + run * 0.32),
+              w = 0.07,
+              ca = Math.cos(a),
+              sa = Math.sin(a) * 0.82;
+            glow.fillStyle(0xffffff, 0.34 * (1 - run));
+            glow.fillTriangle(cx + Math.cos(a - w) * r0, ay + Math.sin(a - w) * r0 * 0.82, cx + Math.cos(a + w) * r0, ay + Math.sin(a + w) * r0 * 0.82, cx + ca * r1, ay + sa * r1);
+          }
+          g.lineStyle(1.6, 0xffffff, 0.45 + 0.3 * pulse);
+          g.strokeEllipse(cx, cy + tc * 0.05, tc * 1.0, tc * 0.52);
+        }
         // immolation: a flickering fire ring at the aura radius
         const burn = this.immolation(def, catalog);
         if (burn && !building) {
@@ -1823,6 +1862,10 @@ export function mountArena({
     if (el) resize.observe(el);
   const scene = () => (started ? arena : null);
   return {
+    /** v0.13: Options › Graphic */
+    setPopups(value) {
+      Object.assign(popups, value);
+    },
     destroy() {
       resize.disconnect();
       destroyed = true;

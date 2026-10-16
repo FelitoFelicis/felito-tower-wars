@@ -563,7 +563,9 @@ function statsFor(game, player, item) {
     }
   }
   stats.hp *= 1 + hpPercent;
-  // v0.12: Lone Guardians: towers attack twice as fast while the player owns at most 5 towers
+  // v0.13: Watcher Owl: archer-line towers reach +0.5 / +0.33 / +0.25 fields further per level
+  if (item.isBuildable && item.attacks && player.research?.R00K && archerLine().has(item.id)) stats.range += owlRange(player.research.R00K) * (game?.grid?.cellUnits || 128);
+  // v0.12/v0.13: Lone Guardians: towers attack 125 % faster while the player owns at most 5 towers
   if (item.isBuildable && item.attacks && perkLevel(player, "lone") && (player.towers?.length || 0) <= LONE.towers) attackSpeed += LONE.speed;
   // v0.12: Heavy Nobility: heavy creeps get more hit points
   if (perkLevel(player, "nobility") && isHeavy(item)) stats.hp *= 1 + NOBILITY.hp * perkLevel(player, "nobility");
@@ -669,7 +671,7 @@ export const PERKS = Object.freeze({
   crowd: { name: "Crowd Control", max: 3, text: "Above 50 creeps in your field: every 5 s the 3 weakest die per level" }, // v0.10l: 3 per level
   pillage: { name: "Pillage", max: 5, text: "Steal 1% of a player's gold on each breakthrough" }, // v0.10k: 1 % per level
   // v0.12: nine new perks
-  lone: { name: "Lone Guardians", max: 1, text: "Your towers attack 100% faster while you own 5 towers or fewer" },
+  lone: { name: "Lone Guardians", max: 1, text: "Your towers attack 125% faster while you own 5 towers or fewer" }, // v0.13: 100 → 125 %
   manufacture: { name: "Creep Manufacture", max: 3, element: "water", text: "The 4th creep of every tier costs {manufacture} less and restocks 10% faster" },
   summon: { name: "Summon Tower", max: 1, element: "arcane", powerup: true, text: "Summons a random level 1-3 tower of any element on a free field (sells for 10% of its value)" },
   nobility: { name: "Heavy Nobility", max: 3, element: "earth", text: "Heavy creeps (single, no boss, no death spawn) cost {nobility} less, have {nobilityHp} more hit points and restock 10% faster" },
@@ -688,7 +690,10 @@ const perkLevel = (p, id) => p?.perks?.[id] || 0;
 export const perkElements = (id) => [].concat(PERKS[id]?.element || []);
 // ---- v0.12: new perks -------------------------------------------------------------------
 /** Lone Guardians: tower limit and attack speed bonus. */
-export const LONE = { towers: 5, speed: 1 };
+export const LONE = { towers: 5, speed: 1.25 }; // v0.13: +125 % attack speed
+/** v0.13: Watcher Owl (research R00K): extra range of archer-line towers per level, in fields. */
+export const OWL = { range: [0.5, 0.33, 0.25] };
+export const owlRange = (level) => OWL.range.slice(0, Math.max(0, Math.min(OWL.range.length, level))).reduce((a, b) => a + b, 0);
 /** Creep Manufacture (Water): discount of the 4th creep of each tier by level, restock bonus. */
 export const MANUFACTURE = { discount: [0.15, 0.25, 0.33], restock: 1.1 };
 /** Heavy Nobility (Earth): discount by level, hit points per level, restock bonus. */
@@ -2351,10 +2356,25 @@ function applyOnHit(game, player, tower, target) {
       ).ok
     )
       continue;
-    if (ability.baseId === "Aspo") {
+    if (ability.baseId === "Aspo" && /frost/i.test(String(field(a, "anam", 0) || ""))) {
+      // v0.13: the water "Frost Attack" (Frost Archer, Naga Guard, Hall of Water …) uses the poison
+      // base in the map but is a frost slow: Spo2 of the level, no damage, never stacks (shared
+      // with the Water Elemental's frost; the stronger slow wins, a new hit refreshes it).
+      const slow = fval(ability, "Spo2", level);
+      if (slow > 0) {
+        const duration = negativeDuration(target, fval(ability, "adur", level) || 3),
+          frost = target.statuses.find((st) => st.abilityId === "frost");
+        if (frost) {
+          frost.remaining = Math.max(frost.remaining, duration);
+          frost.slow = Math.max(frost.slow, slow);
+        } else target.statuses.push({ abilityId: "frost", remaining: duration, slow, dps: 0, owner: player.id });
+      }
+    } else if (ability.baseId === "Aspo") {
       // Poison stacks: each hit adds damage over time and a little slow; the oldest stack drops at the cap.
+      // v0.13: the slow per stack is the ability's own value (Spo2), capped as before.
       const duration = negativeDuration(target, fval(ability, "adur", level) || 6),
-        dps = Math.max(1, fval(ability, "Spo1", level));
+        dps = Math.max(1, fval(ability, "Spo1", level)),
+        stackSlow = fval(ability, "Spo2", level) || POISON_SLOW_PER_STACK;
       const mine = target.statuses.filter((s) => s.poison && s.abilityId === ability.id);
       if (mine.length >= POISON_MAX_STACKS) {
         const oldest = mine.reduce((a, b) => (b.remaining < a.remaining ? b : a));
@@ -2364,7 +2384,7 @@ function applyOnHit(game, player, tower, target) {
         abilityId: ability.id,
         poison: true,
         remaining: duration,
-        slow: POISON_SLOW_PER_STACK,
+        slow: stackSlow,
         dps,
         owner: player.id,
       });

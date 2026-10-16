@@ -6,7 +6,8 @@ export function createSfx() {
   let ctx = null,
     master = null,
     noise = null,
-    enabled = true;
+    enabled = true,
+    level = 1; // v0.13: effect volume (master × effects slider)
   const last = {};
   function ensure() {
     if (ctx) return ctx;
@@ -14,7 +15,7 @@ export function createSfx() {
     if (!AC) return null;
     ctx = new AC();
     master = ctx.createGain();
-    master.gain.value = 0.55;
+    master.gain.value = 0.55 * level;
     master.connect(ctx.destination);
     const buffer = ctx.createBuffer(1, ctx.sampleRate * 0.5, ctx.sampleRate),
       data = buffer.getChannelData(0);
@@ -183,6 +184,11 @@ export function createSfx() {
     },
     setEnabled(value) {
       enabled = !!value;
+    },
+    /** v0.13: 0..1 */
+    setVolume(value) {
+      level = Math.max(0, Math.min(1, Number(value) || 0));
+      if (master) master.gain.setTargetAtTime(0.55 * level, ctx.currentTime, 0.05);
     },
     get enabled() {
       return enabled;

@@ -15,6 +15,7 @@ export function createSoundtrack(tracks = TRACKS) {
     enabled = true,
     wanted = null,
     ducked = false,
+    level = 1, // v0.13: music volume (master × music slider)
     current = null,
     timer = null;
   const buffers = {},
@@ -25,7 +26,7 @@ export function createSoundtrack(tracks = TRACKS) {
     if (!AC) return null;
     ctx = new AC();
     master = ctx.createGain();
-    master.gain.value = enabled ? 1 : 0;
+    master.gain.value = enabled ? level : 0;
     master.connect(ctx.destination);
     return ctx;
   }
@@ -110,12 +111,17 @@ export function createSoundtrack(tracks = TRACKS) {
     setDucked(value) {
       if (ducked === !!value) return;
       ducked = !!value;
-      if (master) master.gain.setTargetAtTime(enabled ? (ducked ? 0.45 : 1) : 0, ctx.currentTime, 0.25);
+      if (master) master.gain.setTargetAtTime(enabled ? (ducked ? 0.45 : 1) * level : 0, ctx.currentTime, 0.25);
     },
     setEnabled(value) {
       enabled = !!value;
-      if (master) master.gain.setTargetAtTime(enabled ? (ducked ? 0.45 : 1) : 0, ctx.currentTime, 0.15);
+      if (master) master.gain.setTargetAtTime(enabled ? (ducked ? 0.45 : 1) * level : 0, ctx.currentTime, 0.15);
       if (enabled) switchTo(wanted);
+    },
+    /** v0.13: 0..1 */
+    setVolume(value) {
+      level = Math.max(0, Math.min(1, Number(value) || 0));
+      if (master) master.gain.setTargetAtTime(enabled ? (ducked ? 0.45 : 1) * level : 0, ctx.currentTime, 0.08);
     },
     /** Suspend while the page is hidden. */
     setHidden(hidden) {

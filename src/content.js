@@ -396,6 +396,14 @@ export function configureContent(data) {
     for (const u of allUnits) if (u.researchAffected.includes("R01P") && !u.researchAffected.includes("R00J")) u.researchAffected.push("R00J");
     byId.R00J.effectCoverage = "As in the original: raises the internal arrow upgrade R01P";
   }
+  // v0.13: Watcher Owl: three levels; its range bonus (archer line only) is applied in simulation.js
+  if (byId.R00K) {
+    byId.R00K.maxLevel = 3;
+    byId.R00K.effects = [];
+    byId.R00K.description = "Archer-line towers: +0.5 / +0.33 / +0.25 fields range per level";
+    for (const u of allUnits) u.researchAffected = u.researchAffected.filter((id) => id !== "R00K");
+    triggerResearch.add("R00K");
+  }
   // v0.09d: the empty fire-tree steps and the "[Elemental] X" pages were removed from the data.
   for (const r of allResearch) {
     r.affectedUnits = allUnits.filter((u) => u.researchAffected.includes(r.id)).map((u) => u.id);
