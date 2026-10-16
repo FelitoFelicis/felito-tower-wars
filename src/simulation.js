@@ -376,6 +376,12 @@ function lineIds(roots) {
   }
   return [...out];
 }
+const LINE_SETS = new Map();
+/** v0.17b: cached set of all tower ids in the line that starts at `root`. */
+function lineSet(root) {
+  if (!LINE_SETS.has(root)) LINE_SETS.set(root, new Set(lineIds([root])));
+  return LINE_SETS.get(root);
+}
 const cellList = (text) =>
   String(text || "")
     .split(/\s+/)
@@ -462,7 +468,6 @@ export function getPurchaseCost(game, playerIndex, id) {
 /** Element upgrades locked until that element is owned (war3map.j SETUP + ELEMENT dialog). */
 const ELEMENT_UPGRADES = {
   R002: { unlock: "R01D", name: "Water" },
-  R000: { unlock: "R01G", name: "Fire" },
   R005: { unlock: "R01I", name: "Earth" },
   R006: { unlock: "R01H", name: "Arcane" },
   R00K: { unlock: "R01E", name: "Storm" },
@@ -493,8 +498,6 @@ export function available(game, playerIndex, type, id, towerId = null, viaPick =
     const reqIds = item.fields.greq?.[level + 1] ?? "",
       reqLevels = item.fields.grqc?.[level + 1] ?? "";
     requirements = splitIds(reqIds).map((id, i) => ({ id, level: num(splitIds(reqLevels)[i], 1) }));
-    if (id === "R013" && !p.towers.some((t) => t.typeId === "h01F" && t.completed))
-      return { ok: false, reason: "Needs an EXP Generator" };
     if (id === "R00J" && !p.research.R01G)
       return { ok: false, reason: "Needs the fire element" };
     // Each element unlocks its own upgrade (SETUP locks them, the element pick frees them).
@@ -784,7 +787,7 @@ export const PERKS = Object.freeze({
 /** v0.09q: Arrow Volley: cooldown, area radius in fields, arrows per perk level, extra base damage. */
 export const VOLLEY = { cooldown: 20, radius: 1.5, perLevel: 3, bonus: 3, spread: 0.9 };
 /** Research that only an element unlocks: its element (for colour and frame in the dialog). */
-export const RESEARCH_ELEMENT = Object.freeze({ R002: "water", R000: "fire", R005: "earth", R006: "arcane", R00K: "storm", R00C: "plague", R00J: "fire", R00U: "earth", R00V: "fire", R00W: "storm", R00X: "plague", R001: "water", R00D: "arcane" });
+export const RESEARCH_ELEMENT = Object.freeze({ R002: "water", R005: "earth", R006: "arcane", R00K: "storm", R00C: "plague", R00J: "fire", R00U: "earth", R00V: "fire", R00W: "storm", R00X: "plague", R001: "water", R00D: "arcane" });
 const perkLevel = (p, id) => p?.perks?.[id] || 0;
 /** v0.12: element(s) a perk needs; Fortifications takes Earth or Water. */
 export const perkElements = (id) => [].concat(PERKS[id]?.element || []);
@@ -1288,8 +1291,8 @@ function gainExp(game, p, amount) {
 export function grantExp(game, playerIndex, amount) {
   gainExp(game, game.players[playerIndex], amount);
 }
-/** Research never offered as a perk (v0.10o: Forged Arrows removed). */
-const REMOVED_PERKS = new Set(["R013", "R000"]);
+/** Research never offered as a perk (v0.17b: Forged Arrows and Improved Construction are gone from the data). */
+const REMOVED_PERKS = new Set();
 const ELEMENT_RESEARCH = new Set(FACTIONS.map((f) => f.research));
 /** Research levels a player may take as a level reward right now. */
 function upgradeOptions(game, p) {
@@ -1518,7 +1521,7 @@ export const QUESTS = Object.freeze({
 });
 /** Banter numbers: waves, creeps per wave, buffs, boss, reward and penalty. */
 export const BANTER = {
-  delay: 2, // rounds from accepting to the first wave
+  delay: 1, // rounds from accepting to the first wave (v0.17b: 1 instead of 2)
   waves: 5,
   count: 10,
   fat: { hp: 3, hpLate: 2.2, from: 3, chance: 0.3 }, // v0.16: ×3, ×2.2 for creeps past the 2nd place of their tier
@@ -2022,7 +2025,6 @@ function finishResearch(game, p, id) {
     p.research.Rhra = (p.research.Rhra || 0) + 1;
     p.research.Robk = p.research.R006;
   }
-  if (id === "R013") p.research.R017 = (p.research.R017 || 0) + 5;
   if (id === "R00J") p.research.R01P = (p.research.R01P || 0) + 1;
   // R00R replaces the ordinary arrow route with the arcane route.
   if (id === "R00R")
@@ -2159,7 +2161,7 @@ function sellTower(game, p, towerId) {
   // No juggling (v0.07n): creeps already walking keep their route; a field opened by a sale
   // is a shortcut for the next creeps only.
   p.path = findPath(game, p.id) || [];
-  emit(game, "sell", { player: p.id, towerId, refund });
+  emit(game, "sell", { player: p.id, towerId, refund, x: t.x, y: t.y }); // v0.17b: position for the gold pop-up (the tower is gone by then)
   return { ok: true, refund };
 }
 
@@ -2452,6 +2454,10 @@ function skillOf(a, level = 1) {
       sk = { type: "spawnOnDeath", id, count: fval(a, "Sod1", level, 1) };
       break;
     }
+    case "Xlrs":
+      // v0.17b: own ability (content.js CUSTOM_ABILITIES): less damage from one tower line
+      sk = { type: "lineResist", root: a.line, reduce: a.reduce || 0 };
+      break;
     case "Aslo":
       // Only meaningful on sends: the Witch Doctor curses towers (rate of fire -30 % for 90 s).
       if (/structure/.test(field(a.fields, "atar", level) || ""))
@@ -2462,7 +2468,7 @@ function skillOf(a, level = 1) {
   return sk;
 }
 /** Abilities whose effect the port now covers (shown as implemented in the card details). */
-const COVERED_BASES = new Set(["AHfa", "Avul", "Aslo", "ANca", "Aroc", "Afra", "AIcf", "Afbt", "AHbh", "AHab", "Adtg", "Abof", "Amgl", "ACat", "AUau", "ACes", "Ansk", "AIsr", "Apiv", "Arsk", "Aspt", "Asal", "Aimp"]);
+const COVERED_BASES = new Set(["Xlrs", "AHfa", "Avul", "Aslo", "ANca", "Aroc", "Afra", "AIcf", "Afbt", "AHbh", "AHab", "Adtg", "Abof", "Amgl", "ACat", "AUau", "ACes", "Ansk", "AIsr", "Apiv", "Arsk", "Aspt", "Asal", "Aimp"]);
 const VISUAL_ONLY = (a) => (a.baseId === "Aasl" && fval(a, "Slo1", 1) === 0) || ["Aroa", "Aeth"].includes(a.baseId) || a.id === "A06Z";
 function towerSkills(player, tower) {
   return unitAbilities(tower)
@@ -2510,6 +2516,11 @@ function strike(game, p, tower, c, damage, attackType, spell = false, extraArmor
   if (spell || attackType === "magic") {
     const resist = cs.find((sk) => sk.type === "magicResist");
     if (resist) dealt *= 1 - resist.reduce;
+  }
+  if (tower) {
+    // v0.17b: Arrow / Siege Resistance – less damage from every tower of one line
+    const lr = cs.find((sk) => sk.type === "lineResist");
+    if (lr && lineSet(lr.root).has(tower.typeId)) dealt *= 1 - lr.reduce;
   }
   c.hp -= guardCut(game, c, dealt, spell || attackType === "magic");
   if (tower) c.lastHit = tower.id;
@@ -2568,7 +2579,8 @@ function applySkills(game, p, tower, item, target, damage, skills) {
 // add up). Frost: one slow, never stacks.
 const CANNON_CORE = 0.35, // cells
   CANNON_RING = 1.15, // cells
-  CANNON_RING_FACTOR = 0.25; // v0.17a: outer ring 50 % -> 25 %
+  CANNON_RING_FACTOR = 0.25, // v0.17a: outer ring 50 % -> 25 %
+  BOMBARD_RADIUS = 0.9; // v0.17b: the outer splash radius of the whole Bombard line is 10 % smaller
 export const MAGIC_CHARGE_SECONDS = 8;
 export const MAGIC_EMPOWER = 4;
 const POISON_MAX_STACKS = 8,
@@ -2882,7 +2894,7 @@ function attack(game, p, tower, dt) {
   } else if (isCannonTower(item)) {
     // Cannon: full damage in a tiny core around the impact, 25 % in the wider ring.
     const core = Math.max(item.splashFull, CANNON_CORE * game.grid.cellUnits),
-      ring = Math.max(item.splashSmall, item.splashMedium, CANNON_RING * game.grid.cellUnits);
+      ring = Math.max(item.splashSmall, item.splashMedium, CANNON_RING * game.grid.cellUnits) * BOMBARD_RADIUS;
     for (const other of p.creeps) {
       if (other === target || other.dead || other.hp <= 0 || !canHit(other)) continue;
       const d = dist(game, target, other),
@@ -2891,9 +2903,12 @@ function attack(game, p, tower, dt) {
     }
     emit(game, "skill", { player: p.id, kind: "splash", x: target.x, y: target.y, radius: ring, core });
   } else if (item.splashFull > 0 || item.splashMedium > 0 || item.splashSmall > 0) {
+    // v0.17b: Bombard line (Disease Launcher, Treant Tower): outer radius 10 % smaller
+    const maxR = lineSet("h02R").has(tower.typeId) ? Math.max(item.splashFull, item.splashMedium, item.splashSmall) * BOMBARD_RADIUS : Infinity;
     for (const other of p.creeps) {
       if (other === target || other.dead || other.hp <= 0) continue;
       const d = dist(game, target, other);
+      if (d > maxR) continue;
       let rate =
         d <= item.splashFull
           ? 1

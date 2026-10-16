@@ -209,8 +209,8 @@ export function mountArena({
       hud = document.querySelector(".mini-hud")?.getBoundingClientRect(),
       dock = document.querySelector(".command-deck")?.getBoundingClientRect();
     insets = {
-      top: hud ? Math.max(0, hud.bottom - box.top) + 2 : 84,
-      bottom: dock ? Math.max(0, box.bottom - dock.top) + 2 : 172,
+      top: hud ? Math.max(0, hud.bottom - box.top) : 84,
+      bottom: dock ? Math.max(0, box.bottom - dock.top) : 172,
     };
   }
   measureInsets();
@@ -910,11 +910,15 @@ export function mountArena({
             this.ring(q.x, q.y + cell * 0.12, cell * 0.25, cell * 0.6, 0x7fdcff, 0.45, 3);
           }
         } else if (e.type === "sell" && e.player === view) {
-          const tower = lane.towers.find((t) => t.id === e.towerId);
+          // v0.17b: the tower is already removed when the event arrives; the event carries its position
+          const tower = lane.towers.find((t) => t.id === e.towerId) || (e.x !== undefined ? { x: e.x, y: e.y } : null);
           if (tower) {
             const q = this.point(tower.x, tower.y);
             this.burst(q.x, q.y, 0xd9c79a, 12, 70, 2.6, 0.5);
-            if (e.refund > 0) this.floatText(q.x, q.y - cell * 0.3, `+${e.refund}`, "#ffe27a", 16);
+            if (e.refund > 0) {
+              this.burst(q.x, q.y - cell * 0.3, 0xffd34a, 10, 60, 2.4, 0.6, -30, true);
+              this.floatText(q.x, q.y - cell * 0.35, `+${Math.round(e.refund)} Gold`, "#ffd84a", 18, 52, 1.3);
+            }
           }
         }
       }

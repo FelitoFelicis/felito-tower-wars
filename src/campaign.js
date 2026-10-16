@@ -31,9 +31,9 @@ export const MISSIONS = [
       ["Grumbo", "Bow before Grumbo! Grumbo has a smiley maze. SMILEY. Fear it!"],
       ["Pip", "He only sends goblins and horses. Build a few archers, send creeps of your own, and watch his crown wobble."],
     ],
-    briefing: "Win the duel. Grumbo sends only Goblins and Horses.",
+    briefing: "Win the duel. You have 20 lives, Grumbo 10. He sends only Goblins and Horses.",
     weakness: "His smiley maze is all teeth and no bite.",
-    setup: { level: "veryEasy", waves: false, player: {}, enemies: [{ name: "Grumbo", art: "creep-goblin", level: "veryEasy", sends: [C.goblin, C.horse, C.imp, C.boar], maze: "smiley" }] },
+    setup: { level: "veryEasy", waves: false, player: { lives: 20 }, enemies: [{ name: "Grumbo", art: "creep-goblin", level: "veryEasy", lives: 10, sends: [C.goblin, C.horse, C.imp, C.boar], maze: "smiley" }] },
   },
   {
     title: "Counting Sheep",
@@ -44,9 +44,9 @@ export const MISSIONS = [
       ["Pip", "Flying sheep… only towers that shoot air can hit those. Archers do."],
       ["Pip", "And between us: Shaun never built a single tower that looks up."],
     ],
-    briefing: "Shaun sends flying sheep. Keep anti-air ready.",
+    briefing: "Shaun sends flying sheep. Keep anti-air ready. You have 20 lives, Shaun 15.",
     weakness: "His towers can't hit flyers: send your own Flying Sheep.",
-    setup: { level: "veryEasy", player: {}, enemies: [{ name: "Shepherd Shaun", art: "creep-sheep-fly", level: "easy", sends: [C.sheep, C.goblin, C.machine, C.imp], noAir: true, maze: "pillars" }] },
+    setup: { level: "veryEasy", player: { lives: 20 }, enemies: [{ name: "Shepherd Shaun", art: "creep-sheep-fly", level: "easy", lives: 15, sends: [C.sheep, C.goblin, C.machine, C.imp], noAir: true, maze: "pillars" }] },
   },
   {
     title: "Bonehilda's Choir",
