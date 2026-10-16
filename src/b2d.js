@@ -96,11 +96,23 @@ export class Stage {
       dy = (Math.random() * 2 - 1) * this.shakeAmount * this.height;
     }
     dx -= this.slideX || 0; // v0.09: sideways offset while swiping between fields
-    const c = this.camera;
-    c.orthoLeft = dx;
-    c.orthoRight = this.width + dx;
-    c.orthoTop = -dy;
-    c.orthoBottom = -this.height - dy;
+    // v0.11: zoom and pan. World units stay CSS pixels of the unzoomed view; the camera shows
+    // width/zoom × height/zoom of it, starting at (panX, panY).
+    const z = this.zoom || 1,
+      c = this.camera;
+    c.orthoLeft = (this.panX || 0) + dx / z;
+    c.orthoRight = (this.panX || 0) + (this.width + dx) / z;
+    c.orthoTop = -((this.panY || 0) + dy / z);
+    c.orthoBottom = -((this.panY || 0) + (this.height + dy) / z);
+  }
+  /** Canvas CSS pixels → world coordinates (and back), honouring zoom and pan. */
+  toWorld(x, y) {
+    const z = this.zoom || 1;
+    return { x: (this.panX || 0) + x / z, y: (this.panY || 0) + y / z };
+  }
+  toScreen(x, y) {
+    const z = this.zoom || 1;
+    return { x: (x - (this.panX || 0)) * z, y: (y - (this.panY || 0)) * z };
   }
   /** Camera shake like Phaser's: duration in ms, intensity as a share of the screen. */
   shake(ms, intensity) {

@@ -68,8 +68,21 @@ export function arenaGeometry(width, height, grid = { cols: 6, rows: 9 }, mode =
     logicalCols = grid.cols,
     logicalRows = grid.rows,
     safeTop = Math.max(0, insets.top),
-    safeBottom = Math.max(0, insets.bottom),
-    frame = 13;
+    safeBottom = Math.max(0, insets.bottom);
+  // v0.11: phones in portrait: the board takes the whole width between the HUD and the tray.
+  // No side columns and no mini map; the side buttons live in the tray.
+  if (w < 700 && h > w) {
+    const frame = 7,
+      avail = Math.max(9, h - safeTop - safeBottom - frame * 2),
+      cell = Math.max(1, Math.min((w - frame * 2 - 2) / logicalCols, avail / (logicalRows + STRIP))),
+      bw = cell * logicalCols,
+      bh = cell * logicalRows,
+      strip = cell * STRIP,
+      left = (w - bw) / 2,
+      top = safeTop + frame + strip + Math.max(0, (avail - bh - strip) / 2);
+    return { w, h, mode, mini: false, rotated: false, passive: mode !== "build", logicalCols, logicalRows, cols: logicalCols, rows: logicalRows, left, top, bw, bh, cw: cell, ch: cell, frame, strip, pip: null, side: null, compact: true };
+  }
+  const frame = 13;
   // A portrait mini map of the other lane sits in its own column right of the board, never over it.
   const pipW = clamp(Math.round(w * 0.1), 34, 60),
     pipH = (pipW * logicalRows) / logicalCols,
@@ -156,6 +169,7 @@ export function mountArena({
   getAim = () => null,
   onTick,
   getPipPlayer = null,
+  onZoom = () => {},
 }) {
   /** A lane's colour: the player's choice, else blue for you and red for the other side. */
   const colorOf = (player) => {
@@ -308,36 +322,66 @@ export function mountArena({
       document.getElementById("game-loader")?.remove();
       // Commit a tap on release. A drag/scroll gesture or an intervening view
       // change never spends resources; the attack/research views are passive.
+      // v0.11: two fingers pinch-zoom the board; while zoomed in, one finger pans instead of swiping.
       const canvas = this.stage.canvas,
         at = (ev) => {
           const box = canvas.getBoundingClientRect();
           return { id: ev.pointerId, x: ev.clientX - box.left, y: ev.clientY - box.top };
         };
+      this.touches = new Map();
+      const zoomed = () => (this.stage.zoom || 1) > 1.02;
       canvas.addEventListener("pointerdown", (ev) => {
         if ((ev.button ?? 0) > 0) return; // right and middle clicks never build (v0.09f)
         const p = at(ev);
-        this.press = { id: p.id, x: p.x, y: p.y, view: getViewPlayer(), seed: getState()?.seed, t: performance.now() };
+        this.touches.set(p.id, p);
         try {
           canvas.setPointerCapture(ev.pointerId);
         } catch {}
+        if (this.touches.size >= 2) {
+          const [a, b] = [...this.touches.values()],
+            mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+          this.pinch = { d0: Math.hypot(a.x - b.x, a.y - b.y) || 1, z0: this.stage.zoom || 1, world: this.stage.toWorld(mid.x, mid.y) };
+          this.press = null;
+          if (this.stage.slideX) this.slideFrom(this.stage.slideX);
+          return;
+        }
+        this.zoomAnim = null;
+        this.press = { id: p.id, x: p.x, y: p.y, view: getViewPlayer(), seed: getState()?.seed, t: performance.now(), pan: { x: this.stage.panX || 0, y: this.stage.panY || 0 } };
       });
       // v0.09: a sideways swipe over the board shows the neighbouring player's field; the board
       // follows the finger a little. A mouse without a pressed button previews the placement.
       canvas.addEventListener("pointermove", (ev) => {
-        const p = at(ev),
-          press = this.press;
+        const p = at(ev);
+        if (this.touches.has(p.id)) this.touches.set(p.id, p);
+        if (this.pinch && this.touches.size >= 2) {
+          const [a, b] = [...this.touches.values()],
+            mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
+            d = Math.hypot(a.x - b.x, a.y - b.y) || 1;
+          this.setZoom((this.pinch.z0 * d) / this.pinch.d0, this.pinch.world, mid);
+          return;
+        }
+        const press = this.press;
         if (press && press.id === p.id) {
           const dx = p.x - press.x,
             dy = p.y - press.y;
+          if (zoomed()) {
+            if (press.panning || Math.hypot(dx, dy) > 8) {
+              press.panning = true;
+              const z = this.stage.zoom;
+              this.setPan(press.pan.x - dx / z, press.pan.y - dy / z);
+            }
+            return;
+          }
           if (!press.swiping && Math.abs(dx) > 16 && Math.abs(dx) > Math.abs(dy) * 1.3) press.swiping = true;
           if (press.swiping) this.stage.slideX = clamp(dx * 0.45, -this.stage.width * 0.3, this.stage.width * 0.3);
           if (ev.pointerType === "mouse") onHover(null);
           return;
         }
-        this.pointer = { x: p.x, y: p.y, at: performance.now() };
+        const wp = this.stage.toWorld(p.x, p.y);
+        this.pointer = { x: wp.x, y: wp.y, at: performance.now() };
         if (ev.pointerType === "mouse" || ev.pointerType === "pen") {
           const state = getState(),
-            pos = this.toGrid(p.x, p.y),
+            pos = this.toGrid(wp.x, wp.y),
             inside = state && pos.gridX >= 0 && pos.gridX < state.grid.cols && pos.gridY >= 0 && pos.gridY < state.grid.rows;
           onHover(inside ? pos : null);
         }
@@ -345,14 +389,21 @@ export function mountArena({
       canvas.addEventListener("pointerleave", () => onHover(null));
       canvas.addEventListener("pointerup", (ev) => {
         const p = at(ev);
+        this.touches.delete(p.id);
+        if (this.pinch) {
+          if (this.touches.size < 2) this.pinch = null;
+          this.press = null;
+          return;
+        }
         const press = this.press;
         this.press = null;
         const state = getState();
         if (press && press.id === p.id) {
+          if (press.panning) return;
           const dx = p.x - press.x,
             dy = p.y - press.y,
             quick = performance.now() - press.t < 700;
-          if (press.swiping || (quick && Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.3)) {
+          if (!zoomed() && (press.swiping || (quick && Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.3))) {
             const step = dx < 0 ? 1 : -1,
               changed = Math.abs(dx) > 44 && onSwipe(step);
             this.slideFrom(changed ? (dx < 0 ? this.stage.width * 0.32 : -this.stage.width * 0.32) : this.stage.slideX || 0);
@@ -361,17 +412,18 @@ export function mountArena({
           if (this.stage.slideX) this.slideFrom(this.stage.slideX);
         }
         if (!press || press.id !== p.id || press.seed !== state?.seed || Math.hypot(p.x - press.x, p.y - press.y) > 12) return;
-        const r = pipGeometry(this.geometry());
-        if (p.x >= r.x - 6 && p.x <= r.x + r.w + 6 && p.y >= r.y - 6 && p.y <= r.y + r.h + 12) {
+        const wp = this.stage.toWorld(p.x, p.y),
+          r = pipGeometry(this.geometry());
+        if (r && wp.x >= r.x - 6 && wp.x <= r.x + r.w + 6 && wp.y >= r.y - 6 && wp.y <= r.y + r.h + 12) {
           onPip();
           return;
         }
         if (getMode() !== "build" || press.view !== getViewPlayer()) return;
-        const pos = this.toGrid(p.x, p.y);
+        const pos = this.toGrid(wp.x, wp.y);
         if (pos.gridX < 0 || pos.gridX >= state.grid.cols || pos.gridY < 0 || pos.gridY >= state.grid.rows) return;
         const z = this.geometry();
-        pos.fx = (p.x - z.left) / z.bw; // exact point on the board, as a share (v0.09q: volley aim)
-        pos.fy = (p.y - z.top) / z.bh;
+        pos.fx = (wp.x - z.left) / z.bw; // exact point on the board, as a share (v0.09q: volley aim)
+        pos.fy = (wp.y - z.top) / z.bh;
         const player = state.players[getViewPlayer()],
           tower = towerAt(player, pos.gridX, pos.gridY);
         if (tower) onTower(tower, ev.timeStamp, pos);
@@ -379,13 +431,68 @@ export function mountArena({
       });
       // a release outside the board, or a cancelled touch, never counts as a tap
       this.onOutside = (ev) => {
-        if (ev.target !== canvas) this.press = null;
+        if (ev.target !== canvas) {
+          this.press = null;
+          this.touches.delete(ev.pointerId);
+          if (this.touches.size < 2) this.pinch = null;
+        }
       };
       window.addEventListener("pointerup", this.onOutside);
-      canvas.addEventListener("pointercancel", () => {
+      canvas.addEventListener("pointercancel", (ev) => {
+        this.touches.delete(ev.pointerId);
+        if (this.touches.size < 2) this.pinch = null;
         this.press = null;
         if (this.stage.slideX) this.slideFrom(this.stage.slideX);
       });
+      // mouse wheel / trackpad: zoom around the pointer
+      canvas.addEventListener(
+        "wheel",
+        (ev) => {
+          ev.preventDefault();
+          const p = at(ev);
+          this.zoomAnim = null;
+          this.setZoom((this.stage.zoom || 1) * Math.exp(-ev.deltaY * 0.0016), this.stage.toWorld(p.x, p.y), p);
+        },
+        { passive: false },
+      );
+    }
+    /** Zoom so that the world point `world` sits under the screen point `screen`. 1 = whole board. */
+    setZoom(z, world, screen) {
+      const zoom = clamp(z, 1, 3);
+      this.stage.zoom = zoom;
+      this.setPan(world.x - screen.x / zoom, world.y - screen.y / zoom);
+      if (Math.abs((this.lastZoom ?? 1) - zoom) > 0.001) {
+        this.lastZoom = zoom;
+        onZoom(zoom);
+      }
+    }
+    /** Pan, kept inside the unzoomed view so the board can never be lost. */
+    setPan(x, y) {
+      const z = this.stage.zoom || 1,
+        w = this.stage.width,
+        h = this.stage.height;
+      this.stage.panX = clamp(x, 0, Math.max(0, w - w / z));
+      this.stage.panY = clamp(y, 0, Math.max(0, h - h / z));
+    }
+    /** Animate back to the whole board. */
+    resetZoom() {
+      this.zoomAnim = { z: this.stage.zoom || 1, x: this.stage.panX || 0, y: this.stage.panY || 0, t0: performance.now(), ms: 220 };
+    }
+    stepZoom() {
+      const a = this.zoomAnim;
+      if (!a) return;
+      const k = clamp((performance.now() - a.t0) / a.ms, 0, 1),
+        e = 1 - Math.pow(1 - k, 3);
+      this.stage.zoom = a.z + (1 - a.z) * e;
+      this.stage.panX = a.x * (1 - e);
+      this.stage.panY = a.y * (1 - e);
+      if (k >= 1) {
+        this.zoomAnim = null;
+        this.stage.zoom = 1;
+        this.stage.panX = this.stage.panY = 0;
+        this.lastZoom = 1;
+        onZoom(1);
+      }
     }
     /** Ease the board back from a sideways offset (after a swipe or a cancelled drag). */
     slideFrom(offset) {
@@ -448,34 +555,37 @@ export function mountArena({
         g.fillStyle(c, 0.75);
         g.fillEllipse(x, y, 5, 3);
       }
-      // Wall frame in the lane owner's colour, bricks a little brighter and darker.
+      // v0.11: grey stone wall with gold trim like the concept art; the lane owner's colour runs
+      // as a band along the inside so every field still shows whose it is.
       f.clear();
       const L = z.left - z.frame,
         T = z.top - z.strip - z.frame,
         W = z.bw + z.frame * 2,
         H = z.bh + z.strip + z.frame * 2,
         wall = TEAM_COLORS[colorOf(getViewPlayer())].hex,
-        tint = (k) => mixColor(0x46525a, wall, 0.8, k * 0.82);
+        stone = (k) => mixColor(0x8d9299, wall, 0.08, k);
       f.fillStyle(0x05110f, 0.6);
       f.fillRoundedRect(L - 4, T + 2, W + 8, H + 8, 14);
-      f.fillStyle(tint(0.62));
+      f.fillStyle(stone(0.62));
       f.fillRoundedRect(L, T, W, H, 12);
-      const block = z.frame * 1.6;
+      const block = Math.max(10, z.frame * 1.7);
       for (const side of ["top", "bottom", "left", "right"]) {
         const horizontal = side === "top" || side === "bottom",
           len = horizontal ? W : H,
           n = Math.ceil(len / block);
         for (let i = 0; i < n; i++) {
-          const tone = [tint(0.9), tint(0.78), tint(1), tint(0.72)][Math.floor(hash(i, side.length) * 4)];
+          const tone = [stone(0.95), stone(0.84), stone(1.05), stone(0.78)][Math.floor(hash(i, side.length) * 4)];
           f.fillStyle(tone);
           if (horizontal) f.fillRoundedRect(L + i * block + 1, side === "top" ? T + 1 : T + H - z.frame + 1, block - 2, z.frame - 3, 3);
           else f.fillRoundedRect(side === "left" ? L + 1 : L + W - z.frame + 1, T + i * block + 1, z.frame - 3, block - 2, 3);
         }
       }
-      f.lineStyle(2, tint(0.3), 0.9);
+      f.lineStyle(2, 0x2a2622, 0.9);
       f.strokeRoundedRect(L, T, W, H, 12);
-      f.lineStyle(1, tint(1.5), 0.35);
-      f.strokeRoundedRect(L + 2, T + 2, W - 4, H - 4, 10);
+      f.lineStyle(Math.max(1.5, z.frame * 0.18), 0xe2b84e, 0.95);
+      f.strokeRoundedRect(L + 1.5, T + 1.5, W - 3, H - 3, 11);
+      f.lineStyle(Math.max(2, z.frame * 0.3), wall, 0.95);
+      f.strokeRect(z.left - z.frame * 0.25, z.top - z.strip - z.frame * 0.25, z.bw + z.frame * 0.5, z.bh + z.strip + z.frame * 0.5);
       // Inner board drop shadow.
       f.fillStyle(0x0a1412, 0.7);
       f.fillRect(z.left - 2, z.top - z.strip - 2, z.bw + 4, z.bh + z.strip + 4);
@@ -766,6 +876,7 @@ export function mountArena({
     update(time, delta) {
       const dt = Math.min(delta / 1000, 0.1);
       this.stepSlide();
+      this.stepZoom();
       onTick(dt);
       const game = getState();
       if (!game) return;
@@ -1505,6 +1616,10 @@ export function mountArena({
         r = pipGeometry(z),
         { cols, rows } = game.grid;
       g.clear();
+      if (!r) {
+        this.pipLabel.setVisible(false);
+        return;
+      }
       // Portrait, same orientation as the main board.
       const sx = r.w / cols,
         sy = r.h / rows,
@@ -1623,17 +1738,29 @@ export function mountArena({
         scene()?.geometry() || arenaGeometry(container.clientWidth, container.clientHeight, getState()?.grid, getMode(), insets)
       );
     },
+    /** Centre of a cell in canvas CSS pixels (zoom and pan applied). */
     cellCenter(gridX, gridY) {
-      const grid = getState().grid;
-      return scene()?.point((gridX + 0.5) / grid.cols, (gridY + 0.5) / grid.rows);
+      const grid = getState().grid,
+        q = scene()?.point((gridX + 0.5) / grid.cols, (gridY + 0.5) / grid.rows);
+      return q && stage.toScreen(q.x, q.y);
     },
+    /** Canvas CSS pixels to a grid cell. */
     gridAt(x, y) {
-      return scene()?.toGrid(x, y);
+      const w = stage.toWorld(x, y);
+      return scene()?.toGrid(w.x, w.y);
     },
     /** Client coordinates (e.g. a card drag) to a grid cell. */
     gridAtClient(clientX, clientY) {
-      const box = container.getBoundingClientRect();
-      return scene()?.toGrid(clientX - box.left, clientY - box.top);
+      const box = container.getBoundingClientRect(),
+        w = stage.toWorld(clientX - box.left, clientY - box.top);
+      return scene()?.toGrid(w.x, w.y);
+    },
+    /** Back to the whole board. */
+    resetZoom() {
+      scene()?.resetZoom();
+    },
+    get zoom() {
+      return stage.zoom || 1;
     },
   };
 }
