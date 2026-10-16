@@ -86,7 +86,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.17g",
+const APP_VERSION = "0.17h",
   APP_DATE = "17.10.2026";
 const WAVES_PREF = "felito.waves";
 const COACH_PREF = "felito.coach.v1";
@@ -2168,6 +2168,14 @@ document.addEventListener(
 let lastTowerTap = { id: null, at: 0 };
 function onTowerTap(tower, at = performance.now(), point = null) {
   if (volleyAim && view === own) return fireVolley(point?.fx ?? tower.x, point?.fy ?? tower.y);
+  // v0.17h: an own tower tapped outside Build switches to Build and selects it
+  if (tab !== "build" && view === own) {
+    setPage("build");
+    lastTowerTap = { id: tower.id, at: 0 };
+    deckClosed = { at: 0, towerId: null };
+    showTower(tower);
+    return;
+  }
   const now = at || performance.now(),
     double = lastTowerTap.id === tower.id && now - lastTowerTap.at < (window.felitoTestDoubleTapMs || 380);
   lastTowerTap = { id: tower.id, at: double ? 0 : now };
@@ -2674,7 +2682,8 @@ function placeColumn(z, dock, size) {
     nav.style.setProperty("--sq", sq + "px");
   }
   const left = Math.round(z.side.x) + "px",
-    dockTop = Math.round(bottom - sq - 8 - (dock.offsetHeight || size + 34)) + "px";
+    big = 2 * sq + 4, // v0.17h: Send above Build, both twice as big (one column wide)
+    dockTop = Math.round(bottom - 2 * big - 4 - 8 - (dock.offsetHeight || size + 34)) + "px";
   if (dock.style.left !== left || dock.style.top !== dockTop) Object.assign(dock.style, { left, top: dockTop, width: size + "px" });
 }
 /** Tier up: a glare sweeps across every send button. */
@@ -3360,7 +3369,7 @@ function itemDetail(id, towerId, detailPlayer = own) {
           } else itemDetail(b.dataset.detailUpgrade, undefined, detailPlayer);
         }),
     );
-  if (!towerId && canAct && (item.kind === "send" || item.kind === "research" || item.isRoot)) {
+  if (!towerId && canAct && (item.kind === "research" || item.isRoot)) { // v0.17h: no "Send creep" button for creeps
     const action = document.createElement("button");
     action.className = "primary-button";
     action.textContent = t(item.kind === "send" ? "Send creep" : item.kind === "research" ? "View upgrade" : "Select tower");
@@ -3445,6 +3454,8 @@ const PERK_SECTIONS = ["Perks", "Active abilities", "Powerups", "Quests", "Eleme
 function perkBookEntries() {
   const out = [];
   for (const id of Object.keys(PERKS)) out.push({ section: PERKS[id].powerup ? "Powerups" : ACTIVE_PERKS.has(id) ? "Active abilities" : "Perks", type: "perk", id, name: t(PERKS[id].name) });
+  // v0.17h: the level-up upgrades (research) are perks too; the card book has no Upgrades tab any more
+  for (const r of bookResearch()) out.push({ section: "Perks", type: "research", id: r.id, name: itemName(r) });
   for (const id of Object.keys(QUESTS)) out.push({ section: "Quests", type: "quest", id, name: t(QUESTS[id].name) });
   for (const f of catalog.factions) out.push({ section: "Elements", type: "element", id: f.id, name: t(f.name) });
   return out;
@@ -3458,6 +3469,11 @@ function perkBookCard(e, p) {
   if (e.type === "quest") {
     const q = QUESTS[e.id];
     return `<div class="pick-card book-card pick-quest quest-${q.kind}"><i class="quest-ribbon">${t("Quest")}</i><img src="${questArt(e.id)}" alt=""><b>${esc(e.name)}</b><span>${valHtml(questText(e.id))}</span><small>${levelsText(q.avail)}</small></div>`;
+  }
+  if (e.type === "research") {
+    const r = catalog.byId[e.id],
+      el = elementOf(RESEARCH_ELEMENT[e.id]);
+    return `<div class="pick-card book-card${el ? " pick-element el-" + el.id : ""}"${el ? ` style="--el:${el.color}"` : ""}><img src="${researchArt(r)}" alt=""><b>${esc(e.name)}</b><span>${valHtml(cardHint(r))}</span><small>${Math.min(r.maxLevel, 11) > 1 ? t("Max level {n}", { n: Math.min(r.maxLevel, 11) }) + " · " : ""}${levelsText(PERK_AVAILABILITY[e.id])}${el ? " · " + esc(t(el.name)) : ""}</small></div>`;
   }
   const d = PERKS[e.id],
     els = perkElements(e.id),
@@ -3474,7 +3490,7 @@ function perkBook(query = "") {
 }
 function catalogModal() {
   showModal(
-    `${modalHeader(t("All cards"))}<input class="catalog-search" id="catalog-search" placeholder="${t("Name or original ID …")}" aria-label="${t("Search the catalog")}"><div class="pills"><button class="active" data-filter="tower">${t("Towers")}</button><button data-filter="send">${t("Creeps")}</button><button data-filter="research">${t("Upgrades")}</button><button data-filter="perk">${t("Perks")}</button></div><div id="catalog-grid" class="catalog-grid"></div>`,
+    `${modalHeader(t("All cards"))}<input class="catalog-search" id="catalog-search" placeholder="${t("Name or original ID …")}" aria-label="${t("Search the catalog")}"><div class="pills"><button class="active" data-filter="tower">${t("Towers")}</button><button data-filter="send">${t("Creeps")}</button><button data-filter="perk">${t("Perks")}</button></div><div id="catalog-grid" class="catalog-grid"></div>`,
   );
   let filter = "tower";
   const draw = () => {
@@ -4427,10 +4443,10 @@ async function init() {
       getViewPlayer: () => view,
       getMode: () => tab,
       getSelection: () =>
-        tab !== "build"
-          ? null
-          : selectedTower
-            ? { towerId: selectedTower, player: view }
+        selectedTower && (tab === "build" || view !== own) // v0.17h: an enemy tower stays marked in Send too
+          ? { towerId: selectedTower, player: view }
+          : tab !== "build"
+            ? null
             : selected
               ? { id: selected, player: own }
               : null,

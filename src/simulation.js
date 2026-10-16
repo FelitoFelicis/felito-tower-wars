@@ -764,7 +764,7 @@ export const PERKS = Object.freeze({
   feudal: { name: "Feudality", max: 5, text: "Buffs creep income: +1.5% per level" },
   archery: { name: "Archery", max: 5, text: "Buffs archer-line towers: +5% damage per level" },
   patrol: { name: "Forest Patrol", max: 5, text: "Next 2 archers are free" },
-  militia: { name: "Militia", max: 5, text: "2 instant footmen on random fields" },
+  militia: { name: "Militia", max: 1, text: "2 instant footmen on random fields" }, // v0.17h: once per player
   evolution: { name: "Evolution", max: 5, text: "Instantly upgrades a random level 2 tower to level 3" },
   gold: { name: "Gold", max: 1, powerup: true, text: "Instantly +{gold} gold" }, // v0.10u: powerup = instant reward, no tile once taken
   novice: { name: "Novice", max: 5, text: "Buffs your experience gain: +20% per level" },
@@ -1344,7 +1344,7 @@ export const PERK_AVAILABILITY = {
   feudal: "2-5",
   archery: "2-5",
   patrol: "2",
-  militia: "2-3",
+  militia: "2", // v0.17h: level 2 only
   evolution: "2-3",
   gold: "3", // v0.15: only on level 3, and only for the poorest player (see goldPerkOpen)
   novice: "3-6",

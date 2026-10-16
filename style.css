@@ -6006,3 +6006,27 @@ b.val.exp {
   letter-spacing: 0;
   white-space: nowrap;
 }
+
+/* v0.17h: zoomed mobile layout: Send sits above Build; both are big squares the width of the column */
+html.layout-b .game-shell .bottom-nav {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: var(--sq) 1fr auto auto;
+  gap: 4px;
+  justify-items: center;
+}
+html.layout-b .game-shell .bottom-nav .help-button { grid-area: 1 / 1; }
+html.layout-b .game-shell .bottom-nav .menu-side { grid-area: 1 / 2; }
+html.layout-b .game-shell .bottom-nav .tab-send { grid-area: 3 / 1 / 4 / 3; }
+html.layout-b .game-shell .bottom-nav .tab-build { grid-area: 4 / 1 / 5 / 3; }
+html.layout-b .game-shell .bottom-nav [data-tab] {
+  width: calc(var(--sq) * 2 + 4px);
+  height: calc(var(--sq) * 2 + 4px);
+  border-radius: 14px;
+  font-size: 13px;
+  gap: 4px;
+}
+html.layout-b .game-shell .bottom-nav [data-tab] img {
+  width: 44px;
+  height: 44px;
+}

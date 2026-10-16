@@ -452,7 +452,7 @@ export function mountArena({
           onPip();
           return;
         }
-        if (getMode() !== "build" || press.view !== getViewPlayer()) return;
+        if (press.view !== getViewPlayer()) return;
         const pos = this.toGrid(p.x, p.y);
         if (pos.gridX < 0 || pos.gridX >= state.grid.cols || pos.gridY < 0 || pos.gridY >= state.grid.rows) return;
         const z = this.geometry();
@@ -460,8 +460,9 @@ export function mountArena({
         pos.fy = (p.y - z.top) / z.bh;
         const player = state.players[getViewPlayer()],
           tower = towerAt(player, pos.gridX, pos.gridY);
+        // v0.17h: towers (own or enemy) can be tapped outside Build too; empty fields only in Build
         if (tower) onTower(tower, ev.timeStamp, pos);
-        else onCell(pos);
+        else if (getMode() === "build") onCell(pos);
       });
       // a release outside the board, or a cancelled touch, never counts as a tap
       this.onOutside = (ev) => {
