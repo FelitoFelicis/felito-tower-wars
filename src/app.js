@@ -52,7 +52,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.10w",
+const APP_VERSION = "0.10x",
   APP_DATE = "16.10.2026";
 const WAVES_PREF = "felito.waves";
 const COACH_PREF = "felito.coach.v1";
@@ -578,6 +578,7 @@ function setPage(next, { scroll = true } = {}) {
   pending = null;
   $("tower-panel").hidden = true;
   if (next === "send") document.querySelector('[data-tab="send"]')?.classList.remove("nudge");
+  document.querySelector(`[data-tab="${next}"]`)?.classList.remove("coach-nudge");
   document.querySelector(".game-shell").dataset.page = next;
   $("page-title").textContent = t(next === "build" ? "Build" : next === "send" ? "Send" : "Upgrade");
   $("page-subtitle").textContent =
@@ -2243,7 +2244,8 @@ function coach(key) {
   box.classList.remove("show");
   void box.offsetWidth;
   box.classList.add("show");
-  if (step.tab) document.querySelector(`[data-tab="${step.tab}"]`)?.classList.add("nudge");
+  // v0.10x: own class, so the idle check (updateNudge) no longer switches it off and on every frame
+  if (step.tab) document.querySelector(`[data-tab="${step.tab}"]`)?.classList.add("coach-nudge");
   clearTimeout(coach.timer);
   coach.timer = setTimeout(() => (box.hidden = true), 14000);
   $("coach-ok").onclick = () => {

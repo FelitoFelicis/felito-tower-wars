@@ -692,10 +692,12 @@ dialog,
   height: 26px;
   object-fit: contain;
 }
-.bottom-nav [data-tab].nudge {
-  animation: nudge 1.1s ease-in-out infinite;
+.bottom-nav [data-tab].nudge,
+.bottom-nav [data-tab].coach-nudge {
+  animation: nudge 1.8s ease-in-out infinite;
 }
-.bottom-nav [data-tab].nudge::after {
+.bottom-nav [data-tab].nudge::after,
+.bottom-nav [data-tab].coach-nudge::after {
   content: "!";
   position: absolute;
   top: -6px;
@@ -2828,7 +2830,7 @@ dialog.welcome-modal::backdrop {
   -webkit-mask-composite: xor;
   mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
   filter: drop-shadow(0 0 4px #c48bff);
-  animation: level-halo 1.3s linear infinite;
+  animation: level-halo 3.6s linear infinite; /* v0.10x: calmer halo (was 1.3 s) */
   pointer-events: none;
 }
 @keyframes level-halo {
@@ -4426,4 +4428,20 @@ dialog.welcome-modal {
 /* v0.10w: Burning Treant (after 20 treants bought) */
 .unit-card.burning .card-art img {
   filter: sepia(1) saturate(4) hue-rotate(-28deg) brightness(1.05) drop-shadow(0 0 6px #ff6a12);
+}
+
+/* v0.10x: tower blueprint and upgrade cards in Build are square, like the send cards */
+.game-shell[data-page="build"] #cards .unit-card,
+.game-shell[data-page="build"] .sheet-cards .unit-card {
+  height: auto;
+  aspect-ratio: 1;
+  align-self: center;
+}
+.game-shell[data-page="build"] #cards .unit-card .unit-name {
+  padding-top: 3px;
+  font-size: 11px;
+}
+.game-shell[data-page="build"] #cards .unit-card .card-art img {
+  transform: scale(1.25);
+  transform-origin: 50% 100%;
 }
