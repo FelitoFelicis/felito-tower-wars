@@ -707,6 +707,9 @@ export function mountArena({
             this.floatText(tq.x, tq.y - cell * 0.9, t("MAGIC BURST"), "#d8b8ff", 13, 34, 1);
             this.ring(q.x, q.y, cell * 0.1, cell * 0.75, 0xb88cff, 0.75, 4);
             this.burst(q.x, q.y - cell * 0.2, 0xd0b0ff, 12, 100, 2.8, 0.5, 0, true);
+          } else if (e.kind === "pocks") {
+            this.floatText(q.x, q.y - cell * 0.6, t("POCKS"), "#b8ff6a", 12, 30, 1);
+            this.burst(q.x, q.y - cell * 0.3, 0x9cff4a, 10, 60, 2.4, 0.6, -20, true);
           } else if (e.kind === "crowd") this.floatText(q.x, q.y - cell * 0.55, t("CULLED"), "#ff9a5a", 12, 30, 0.9);
           else if (e.kind === "miss") this.floatText(q.x, q.y - cell * 0.5, t("DODGED"), "#c9d4dc", 11, 26, 0.7);
           else if (e.kind === "bloodlust") this.floatText(q.x, q.y - cell * 0.8, t("BLOODLUST"), "#ff8a7a", 11, 26, 0.9);
@@ -848,14 +851,14 @@ export function mountArena({
         glow.fillStyle(0xf4ffc8, a);
         glow.fillCircle(x, y, 1.4);
       }
-      // ---- v0.10p: Hellfire: free fields of the burning column glow like magma
+      // ---- v0.10p: Hellfire (v0.10q: 6th row): free fields of the burning row glow like magma
       if ((player.perks?.hellfire || 0) > 0) {
-        const col = HELLFIRE.column;
-        for (let y = 0; y < z.logicalRows; y++) {
+        const y = HELLFIRE.row;
+        for (let col = 0; col < z.logicalCols; col++) {
           if (towerAt(player, col, y)) continue;
           const x0 = z.left + col * cell,
             y0 = z.top + y * cell,
-            flick = 0.5 + 0.5 * Math.sin(time * 0.004 + y * 1.7);
+            flick = 0.5 + 0.5 * Math.sin(time * 0.004 + col * 1.7);
           pl.fillStyle(0x2a0802, 0.7);
           pl.fillRect(x0 + 1, y0 + 1, cell - 2, cell - 2);
           pl.fillStyle(0xff4a0a, 0.55 + 0.2 * flick);
@@ -864,7 +867,7 @@ export function mountArena({
           for (let k = 0; k < 3; k++) {
             const bx = x0 + cell * (0.22 + 0.56 * hash(col, y, 20 + k)),
               by = y0 + cell * (0.22 + 0.56 * hash(y, col, 30 + k)),
-              br = cell * (0.05 + 0.05 * hash(k, y, 40)) * (0.7 + 0.5 * Math.sin(time * 0.006 + k * 2 + y));
+              br = cell * (0.05 + 0.05 * hash(k, col, 40)) * (0.7 + 0.5 * Math.sin(time * 0.006 + k * 2 + col));
             pl.fillCircle(bx, by, Math.max(1, br));
           }
           pl.lineStyle(2, 0xffe08a, 0.35 + 0.3 * flick);

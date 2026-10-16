@@ -34,8 +34,8 @@
   <link rel="icon" href="assets/app-icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="assets/app-icon-192.png">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="style.css?v=p10016">
-  <script type="importmap">{"imports":{"./src/music.js":"./src/music.js?v=p10016","./src/art.js":"./src/art.js?v=p10016","./src/soundtrack.js":"./src/soundtrack.js?v=p10016","./src/sfx.js":"./src/sfx.js?v=p10016","./src/app.js":"./src/app.js?v=p10016","./src/arena.js":"./src/arena.js?v=p10016","./src/content.js":"./src/content.js?v=p10016","./src/simulation.js":"./src/simulation.js?v=p10016","./src/multiplayer.js":"./src/multiplayer.js?v=p10016","./src/i18n.js":"./src/i18n.js?v=p10016","./src/b2d.js":"./src/b2d.js?v=p10016"}}</script>
+  <link rel="stylesheet" href="style.css?v=q10016">
+  <script type="importmap">{"imports":{"./src/music.js":"./src/music.js?v=q10016","./src/art.js":"./src/art.js?v=q10016","./src/soundtrack.js":"./src/soundtrack.js?v=q10016","./src/sfx.js":"./src/sfx.js?v=q10016","./src/app.js":"./src/app.js?v=q10016","./src/arena.js":"./src/arena.js?v=q10016","./src/content.js":"./src/content.js?v=q10016","./src/simulation.js":"./src/simulation.js?v=q10016","./src/multiplayer.js":"./src/multiplayer.js?v=q10016","./src/i18n.js":"./src/i18n.js?v=q10016","./src/b2d.js":"./src/b2d.js?v=q10016"}}</script>
 </head>
 <body>
 <main class="game-shell" data-page="build" aria-label="Felito Tower Wars">
@@ -49,6 +49,7 @@
         <div class="round-plate" data-ta="Next income" aria-label="Next income" data-help="Round, countdown to your next income, and match time.">
           <span class="round-label" id="round-label">Setup</span>
           <div class="income-timer"><svg viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="17"></circle><circle id="income-ring" cx="20" cy="20" r="17"></circle></svg><span id="income-time">12</span></div>
+          <span class="wave-note" id="wave-note" hidden></span>
           <span class="match-time sr-only"><span id="match-clock">00:00</span><span id="speed-label" class="sr-only">Live</span></span>
         </div>
         <div class="player-plate rival" role="button" tabindex="0" data-ta="Show the enemy board" aria-label="Show the enemy board" data-help="Your enemy's gold, income, lives and level. Tap to show their board.">
@@ -110,7 +111,7 @@
     <section id="tower-panel" class="tower-panel" hidden></section>
   </main>
   <dialog id="modal"><div id="modal-body"></div></dialog>
-  <script src="vendor/babylon-felito.js?v=p10016"></script>
-  <script type="module" src="src/app.js?v=p10016"></script>
+  <script src="vendor/babylon-felito.js?v=q10016"></script>
+  <script type="module" src="src/app.js?v=q10016"></script>
 </body>
 </html>

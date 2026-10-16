@@ -429,11 +429,15 @@ export function available(game, playerIndex, type, id, towerId = null, viaPick =
   } else if (type === "upgrade") {
     const tower = p.towers.find((t) => t.id === towerId);
     if (!tower) return { ok: false, reason: "Tower not found" };
-    if (tower.buildRemaining > EPS) return { ok: false, reason: "Still under construction" };
     if (!obj(tower.typeId).upgrades.includes(id)) return { ok: false, reason: "Not a valid upgrade" };
     // Ultimate elementals are limited to one per player (SETUP: SetPlayerTechMaxAllowed 1).
     if (UNIQUE_TOWERS.has(id) && p.towers.some((t) => t.typeId === id))
       return { ok: false, reason: "Only once per player" };
+    // v0.10q: missing technology wins over "under construction", so locked upgrades stay hidden
+    if (tower.buildRemaining > EPS) {
+      const req = meetRequirements(p, requirements);
+      return req.ok ? { ok: false, reason: "Still under construction" } : req;
+    }
   }
   const req = meetRequirements(p, requirements);
   if (!req.ok) return req;
@@ -641,8 +645,9 @@ export const PERKS = Object.freeze({
   novice: { name: "Novice", max: 5, text: "Gain experience 20% faster" },
   volley: { name: "Arrow Volley", max: 5, text: "Active ability: arrows rain on an area (20 s cooldown)" },
   wings: { name: "Wings of War", max: 5, element: "storm", text: "Your flying creeps: +6% hit points, +3% speed and +10% income per level" }, // v0.10p
-  hellfire: { name: "Hellfire", max: 5, element: "fire", text: "Creeps in your 6th column take tier × level + 3 damage per second (+5 at level 4, +10 at level 5)" }, // v0.10p
+  hellfire: { name: "Hellfire", max: 5, element: "fire", text: "Creeps in your 6th row take tier × level + 3 damage per second (+5 at level 4, +10 at level 5)" }, // v0.10p
   burst: { name: "Arcane Burst", max: 5, element: "arcane", text: "Active ability: level × 200 × tier damage, split among the creeps in an area (40 s cooldown)" }, // v0.10p
+  pocks: { name: "Giant's Pocks", max: 5, element: "plague", text: "Every 4 s the strongest creep in your field loses 5% of its health per level and is poisoned" }, // v0.10q
   permafrost: { name: "Permafrost", max: 5, element: "water", text: "Ground creeps in your field are 4% slower per level" }, // v0.10o
   golem: { name: "Golem Whisperer", max: 1, element: "earth", text: "Boss creeps cost 25% less and have +10% hit points" }, // v0.10n
   crowd: { name: "Crowd Control", max: 3, text: "Above 50 creeps in your field: every 5 s the 3 weakest die per level" }, // v0.10l: 3 per level
@@ -657,8 +662,8 @@ const perkLevel = (p, id) => p?.perks?.[id] || 0;
 export const GOLEM = { discount: 0.25, hp: 0.1 };
 /** v0.10p: Wings of War (Storm), per level. */
 export const WINGS = { hp: 0.06, speed: 0.03, income: 0.1 };
-/** v0.10p: Hellfire (Fire): burning column (0-based) and damage per second. */
-export const HELLFIRE = { column: 5 };
+/** v0.10p: Hellfire (Fire): burning row (0-based, v0.10q: 6th row from the top) and damage per second. */
+export const HELLFIRE = { row: 5 };
 export const hellfireDps = (p) => {
   const level = perkLevel(p, "hellfire");
   return level ? (p.tier || 1) * level + 3 + (level >= 4 ? 5 : 0) + (level >= 5 ? 5 : 0) : 0;
@@ -666,11 +671,35 @@ export const hellfireDps = (p) => {
 /** v0.10p: Arcane Burst (Arcane): cooldown, radius in fields (base + per level), damage per level and tier. */
 export const BURST = { cooldown: 40, radius: 1.15, radiusPerLevel: 0.1, damage: 200 };
 export const burstRadius = (level) => BURST.radius + BURST.radiusPerLevel * level;
+/** v0.10q: Giant's Pocks (Plague), per perk level: share of remaining hp, poison seconds (×3 + 2), slow, dps × tier × 2. */
+export const POCKS = { interval: 4, hpShare: 0.05, slow: 0.03 };
+function tickPocks(game, p) {
+  const level = perkLevel(p, "pocks");
+  if (!level) return;
+  if (!(p.pocksNext > 0)) p.pocksNext = game.time + POCKS.interval;
+  if (game.time + EPS < p.pocksNext) return;
+  p.pocksNext = game.time + POCKS.interval;
+  let c = null;
+  for (const o of p.creeps) if (!o.dead && o.hp > 0 && (!c || o.hp > c.hp || (o.hp === c.hp && o.id < c.id))) c = o;
+  if (!c) return;
+  c.hp -= c.hp * POCKS.hpShare * level;
+  const tough = nerfClass(c) === "boss" || c.bossTier || obj(c.typeId)?.bossTier || c.defenseType === "large";
+  c.statuses.push({
+    abilityId: "pocks",
+    poison: true,
+    remaining: (level * 3 + 2) * (tough ? 0.5 : 1),
+    slow: POCKS.slow * level,
+    dps: level * (p.tier || 1) * 2,
+    owner: p.id,
+  });
+  emit(game, "skill", { player: p.id, kind: "pocks", x: c.x, y: c.y });
+  if (c.hp <= 0) killCreep(game, p, c);
+}
 function tickHellfire(game, p) {
   const dps = hellfireDps(p);
   if (!dps) return;
   for (const c of p.creeps) {
-    if (c.dead || c.hp <= 0 || Math.floor(c.x * game.grid.cols) !== HELLFIRE.column) continue;
+    if (c.dead || c.hp <= 0 || c.y < 0 || Math.floor(c.y * game.grid.rows) !== HELLFIRE.row) continue;
     c.hp -= dps * TICK;
     if (c.hp <= 0) killCreep(game, p, c);
   }
@@ -788,6 +817,7 @@ export const PERK_AVAILABILITY = {
   wings: "3+",
   hellfire: "3+",
   burst: "3+",
+  pocks: "3+",
   // research (needs the matching element)
   R00K: "1+", // Watcher Owl
   R00U: "1+", // Creep Armor
@@ -3353,6 +3383,7 @@ function fixedTick(game) {
     }
     crowdControl(game, p); // v0.10l
     tickHellfire(game, p); // v0.10p
+    tickPocks(game, p); // v0.10q
     for (const q of p.researchQueue) {
       q.remaining -= TICK;
       if (q.remaining <= EPS) finishResearch(game, p, q.id);

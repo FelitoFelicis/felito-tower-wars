@@ -4390,3 +4390,35 @@ dialog.welcome-modal {
   height: auto;
   max-height: none;
 }
+
+/* v0.10q: neutral wave next round: the round timer glows red and names the wave underneath */
+.round-plate .wave-note {
+  font: 800 8px/1 var(--font-display);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #ffb4a0;
+  white-space: nowrap;
+}
+.round-plate .wave-note[hidden] {
+  display: none;
+}
+.round-plate.wave-next {
+  width: auto;
+  min-width: 62px;
+  padding-inline: 5px;
+  gap: 2px;
+}
+.round-plate.wave-next .income-timer #income-ring {
+  stroke: #ff3b2a;
+}
+.round-plate.wave-next .income-timer {
+  border-radius: 50%;
+  animation: wave-glow 0.9s ease-in-out infinite alternate;
+}
+@keyframes wave-glow {
+  from { box-shadow: 0 0 4px 1px #ff3b2a66; }
+  to { box-shadow: 0 0 12px 4px #ff3b2acc; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .round-plate.wave-next .income-timer { animation: none; box-shadow: 0 0 8px 2px #ff3b2a99; }
+}
