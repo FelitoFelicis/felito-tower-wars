@@ -86,7 +86,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.17l",
+const APP_VERSION = "0.17l Vollbild-Test",
   APP_DATE = "17.10.2026";
 const WAVES_PREF = "felito.waves";
 const COACH_PREF = "felito.coach.v1";
@@ -167,8 +167,10 @@ const LAYOUT_CHOICES = [
   ["pc", "PC"],
   ["mobile", "Mobile Default"],
   ["zoomed", "Mobile Zoomed"],
+  ["full", "Mobile Full Screen"], // test: the board fills the screen and scrolls under the buttons
 ];
-const layoutChoice = () => (controlMode === "pc" ? "pc" : mobileLayout === "B" || mobileLayout === "B2" ? "zoomed" : "mobile");
+const layoutChoice = () =>
+  controlMode === "pc" ? "pc" : mobileLayout === "F" ? "full" : mobileLayout === "B" || mobileLayout === "B2" ? "zoomed" : "mobile";
 const controlsRow = () =>
   `<div class="choice-row layout-row" role="group" aria-label="${t("Layout")}"><span>${t("Layout")}</span>${LAYOUT_CHOICES.map(
     ([m, name]) =>
@@ -179,19 +181,24 @@ const controlsRow = () =>
 const MOBILE_LAYOUT_PREF = "felito.mobileLayout";
 // v0.17k: "B2" = MobileZoomedLayoutB2, the zoomed layout of v0.17j (cards end at the safe-area edge). Internal
 // only (not in the menu); B lets the cards reach 20 px into the safe area.
-const MOBILE_LAYOUTS = ["A", "B", "B2"];
-let mobileLayout = MOBILE_LAYOUTS.includes(pref(MOBILE_LAYOUT_PREF, "A")) ? pref(MOBILE_LAYOUT_PREF, "A") : "A";
+// Test "Vollbild" (layout F): the board fills the screen and scrolls under the HUD and the buttons.
+// In this test version it is the default on phones.
+const MOBILE_LAYOUTS = ["A", "B", "B2", "F"];
+let mobileLayout = MOBILE_LAYOUTS.includes(pref(MOBILE_LAYOUT_PREF, "F")) ? pref(MOBILE_LAYOUT_PREF, "F") : "F";
 function applyControlMode() {
   const root = document.documentElement,
-    b = controlMode === "mobile" && (mobileLayout === "B" || mobileLayout === "B2");
+    b = controlMode === "mobile" && (mobileLayout === "B" || mobileLayout === "B2"),
+    full = controlMode === "mobile" && mobileLayout === "F";
   root.classList.toggle("pc-controls", controlMode === "pc");
   root.classList.toggle("layout-b2", controlMode === "mobile" && mobileLayout === "B2");
-  if (root.classList.contains("layout-b") !== b) {
+  if (root.classList.contains("layout-b") !== b || root.classList.contains("layout-full") !== full) {
     root.classList.toggle("layout-b", b);
+    root.classList.toggle("layout-full", full);
     const nav = document.querySelector(".bottom-nav");
     if (nav && !b) nav.removeAttribute("style");
     try {
-      arena?.refresh?.(); // not yet declared on the first call at start-up
+      abilityLayoutKey = ""; // not yet declared on the first call at start-up
+      arena?.refresh?.();
     } catch {}
   }
 }
@@ -539,6 +546,59 @@ function closeAbilityBook() {
   if ($("ability-panel")) $("ability-panel").hidden = true;
   $("ability-book")?.classList.remove("open");
 }
+/** Bottom edge (in board-container pixels) of the free space above the cards. */
+function cardsTopInArena() {
+  const top = $("cards").getBoundingClientRect().top - $("arena").getBoundingClientRect().top;
+  return top > 0 ? top : $("arena").clientHeight;
+}
+/**
+ * Vollbild: the abilities stand in one row above the cards, right of the auto slot (which sits in the
+ * bottom-left corner); what does not fit goes into the book at the end of the row, which opens upwards.
+ */
+function layoutAbilityRow(p, z, book, panel, arenaEl) {
+  const owned = ownedAbilities(p),
+    size = Math.round(z.side.w),
+    gap = 10,
+    pitch = size + gap,
+    y = Math.round(cardsTopInArena() - 8 - size),
+    x0 = Math.round(z.side.x + size + gap + 4),
+    fit = Math.max(1, Math.floor((z.w - 6 - x0 + gap) / pitch));
+  let shown = owned,
+    inBook = [];
+  if (owned.length > fit) {
+    shown = owned.slice(0, fit - 1);
+    inBook = owned.slice(fit - 1);
+  }
+  const key = ["row", owned.join(","), shown.length, x0, y, size, bookOpen].join("|");
+  if (key === abilityLayoutKey) return;
+  abilityLayoutKey = key;
+  const place = (el, slot) => {
+    const left = x0 + pitch * slot + "px",
+      top = y + "px";
+    if (el.style.left !== left) el.style.left = left;
+    if (el.style.top !== top) el.style.top = top;
+    if (el.style.getPropertyValue("--slot") !== size + "px") el.style.setProperty("--slot", size + "px");
+  };
+  shown.forEach((id, i) => {
+    const btn = $(id + "-button");
+    if (!btn) return;
+    if (btn.parentNode !== arenaEl) arenaEl.insertBefore(btn, book);
+    place(btn, i);
+  });
+  inBook.forEach((id, i) => {
+    const btn = $(id + "-button");
+    if (!btn) return;
+    if (panel.children[i] !== btn) panel.insertBefore(btn, panel.children[i] || null);
+    if (btn.style.getPropertyValue("--slot") !== size + "px") btn.style.setProperty("--slot", size + "px");
+  });
+  book.hidden = !inBook.length;
+  if (inBook.length) {
+    place(book, shown.length);
+    book.querySelector(".book-count").textContent = inBook.length;
+    Object.assign(panel.style, { left: Math.max(4, Math.min(z.w - size - 16, x0 + pitch * shown.length - 6)) + "px", top: "auto", bottom: Math.round($("arena").clientHeight - y + 8) + "px" });
+    panel.style.setProperty("--slot", size + "px");
+  } else if (bookOpen) closeAbilityBook();
+}
 /** Places the owned ability buttons below the level button; in the zoomed layout the rest go into the book. */
 function layoutAbilities(p) {
   ensureAbilityBook();
@@ -547,6 +607,7 @@ function layoutAbilities(p) {
     panel = $("ability-panel"),
     arenaEl = $("arena");
   if (!z?.side || !book || !panel) return;
+  if (z.full) return layoutAbilityRow(p, z, book, panel, arenaEl);
   const owned = ownedAbilities(p),
     size = Math.round(z.side.w),
     gap = z.side.layoutB ? 8 : 14, // tighter in the zoomed column so more abilities fit
@@ -555,6 +616,7 @@ function layoutAbilities(p) {
     dock = $("side-dock"),
     limit = z.side.layoutB && dock && !dock.hidden && dock.style.top ? parseFloat(dock.style.top) - 6 : Infinity,
     fit = Math.max(1, Math.floor((limit - first + gap) / pitch));
+  panel.style.bottom = "";
   let shown = owned,
     inBook = [];
   if (owned.length > fit) {
@@ -1453,7 +1515,8 @@ function placeToast(el = $("toast")) {
     el.style.top = el.style.bottom = "";
     return;
   }
-  const edge = box.top + z.top + z.bh - shell.top;
+  // Vollbild: the board runs under the cards, so the banner sits on the free space's lower edge
+  const edge = box.top + (z.full ? z.clearBottom : z.top + z.bh) - shell.top;
   el.style.bottom = "auto";
   el.style.top = Math.round(edge - el.offsetHeight - 4) + "px";
 }
@@ -2834,7 +2897,11 @@ function refreshLevelButton(p) {
       dockTop = Math.round(bottom - (dock.offsetHeight || size + 34)) + "px",
       top = Math.round(z.side.y + 14) + "px";
     if (z.col) placeColumn(z, dock, size);
-    else if (dock.style.left !== x || dock.style.top !== dockTop) Object.assign(dock.style, { left: x, top: dockTop, width: size + "px" });
+    else if (z.full) {
+      // Vollbild: the auto slot floats in the bottom-left corner, right above the cards
+      const fullTop = Math.round(cardsTopInArena() - 8 - (dock.offsetHeight || size + 34)) + "px";
+      if (dock.style.left !== x || dock.style.top !== fullTop) Object.assign(dock.style, { left: x, top: fullTop, width: size + "px" });
+    } else if (dock.style.left !== x || dock.style.top !== dockTop) Object.assign(dock.style, { left: x, top: dockTop, width: size + "px" });
     if (dock.style.getPropertyValue("--slot") !== size + "px") dock.style.setProperty("--slot", size + "px");
     if (btn.style.left !== x) btn.style.left = x;
     if (btn.style.top !== top) btn.style.top = top;
@@ -3801,7 +3868,7 @@ function graphicModal(back) {
     if (!m || m === layoutChoice()) return;
     controlMode = m === "pc" ? "pc" : "mobile";
     if (m !== "pc") {
-      mobileLayout = m === "zoomed" ? "B" : "A";
+      mobileLayout = m === "zoomed" ? "B" : m === "full" ? "F" : "A";
       savePref(MOBILE_LAYOUT_PREF, mobileLayout);
     }
     savePref(CONTROL_PREF, controlMode);

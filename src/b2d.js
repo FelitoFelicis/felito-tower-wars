@@ -96,6 +96,7 @@ export class Stage {
       dy = (Math.random() * 2 - 1) * this.shakeAmount * this.height;
     }
     dx -= this.slideX || 0; // v0.09: sideways offset while swiping between fields
+    dy += this.scrollY || 0; // Vollbild: world y at the top edge of the screen
     const c = this.camera;
     c.orthoLeft = dx;
     c.orthoRight = this.width + dx;

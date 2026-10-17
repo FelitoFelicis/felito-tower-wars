@@ -6124,3 +6124,29 @@ html.layout-b:not(.layout-b2) .game-shell .command-deck {
   left: auto !important;
   top: auto !important;
 }
+
+/* ---- Test "Vollbild" (layout F): the board fills the whole screen and runs under the HUD and
+   the buttons; an up/down drag moves it. Cards, Build/Send and the corner buttons float over it. ---- */
+html.layout-full .game-shell .command-deck {
+  background: none;
+}
+html.layout-full .game-shell .bottom-nav {
+  background: linear-gradient(#0a182200, #0a182299 45%, #0a1822d9);
+  border-top: 0;
+}
+.scroll-thumb {
+  position: absolute;
+  z-index: 2;
+  right: 2px;
+  width: 4px;
+  border-radius: 3px;
+  background: #ffe9b0;
+  box-shadow: 0 0 0 1px #0b1a16aa;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.35s;
+}
+.scroll-thumb.show {
+  opacity: 0.75;
+  transition-duration: 0.1s;
+}
