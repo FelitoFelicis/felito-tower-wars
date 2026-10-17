@@ -271,6 +271,7 @@ function initialPlayer(id, faction, ai, seats = 2) {
     paybackRemaining: 0, // v0.09k: no bonus any more; kept for saves
     elementsPurchased: 0,
     freeArchers: 1, // v0.08c: the first archer is free
+    starterArchers: 1, // v0.18a: that first free archer sells like a bought one (Forest Patrol archers sell for 0)
   };
 }
 
@@ -706,9 +707,9 @@ function sendIncomeParts(p, item) {
   const interest = (p.research.R006 || 0) * 250;
   if (item.decimalEligible && interest > 0) decimal += Math.trunc((item.pointValue * interest) / 100);
   if (!item.decimalEligible) decimal = 0;
-  // Feudality: +1.5 % per level of the income this creep brings, in hundredths
-  const feudal = perkLevel(p, "feudal");
-  if (feudal) decimal += Math.round((base * 100 + (item.incomeHundredths || 0)) * 0.015 * feudal);
+  // Feudality (v0.18b): +2 / 3.5 / 5 / 6 / 7 % of the income this creep brings, in hundredths
+  const feudal = feudalBonus(perkLevel(p, "feudal"));
+  if (feudal) decimal += Math.round((base * 100 + (item.incomeHundredths || 0)) * feudal);
   // v0.10p: Wings of War: +10 % income per level for flying creeps
   const wings = item.flying ? perkLevel(p, "wings") : 0;
   if (wings) decimal += Math.round((base * 100 + (item.incomeHundredths || 0)) * WINGS.income * wings);
@@ -761,7 +762,7 @@ function newTower(game, p, id, gx, gy) {
 export const PERKS = Object.freeze({
   // v0.09q: perk rework (availability in PERK_AVAILABILITY)
   recruit: { name: "Recruitment", max: 10, text: "Buffs creep recruitment: 10% faster per level" }, // v0.10i (artifact line), merged in v0.11c
-  feudal: { name: "Feudality", max: 5, text: "Buffs creep income: +1.5% per level" },
+  feudal: { name: "Feudality", max: 5, text: "Creep income +{feudal}" }, // v0.18b: 2 / 3.5 / 5 / 6 / 7 %
   archery: { name: "Archery", max: 5, text: "Buffs archer-line towers: +5% damage per level" },
   patrol: { name: "Forest Patrol", max: 5, text: "Next 2 archers are free" },
   militia: { name: "Militia", max: 1, text: "2 instant footmen on random fields" }, // v0.17h: once per player
@@ -807,6 +808,23 @@ export const perkElements = (id) => [].concat(PERKS[id]?.element || []);
 /** Lone Guardians: tower limit and attack speed bonus. */
 export const LONE = { towers: 5, speed: 1.25, wall: 0.1 }; // v0.13/v0.16h: +125 % attack speed; v0.17n: a Wall counts as 0.1 tower
 /** v0.17n: towers counted for Lone Guardians (Walls 0.1, everything else 1). */
+/** v0.18b: Feudality: creep income bonus per level (1–5). */
+export const FEUDAL = [0, 0.02, 0.035, 0.05, 0.06, 0.07];
+export const feudalBonus = (level) => FEUDAL[Math.max(0, Math.min(FEUDAL.length - 1, level | 0))] || 0;
+/**
+ * v0.18b: perks that buff this tower right now (for the tooltip): Archery (archer line),
+ * Lone Guardians (while you own 5 towers or fewer), High Voltage (EXP generators).
+ */
+export function towerPerkBuffs(game, index, id) {
+  const p = game?.players?.[index],
+    item = obj(id);
+  if (!p || !item || !p.perks) return [];
+  const out = [];
+  if (perkLevel(p, "archery") && archerLine().has(item.id)) out.push({ id: "archery", level: perkLevel(p, "archery"), text: `+${5 * perkLevel(p, "archery")}% damage` });
+  if (perkLevel(p, "lone") && item.isBuildable && item.attacks && loneCount(p) <= LONE.towers + 1e-6) out.push({ id: "lone", level: 1, text: `+${Math.round(LONE.speed * 100)}% attack speed` });
+  if (perkLevel(p, "voltage") && item.woodIncome) out.push({ id: "voltage", level: perkLevel(p, "voltage"), text: `+${Math.round(VOLTAGE.bonus * 100 * perkLevel(p, "voltage"))}% EXP` });
+  return out;
+}
 export const loneCount = (p) => (p?.towers || []).reduce((n, t) => n + (t.typeId === WALL_ID ? LONE.wall : 1), 0);
 /** v0.13: Watcher Owl (research R00K): extra range of archer-line towers per level, in fields. */
 export const OWL = { range: [0.5, 0.33, 0.25] };
@@ -1898,6 +1916,28 @@ function collectorCheck(game, p, item) {
   gainExp(game, p, exp);
   emit(game, "achievement", { player: p.id, achievement: "collector", tier: item.tier, name: "Creep Collector " + ROMAN[item.tier], exp, global: true });
 }
+/**
+ * v0.18f: Recruiter I–V — global, only the first player to spend this much gold on non-boss creeps.
+ */
+export const RECRUITER_ACHIEVEMENTS = Object.freeze([
+  { gold: 500, exp: 25 },
+  { gold: 2500, exp: 40 },
+  { gold: 10000, exp: 120 },
+  { gold: 100000, exp: 240 },
+  { gold: 1000000, exp: 360 },
+]);
+function recruiterCheck(game, p, item, gold) {
+  if (item.bossTier || !gold) return;
+  const spent = (p.stats.creepGold = (p.stats.creepGold || 0) + gold),
+    a = (game.achievements ||= { tiers: [], halls: 0, hallNextTime: 0 }),
+    done = (a.recruiter ||= {});
+  RECRUITER_ACHIEVEMENTS.forEach((r, i) => {
+    if (done[i] !== undefined || spent < r.gold) return;
+    done[i] = p.id;
+    gainExp(game, p, r.exp);
+    emit(game, "achievement", { player: p.id, achievement: "recruiter", level: i + 1, name: "Recruiter " + ROMAN[i + 1], exp: r.exp, global: true });
+  });
+}
 function pay(p, cost) {
   p.gold -= cost.gold;
 }
@@ -1984,10 +2024,12 @@ export function command(game, input) {
     const placement = canBuild(game, playerIndex, gx, gy, id);
     if (!placement.ok) return placement;
     const free = id === "h003" && (p.freeArchers || 0) > 0;
+    const starter = free && (p.starterArchers || 0) > 0;
     if (free) p.freeArchers--;
     else pay(p, check.cost);
+    if (starter) p.starterArchers--;
     const tower = newTower(game, p, id, gx, gy);
-    if (free) tower.free = true;
+    if (free && !starter) tower.free = true;
     p.towers.push(tower);
     p.stats.built++;
     repath(game, p);
@@ -2027,6 +2069,11 @@ export function command(game, input) {
     p.incomeDecimal += decimal;
     p.income += Math.trunc(p.incomeDecimal / 100);
     p.incomeDecimal %= 100;
+    // v0.18e: an Orc restocks one Goblin at once (up to the Goblin's stock limit, not while locked)
+    if (id === "n00M") {
+      const g = p.stock.n00E;
+      if (g && !(g.lockRound > game.round) && g.count < stockMaxOf(p, obj("n00E"))) g.count++;
+    }
     if (id === "n00Y") p.treantCount++; // v0.10w: EXP now on the treant's death, burning from purchase 21
     if (id === "n01D") {
       if (p.ghoulCount <= 25) {
@@ -2040,6 +2087,7 @@ export function command(game, input) {
     p.stats.creeps = (p.stats.creeps || 0) + item.spawnIds.length; // v0.14
     collectorCheck(game, p, item); // v0.16
     (p.stats.spent ||= {})[id] = (p.stats.spent[id] || 0) + (check.cost?.gold || 0);
+    recruiterCheck(game, p, item, check.cost?.gold || 0); // v0.18f
     guardianSend(game, p); // v0.14: River Guardian
     emit(game, "send", { player: p.id, id, count: item.spawnIds.length, income: base + decimal / 100, auto: !!input.auto });
     if (item.bossTier) {
@@ -2498,6 +2546,10 @@ function skillOf(a, level = 1) {
       // (the map value Arm1 = 1 would be +100 %; halved because Magic Towers fire their empowered bolt on a full bar)
       sk = { type: "manaRegenAura", rate: MANA_REGEN_AURA, radius: fval(a, "aare", level, 600) };
       break;
+    case "Xfoc":
+      // v0.18b: own ability (content.js CUSTOM_ABILITIES): Earth Laser's Focus Fire
+      sk = { type: "focus", step: a.step, interval: a.interval, max: a.max };
+      break;
     case "Xhwl":
       // v0.17p: own ability (content.js CUSTOM_ABILITIES): Pit Lord's Howl
       sk = { type: "howl", radius: a.radius, slow: a.slow, amp: a.amp, duration: a.duration, cooldown: a.cooldown };
@@ -2512,7 +2564,7 @@ function skillOf(a, level = 1) {
     case "Aro1":
       if (a.id === "A006") sk = { type: "execute" };
       else if (a.id === "A04W") sk = { type: "stomp" };
-      else if (a.id === "A0BG") sk = { type: "disrupt" };
+      else if (a.id === "A0BG") sk = { type: "passive" }; // v0.18b: Armor Disruption removed (Earth Laser has Focus Fire)
       else if (/entangle/i.test(name)) sk = { type: "entangle", chance: tipNum(a, level, /Chance of (\d+)%/, 15) / 100, requires: splitIds(field(a.fields, "areq", 0)) };
       else sk = { type: "passive" };
       break;
@@ -2553,7 +2605,7 @@ function skillOf(a, level = 1) {
   return sk;
 }
 /** Abilities whose effect the port now covers (shown as implemented in the card details). */
-const COVERED_BASES = new Set(["ANre", "Xhwl", "Xlrs", "Xinf", "AHfa", "Avul", "Aslo", "ANca", "Aroc", "Afra", "AIcf", "Afbt", "AHbh", "AHab", "Adtg", "Abof", "Amgl", "ACat", "AUau", "ACes", "Ansk", "AIsr", "Apiv", "Arsk", "Aspt", "Asal", "Aimp"]);
+const COVERED_BASES = new Set(["ANre", "Xfoc", "Xhwl", "Xlrs", "Xinf", "AHfa", "Avul", "Aslo", "ANca", "Aroc", "Afra", "AIcf", "Afbt", "AHbh", "AHab", "Adtg", "Abof", "Amgl", "ACat", "AUau", "ACes", "Ansk", "AIsr", "Apiv", "Arsk", "Aspt", "Asal", "Aimp"]);
 const VISUAL_ONLY = (a) => (a.baseId === "Aasl" && fval(a, "Slo1", 1) === 0) || ["Aroa", "Aeth"].includes(a.baseId) || a.id === "A06Z";
 function towerSkills(player, tower) {
   return unitAbilities(tower)
@@ -2645,9 +2697,6 @@ function applySkills(game, p, tower, item, target, damage, skills) {
         strike(game, p, tower, target, amount, "normal");
         emit(game, "skill", { player: p.id, kind: "execute", x: target.x, y: target.y, amount });
       }
-    } else if (sk.type === "disrupt" && random(game) < 0.25 * PROC_SCALE[cls]) {
-      const max = Math.min(25, obj(tower.typeId).level || 1);
-      if ((target.shred || 0) < max) target.shred = (target.shred || 0) + 1;
     } else if (sk.type === "disease") {
       const mine = game.clouds.filter((cl) => cl.towerId === tower.id);
       if (mine.length >= 3) game.clouds.splice(game.clouds.indexOf(mine[0]), 1);
@@ -2947,13 +2996,29 @@ function attack(game, p, tower, dt) {
   const targets = p.creeps.filter((c) => !c.dead && c.hp > 0 && inReach(c) && canHit(c));
   if (!targets.length) {
     tower.cooldown = 0;
+    tower.focusId = null; // v0.18b: Focus Fire ends without a target
+    tower.focusMult = 1;
     return;
   }
-  targets.sort((a, b) => b.progress - a.progress || a.id.localeCompare(b.id));
-  const target = targets[0],
-    skills = towerSkills(p, tower);
+  // v0.18b: towers take the weaker creeps they can more likely kill first (no bosses, no heavy
+  // creeps while others are in reach), then the one furthest along the path
+  targets.sort((a, b) => heavyCreep(a) - heavyCreep(b) || b.progress - a.progress || a.id.localeCompare(b.id));
+  const skills = towerSkills(p, tower),
+    focus = skills.find((sk) => sk.type === "focus");
+  // v0.18b: Focus Fire keeps its target while it stays in reach
+  const target = (focus && tower.focusId && targets.find((c) => c.id === tower.focusId)) || targets[0];
   let damage =
     (diceRoll(game, item.damageBase, item.dice, item.sides) + stats.damageBonus) * stats.damageMultiplier * aura.damage;
+  if (focus) {
+    // +10 % every 0.25 s on the same target, up to 500 %; a new target or a pause starts again
+    if (tower.focusId !== target.id || !(game.time - (tower.focusLast ?? -99) <= Math.max(0.6, stats.cooldown * 1.5 + 0.25))) {
+      tower.focusId = target.id;
+      tower.focusStart = game.time;
+    }
+    tower.focusLast = game.time;
+    tower.focusMult = Math.min(focus.max, 1 + focus.step * Math.floor((game.time - tower.focusStart + EPS) / focus.interval));
+    damage *= tower.focusMult;
+  }
   for (const ability of unitAbilities(tower))
     if (ability.baseId === "ACct") {
       const level = abilityLevel(p, tower, ability),
@@ -3050,6 +3115,7 @@ function attack(game, p, tower, dt) {
       damage: victim === target ? dealt : damage,
       element: item.element,
       empowered: empowered && victim === target,
+      ...(focus ? { focus: tower.focusMult || 1, focusMax: focus.max } : {}), // v0.18b: drawn as a beam
     });
 }
 /** Bash towers carry an extra anti-air weapon (ua2*): own cooldown, range and damage. */
@@ -3395,10 +3461,11 @@ function waveDefense(game, p) {
     alive = p.creeps.filter((c) => c.owner < 0);
   if (!info) return { gap: 0, flying: false, airTowers: true };
   const spec = WAVE_TYPES[info.type],
-    defenseType = spec.defense || (info.flying ? "small" : "medium"),
+    lead = obj(info.groups?.[0]?.model), // v0.18a: real creeps
+    defenseType = lead?.defenseType || spec.defense || (info.flying ? "small" : "medium"),
     armor = 1 + RULES.armorFactor * info.armor;
   const total = info.hp * info.count * (spec.split ? 1.76 : 1) * armor + alive.reduce((sum, c) => sum + c.hp, 0);
-  const speed = 240 * (spec.speed || 1) * movementMultiplier(game),
+  const speed = (lead?.speed || 240 * (spec.speed || 1)) * movementMultiplier(game),
     cells = info.flying ? game.grid.rows : Math.max(game.grid.rows, p.path.length),
     crossing = (cells * game.grid.cellUnits) / speed;
   let ground = 0,
@@ -4309,47 +4376,83 @@ export function waveTotalHp(number) {
 export function waveRound(number) {
   return WAVE_FIRST_ROUND + (number - 1) * WAVE_EVERY_ROUNDS;
 }
+/**
+ * v0.18a: neutral waves consist only of creeps that really exist: every wave sends real creeps
+ * with their own hit points, armour, armour type and speed. The wave type picks which creeps
+ * (fast ones, armoured ones, flyers …) and the wave's hit-point budget (waveTotalHp × hp) decides
+ * how many of them come. Bounty and the breach cost stay wave rules.
+ */
 export const WAVE_TYPES = Object.freeze({
-  normal: { label: "Normal", tip: "A balanced wave.", count: 10, hp: 1, speed: 1, bounty: 1 },
-  swarm: { label: "Swarm", tip: "Many weak foes. Splash damage helps.", count: 18, hp: 0.42, speed: 1.05, bounty: 0.5 },
-  fast: { label: "Fast", tip: "They rush through. Slow them or build a long path.", count: 10, hp: 0.7, speed: 1.65, bounty: 1 },
-  armored: { label: "Armored", tip: "High armor. Magic and siege work well.", count: 8, hp: 1.15, speed: 0.85, armor: 6, defense: "large", bounty: 1.3 },
-  air: { label: "Flyers", tip: "They fly over the path. Only anti-air hits them.", count: 8, hp: 0.55, speed: 0.8, flying: true, bounty: 1.2 },
-  regen: { label: "Regeneration", tip: "They heal. Focused damage needed.", count: 9, hp: 0.95, speed: 1, regen: 0.03, bounty: 1.1 },
-  immune: { label: "Magic immune", tip: "Magic barely works. Arrows and cannons!", count: 8, hp: 1, speed: 0.95, immune: true, bounty: 1.2 },
-  split: { label: "Splitting", tip: "They split into two smaller ones on death.", count: 7, hp: 0.85, speed: 0.95, split: 2, bounty: 0.8 },
-  mixed: { label: "Mixed", tip: "Ground and air at once.", count: 12, hp: 0.7, speed: 0.9, mixed: true, bounty: 1 },
-  boss: { label: "Boss", tip: "A giant foe. A breakthrough costs 3 lives.", count: 1, hp: 12, speed: 0.72, armor: 8, defense: "hero", boss: true, bounty: 20, leak: 3 },
+  // count: creeps the hit points are planned for; share: the wave's hit points relative to waveTotalHp
+  normal: { label: "Normal", tip: "A balanced wave.", count: 10, share: 1, bounty: 1 },
+  swarm: { label: "Swarm", tip: "Many weak foes. Splash damage helps.", count: 18, share: 0.76, bounty: 0.5 },
+  fast: { label: "Fast", tip: "They rush through. Slow them or build a long path.", count: 10, share: 0.7, bounty: 1, pool: "fast" },
+  armored: { label: "Armored", tip: "Armored foes. Magic and siege work well.", count: 8, share: 0.92, bounty: 1.3, pool: "armored" },
+  air: { label: "Flyers", tip: "They fly over the path. Only anti-air hits them.", count: 8, share: 0.44, flying: true, bounty: 1.2 },
+  tough: { label: "Tough", tip: "Few strong foes. Focused damage helps.", count: 4, share: 1.1, bounty: 1.2 },
+  mixed: { label: "Mixed", tip: "Ground and air at once.", count: 12, share: 0.84, mixed: true, bounty: 1 },
+  boss: { label: "Boss", tip: "A giant foe. A breakthrough costs 3 lives.", count: 1, share: 1.2, boss: true, bounty: 20, leak: 3 },
 });
-const WAVE_ORDER = ["normal", "swarm", "fast", "armored", "air", "regen", "immune", "split", "mixed", "boss"];
-/** Visual models per tier band (10 waves each). */
-const WAVE_MODELS = [
-  { normal: "n00M", swarm: "n00L", fast: "n007", armored: "n00Q", air: "n00P", regen: "n00K", immune: "n00N", split: "n00R", boss: "n00T" },
-  { normal: "n010", swarm: "n00U", fast: "n00W", armored: "n011", air: "n00V", regen: "n00Y", immune: "n002", split: "n02V", boss: "n015" },
-  { normal: "n00O", swarm: "n016", fast: "n01C", armored: "n018", air: "n019", regen: "n01G", immune: "n01A", split: "n03A", boss: "n01H" },
-  { normal: "n02L", swarm: "n013", fast: "n02L", armored: "n02M", air: "n01L", regen: "n039", immune: "n01R", split: "n02E", boss: "n01T" },
-  { normal: "n01Y", swarm: "n01S", fast: "n02J", armored: "n02I", air: "n025", regen: "n023", immune: "n02P", split: "n02E", boss: "n02R" },
-];
+const WAVE_ORDER = ["normal", "swarm", "fast", "armored", "air", "tough", "normal", "fast", "mixed", "boss"];
+/** Which real creeps a wave type may use (never the send-only bosses outside boss waves). */
+const WAVE_POOLS = {
+  ground: (s) => !s.flying && !s.bossTier,
+  fast: (s) => !s.flying && !s.bossTier && s.speed >= 280,
+  armored: (s) => !s.flying && !s.bossTier && s.armor >= 1,
+  air: (s) => !!s.flying && !s.bossTier,
+  boss: (s) => !s.flying,
+};
+/** The real creep whose hit points are closest (log scale) to `target`, and how many fit the budget. */
+function waveGroup(poolName, budget, target, maxCount = 30) {
+  const pool = getCatalog().sends.filter((s) => s.playable && s.hp > 0 && WAVE_POOLS[poolName](s));
+  let best = null;
+  for (const s of pool) {
+    const d = Math.abs(Math.log(s.hp / Math.max(1, target)));
+    if (!best || d < best.d - 1e-9) best = { s, d };
+  }
+  const s = best?.s || getCatalog().byId.n00M;
+  return { model: s.id, count: Math.max(1, Math.min(maxCount, Math.round(budget / s.hp))), hp: s.hp, armor: s.armor || 0 };
+}
+const WAVE_INFO_CACHE = new Map();
 export function waveInfo(number) {
-  const type = WAVE_ORDER[(number - 1) % WAVE_ORDER.length],
-    spec = WAVE_TYPES[type],
-    count = spec.count + (spec.boss ? 0 : Math.min(6, Math.floor(number / 10)));
-  // spec.hp is relative to a ten-creep normal wave; extra creeps split the same total.
-  const perCreep = (waveTotalHp(number) / 10) * spec.hp * (spec.count / count);
-  return {
+  const catalog = getCatalog(),
+    key = number;
+  const cached = WAVE_INFO_CACHE.get(key);
+  if (cached && cached.catalog === catalog) return cached.info;
+  let type = WAVE_ORDER[(number - 1) % WAVE_ORDER.length],
+    spec = WAVE_TYPES[type];
+  // no real fast or armoured creep is small enough this early: the wave is a normal one
+  if (spec.pool && waveGroup(spec.pool, 1, (waveTotalHp(number) * spec.share) / spec.count).hp > (2.5 * waveTotalHp(number) * spec.share) / spec.count) spec = WAVE_TYPES[(type = "normal")];
+  const budget = waveTotalHp(number) * spec.share,
+    slots = spec.count + (spec.boss || type === "tough" ? 0 : Math.min(6, Math.floor(number / 10)));
+  let groups;
+  if (spec.mixed) groups = [waveGroup("ground", budget / 2, budget / slots, 15), waveGroup("air", budget / 2, budget / slots, 15)].map((g, i) => ({ ...g, flying: i === 1 }));
+  else if (spec.boss) groups = [{ ...waveGroup("boss", budget, budget, 1), flying: false }];
+  else {
+    const pool = spec.flying ? "air" : spec.pool || "ground";
+    groups = [{ ...waveGroup(pool, budget, budget / slots), flying: !!spec.flying }];
+  }
+  const count = groups.reduce((n, g) => n + g.count, 0),
+    hpTotal = groups.reduce((n, g) => n + g.count * g.hp, 0),
+    // the bounty of the old ten-creep formula is shared by the real creeps
+    bountyTotal = Math.max(1, Math.round((1 + number * 0.55) * spec.bounty)) * slots;
+  const info = {
     number,
     type,
     label: spec.label,
     tip: spec.tip,
     count,
-    hp: Math.max(4, Math.round(perCreep)),
-    armor: Math.floor(number / 4) + (spec.armor || 0),
-    bounty: Math.max(1, Math.round((1 + number * 0.55) * spec.bounty)),
+    groups,
+    hp: Math.round(hpTotal / count), // average per creep (estimates, AI)
+    armor: Math.round(groups.reduce((n, g) => n + g.count * g.armor, 0) / count),
+    bounty: Math.max(1, Math.round(bountyTotal / count)),
     boss: !!spec.boss,
     flying: !!spec.flying,
     mixed: !!spec.mixed,
     round: waveRound(number),
   };
+  WAVE_INFO_CACHE.set(key, { catalog, info });
+  return info;
 }
 export function nextWave(game) {
   if (!game.waves) return null;
@@ -4358,40 +4461,25 @@ export function nextWave(game) {
   const inRounds = waveRound(number) - game.round;
   return { ...waveInfo(number), seconds: game.incomeRemaining + (inRounds - 1) * game.incomeInterval };
 }
-/**
- * v0.16: the model of a neutral wave follows its hit points: the playable send whose hit points
- * are closest (on a log scale) to one wave creep, flyers for air waves, a tier boss for boss
- * waves. Wave 1 are goblins (v0.17: in grey neutral clothes like every neutral creep).
- */
-const WAVE_MODEL_CACHE = new Map();
+/** The (first) creep a wave consists of; mixed waves: the ground or the air group. */
 export function waveModel(number, type, info = waveInfo(number)) {
-  if (number === 1 && type === "normal") return "n00E";
-  const key = number + "|" + type;
-  if (WAVE_MODEL_CACHE.has(key)) return WAVE_MODEL_CACHE.get(key);
-  const spec = WAVE_TYPES[type] || WAVE_TYPES.normal,
-    hp = info.hp,
-    pool = getCatalog().sends.filter((s) => s.playable && s.hp > 0 && !!s.bossTier === !!spec.boss && (spec.boss || !!s.flying === !!spec.flying));
-  let best = null;
-  for (const s of pool) {
-    const d = Math.abs(Math.log(s.hp / Math.max(1, hp)));
-    if (!best || d < best.d) best = { id: s.id, d };
-  }
-  const model = best?.id || "n00M";
-  WAVE_MODEL_CACHE.set(key, model);
-  return model;
+  const g = info.groups.find((x) => (type === "air" ? x.flying : !x.flying)) || info.groups[0];
+  return g.model;
 }
 function launchWave(game, number) {
   const info = waveInfo(number),
-    spec = WAVE_TYPES[info.type],
-    band = WAVE_MODELS[Math.min(WAVE_MODELS.length - 1, Math.floor((number - 1) / 10))];
+    spec = WAVE_TYPES[info.type];
   game.wave = number;
   emit(game, "wave", { wave: number, kind: info.type, label: info.label, tip: info.tip, boss: info.boss, flying: info.flying, mixed: info.mixed });
-  for (let i = 0; i < info.count; i++) {
-    const flying = spec.flying || (spec.mixed && i % 2 === 1);
-    const model = waveModel(number, spec.mixed ? (flying ? "air" : "normal") : info.type, info); // v0.16: looks match the hit points
+  // mixed waves alternate ground and air creeps
+  const order = [];
+  const left = info.groups.map((g) => g.count);
+  while (left.some((n) => n > 0)) info.groups.forEach((g, k) => left[k]-- > 0 && order.push(g));
+  const gap = 0.55 * (spec.boss ? 1 : order.length > 12 ? 0.6 : 1);
+  order.forEach((g, i) => {
     for (const defender of game.players.filter((q) => !q.out))
-      game.waveQueue.push({ time: game.time + 0.55 * i * (spec.boss ? 1 : spec.count > 12 ? 0.6 : 1), defender: defender.id, number, type: info.type, model, flying, index: i });
-  }
+      game.waveQueue.push({ time: game.time + gap * i, defender: defender.id, number, type: info.type, model: g.model, flying: g.flying, index: i, real: true });
+  });
 }
 function spawnWaveCreep(game, entry, at = null, hpScale = 1, child = false) {
   const info = waveInfo(entry.number),
@@ -4402,8 +4490,9 @@ function spawnWaveCreep(game, entry, at = null, hpScale = 1, child = false) {
   if (!target || target.out) return null;
   const column = at ? gridAt(game, at).x : spawnColumn(game),
     position = at || pos(game, column, -1),
-    speed = 240 * (spec.speed || 1) * movementMultiplier(game),
-    hp = info.hp * hpScale;
+    real = !!entry.real, // v0.18a: neutral waves use the creep's own values
+    speed = (real ? item.speed : 240 * (spec.speed || 1)) * movementMultiplier(game),
+    hp = (real ? item.hp : info.hp) * hpScale;
   const creep = {
     id: "w" + game.nextId++,
     typeId: entry.model,
@@ -4417,16 +4506,16 @@ function spawnWaveCreep(game, entry, at = null, hpScale = 1, child = false) {
     y: position.y,
     hp,
     maxHp: hp,
-    armor: info.armor,
+    armor: real ? item.armor || 0 : info.armor,
     speed: speed * (0.92 + random(game) * 0.16),
     baseSpeed: speed,
-    regen: spec.regen ? hp * spec.regen : 0,
+    regen: real ? item.regen || 0 : spec.regen ? hp * spec.regen : 0,
     flying: !!entry.flying,
     immune: !!spec.immune,
     split: child ? 0 : spec.split || 0,
     bounty: child ? Math.max(1, Math.round(info.bounty * 0.4)) : info.bounty,
     leakLives: spec.leak || 1,
-    defenseType: spec.defense || (entry.flying ? "small" : "medium"),
+    defenseType: real ? item.defenseType || "medium" : spec.defense || (entry.flying ? "small" : "medium"),
     path: entry.flying ? [position, pos(game, column, game.grid.rows)] : findPath(game, target.id, gridAt(game, position)) || [],
     pathIndex: 0,
     statuses: [],

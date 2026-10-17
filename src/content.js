@@ -100,7 +100,7 @@ export function configureContent(data) {
   ];
   const towerSet = new Set(buildRoots);
   const traverse = (id) => {
-    for (const next of splitIds(rawUnits.get(id)?.fields.uupt))
+    for (const next of upgradeIds(rawUnits.get(id)?.fields.uupt))
       if (!towerSet.has(next)) {
         towerSet.add(next);
         traverse(next);
@@ -114,7 +114,7 @@ export function configureContent(data) {
   });
   const hallSet = new Set(["h05L"]);
   const hallTraverse = (id) => {
-    for (const next of splitIds(rawUnits.get(id)?.fields.uupt))
+    for (const next of upgradeIds(rawUnits.get(id)?.fields.uupt))
       if (!hallSet.has(next)) {
         hallSet.add(next);
         hallTraverse(next);
@@ -199,7 +199,7 @@ export function configureContent(data) {
       buildTime: value("ubld", 1),
       mana: value("umpm", 0),
       manaRegen: value("umpr", 0),
-      upgrades: splitIds(f.uupt),
+      upgrades: upgradeIds(f.uupt),
       researchAffected: splitIds(f.upgr),
       requires: splitIds(f.ureq).map((id, i) => ({ id, level: n(splitIds(f.urqa)[i], 1) })),
       abilities,
@@ -272,6 +272,7 @@ export function configureContent(data) {
   // Wood is gone from the game: nothing costs wood any more.
   for (const u of allUnits) u.woodCost = 0;
   applyCreepTuning(byId);
+  applyTowerDamageBuff(byId);
   // v0.17c: the Arcane Tower line loses its Detector ability
   for (const u of allUnits)
     if (u.isBuildable && /^Arcane Tower$/.test(u.shortName || "")) {
@@ -517,6 +518,10 @@ export const CUSTOM_ABILITIES = [
   { id: "XA04", baseId: "Xhwl", custom: true, radius: 192, slow: 0.25, amp: 0.2, duration: 12, cooldown: 20, fields: { anam: { 0: "Howl" }, aub1: { 1: "Creeps within 1.5 fields: 25% slower, +20% tower damage for 12 s" } } },
   // v0.17p: Phoenix: Phoenix Fire as an immolation aura with full damage to ground and air
   { id: "XA05", baseId: "AIcf", custom: true, fields: { anam: { 0: "Phoenix Fire" }, aare: { 1: 192 }, aub1: { 1: "Deals 350 damage per second\nRange 192\nTargets Ground & Air" } } },
+  // v0.18b: Earth Laser: Focus Fire. While the tower keeps hitting the same creep, its damage rises by 10 % every 0.25 s, up to 500 %.
+  // v0.18e: Orc: buying one restocks one Goblin at once (display only; the restock runs in simulation.js)
+  { id: "XA07", baseId: "Xinf", custom: true, fields: { anam: { 0: "Call the Peons" }, aub1: { 1: "When bought: restocks 1 Goblin" } } },
+  { id: "XA06", baseId: "Xfoc", custom: true, step: 0.1, interval: 0.25, max: 5, fields: { anam: { 0: "Focus Fire" }, aub1: { 1: "Damage +10% every 0.25 s while attacking the same target, up to 500%" } } },
 ];
 /**
  * v0.17p: ability fixes.
@@ -531,27 +536,53 @@ const speedAura = (bonus) => ({
 const CRIT_BY_LEVEL = { alev: { 0: 6 }, Ocr1: { 4: 0.1, 5: 0.12, 6: 0.15 }, Ocr2: { 4: 2, 5: 2.5, 6: 3 }, areq: { 0: "" } };
 const ABILITY_PATCH = {
   A02K: { fields: CRIT_BY_LEVEL }, // Zombie Tower: Critical Hit (was stored as 12 instead of 0.12, so every hit crit)
-  A05Q: { fields: CRIT_BY_LEVEL }, // Bird Hunter: Critical Shot (damage factor was missing, so it never crit)
   A03Q: speedAura(0.1), // Alchemist, Tauren Chief (the ground bonus was 0)
   A03P: speedAura(0.15), // Grom Hellscream
   A01U: speedAura(0.18), // Cairne Bloodhoof
   A03M: speedAura(0.2), // Demon Hunter, Lord Garithos
 };
-/** Removed everywhere: Blitz Weapon + its lightning (Bash Tower), Poison Weapon (Death Knight), the air halves of Endurance Aura, every Unholy Aura. */
-const REMOVED_ABILITIES = new Set(["A00P", "A01W", "A02S", "A06K", "A08E", "A08G", "A08I", "A09R", "A0D3", "A06X", "A09O"]);
+/** Removed everywhere: Critical Shot (Bird Hunter, v0.18a), Blitz Weapon + its lightning (Bash Tower), Poison Weapon (Death Knight), the air halves of Endurance Aura, every Unholy Aura. */
+const REMOVED_ABILITIES = new Set(["A05Q", "A00P", "A01W", "A02S", "A06K", "A08E", "A08G", "A08I", "A09R", "A0D3", "A06X", "A09O"]);
+/** v0.18b: towers taken out of the game (Archangel); no tower upgrades into them any more. */
+const REMOVED_UNITS = new Set(["h022"]);
+const upgradeIds = (s) => splitIds(s).filter((id) => !REMOVED_UNITS.has(id));
 /** Per unit: map ability → replacement ("" removes it). */
 const UNIT_ABILITY_SWAP = {
   h024: { A09W: "" }, // Naga Archer: no Howl
   h01Z: { A09W: "XA04" }, // Pit Lord tower: working Howl
   h020: { A0CI: "XA05" }, // Phoenix: Phoenix Fire is an immolation aura
+  // v0.18b: Earth Laser: Focus Fire instead of Armor Disruption
+  h03R: { A0BG: "XA06" },
+  h03X: { A0BG: "XA06" },
+  h03Y: { A0BG: "XA06" },
+  h03Z: { A0BG: "XA06" },
 };
 /** Per unit: abilities added in front. */
-const UNIT_ABILITY_ADD = { h03A: ["A05Q"], h03B: ["A05Q"] }; // Bird Hunter 4 and 5 get Critical Shot too
+const UNIT_ABILITY_ADD = {};
+/**
+ * v0.18a: tower damage buffs in percent of the average damage, rounded up to the next whole number.
+ * The difference is added to the flat damage part, so the dice spread stays the same.
+ */
+export const TOWER_DAMAGE_BUFF = {
+  h05B: 0.05, // Bird Hunter level 3: 45 → 48
+  h03A: 0.075, // Bird Hunter level 4: 135 → 146
+  h03B: 0.1, // Bird Hunter level 5: 375 → 413
+  h03N: 0.1, // Bird Hunter level 6: 900 → 990
+};
+function applyTowerDamageBuff(byId) {
+  for (const [id, pct] of Object.entries(TOWER_DAMAGE_BUFF)) {
+    const u = byId[id];
+    if (!u || !(u.damage > 0)) continue;
+    const next = Math.ceil(u.damage * (1 + pct) - 1e-9);
+    u.damageBase += next - u.damage;
+    u.damage = next;
+  }
+}
 export const CREEP_TUNING = {
   n00E: { income: 1, cost: 5, stockMax: 18 }, // Goblin: income 1.17 → 1 (v0.07g), cost 6 → 5 (v0.07h); peon companion removed (v0.07i); stock 16 → 18 (v0.08b)
   n007: { cost: 10, income: 1.9 }, // Horse: cost 12 → 10, income 2 → 1.9 (v0.08b)
   n00K: { income: 3.5 }, // Gnoll: income 3 → 3.5 (v0.08d)
-  n00M: { hp: 156, name: "[06] Orc", shortName: "Orc", abilities: ["A01A", "XA02"] }, // Grunt → Orc (v0.17b): hit points +30 %, 120 → 156 (v0.09s); Siege Resistance 33 % (v0.17b)
+  n00M: { hp: 312, count: 1, bountyBase: 11, name: "[06] Orc", shortName: "Orc", abilities: ["A01A", "XA02", "XA07"] }, // Grunt → Orc (v0.17b): hit points +30 %, 120 → 156 (v0.09s); Siege Resistance 33 % (v0.17b); v0.18e: one Orc per purchase (heavy), hit points 156 → 312, bounty 5+1d1 → 11+1d1 (12 per purchase as before), restocks 1 Goblin
   n00R: { abilities: ["A01A", "XA01"] }, // Skeleton: Arrow Resistance now 33 % less damage from Archer-line towers (v0.17b, was: ignores 1 ranged damage)
   n00N: { hp: 180, abilities: ["A01A", "XA03"] }, // Necromancer: hit points 170 → 180 (v0.17f); Unholy Aura removed, Deathrattle shown (v0.17g)
   n00P: { hp: 85, speed: 138.56, stockRegen: 11 }, // Flying Sheep: hit points 80 → 85, speed 1.06 → 1.08 fields/s (v0.17b); restock 10 → 11 s (v0.17o)

@@ -253,7 +253,7 @@ export function createPresence() {
     tick = null;
   const counts = () => {
     const now = Date.now(),
-      c = { queue: 0, pve: 0 };
+      c = { queue: 0, pve: 0, pvp: 0 }; // v0.18a: online matches count too ("Players online")
     for (const [k, v] of seen) {
       if (now - v.at > 25000) seen.delete(k);
       else if (v.s in c) c[v.s]++;
@@ -277,7 +277,7 @@ export function createPresence() {
     } catch {
       return;
     }
-    if (s === "queue" || s === "pve") seen.set(who, { s, at: Date.now() });
+    if (s === "queue" || s === "pve" || s === "pvp") seen.set(who, { s, at: Date.now() });
     else seen.delete(who);
     notify();
   };
@@ -303,10 +303,10 @@ export function createPresence() {
     state = next;
     clearInterval(beat);
     beat = null;
-    if (state === "idle" || state === "pvp") {
+    if (state === "idle") {
       say(); // tells the others to drop this entry
       if (!watchers.size) setTimeout(() => {
-        if ((state === "idle" || state === "pvp") && !watchers.size) {
+        if (state === "idle" && !watchers.size) {
           for (const l of links || []) l.close();
           links = null;
           opening = null;
@@ -316,7 +316,7 @@ export function createPresence() {
     }
     open().then(() => {
       say();
-      if (!beat && state !== "idle" && state !== "pvp") beat = setInterval(say, 10000);
+      if (!beat && state !== "idle") beat = setInterval(say, 10000);
     });
   };
   const watch = (cb) => {

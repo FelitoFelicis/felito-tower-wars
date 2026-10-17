@@ -229,6 +229,7 @@ export function mountArena({
   onCell,
   onTower,
   onTowerRight = () => {},
+  onCellRight = () => false,
   popups = { numbers: true, notes: true },
   onPip = () => {},
   onSwipe = () => {},
@@ -237,6 +238,8 @@ export function mountArena({
   getAim = () => null,
   onTick,
   getPipPlayer = null,
+  getMinimapMode = () => "on", // v0.18c: "on", "off" or "all"
+  getMiniPlayers = () => [], // v0.18c: the fields shown in the "All" row
 }) {
   /** A lane's colour: the player's choice, else blue for you and red for the other side. */
   const colorOf = (player) => {
@@ -332,6 +335,7 @@ export function mountArena({
       this.particles = [];
       this.rings = [];
       this.swipes = [];
+      this.beams = new Map(); // v0.18b: Focus Fire beams (Earth Laser), one per tower
       this.bolts = []; // v0.12
       this.floaters = [];
       this.textPool = [];
@@ -501,6 +505,7 @@ export function mountArena({
         if (pos.gridX < 0 || pos.gridX >= state.grid.cols || pos.gridY < 0 || pos.gridY >= state.grid.rows) return;
         const tower = towerAt(state.players[getViewPlayer()], pos.gridX, pos.gridY);
         if (tower) onTowerRight(tower, ev.timeStamp);
+        else onCellRight(pos); // v0.18a: an empty field (e.g. a pre-build)
       });
       // Mobile Max with a mouse: the mouse wheel moves the board up and down
       canvas.addEventListener(
@@ -541,8 +546,14 @@ export function mountArena({
         if (!press || press.id !== p.id || press.seed !== state?.seed || Math.hypot(p.x - press.x, p.y - press.y) > 12) return;
         // Mobile Max: fields hidden under the HUD are never built by a tap that lands on the HUD
         if (this.geometry().full && p.y < insets.top) return;
-        const r = pipGeometry(this.geometry()),
+        const r = getMinimapMode() === "on" ? pipGeometry(this.geometry()) : null,
           y = wy(p.y);
+        // v0.18c: the row of see-through mini maps ("All")
+        const hit = (this.miniRects || []).find((m) => p.x >= m.x - 3 && p.x <= m.x + m.w + 3 && y >= m.y - 3 && y <= m.y + m.h + 3);
+        if (hit) {
+          onPip(hit.player);
+          return;
+        }
         if (r && p.x >= r.x - 6 && p.x <= r.x + r.w + 6 && y >= r.y - 6 && y <= r.y + r.h + 12) {
           onPip();
           return;
@@ -917,7 +928,14 @@ export function mountArena({
             sprite.setData("recoil", time + 120).setData("atk", time);
             sprite.setData("aimX", e.to.x < (tower || e.from).x ? -1 : 1);
           }
-          if (def?.fields?.ua1w === "normal") {
+          if (e.focus) {
+            // v0.18b: Focus Fire: a steady beam from the tower to its target, stronger the longer it holds
+            const to = this.point(e.to.x, e.to.y),
+              beam = this.beams.get(e.towerId) || {};
+            Object.assign(beam, { targetId: e.targetId, x0: from.x, y0: from.y - cell * 0.55, tx: to.x, ty: to.y - cell * 0.2, power: clamp((e.focus - 1) / Math.max(1, (e.focusMax || 5) - 1), 0, 1), life: 0.6, max: 0.6 });
+            beam.shown ??= 0;
+            this.beams.set(e.towerId, beam);
+          } else if (def?.fields?.ua1w === "normal") {
             const to = this.point(e.to.x, e.to.y);
             this.swipes.push({ a: { x: from.x, y: from.y - cell * 0.35 }, b: to, life: 0.18, max: 0.18, cell });
             this.burst(to.x, to.y - cell * 0.15, 0xfff1c4, 5, 50, 2, 0.22, 0, true);
@@ -1953,6 +1971,35 @@ export function mountArena({
           fa.strokePath();
         }
       }
+      // v0.18b: Focus Fire beams: width, glow and brightness follow the charge (eased, never flickering)
+      for (const [id, b] of this.beams) {
+        b.life -= dt;
+        if (b.life <= 0) {
+          this.beams.delete(id);
+          continue;
+        }
+        const target = player.creeps.find((c) => c.id === b.targetId);
+        if (target && target.hp > 0) {
+          const q = this.point(target.x, target.y);
+          b.tx = q.x;
+          b.ty = q.y - cell * 0.2;
+        }
+        b.shown += (b.power - b.shown) * Math.min(1, dt * 6);
+        const p = b.shown,
+          fade = Math.min(1, (b.life / b.max) * 2.5);
+        for (const [w, color, a] of [
+          [cell * (0.1 + 0.34 * p), 0x4fae3a, 0.16 + 0.3 * p],
+          [cell * (0.05 + 0.14 * p), 0xa6f06a, 0.5 + 0.35 * p],
+          [cell * (0.018 + 0.04 * p), 0xffffff, 0.65 + 0.35 * p],
+        ]) {
+          fa.lineStyle(w, color, a * fade);
+          fa.lineBetween(b.x0, b.y0, b.tx, b.ty);
+        }
+        fa.fillStyle(0xc8ff9a, (0.35 + 0.45 * p) * fade);
+        fa.fillCircle(b.tx, b.ty, cell * (0.07 + 0.2 * p));
+        fa.fillStyle(0xa6f06a, (0.3 + 0.4 * p) * fade);
+        fa.fillCircle(b.x0, b.y0, cell * (0.05 + 0.12 * p));
+      }
       for (let i = this.swipes.length - 1; i >= 0; i--) {
         const s = this.swipes[i];
         s.life -= dt;
@@ -2015,28 +2062,59 @@ export function mountArena({
     }
     drawPip(game, view, own, z, catalog, time) {
       const g = this.pip,
+        mode = getMinimapMode(),
         other = getPipPlayer ? getPipPlayer() : 1 - view,
         lane = game.players[other],
-        r = pipGeometry(z),
+        r = mode === "on" ? pipGeometry(z) : null,
         { cols, rows } = game.grid;
       g.clear();
-      if (!r) {
-        this.pipLabel.setVisible(false); // v0.17d: layout B has no mini map
+      this.miniRects = [];
+      if (mode === "all") {
+        // v0.18c: every other field as a 40 % see-through mini map, side by side below the player plates
+        const ids = getMiniPlayers().filter((id) => game.players[id]),
+          n = ids.length,
+          gap = 8,
+          mw = n ? Math.max(18, Math.min(52, (z.w - 16 - (n - 1) * gap) / n)) : 0,
+          mh = (mw * rows) / cols,
+          x0 = (z.w - (n * mw + (n - 1) * gap)) / 2,
+          y0 = (this.stage.scrollY || 0) + insets.top + 8;
+        ids.forEach((id, i) => {
+          const m = { x: x0 + i * (mw + gap), y: y0, w: mw, h: mh, player: id };
+          this.miniRects.push(m);
+          this.drawLaneMap(g, game, game.players[id], id, own, m, catalog, 0.6, true);
+        });
+        this.pipLabel.setVisible(false);
         return;
       }
+      if (!r) {
+        this.pipLabel.setVisible(false); // v0.17d: layout B has no mini map; v0.18c: Minimap off
+        return;
+      }
+      this.drawLaneMap(g, game, lane, other, own, r, catalog, 1, false);
+      const mine = lane.creeps.filter((c) => c.owner === own && c.hp > 0).length;
+      this.pipLabel
+        .setText(other === own ? t("YOU") : mine ? `${t("ENEMY")}\n${mine}` : t("ENEMY"))
+        .setOrigin(0.5, 0)
+        .setAlign("center")
+        .setPosition(r.x + r.w / 2, r.y + r.h + 6)
+        .setVisible(true);
+    }
+    /** One field drawn small: grass, path, towers and creeps; `a` scales every alpha, `team` frames it in the player's colour. */
+    drawLaneMap(g, game, lane, other, own, r, catalog, a, team) {
+      const { cols, rows } = game.grid;
       // Portrait, same orientation as the main board.
       const sx = r.w / cols,
         sy = r.h / rows,
         P = (nx, ny) => ({ x: r.x + nx * r.w, y: r.y + ny * r.h });
-      g.fillStyle(0x0a1a22, 0.92);
+      g.fillStyle(0x0a1a22, 0.92 * a);
       g.fillRoundedRect(r.x - 4, r.y - 4, r.w + 8, r.h + 8, 8);
-      g.fillStyle(0x3f7a3a, 1);
+      g.fillStyle(0x3f7a3a, a);
       g.fillRect(r.x, r.y, r.w, r.h);
-      g.fillStyle(0x8a4dff, 0.9);
+      g.fillStyle(0x8a4dff, 0.9 * a);
       g.fillRect(r.x, r.y, r.w, Math.max(2, sy * 0.25));
       const path = lane.path || [];
       if (path.length > 1) {
-        g.lineStyle(Math.max(2, sx * 0.5), 0xb08a5a, 1);
+        g.lineStyle(Math.max(team ? 1.5 : 2, sx * 0.5), 0xb08a5a, a);
         g.beginPath();
         path.forEach((p, i) => {
           const q = P(p.x, p.y);
@@ -2046,27 +2124,21 @@ export function mountArena({
       }
       for (const t of lane.towers) {
         const q = P(t.x, t.y);
-        g.fillStyle(0x163a4a, 1);
+        g.fillStyle(0x163a4a, a);
         g.fillCircle(q.x, q.y, Math.min(sx, sy) * 0.42);
-        g.fillStyle(TEAM_COLORS[colorOf(other)].hex, 1);
+        g.fillStyle(TEAM_COLORS[colorOf(other)].hex, a);
         g.fillCircle(q.x, q.y, Math.min(sx, sy) * 0.22);
       }
       for (const c of lane.creeps) {
         if (c.hp <= 0) continue;
         const q = P(c.x, c.y),
           mine = c.owner === own;
-        g.fillStyle(c.owner < 0 ? 0xb48cff : mine ? 0xffe36e : 0xff8a7a, 1);
-        g.fillCircle(q.x, q.y, catalog.byId[c.typeId]?.bossTier || c.waveBoss ? 3.4 : 2.1);
+        g.fillStyle(c.owner < 0 ? 0xb48cff : mine ? 0xffe36e : 0xff8a7a, a);
+        g.fillCircle(q.x, q.y, (catalog.byId[c.typeId]?.bossTier || c.waveBoss ? 3.4 : 2.1) * (team ? 0.8 : 1));
       }
-      g.lineStyle(2, this.gainFlash > 0 ? 0x9ce0ff : 0xd9b45a, this.gainFlash > 0 ? 0.6 + this.gainFlash * 0.4 : 0.9);
+      if (team) g.lineStyle(2, TEAM_COLORS[colorOf(other)].hex, 0.9 * a);
+      else g.lineStyle(2, this.gainFlash > 0 ? 0x9ce0ff : 0xd9b45a, this.gainFlash > 0 ? 0.6 + this.gainFlash * 0.4 : 0.9);
       g.strokeRoundedRect(r.x - 4, r.y - 4, r.w + 8, r.h + 8, 8);
-      const mine = lane.creeps.filter((c) => c.owner === own && c.hp > 0).length;
-      this.pipLabel
-        .setText(other === own ? t("YOU") : mine ? `${t("ENEMY")}\n${mine}` : t("ENEMY"))
-        .setOrigin(0.5, 0)
-        .setAlign("center")
-        .setPosition(r.x + r.w / 2, r.y + r.h + 6)
-        .setVisible(true);
     }
     drawVignette(z, dt) {
       const g = this.vignette;
@@ -2178,6 +2250,7 @@ export function mountArena({
       this.particles = [];
       this.rings = [];
       this.swipes = [];
+      this.beams = new Map();
       this.bolts = [];
       for (const f of this.floaters) this.recycle(f);
       this.floaters = [];

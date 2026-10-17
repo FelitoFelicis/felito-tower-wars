@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Felito Tower Wars · v0.18</title>
+<title>Felito Tower Wars · v0.18g</title>
 <script>
   // Start diagnostics: show script errors on the loading screen instead of hanging silently.
   (function () {
@@ -12,7 +12,7 @@
     // English only for now (v0.09g)
     function report(msg) {
       shown.push(String(msg).slice(0, 300));
-      var el = document.getElementById("game-loader");
+      var el = document.getElementById("boot-msg") || document.getElementById("game-loader");
       if (el) el.textContent = (en ? "Start error: " : "Startfehler: ") + shown.join(" | ");
       else {
         el = document.getElementById("error-strip") || document.body.appendChild(Object.assign(document.createElement("div"), { id: "error-strip" }));
@@ -26,7 +26,7 @@
     window.addEventListener("unhandledrejection", function (e) { report(e.reason && e.reason.message || e.reason); });
   })();
 </script>
-<style>:root{color-scheme:dark}html,body{height:100%;background:#07141a}</style>
+<style>:root{color-scheme:dark}html,body{height:100%;background:#07141a}.boot-screen{position:fixed;inset:0;z-index:2147483000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;background:#02080b;color:#d9c79a;font:600 14px/1.3 system-ui,sans-serif;text-align:center;padding:24px}.boot-screen img{width:min(70vw,320px);height:auto}</style>
 <meta name="theme-color" content="#173d35">
   <meta name="description" content="Felito Tower Wars – build towers, send creeps and win your duel.">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -34,11 +34,12 @@
   <link rel="icon" href="assets/app-icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="assets/app-icon-192.png">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="style.css?v=v0181">
-  <script type="importmap">{"imports":{"./src/music.js":"./src/music.js?v=v0181","./src/art.js":"./src/art.js?v=v0181","./src/soundtrack.js":"./src/soundtrack.js?v=v0181","./src/sfx.js":"./src/sfx.js?v=v0181","./src/app.js":"./src/app.js?v=v0181","./src/arena.js":"./src/arena.js?v=v0181","./src/content.js":"./src/content.js?v=v0181","./src/simulation.js":"./src/simulation.js?v=v0181","./src/multiplayer.js":"./src/multiplayer.js?v=v0181","./src/i18n.js":"./src/i18n.js?v=v0181","./src/b2d.js":"./src/b2d.js?v=v0181","./src/campaign.js":"./src/campaign.js?v=v0181"}}</script>
+  <link rel="stylesheet" href="style.css?v=v018g">
+  <script type="importmap">{"imports":{"./src/music.js":"./src/music.js?v=v018g","./src/art.js":"./src/art.js?v=v018g","./src/soundtrack.js":"./src/soundtrack.js?v=v018g","./src/sfx.js":"./src/sfx.js?v=v018g","./src/app.js":"./src/app.js?v=v018g","./src/arena.js":"./src/arena.js?v=v018g","./src/content.js":"./src/content.js?v=v018g","./src/simulation.js":"./src/simulation.js?v=v018g","./src/multiplayer.js":"./src/multiplayer.js?v=v018g","./src/i18n.js":"./src/i18n.js?v=v018g","./src/b2d.js":"./src/b2d.js?v=v018g","./src/campaign.js":"./src/campaign.js?v=v018g"}}</script>
 </head>
 <body>
-<main class="game-shell" data-page="build" aria-label="Felito Tower Wars">
+<div id="boot-screen" class="boot-screen" aria-live="polite"><img src="assets/art/ui-logo.webp" alt="Felito Tower Wars"><span id="boot-msg">Loading …</span></div>
+  <main class="game-shell" data-page="build" aria-label="Felito Tower Wars">
     <div class="mini-hud">
       <header class="game-header">
         <div class="player-plate own" role="button" tabindex="0" data-ta="Show your board" aria-label="Show your board" data-help="Your gold, income per round, lives and EXP. Tap to show your board.">
@@ -111,7 +112,7 @@
     <section id="tower-panel" class="tower-panel" hidden></section>
   </main>
   <dialog id="modal"><div id="modal-body"></div></dialog>
-  <script src="vendor/babylon-felito.js?v=v0181"></script>
-  <script type="module" src="src/app.js?v=v0181"></script>
+  <script src="vendor/babylon-felito.js?v=v018g"></script>
+  <script type="module" src="src/app.js?v=v018g"></script>
 </body>
 </html>

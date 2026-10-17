@@ -4282,31 +4282,31 @@ dialog.with-flag .modal-header {
 .welcome-group-title {
   min-height: 34px;
 }
-/* v0.14: the back arrow is a real raised button */
+/* v0.14: the back arrow is a real raised button; v0.18f: same gold as the primary menu buttons, no arrow */
 .welcome-back {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  justify-content: center;
+  flex: none;
+  min-width: 86px;
   height: 36px;
-  padding: 0 12px 2px 8px;
-  border: 2px solid #050d13;
+  padding: 0 14px 2px;
+  border: 2px solid #4a1d04;
   border-radius: 11px;
-  background: linear-gradient(#ffe48f, #e8a52e);
+  background: linear-gradient(var(--orange-hi), var(--orange-lo));
   box-shadow:
-    inset 0 1px 0 #fff8,
-    0 3px 0 #6b4a0a,
+    inset 0 2px 0 #ffffff70,
+    inset 0 -3px 0 #00000030,
+    0 3px 0 #4a1d04,
     0 5px 8px #0007;
   font: 800 14px/1 var(--font-display);
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #4c3510;
+  white-space: nowrap;
+  color: #fff;
+  text-shadow: 0 2px 0 #7a3006;
   cursor: pointer;
   transition: transform 0.08s, box-shadow 0.08s;
-}
-.welcome-back i {
-  font: 800 24px/0.8 var(--font-display);
-  font-style: normal;
-  margin-top: -2px;
 }
 .welcome-back:hover {
   filter: brightness(1.06);
@@ -4314,8 +4314,8 @@ dialog.with-flag .modal-header {
 .welcome-back:active {
   transform: translateY(3px);
   box-shadow:
-    inset 0 1px 0 #fff8,
-    0 0 0 #6b4a0a,
+    inset 0 2px 0 #ffffff70,
+    0 0 0 #4a1d04,
     0 2px 4px #0007;
 }
 
@@ -4912,24 +4912,14 @@ dialog.welcome-modal {
   font-size: 16px;
 }
 .restart-button {
+  /* v0.18b: same gold as the other main buttons (primary-button); only size and icon here */
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
   min-height: 50px;
   padding: 8px;
-  border: 2px solid #050d13;
-  border-radius: 12px;
-  color: #3a2a00;
-  font: 800 16px var(--font-display);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  text-shadow: 0 1px 0 #fff6;
-  background: linear-gradient(#ffe066, #e0a81c);
-  box-shadow:
-    inset 0 2px 0 #ffffff70,
-    inset 0 -3px 0 #00000025,
-    0 4px 0 #050d13;
+  font-size: 16px;
   cursor: pointer;
 }
 .restart-button svg {
@@ -5343,10 +5333,10 @@ dialog.welcome-modal.hard-eyes .welcome-eyes {
   pointer-events: none;
   transform: translate(-50%, -50%);
   font: 400 clamp(88px, 34vw, 170px)/1 var(--font-number);
-  color: #ffe27a;
-  -webkit-text-stroke: 5px #3a2404;
+  color: var(--wc, #ffe27a); /* v0.18b: player colours */
+  -webkit-text-stroke: 5px var(--ws, #3a2404);
   paint-order: stroke fill;
-  text-shadow: 0 7px 0 #3a2404, 0 10px 18px #000a;
+  text-shadow: 0 7px 0 var(--ws, #3a2404), 0 10px 18px #000a;
   opacity: 0.7; /* v0.17g, v0.17q: 30 % see-through like every splat */
 }
 .warmup-count.pop {
@@ -6287,4 +6277,425 @@ html.layout-full .game-shell .bottom-nav {
   margin-top: 3px;
   font-size: 10px;
   letter-spacing: 0.02em;
+}
+
+/* ---- v0.18a: Quick Match – minimise, searching bar, lobby with player colours --------------- */
+.qm-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.qm-pill {
+  position: fixed;
+  left: 50%;
+  top: calc(env(safe-area-inset-top, 0px) + 60px); /* below the HUD plates and the menu's version line */
+  transform: translateX(-50%);
+  z-index: 9000;
+  display: flex;
+  align-items: stretch;
+  max-width: calc(100vw - 32px);
+  border-radius: 999px;
+  background: #0b1d27f2;
+  border: 1px solid #ffffff2e;
+  box-shadow: 0 4px 14px #0008;
+  overflow: hidden;
+}
+.qm-pill button {
+  border: 0;
+  background: none;
+  color: #fff;
+  font: 700 12px var(--font-display, sans-serif);
+  letter-spacing: 0.03em;
+  cursor: pointer;
+}
+.qm-pill-open {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 4px 7px 12px;
+  min-width: 0;
+}
+.qm-pill-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.qm-pill-x {
+  padding: 0 12px 0 8px;
+  font-size: 17px !important;
+  color: #ffffffb3 !important;
+}
+.qm-pill-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #4fd1a5;
+  animation: qm-breathe 2.6s ease-in-out infinite; /* calm, no flicker */
+}
+@keyframes qm-breathe {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .qm-pill-dot { animation: none; }
+}
+.qm-lobby {
+  display: grid;
+  gap: 8px;
+  margin: 4px 0 8px;
+}
+.qm-player {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 2px 10px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--pc);
+  color: var(--ink, #fff);
+  box-shadow: inset 0 0 0 2px #ffffff26;
+}
+.qm-player.me {
+  box-shadow: inset 0 0 0 2px #fffc, 0 0 0 2px var(--pc);
+}
+.qm-player b {
+  font: 400 17px var(--font-display, sans-serif);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.qm-player b small {
+  font-size: 12px;
+  opacity: 0.8;
+}
+.qm-player span {
+  font: 700 12px var(--font-display, sans-serif);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+.qm-player em {
+  grid-column: 1 / -1;
+  font: 600 12px var(--font-body, sans-serif);
+  font-style: normal;
+  opacity: 0.85;
+}
+
+/* v0.18b: words with fixed letter case inside upper-case buttons and titles (PvP) */
+.keep-case {
+  text-transform: none;
+}
+
+/* v0.18b: end-of-game buttons: two blue buttons side by side, Main menu in gold below */
+.result-pair {
+  display: flex;
+  gap: 8px;
+}
+.result-pair > button {
+  flex: 1 1 0;
+  min-width: 0;
+  padding-inline: 8px;
+  font-size: 16px;
+}
+/* v0.18b: place tile in the match summary (gold / silver / bronze / last place) */
+.sum-stats .sum-place {
+  position: relative;
+  overflow: hidden;
+}
+.sum-stats .sum-place b {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 3px;
+}
+.sum-stats .sum-place b em {
+  font: 400 24px/1 var(--font-number);
+  font-style: normal;
+}
+.sum-stats .sum-place b small {
+  color: var(--muted);
+  font: 700 10px var(--font-display);
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
+}
+.sum-place.place-gold b em,
+.sum-place.place-silver b em,
+.sum-place.place-bronze b em {
+  color: transparent;
+  background-clip: text;
+  -webkit-background-clip: text;
+  filter: drop-shadow(0 1px 0 #0009);
+}
+.sum-place.place-gold {
+  box-shadow: inset 0 0 0 1.5px #ffcf4a99;
+  background: radial-gradient(circle at 50% 70%, #ffcf4a2e, #07131b 70%);
+}
+.sum-place.place-gold b em {
+  background-image: linear-gradient(#fff6c2 10%, #ffd34d 45%, #c88a12 80%);
+}
+.sum-place.place-silver {
+  box-shadow: inset 0 0 0 1.5px #d6e2ec88;
+  background: radial-gradient(circle at 50% 70%, #d6e2ec24, #07131b 70%);
+}
+.sum-place.place-silver b em {
+  background-image: linear-gradient(#ffffff 10%, #c8d4de 45%, #7d8b97 85%);
+}
+.sum-place.place-bronze {
+  box-shadow: inset 0 0 0 1.5px #d38a4e88;
+  background: radial-gradient(circle at 50% 70%, #d38a4e24, #07131b 70%);
+}
+.sum-place.place-bronze b em {
+  background-image: linear-gradient(#ffd2a8 10%, #cd7f3a 50%, #7a4318 90%);
+}
+/* last place: a muddy, smelly number with slow, calm stink lines */
+.sum-place.place-stinky {
+  box-shadow: inset 0 0 0 1.5px #6f7a2c88;
+  background:
+    radial-gradient(circle at 30% 85%, #4b3a1a66 0 18%, transparent 19%),
+    radial-gradient(circle at 75% 90%, #3d4a1a66 0 14%, transparent 15%),
+    #0d130f;
+}
+.sum-place.place-stinky b em {
+  color: #8f8a3c;
+  text-shadow:
+    1px 1px 0 #3b2c12,
+    -1px 0 0 #556b1f,
+    0 0 6px #7f9a2a88;
+}
+.sum-place .stink {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 26px;
+  display: flex;
+  justify-content: center;
+  gap: 7px;
+  pointer-events: none;
+}
+.sum-place .stink s {
+  width: 7px;
+  height: 20px;
+  border-left: 2.5px solid #b8dc4fdd;
+  border-radius: 50%;
+  opacity: 0;
+  animation: stink-rise 3.2s ease-in-out infinite;
+}
+.sum-place .stink s:nth-child(2) {
+  animation-delay: 1.05s;
+  transform: scaleX(-1);
+}
+.sum-place .stink s:nth-child(3) {
+  animation-delay: 2.1s;
+}
+@keyframes stink-rise {
+  0% {
+    opacity: 0;
+    translate: 0 14px;
+  }
+  35% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    translate: 0 -6px;
+  }
+}
+/* v0.18b: small icon rows at the bottom of tooltips (enemy elements, perks buffing a tower) */
+.help-tip .tip-icons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid #ffffff1f;
+}
+.help-tip .tip-icon {
+  --el: #ffcf4a;
+  position: relative;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  background: linear-gradient(color-mix(in srgb, var(--el) 30%, #142636), #0b1822);
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--el) 80%, #000);
+}
+.help-tip .tip-icon img {
+  width: 19px;
+  height: 19px;
+  object-fit: contain;
+}
+.help-tip .tip-icon b {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  min-width: 12px;
+  padding: 0 2px;
+  border-radius: 6px;
+  background: #0b0f14;
+  box-shadow: inset 0 0 0 1px var(--el);
+  color: #fff;
+  font: 800 8px/1.5 var(--font-display);
+  text-align: center;
+}
+/* v0.18b: the tower opened from its info dialog is marked in the tech tree */
+.tt-node.tt-focus {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+  box-shadow: 0 0 14px #ffcf4a88;
+}
+/* v0.18b: creep cards: gold cost and income scaled up to 20 % (fitPrices sets --pz where it fits) */
+.game-shell[data-page="send"] .unit-card.card-send .card-foot .price,
+.game-shell[data-page="send"] .unit-card.card-send .card-foot .card-note {
+  zoom: var(--pz, 1);
+}
+/* v0.18b: lobby: player icon left of the name, wait note and Start button */
+.qm-player {
+  grid-template-columns: auto 1fr;
+}
+.qm-player .qm-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #0b1822;
+  box-shadow: 0 0 0 2px var(--ink, #fff);
+}
+.qm-wait {
+  text-align: center;
+}
+
+/* ---- v0.18c ------------------------------------------------------------------------------------ */
+/* Nemesis: the name stands right of the headline */
+.nemesis .nem-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  margin: 0;
+}
+/* First Blood: no separator; player name and EXP 20 % larger */
+.first-blood small {
+  gap: 7px;
+  font-size: 14.4px;
+}
+.first-blood .fb-name {
+  font-size: 28.8px;
+}
+/* out of the match (Keep watching): every card greyed out and disabled, no abilities, no level button */
+.game-shell.knocked-out .command-deck .unit-card,
+.game-shell.knocked-out #sheet-cards .unit-card,
+.game-shell.knocked-out .auto-slot,
+.game-shell.knocked-out .auto-send {
+  filter: grayscale(1) brightness(0.6);
+  opacity: 0.75;
+  pointer-events: none;
+}
+.game-shell.knocked-out .card-lock,
+.game-shell.knocked-out .card-status,
+.game-shell.knocked-out .volley-button,
+.game-shell.knocked-out .ability-panel,
+.game-shell.knocked-out .level-button {
+  display: none !important;
+}
+/* in-game menu: the match timer sits in the headline bar */
+.modal-header .menu-clock {
+  margin: 0 2px 0 0;
+}
+/* Graphic: the Minimap row holds On, Off and All side by side */
+.choice-row.minimap-row {
+  grid-template-columns: auto repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+/* ---- v0.18d ------------------------------------------------------------------------------------ */
+/* Nemesis: headline 15 % larger; lives taken from you red, taken by you green */
+.nemesis .nem-head > span {
+  font-size: 12.65px;
+}
+.nemesis small em {
+  font-style: normal;
+  font-weight: 800;
+}
+.nemesis small .nem-lost {
+  color: var(--red);
+}
+.nemesis small .nem-won {
+  color: var(--green);
+}
+
+/* ---- v0.18e ------------------------------------------------------------------------------------ */
+/* larger speaker symbol (main menu and in-game menu) */
+.welcome-mute svg,
+.header-mute svg {
+  width: 32px;
+  height: 32px;
+}
+/* in-game menu: square mute button at the left of the headline bar */
+.modal-header .header-mute {
+  position: static;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  margin-left: -6px;
+}
+.header-mute[aria-pressed="true"] {
+  filter: saturate(0.6);
+}
+/* PvP submenu: player name above the match buttons */
+.welcome-group .pvp-name {
+  display: block;
+  margin-top: 4px;
+}
+.welcome-group .pvp-name + .name-input {
+  margin-bottom: 10px;
+}
+
+/* v0.18g: the main menu stays under dialogs opened from it (blurred by the dialog backdrop) */
+.menu-under {
+  position: fixed;
+  inset: 0;
+  z-index: 2147482000;
+  background: #02080b;
+  pointer-events: none;
+}
+.menu-under-dialog {
+  position: relative;
+  width: min(100%, 520px);
+  height: 100%;
+  margin: 0 auto;
+  overflow: hidden;
+  background: #07141a url("assets/art/keyart.webp?v=014") center top / cover no-repeat;
+}
+.menu-under-body {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  height: 100%;
+  overflow: hidden;
+  padding: calc(16px + env(safe-area-inset-top)) 16px calc(16px + env(safe-area-inset-bottom));
+}
+@media (max-height: 760px) {
+  .menu-under-body {
+    padding-top: calc(8px + env(safe-area-inset-top));
+  }
+}
+body.menu-under-on #modal::backdrop {
+  background: #02080b80;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+/* v0.18g: the pressed tooltip button uses the gold of the menu buttons */
+.game-shell .help-button.active {
+  background: linear-gradient(var(--orange-hi), var(--orange-lo));
+  border-color: #4a1d04;
+  box-shadow:
+    inset 0 2px 0 #ffffff70,
+    inset 0 -3px 0 #00000030,
+    0 3px 0 #4a1d04;
+}
+.game-shell .help-button.active span {
+  color: #fff;
+  text-shadow: 0 2px 0 #7a3006;
 }

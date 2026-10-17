@@ -62,6 +62,8 @@ import {
   isHeavy,
   hasDeathrattle,
   attackInfo,
+  feudalBonus,
+  towerPerkBuffs,
 } from "./simulation.js";
 import { mountArena, artFor } from "./arena.js";
 import { artUrl, iconUrl, ELEMENT_ICON, ART_MANIFEST, registerTowerArt, TEAM_COLORS, recolorTeam } from "./art.js";
@@ -87,8 +89,8 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.18",
-  APP_NOTE = "(merge of 0.17o + 0.17q)", // v0.17q: saved version, shown below the version number; v0.18 = merge
+const APP_VERSION = "0.18g",
+  APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "17.10.2026";
 // v0.18: the version also stands in the page title (browser tab and the artifact window in chats)
 try {
@@ -150,6 +152,19 @@ const POPNUM_PREF = "felito.popNumbers",
   POPNOTE_PREF = "felito.popNotes";
 let popNumbers = pref(POPNUM_PREF, "true") !== "false";
 let popNotes = pref(POPNOTE_PREF, "true") !== "false";
+// v0.18c: Minimap (Graphic): "on" (the mini map beside the board), "off", "all" (a see-through mini map of every
+// other field in a row below the player plates)
+const MINIMAP_PREF = "felito.minimap",
+  MINIMAP_CHOICES = [
+    ["on", "On"],
+    ["off", "Off"],
+    ["all", "All"],
+  ];
+let minimapMode = ["on", "off", "all"].includes(pref(MINIMAP_PREF, "on")) ? pref(MINIMAP_PREF, "on") : "on";
+const minimapRow = () =>
+  `<div class="choice-row minimap-row" role="group" aria-label="${t("Minimap")}"><span>${t("Minimap")}</span>${MINIMAP_CHOICES.map(
+    ([m, name]) => `<button type="button" class="choice-button${minimapMode === m ? " active" : ""}" data-mini="${m}" aria-pressed="${minimapMode === m}">${t(name)}</button>`,
+  ).join("")}</div>`;
 // v0.14: mixed difficulty (toggle beside the levels): AIs of different levels up to the chosen one
 const AI_MIXED_PREF = "felito.ai.mixed";
 let aiMixed = pref(AI_MIXED_PREF, "false") === "true";
@@ -227,12 +242,53 @@ const cleanName = (v) => String(v || "").replace(/[<>&"'`\u0000-\u001f]/g, "").r
 let playerNameChoice = cleanName(pref(NAME_PREF, ""));
 const myName = () => playerNameChoice || t("You");
 const COLOR_PREF = "felito.color";
-let colorChoice = TEAM_COLORS[pref(COLOR_PREF, "blue")] ? pref(COLOR_PREF, "blue") : "blue";
+// v0.18a: colorPick is what the player picked ("random" = none: a free colour is drawn at the start
+// of every match); colorChoice is the colour actually played (online: the one the host assigned).
+let colorPick = pref(COLOR_PREF, "blue") === "random" ? "random" : TEAM_COLORS[pref(COLOR_PREF, "blue")] ? pref(COLOR_PREF, "blue") : "blue";
+let colorChoice = colorPick === "random" ? "blue" : colorPick;
+const randomColor = (taken = []) => {
+  const free = Object.keys(TEAM_COLORS).filter((c) => !taken.includes(c));
+  return free[Math.floor(Math.random() * free.length)] || "blue";
+};
+/** At the start of a match: the picked colour, or a random free one. */
+function rollColor() {
+  colorChoice = colorPick === "random" ? randomColor() : colorPick;
+}
+const colorLabel = () => (colorPick === "random" ? t("Random") : t(TEAM_COLORS[colorPick].name));
+/**
+ * v0.18a: online colours, in join order. Everybody keeps the colour they picked if it is free. If
+ * it is held by someone who picked it too, the newcomer is moved to a free colour. If it is held
+ * by someone who was moved there (or drew it at random), that player moves again instead, so as
+ * many players as possible keep their own pick. picks: colour id or null (random).
+ */
+function assignColors(picks) {
+  const out = [],
+    forced = [];
+  const holder = (c) => out.findIndex((x) => x === c);
+  picks.forEach((want, i) => {
+    const pick = TEAM_COLORS[want] ? want : null,
+      j = pick ? holder(pick) : -1;
+    if (pick && j < 0) {
+      out[i] = pick;
+      forced[i] = false;
+    } else if (pick && forced[j]) {
+      out[i] = pick;
+      forced[i] = false;
+      out[j] = randomColor(out);
+    } else {
+      out[i] = randomColor(out);
+      forced[i] = true;
+    }
+  });
+  return out;
+}
 const rivalColor = () => (colorChoice === "red" ? "blue" : "red");
 // v0.08b: four players. Seats get distinct colours; the rival plate shows whoever you send to.
 const FFA_COLORS = ["red", "green", "yellow", "purple", "teal", "orange", "pink", "blue"];
 const isFfa = () => (game?.players?.length || 2) > 2;
 function seatColors() {
+  const online = game?.players;
+  if (!isFfa() && TEAM_COLORS[online?.[own]?.color] && TEAM_COLORS[online?.[1 - own]?.color]) return { [own]: online[own].color, [1 - own]: online[1 - own].color }; // v0.18a: assigned by the host
   if (!isFfa()) return { [own]: colorChoice, [1 - own]: rivalColor() };
   const free = FFA_COLORS.filter((c) => c !== colorChoice && TEAM_COLORS[c]),
     out = {};
@@ -408,7 +464,7 @@ function burstPress() {
 function refreshBurst(p, slot) {
   const btn = $("burst-button");
   if (!btn) return;
-  const has = begun && p.perks?.burst > 0;
+  const has = begun && !p.out && p.perks?.burst > 0;
   btn.hidden = !has;
   if (!has) return;
   const left = Math.max(0, (p.burstReady ?? 0) - game.time),
@@ -468,7 +524,7 @@ function refreshAbilities(p) {
   for (const a of ABILITIES) {
     const btn = $(a.id + "-button");
     if (!btn) continue;
-    const has = begun && p.perks?.[a.id] > 0;
+    const has = begun && !p.out && p.perks?.[a.id] > 0;
     btn.hidden = !has;
     if (!has) continue;
     const left = Math.max(0, (p[a.ready] ?? 0) - game.time),
@@ -499,7 +555,7 @@ let abilityOrder = (() => {
   bookOpen = false,
   abilityLayoutKey = "";
 const abilityRank = (id) => (abilityOrder.includes(id) ? abilityOrder.indexOf(id) : 100 + ABILITY_IDS.indexOf(id));
-const ownedAbilities = (p) => ABILITY_IDS.filter((id) => begun && p?.perks?.[id] > 0).sort((a, b) => abilityRank(a) - abilityRank(b));
+const ownedAbilities = (p) => ABILITY_IDS.filter((id) => begun && !p?.out && p?.perks?.[id] > 0).sort((a, b) => abilityRank(a) - abilityRank(b));
 const abilityReadyKey = (id) => (id === "volley" ? "volleyReady" : id === "burst" ? "burstReady" : ABILITIES.find((a) => a.id === id)?.ready);
 const abilityAims = (id) => id === "volley" || id === "burst" || !!ABILITIES.find((a) => a.id === id)?.aim;
 const abilityName = (id) => (id === "volley" ? "Arrow Volley" : id === "burst" ? "Arcane Burst" : ABILITIES.find((a) => a.id === id)?.name || id);
@@ -754,7 +810,7 @@ function fireVolley(x, y) {
 function refreshVolley(p) {
   const btn = $("volley-button");
   if (!btn) return;
-  const has = begun && p.perks?.volley > 0;
+  const has = begun && !p.out && p.perks?.volley > 0;
   btn.hidden = !has;
   if (!has) return;
   const left = Math.max(0, (p.volleyReady ?? 0) - game.time),
@@ -1086,7 +1142,7 @@ function stockCount(item) {
 function cardStatus(item) {
   const p = game.players[own];
   if (item.kind === "send") {
-    if (game.warmup) return ""; // v0.17: the setup shows the lock (1 round) instead of a timer
+    if (game.warmup || p.out) return ""; // v0.17: the setup shows the lock (1 round) instead of a timer; v0.18c: no timer once you are out
     const stock = p.stock[item.id];
     if (lockRoundsLeft(game, stock) > 0) return ""; // v0.15: the lock shows the rounds
     if (stock && stock.count < 1) return `${Math.max(1, Math.ceil(stock.next - game.time))}s`;
@@ -1244,7 +1300,7 @@ const ABILITY_DESC = {
   "Chain Lightning": "Spell: lightning jumps between creeps",
   "Stomp Slow": "Chance to slow creeps around the tower",
   "Skirmish Aura": "Melee towers nearby deal more damage",
-  "Armor Disruption": "Chance to lower a creep's armor",
+  "Focus Fire": "Damage +10% every 0.25 s while attacking the same target, up to 500%", // v0.18b: replaces Armor Disruption
   "Curse Aura": "Towers nearby attack slower",
   "Disease Barrage": "Shots leave a disease cloud that hurts over time",
 };
@@ -1346,8 +1402,38 @@ function statTip(item, action, towerId = null, who = own, bare = false) {
       rows.map(row).join("") +
       // v0.16f: creeps show Stock right above the abilities, abilities last
       (item.kind === "send" ? after.map(row).join("") + abilityHtml : abilityHtml + after.map(row).join("")) +
-      (a.ok || bare ? "" : `<div class="tip-warn">${esc(t(a.reason))}</div>`),
+      (a.ok || bare ? "" : `<div class="tip-warn">${esc(t(a.reason))}</div>`) +
+      (item.kind === "send" ? "" : perkBuffRow(item, who)),
   };
+}
+/** v0.18b: small icons of the perks that buff this tower, in a row at the bottom of its tooltip. */
+function perkBuffRow(item, who) {
+  const buffs = game ? towerPerkBuffs(game, who, item.id) : [];
+  if (!buffs.length) return "";
+  return `<div class="tip-icons tip-buffs">${buffs
+    .map((b) => `<span class="tip-icon" title="${esc(`${t(PERKS[b.id].name)}: ${t(b.text)}`)}"><img src="${PERK_ART[b.id]()}" alt="${esc(t(PERKS[b.id].name))}">${b.level > 1 ? `<b>${b.level}</b>` : ""}</span>`)
+    .join("")}</div>`;
+}
+/** v0.18b: tooltip of an enemy's info window: lives, gold, income, level and its elements as icons. */
+function playerTip(q) {
+  if (!q || !game) return "";
+  const els = catalog.factions.filter((f) => q.research?.[f.unlock]);
+  const row = (k, v, cls = "") => `<div class="tip-row${cls}"><span>${esc(k)}</span><b>${esc(v)}</b></div>`;
+  return {
+    html:
+      `<div class="tip-head"><b>${esc(playerLabel(q))}</b>${q.out ? `<span class="tip-level">${esc(t("out"))}</span>` : ""}</div>` +
+      row(t("Lives"), String(q.lives)) +
+      row(t("Gold"), q.out ? "–" : resourceNumber(Math.floor(q.gold))) +
+      row(t("Income"), q.out ? "–" : "+" + resourceNumber(Math.floor(q.income)), " tip-inc") +
+      row(t("Level"), String(q.level || 1)) +
+      (els.length ? `<div class="tip-icons tip-elements">${els.map((f) => `<span class="tip-icon el-${f.id}" style="--el:${f.color}" title="${esc(t(f.name))}"><img src="${iconUrl(ELEMENT_ICON[f.id])}" alt="${esc(t(f.name))}"></span>`).join("")}</div>` : ""),
+  };
+}
+/** v0.18b: a player's full name for tooltips: AI players as "AI Easy Green". */
+function playerLabel(q) {
+  if (!q) return "";
+  if (q.ai && !q.missionName) return `${t("AI")} ${t(AI_NAMES[q.aiLevel || game.aiLevel] || "")} ${t(TEAM_COLORS[seatColors()[q.id]]?.name || "")}`.replace(/\s+/g, " ").trim();
+  return seatName(q.id);
 }
 /** Tooltip: values for creep and tower cards, else an explicit help text or the button's label. */
 /**
@@ -1381,6 +1467,9 @@ function abilityTip(id) {
 function helpText(el) {
   const abilityId = /^(volley|burst|pillar|agolem|monsun)-button$/.exec(el.id || "")?.[1];
   if (abilityId && game) return abilityTip(abilityId) || ""; // v0.17q: no use instructions, only the values
+  // v0.18b: enemy info windows (4+ players: one cell per enemy; duel: the enemy plate)
+  if (game && begun && el.dataset.seat !== undefined && el.classList.contains("enemy-cell")) return playerTip(game.players[Number(el.dataset.seat)]);
+  if (game && begun && el.classList.contains("rival") && !isFfa()) return playerTip(game.players[rivalIndex()]);
   if (el.dataset.help) return t(el.dataset.help) + (el.id === "wave-chip" && el.title ? " " + el.title : "");
   if (el.dataset.card && game) {
     const item = catalog?.byId[el.dataset.card];
@@ -1454,7 +1543,7 @@ document.addEventListener("pointerover", (e) => {
   if (e.pointerType === "touch") return;
   if (!helpMode) {
     if (controlMode !== "pc") return;
-    let card = e.target.closest?.("dialog") ? null : e.target.closest?.("[data-card], [data-upgrade]");
+    let card = e.target.closest?.("dialog") ? null : e.target.closest?.("[data-card], [data-upgrade], .enemy-cell, .player-plate.rival:not(.multi)"); // v0.18b: enemy info windows too
     // v0.17g: creep cards show their tooltip only with tooltips switched on (the ? button)
     if (card?.dataset.card && catalog?.byId[card.dataset.card]?.kind === "send") card = null;
     clearTimeout(pcTipTimer);
@@ -1471,6 +1560,15 @@ document.addEventListener("pointerout", (e) => {
 });
 // Touch has no hover: in help mode a tap also shows the tip for a moment.
 document.addEventListener("pointerdown", (e) => {
+  // v0.18b: a tap on an enemy's info window shows its values for a moment (also without help mode)
+  if (!helpMode && e.pointerType === "touch" && begun) {
+    const plate = e.target.closest?.("dialog") ? null : e.target.closest?.(".enemy-cell, .player-plate.rival:not(.multi)");
+    if (!plate) return;
+    showHelp(plate);
+    clearTimeout(helpTimer);
+    helpTimer = setTimeout(hideHelp, 2600);
+    return;
+  }
   if (!helpMode || e.pointerType !== "touch") return;
   const el = helpTarget(e);
   if (!el) return hideHelp();
@@ -1527,6 +1625,7 @@ document.addEventListener("contextmenu", (e) => {
   if (!e.target.closest?.(".game-shell")) return;
   e.preventDefault();
   if (volleyAim) setVolleyAim(false);
+  if (performance.now() - queueCancelAt < 250) return; // v0.18a: the right click cancelled a pre-build; keep the picked card
   if (tab === "build" && (selected || drag)) {
     selected = null;
     pending = null;
@@ -1694,6 +1793,10 @@ function pause(value) {
   }
 }
 function showModal(body, { pauseGame = true, welcome = false } = {}) {
+  // v0.18g: a dialog opened from the main menu keeps the menu (its current page) underneath,
+  // blurred, instead of showing an old board behind the dialog
+  if (welcome || begun) clearMenuUnder();
+  else if ($("modal").open && $("modal").classList.contains("welcome-modal")) keepMenuUnder();
   closeSheet();
   hideDialogTip();
   if (pauseGame && begun) setUiPause("modal", true);
@@ -1701,16 +1804,23 @@ function showModal(body, { pauseGame = true, welcome = false } = {}) {
   $("modal").classList.remove("with-flag");
   $("modal-body").innerHTML = body;
   if (!$("modal").open) $("modal").showModal();
+  document.getElementById("boot-screen")?.remove(); // v0.18b: the boot cover hides the board until the first dialog (main menu) is up
   $("modal-body")
     .querySelectorAll("[data-close]")
     .forEach((b) => (b.onclick = closeModal));
 }
 function closeModal() {
   if (!begun && catalog) {
+    const page = $("welcome-panel")?.dataset.view; // v0.18g: back to the menu page the dialog came from
     disconnectRoom();
     welcome();
+    if (page && $("welcome-panel")) {
+      $("welcome-panel").dataset.view = page;
+      wolfEyes();
+    }
     return;
   }
+  clearMenuUnder();
   if (begun && !shownResult) setUiPause("modal", false);
   if ($("modal").open) $("modal").close();
 }
@@ -1721,14 +1831,44 @@ $("modal").addEventListener("cancel", (e) => {
   e.preventDefault();
   if (begun) closeModal();
 });
-const modalHeader = (title) =>
-  `<div class="modal-header"><h2>${esc(title)}</h2><button class="close-modal" data-close aria-label="${t("Close")}">×</button></div>`;
+/** v0.18g: the main menu moved under a dialog opened from it (see showModal). */
+function keepMenuUnder() {
+  let under = $("menu-under");
+  if (!under) {
+    under = document.createElement("div");
+    under.id = "menu-under";
+    under.className = "menu-under";
+    under.setAttribute("aria-hidden", "true");
+    under.inert = true;
+    under.innerHTML = `<div class="menu-under-dialog welcome-modal"><div class="menu-under-body"></div></div>`;
+    document.body.appendChild(under);
+  }
+  const box = under.querySelector(".menu-under-body"),
+    scroll = $("modal-body").scrollTop;
+  box.replaceChildren(...$("modal-body").childNodes);
+  box.scrollTop = scroll;
+  under.hidden = false;
+  document.body.classList.add("menu-under-on");
+}
+function clearMenuUnder() {
+  const under = $("menu-under");
+  if (!under) return;
+  under.remove();
+  document.body.classList.remove("menu-under-on");
+}
+const pvpModal = (body) => (showModal(body), $("modal-body"));
+const modalHeader = (title, extra = "") =>
+  `<div class="modal-header"><h2>${esc(title)}</h2>${extra}<button class="close-modal" data-close aria-label="${t("Close")}">×</button></div>`;
 
 function welcome() {
   presenceState("idle"); // v0.14
+  if (colorPick !== "random" && colorChoice !== colorPick) {
+    colorChoice = colorPick; // v0.18a: back from an online match with an assigned colour
+    applyColors();
+  }
   const saved = unusableSave ? null : localStorage.getItem(SAVE);
   showModal(
-    `<div class="welcome-eyes" aria-hidden="true"></div><div class="welcome-art" aria-hidden="true"></div><button class="welcome-options" id="welcome-options" type="button" aria-label="${t("Options")}"><img src="${iconUrl("gear")}" alt=""></button><button class="welcome-options welcome-mute" id="welcome-mute" type="button" aria-pressed="${muted}" aria-label="${t(muted ? "Sound off" : "Sound on")}">${speakerSvg(muted)}</button><span class="app-version">v${APP_VERSION} · ${APP_DATE}${APP_NOTE ? `<small class="app-version-note">${esc(APP_NOTE)}</small>` : ""}</span><img class="welcome-logo" src="assets/art/ui-logo.webp" alt="Felito Tower Wars"><div class="welcome-panel" id="welcome-panel" data-view="home"><div class="welcome-home"><label class="modal-label name-label" for="player-name">${t("Player name")}</label><input id="player-name" class="name-input" maxlength="16" autocomplete="nickname" spellcheck="false" placeholder="${t("Your name")}" value="${esc(playerNameChoice)}"><span class="modal-label">${t("Your color")}: <b id="color-name">${t(TEAM_COLORS[colorChoice].name)}</b></span><div class="color-picker" role="radiogroup" aria-label="${t("Your color")}">${Object.entries(TEAM_COLORS).map(([id, c]) => `<button role="radio" data-color="${id}" aria-checked="${id === colorChoice}" aria-label="${t(c.name)}" title="${t(c.name)}" class="${id === colorChoice ? "active" : ""}" style="--c:${c.css}"></button>`).join("")}</div><div class="welcome-modes"><button class="primary-button big welcome-mode" data-open="ai">${t("Training")}</button><button class="primary-button big welcome-mode alt" data-open="player">${t("PvP")}</button></div></div><section class="welcome-group" data-sub="ai" aria-label="${t("Training")}"><h3 class="welcome-group-title"><button class="welcome-back" type="button" data-back aria-label="${t("Back")}"><i aria-hidden="true">‹</i>${t("Back")}</button>${t("Training")}</h3><div class="segmented ai-levels" role="radiogroup" aria-label="${t("Difficulty")}">${Object.entries(AI_NAMES).map(([id, name]) => `<button role="radio" data-ai="${id}" aria-checked="${id === aiChoice}" class="${id === aiChoice ? "active" : ""}">${t(name)}</button>`).join("")}<button type="button" class="ai-mixed${aiMixed ? " active" : ""}" id="ai-mixed" aria-pressed="${aiMixed}" title="${t("Shuffles AI enemies of different difficulties into the match, up to the chosen one")}">${t("Mixed")}</button></div><div class="welcome-inline"><span class="modal-label">${t("Neutral waves")}</span><div class="segmented" role="radiogroup" aria-label="${t("Neutral waves")}">${[["on", "On"], ["off", "Off"]].map(([id, name]) => `<button role="radio" data-waves="${id}" aria-checked="${(id === "on") === wavesOn}" class="${(id === "on") === wavesOn ? "active" : ""}">${t(name)}</button>`).join("")}</div></div><span class="modal-label">${t("Number of AI enemies")}</span><div class="segmented ai-count" role="radiogroup" aria-label="${t("Number of AI enemies")}">${AI_COUNTS.map((n) => `<button role="radio" data-aicount="${n}" aria-checked="${n === aiCount}" class="${n === aiCount ? "active" : ""}">${n}</button>`).join("")}</div><button class="primary-button big" id="start-training">${t("Start")}</button><button class="secondary-button big campaign-open" id="start-campaign">${t("Campaign")} · ${campaignDone().size}/${MISSIONS.length}</button></section><section class="welcome-group" data-sub="player" aria-label="${t("PvP")}"><h3 class="welcome-group-title"><button class="welcome-back" type="button" data-back aria-label="${t("Back")}"><i aria-hidden="true">‹</i>${t("Back")}</button>${t("PvP")}</h3><div class="welcome-row pvp-row"><button class="primary-button" id="start-quick">${t("Quick Match")}</button><button class="secondary-button" id="start-online">${t("Play a friend")}</button><button class="secondary-button" id="start-ranked" disabled aria-disabled="true" title="${t("Ranked matches are coming soon.")}">${t("Ranked match")}</button></div></section></div>`,
+    `<div class="welcome-eyes" aria-hidden="true"></div><div class="welcome-art" aria-hidden="true"></div><button class="welcome-options" id="welcome-options" type="button" aria-label="${t("Options")}"><img src="${iconUrl("gear")}" alt=""></button><button class="welcome-options welcome-mute" id="welcome-mute" type="button" aria-pressed="${muted}" aria-label="${t(muted ? "Sound off" : "Sound on")}">${speakerSvg(muted)}</button><span class="app-version">v${APP_VERSION} · ${APP_DATE}${APP_NOTE ? `<small class="app-version-note">${esc(APP_NOTE)}</small>` : ""}</span><img class="welcome-logo" src="assets/art/ui-logo.webp" alt="Felito Tower Wars"><div class="welcome-panel" id="welcome-panel" data-view="home"><div class="welcome-home"><span class="modal-label">${t("Your color")}: <b id="color-name">${colorLabel()}</b></span><div class="color-picker" role="radiogroup" aria-label="${t("Your color")}">${Object.entries(TEAM_COLORS).map(([id, c]) => `<button role="radio" data-color="${id}" aria-checked="${id === colorPick}" aria-label="${t(c.name)}" title="${t(c.name)}" class="${id === colorPick ? "active" : ""}" style="--c:${c.css}"></button>`).join("")}</div><div class="welcome-modes"><button class="primary-button big welcome-mode" data-open="ai">${t("Training")}</button><button class="primary-button big welcome-mode alt" data-open="player"><span class="keep-case">${t("PvP")}</span></button></div></div><section class="welcome-group" data-sub="ai" aria-label="${t("Training")}"><h3 class="welcome-group-title"><button class="welcome-back" type="button" data-back aria-label="${t("Back")}">${t("Back")}</button>${t("Training")}</h3><div class="segmented ai-levels" role="radiogroup" aria-label="${t("Difficulty")}">${Object.entries(AI_NAMES).map(([id, name]) => `<button role="radio" data-ai="${id}" aria-checked="${id === aiChoice}" class="${id === aiChoice ? "active" : ""}">${t(name)}</button>`).join("")}<button type="button" class="ai-mixed${aiMixed ? " active" : ""}" id="ai-mixed" aria-pressed="${aiMixed}" title="${t("Shuffles AI enemies of different difficulties into the match, up to the chosen one")}">${t("Mixed")}</button></div><div class="welcome-inline"><span class="modal-label">${t("Neutral waves")}</span><div class="segmented" role="radiogroup" aria-label="${t("Neutral waves")}">${[["on", "On"], ["off", "Off"]].map(([id, name]) => `<button role="radio" data-waves="${id}" aria-checked="${(id === "on") === wavesOn}" class="${(id === "on") === wavesOn ? "active" : ""}">${t(name)}</button>`).join("")}</div></div><span class="modal-label">${t("Number of AI enemies")}</span><div class="segmented ai-count" role="radiogroup" aria-label="${t("Number of AI enemies")}">${AI_COUNTS.map((n) => `<button role="radio" data-aicount="${n}" aria-checked="${n === aiCount}" class="${n === aiCount ? "active" : ""}">${n}</button>`).join("")}</div><button class="primary-button big" id="start-training">${t("Start")}</button><button class="secondary-button big campaign-open" id="start-campaign">${t("Campaign")} · ${campaignDone().size}/${MISSIONS.length}</button></section><section class="welcome-group" data-sub="player" aria-label="${t("PvP")}"><h3 class="welcome-group-title"><button class="welcome-back" type="button" data-back aria-label="${t("Back")}">${t("Back")}</button><span class="keep-case">${t("PvP")}</span></h3><label class="modal-label name-label pvp-name" for="player-name">${t("Player name")}</label><input id="player-name" class="name-input" maxlength="16" autocomplete="nickname" spellcheck="false" placeholder="${t("Your name")}" value="${esc(playerNameChoice)}"><div class="welcome-row pvp-row"><button class="primary-button" id="start-quick">${t("Quick Match")}</button><button class="secondary-button" id="start-online">${t("Play a friend")}</button><button class="secondary-button" id="start-ranked" disabled aria-disabled="true" title="${t("Ranked matches are coming soon.")}">${t("Ranked match")}</button></div></section></div>`,
     { pauseGame: false, welcome: true },
   );
   $("modal-body")
@@ -1785,16 +1925,19 @@ function welcome() {
     .forEach(
       (b) =>
         (b.onclick = () => {
-          colorChoice = b.dataset.color;
-          savePref(COLOR_PREF, colorChoice);
+          // v0.18a: clicking the picked colour again deselects it ("Random")
+          colorPick = b.dataset.color === colorPick ? "random" : b.dataset.color;
+          if (colorPick !== "random") colorChoice = colorPick;
+          savePref(COLOR_PREF, colorPick);
           applyColors();
           warmDialogArt();
-          $("color-name").textContent = t(TEAM_COLORS[colorChoice].name);
+          $("color-name").textContent = colorLabel();
           $("modal-body")
             .querySelectorAll("[data-color]")
             .forEach((x) => {
-              x.classList.toggle("active", x === b);
-              x.setAttribute("aria-checked", String(x === b));
+              const on = x.dataset.color === colorPick;
+              x.classList.toggle("active", on);
+              x.setAttribute("aria-checked", String(on));
             });
           tone("tap");
         }),
@@ -1834,16 +1977,7 @@ function welcome() {
   $("start-training").onclick = () => (aiCount === 1 ? startLocal() : startLocal({ ffa: true, seats: aiCount + 1 }));
   $("start-campaign").onclick = () => campaignMenu(); // v0.17
   $("welcome-options").onclick = optionsModal;
-  $("welcome-mute").onclick = () => {
-    muted = !muted;
-    savePref(MUTE_PREF, muted);
-    applyVolume();
-    const b = $("welcome-mute");
-    b.innerHTML = speakerSvg(muted);
-    b.setAttribute("aria-pressed", String(muted));
-    b.setAttribute("aria-label", t(muted ? "Sound off" : "Sound on"));
-    if (!muted) tone("select");
-  };
+  $("welcome-mute").onclick = () => toggleMute($("welcome-mute"));
   wolfEyes();
   $("start-online").onclick = () => onlineMenu();
   $("start-quick").onclick = () => quickMatch();
@@ -1884,6 +2018,9 @@ function welcome() {
     };
 }
 function disconnectRoom() {
+  clearTimeout(lobbyTimer); // v0.18b: no lobby start after leaving
+  lobbyTimer = 0;
+  lobby = null;
   networkAbort?.abort();
   networkAbort = null;
   const old = room;
@@ -1903,7 +2040,17 @@ let shownRival = -1;
  */
 /** v0.17g: lives the favourite creep stole (its own creeps; a send that spawns another unit counts that unit). */
 const favStolen = (st, fav) => [...new Set([fav.id, ...(fav.spawnIds || [])])].reduce((sum, id) => sum + (st.stoleBy?.[id] || 0), 0);
-function matchSummary(me) {
+/**
+ * v0.18b: the place as the first tile of the summary: "Place", the number and a small "of N"; gold,
+ * silver and bronze for the first three, a dirty, smelly number for the last place with 4+ players.
+ */
+function placeTile(place, of) {
+  if (!place || !of) return "";
+  place = Math.max(1, Math.min(of, place));
+  const skin = place === 1 ? "gold" : place === 2 ? "silver" : place === 3 && of > 3 ? "bronze" : place === of && of >= 4 ? "stinky" : "plain";
+  return `<span class="sum-place place-${skin}">${t("Place")}<b><em>${place}</em><small>${t("of {m}", { m: of })}</small></b>${skin === "stinky" ? `<i class="stink" aria-hidden="true"><s></s><s></s><s></s></i>` : ""}</span>`;
+}
+function matchSummary(me, place = 0) {
   const st = me.stats || {},
     spent = Object.entries(st.spent || {}).sort((a, b) => b[1] - a[1])[0],
     fav = spent && catalog.byId[spent[0]],
@@ -1914,7 +2061,7 @@ function matchSummary(me) {
   const favHtml = fav
     ? `<span class="sum-fav"><img src="${towerArtUrl(artFor(fav))}" alt=""><b>${esc(itemName(fav))}</b><span class="fav-nums"><small>${resourceNumber(spent[1])} ${t("gold")}</small><small class="fav-lives" title="${t("Lives stolen")}"><img src="${iconUrl("heart")}" alt="">${format(favStolen(st, fav))} ${t("lives stolen")}</small></span>${t("Favourite creep")}</span>`
     : `<span class="sum-fav"><b>–</b>${t("Favourite creep")}</span>`;
-  const html = `<div class="result-stats sum-stats"><span><b>${format(st.kills || 0)}</b>${t("Creeps killed")}</span><span><b>${format(st.creeps ?? st.sent ?? 0)}</b>${t("Creeps sent")}</span><span><b>${format(st.leaks || 0)}</b>${t("Breaches")}</span>${game.waves ? `<span><b>${game.wave}</b>${t("waves")}</span>` : ""}${favHtml}<button type="button" class="sum-income" id="sum-income" aria-expanded="false"><b>+${resourceNumber(last)}</b>${t("Income")}<i>${t("Tap for chart")}</i></button></div><div class="income-chart" id="income-chart" hidden></div>${nemesisHtml(me)}`;
+  const html = `<div class="result-stats sum-stats">${placeTile(place, game.players.length)}<span><b>${format(st.kills || 0)}</b>${t("Creeps killed")}</span><span><b>${format(st.creeps ?? st.sent ?? 0)}</b>${t("Creeps sent")}</span><span><b>${format(st.leaks || 0)}</b>${t("Breaches")}</span>${game.waves ? `<span><b>${game.wave}</b>${t("waves")}</span>` : ""}${favHtml}<button type="button" class="sum-income" id="sum-income" aria-expanded="false"><b>+${resourceNumber(last)}</b>${t("Income")}<i>${t("Tap for chart")}</i></button></div><div class="income-chart" id="income-chart" hidden></div>${nemesisHtml(me)}`;
   return {
     html,
     wire: () => {
@@ -1948,7 +2095,7 @@ function nemesisHtml(me) {
   }
   if (!best) return "";
   const color = TEAM_COLORS[seatColors()[best.q.id]]?.css || "#888";
-  return `<div class="nemesis" style="--nc:${color}"><img class="portrait" src="${portraitFor(best.q)}" alt=""><div><span>${t("Nemesis")}</span><b>${esc(best.q.ai && !best.q.missionName ? `${t(AI_NAMES[best.q.aiLevel || game.aiLevel] || "")} ${t("AI")} ${seatName(best.q.id)}`.trim() : seatName(best.q.id))}</b><small>${t("{a} lives taken from you · {b} taken by you", { a: best.lost, b: best.stole })}</small></div></div>`;
+  return `<div class="nemesis" style="--nc:${color}"><img class="portrait" src="${portraitFor(best.q)}" alt=""><div><p class="nem-head"><span>${t("Nemesis")}</span><b>${esc(best.q.ai && !best.q.missionName ? `${t(AI_NAMES[best.q.aiLevel || game.aiLevel] || "")} ${t("AI")} ${seatName(best.q.id)}`.trim() : seatName(best.q.id))}</b></p><small>${t("{a} lives taken from you · {b} taken by you", { a: `<em class="nem-lost">${best.lost}</em>`, b: `<em class="nem-won">${best.stole}</em>` })}</small></div></div>`;
 }
 const RULES_START_INCOME = 20;
 /** Bar chart of income per round (single series, green bars, hover/tap tooltip). */
@@ -2007,14 +2154,18 @@ function ownKnockedOut(place) {
   } catch {}
   tone("defeat");
   const me = game.players[own],
-    summary = matchSummary(me);
+    summary = matchSummary(me, place);
+  // v0.18b: place in the summary tiles; Keep watching and Play again side by side in blue, Main menu gold
   showModal(
-    `<div class="result-banner lose">${t("Defeat")}</div><p class="modal-copy result-place">${t("Place {n} of {m}", { n: place, m: game.players.length })}</p><img class="modal-hero result-hero" src="${artUrl("creep-golem")}" alt="">${summary.html}<button class="primary-button" id="ko-watch">${t("Keep watching")}</button><button class="secondary-button" id="ko-again">${t("Play again")}</button><button class="secondary-button" id="ko-menu">${t("Main menu")}</button>`,
+    `<div class="result-banner lose">${t("Defeat")}</div><img class="modal-hero result-hero" src="${artUrl("creep-golem")}" alt="">${summary.html}<div class="result-pair"><button class="secondary-button" id="ko-watch">${t("Keep watching")}</button><button class="secondary-button" id="ko-again">${t("Play again")}</button></div><button class="primary-button" id="ko-menu">${t("Main menu")}</button>`,
     { pauseGame: false },
   );
   summary.wire();
   $("ko-watch").onclick = () => {
     if ($("modal").open) $("modal").close();
+    // v0.18b: the match goes on between the AIs; show the board of a player still in it
+    const lead = game.players.filter((q) => !q.out).sort((a, b) => b.lives - a.lives || b.income - a.income)[0];
+    if (lead) showMaze(lead.id);
   };
   $("ko-again").onclick = () => {
     shownResult = false;
@@ -2080,7 +2231,7 @@ function campaignMenu() {
       const open = missionOpen(i, done),
         won = done.has(m.id);
       return `<button class="mission-tile${won ? " won" : ""}${open ? "" : " locked"}" data-mission="${i}" ${open ? "" : "disabled"} aria-label="${esc(t("Mission {n}", { n: i + 1 }) + ": " + (open ? t(m.title) : t("locked")))}"><span class="mission-num">${i + 1}</span><img src="${artUrl(m.art)}" alt=""><b>${open ? esc(t(m.title)) : "???"}</b>${won ? '<i class="mission-check">✓</i>' : open ? "" : '<i class="mission-lock">🔒</i>'}</button>`;
-    }).join("")}</div><button class="secondary-button" data-close>${t("Back")}</button>`,
+    }).join("")}</div><button class="primary-button" data-close>${t("Back")}</button>`,
   );
   $("modal-body")
     .querySelectorAll("[data-mission]")
@@ -2098,7 +2249,7 @@ function missionScene(i, step = 0) {
     `<div class="mission-scene"><div class="scene-head"><span class="scene-kicker">${t("Mission {n}", { n: i + 1 })}</span><h2>${esc(t(m.title))}</h2></div><div class="scene-stage${pip ? " pip" : ""}"><img class="scene-enemy" src="${artUrl(m.art)}" alt="${esc(t(m.enemy))}"><img class="scene-pip" src="${artUrl("tower-archer")}" alt="Pip"></div>${
       talking
         ? `<div class="scene-bubble${pip ? " pip" : ""}"><b>${esc(t(who))}</b><p>${esc(t(line))}</p></div><div class="scene-actions"><button class="primary-button" id="scene-next">${t(step === lines.length - 1 ? "To the briefing" : "Next")}</button><button class="secondary-button" id="scene-skip">${t("Skip")}</button></div>`
-        : `<div class="scene-brief"><p>${valHtml(t(m.briefing))}</p><p class="scene-weak"><b>${t("Pip's tip")}:</b> ${esc(t(m.weakness))}</p></div><div class="scene-actions"><button class="primary-button big" id="scene-fight">${t("Fight!")}</button><button class="secondary-button" id="scene-back">${t("Back")}</button></div>`
+        : `<div class="scene-brief"><p>${valHtml(t(m.briefing))}</p><p class="scene-weak"><b>${t("Pip's tip")}:</b> ${esc(t(m.weakness))}</p></div><div class="scene-actions"><button class="primary-button big" id="scene-fight">${t("Fight!")}</button><button class="primary-button" id="scene-back">${t("Back")}</button></div>`
     }</div>`,
   );
   if (talking) {
@@ -2162,6 +2313,7 @@ function startLocal({ hotseat = false, ffa = false, seats = 4, mission = null } 
     mission, // v0.17: campaign
   });
   presenceState("pve");
+  rollColor(); // v0.18a: picked colour or a random one
   applyColors();
   warnedWave = 0;
   game.paused = false;
@@ -2528,6 +2680,11 @@ function fitPrices(root) {
     if (!foot) continue;
     card.classList.add("price-big");
     if (foot.scrollWidth > foot.clientWidth + 1) card.classList.remove("price-big");
+    // v0.18b: gold cost and income up to 20 % larger where the card is wide enough
+    for (const z of [1.2, 1.15, 1.1, 1.05, 1]) {
+      foot.style.setProperty("--pz", z);
+      if (z === 1 || (foot.scrollWidth <= foot.clientWidth + 1 && foot.scrollHeight <= foot.clientHeight + 1)) break;
+    }
   }
 }
 /** v0.10zd: names that do not fit on one row in the larger size drop back to the small size. */
@@ -2744,6 +2901,7 @@ const perkText = (id, level, q = game?.players[own], next = false) => {
     guardCd: GUARDIAN.cooldown,
     guardShield: pct(guardShare(Math.min(5, lv))),
     guardMagic: pct(guardMagic(Math.min(5, lv))),
+    feudal: format(Math.round(feudalBonus(Math.min(5, lv)) * 1000) / 10) + "%", // v0.18b
   });
 };
 const elementOf = (id) => catalog.factions.find((f) => f.id === id);
@@ -2923,7 +3081,7 @@ function pickModal() {
   if (!pick) return abilitiesModal();
   const title = pick.kind === "element" ? (pick.level <= 1 ? t("Choose your first element") : t("Level {n}: new element", { n: pick.level })) : t("Level {n}: choose a reward", { n: pick.level });
   showModal(
-    `${modalHeader(title)}<div class="pick-grid">${pick.options.map((o, i) => pickCard(o, i, p)).join("")}</div>${ownedTiles(p)}<p class="modal-note">${p.picks.length > 2 ? t("{n} more rewards after this.", { n: p.picks.length - 1 }) : p.picks.length > 1 ? t("One more reward after this.") : t("EXP comes from breakthroughs, EXP generators and boss purchases.")}</p>`,
+    `${modalHeader(title)}<div class="pick-grid">${pick.options.map((o, i) => pickCard(o, i, p)).join("")}</div>${ownedTiles(p)}${p.picks.length > 2 ? `<p class="modal-note">${t("{n} more rewards after this.", { n: p.picks.length - 1 })}</p>` : p.picks.length > 1 ? `<p class="modal-note">${t("One more reward after this.")}</p>` : pick.kind === "element" && pick.level <= 1 ? "" : `<p class="modal-note">${t("EXP comes from breakthroughs, boss creeps and achievements.")}</p>`}`,
     { pauseGame: sessionMode !== "online" },
   );
   $("modal-body")
@@ -2965,8 +3123,8 @@ function ensureHalo() {
 }
 function refreshLevelButton(p) {
   const btn = $("level-button");
-  btn.hidden = !begun;
-  if (!begun) return;
+  btn.hidden = !begun || !!p.out; // v0.18c: no level button once you are out
+  if (btn.hidden) return;
   // v0.17i: only touch the DOM when something changed (constant rewrites made the glow flicker on phones)
   if ($("level-number").textContent !== String(p.level)) $("level-number").textContent = p.level;
   if ($("level-pending").hidden !== !p.picks.length) $("level-pending").hidden = !p.picks.length;
@@ -3113,6 +3271,7 @@ function refreshUI() {
   markTopIncome(p, enemy);
   setPortrait(document.querySelector(".player-plate.rival .plate-face .portrait"), enemy);
   document.querySelector(".player-plate.own").classList.toggle("out", !!p.out);
+  document.querySelector(".game-shell").classList.toggle("knocked-out", !!p.out && begun); // v0.18c: cards greyed out and disabled
   document.querySelector(".player-plate.rival").classList.toggle("out", !isFfa() && !!enemy.out);
   updateNudge(p);
   const secs = Math.max(0, Math.ceil(game.incomeRemaining));
@@ -3176,7 +3335,7 @@ function refreshUI() {
       note.classList.toggle("buffed", inc > item.income + 0.004);
     }
     b.querySelector(".card-status").textContent = cardStatus(item);
-    if (item.kind === "send") cardLock(b, Math.max(game.warmup ? 1 : 0, lockRoundsLeft(game, game.players[own].stock[item.id]))); // v0.15/v0.17
+    if (item.kind === "send" && !game.players[own].out) cardLock(b, Math.max(game.warmup ? 1 : 0, lockRoundsLeft(game, game.players[own].stock[item.id]))); // v0.15/v0.17
     const stock = b.querySelector(".card-stock");
     if (stock) stock.textContent = stockCount(item);
     b.setAttribute("aria-label", `${itemName(item)}, ${label}, ${cardHint(item)}${a.ok ? "" : ", " + t(a.reason)}`);
@@ -3200,21 +3359,14 @@ function onCell(tapped) {
     if (selected) toast("Switch to your arena.");
     return;
   }
+  // v0.18a: tapping a pre-build cancels it, with or without a tower card picked
+  if (cancelQueuedAt(tapped)) return;
   if (!selected) {
     note("Pick a tower first.");
     return;
   }
   selectedTower = null;
   $("tower-panel").hidden = true;
-  const hitQueued = queued.find((q) => {
-    const n = footprintOf(q.id);
-    return tapped.gridX >= q.gridX && tapped.gridX < q.gridX + n && tapped.gridY >= q.gridY && tapped.gridY < q.gridY + n;
-  });
-  if (hitQueued) {
-    queued = queued.filter((q) => q !== hitQueued);
-    note("Pre-build cancelled.");
-    return;
-  }
   const cell = anchorFor(selected, tapped.gridX, tapped.gridY);
   const check = canBuild(game, own, cell.gridX, cell.gridY, selected);
   if (tryQueue(selected, cell.gridX, cell.gridY, check)) return;
@@ -3233,6 +3385,24 @@ function onCell(tapped) {
   }
   pending = null;
   dispatch({ type: "build", id: selected, ...cell });
+}
+/** v0.18a: cancels the pre-build on that field (tap, click or right click); true if there was one. */
+let queueCancelAt = 0;
+function cancelQueuedAt(cell) {
+  if (!game || view !== own || !cell) return false;
+  const hit = queued.find((q) => {
+    const n = footprintOf(q.id);
+    return cell.gridX >= q.gridX && cell.gridX < q.gridX + n && cell.gridY >= q.gridY && cell.gridY < q.gridY + n;
+  });
+  if (!hit) return false;
+  queued = queued.filter((q) => q !== hit);
+  queueCancelAt = performance.now();
+  pending = null;
+  note("Pre-build cancelled.");
+  tone("tap");
+  syncAutoHold();
+  refreshUI();
+  return true;
 }
 /** Pre-build: remember a tower that is blocked only by a creep or by missing gold/wood. */
 function tryQueue(id, gridX, gridY, check) {
@@ -3530,7 +3700,7 @@ function firstBlood(e) {
   if (mine) hudPop("#own-level", `+${e.exp ?? 50} EXP`, "exp");
   const pop = document.createElement("div");
   pop.className = "first-blood";
-  pop.innerHTML = `<svg viewBox="0 0 200 120" aria-hidden="true"><path d="M100 8c14 0 18 14 30 10s22-6 26 6-8 18 4 24 30 4 28 18-20 10-26 18 6 22-8 26-20-8-30-2-10 12-24 10-14-12-26-14-24 10-34 0 4-18-6-26-28-6-30-20 16-14 20-22-10-18 2-26 22 4 30-2S86 8 100 8Z" fill="#9e0b0b"/><circle cx="18" cy="30" r="5" fill="#9e0b0b"/><circle cx="186" cy="92" r="6" fill="#9e0b0b"/><circle cx="168" cy="14" r="3.5" fill="#9e0b0b"/><circle cx="34" cy="104" r="4" fill="#9e0b0b"/><path d="M60 100q2 14 0 18M128 104q3 10 1 14" stroke="#9e0b0b" stroke-width="5" stroke-linecap="round"/></svg><b>${t("First Blood!")}</b><small><span class="fb-name" style="--fb:${TEAM_COLORS[seatColors()[e.player]]?.css || "#ffd2c4"}">${esc(playerName(game.players[e.player]))}</span> · +${e.exp ?? 50} EXP</small>`; // v0.17: name larger, in the player's colour
+  pop.innerHTML = `<svg viewBox="0 0 200 120" aria-hidden="true"><path d="M100 8c14 0 18 14 30 10s22-6 26 6-8 18 4 24 30 4 28 18-20 10-26 18 6 22-8 26-20-8-30-2-10 12-24 10-14-12-26-14-24 10-34 0 4-18-6-26-28-6-30-20 16-14 20-22-10-18 2-26 22 4 30-2S86 8 100 8Z" fill="#9e0b0b"/><circle cx="18" cy="30" r="5" fill="#9e0b0b"/><circle cx="186" cy="92" r="6" fill="#9e0b0b"/><circle cx="168" cy="14" r="3.5" fill="#9e0b0b"/><circle cx="34" cy="104" r="4" fill="#9e0b0b"/><path d="M60 100q2 14 0 18M128 104q3 10 1 14" stroke="#9e0b0b" stroke-width="5" stroke-linecap="round"/></svg><b>${t("First Blood!")}</b><small><span class="fb-name" style="--fb:${TEAM_COLORS[seatColors()[e.player]]?.css || "#ffd2c4"}">${esc(playerName(game.players[e.player]))}</span><span class="fb-exp">+${e.exp ?? 50} EXP</span></small>`; // v0.17: name larger, in the player's colour
   $("app")?.appendChild(pop) || document.body.appendChild(pop);
   setTimeout(() => pop.remove(), 1900); // v0.17g: splats fade out after 1.5 s
   sfx.play("firstBlood");
@@ -3715,7 +3885,10 @@ function itemDetail(id, towerId, detailPlayer = own) {
     canAct = detailPlayer === own;
   showModal(
     `${modalHeader(itemName(item))}<img class="modal-hero" src="${towerArtUrl(artFor(item))}" alt="">${stats ? `<div class="help-tip stats detail-tip">${statTip(item, "info", towerId, detailPlayer, true).html}</div>` : `<p class="modal-copy">${esc(cardHint(item))}</p>`}${
-      item.upgrades?.length
+      // v0.18b: a placed tower shows no upgrade buttons here, but a way to its place in the tech tree
+      towerId
+        ? `<button class="secondary-button" id="detail-techtree">${t("Techtree")}</button>`
+        : item.upgrades?.length
         ? `<div class="rule-row"><strong>${t("Upgrade")}</strong>${item.upgrades
             .map((uid) => {
               const u = catalog.byId[uid];
@@ -3736,6 +3909,7 @@ function itemDetail(id, towerId, detailPlayer = own) {
           } else itemDetail(b.dataset.detailUpgrade, undefined, detailPlayer);
         }),
     );
+  if ($("detail-techtree")) $("detail-techtree").onclick = () => catalogModal({ filter: "tower", focus: id });
   if (!towerId && canAct && (item.kind === "research" || item.isRoot)) { // v0.17h: no "Send creep" button for creeps
     const action = document.createElement("button");
     action.className = "primary-button";
@@ -3855,11 +4029,11 @@ function perkBook(query = "") {
     return list.length ? `<section class="tt-tree perk-book"><h3>${esc(t(sec))}</h3><div class="pick-grid book-grid">${list.map((e) => perkBookCard(e, p)).join("")}</div></section>` : "";
   }).join("");
 }
-function catalogModal() {
+function catalogModal({ filter: startFilter = "tower", focus = null } = {}) {
   showModal(
-    `${modalHeader(t("All cards"))}<input class="catalog-search" id="catalog-search" placeholder="${t("Name or original ID …")}" aria-label="${t("Search the catalog")}"><div class="pills"><button class="active" data-filter="tower">${t("Towers")}</button><button data-filter="send">${t("Creeps")}</button><button data-filter="perk">${t("Perks")}</button></div><div id="catalog-grid" class="catalog-grid"></div>`,
+    `${modalHeader(t("All cards"))}<input class="catalog-search" id="catalog-search" placeholder="${t("Name or original ID …")}" aria-label="${t("Search the catalog")}"><div class="pills">${[["tower", "Towers"], ["send", "Creeps"], ["perk", "Perks"]].map(([f, n]) => `<button${f === startFilter ? ' class="active"' : ""} data-filter="${f}">${t(n)}</button>`).join("")}</div><div id="catalog-grid" class="catalog-grid"></div>`,
   );
-  let filter = "tower";
+  let filter = startFilter;
   const draw = () => {
     const q = $("catalog-search").value.toLowerCase();
     if (filter === "perk") {
@@ -3890,6 +4064,13 @@ function catalogModal() {
       .forEach((b) => (b.onclick = () => itemDetail(b.dataset.card)));
   };
   $("catalog-search").oninput = draw;
+  // v0.18b: opened from a tower's info: jump to that tower in the tech tree and mark it
+  const showFocus = () => {
+    const node = focus && $("catalog-grid").querySelector(`.tt-node[data-card="${focus}"]:not(.tt-ref)`);
+    if (!node) return;
+    node.classList.add("tt-focus");
+    node.scrollIntoView({ block: "center", inline: "center" });
+  };
   $("modal-body")
     .querySelectorAll("[data-filter]")
     .forEach(
@@ -3903,6 +4084,7 @@ function catalogModal() {
         }),
     );
   draw();
+  if (focus) requestAnimationFrame(showFocus);
 }
 const RULES_DE = [
   ["Your goal", "Bring your enemy's lives to zero (30 each with 2-3 players, 25 with 4-5, 20 with 6-8). Creeps you send run through the enemy's defence. Survivors cost a life and then run on through the next player's field (in a duel, the same one again)."],
@@ -3936,9 +4118,21 @@ const DBL_NOTES = {
   info: "Double tap shows the tower info.",
   off: "Double tap does nothing.",
 };
-/** Header of a sub-menu: ‹ back to the options, title, red ×. */
+/** Header of a sub-menu: Back to the options, title, red ×. */
 const subHeader = (title) =>
-  `<div class="modal-header sub-header"><button class="welcome-back modal-back" type="button" id="sub-back" aria-label="${t("Back")}">‹</button><h2>${esc(title)}</h2><button class="close-modal" data-close aria-label="${t("Close")}">×</button></div>`;
+  `<div class="modal-header sub-header"><button class="welcome-back modal-back" type="button" id="sub-back" aria-label="${t("Back")}">${t("Back")}</button><h2>${esc(title)}</h2><button class="close-modal" data-close aria-label="${t("Close")}">×</button></div>`;
+/** v0.18e: mute switch shared by the main menu and the in-game menu. */
+function toggleMute(b) {
+  muted = !muted;
+  savePref(MUTE_PREF, muted);
+  applyVolume();
+  if (b) {
+    b.innerHTML = speakerSvg(muted);
+    b.setAttribute("aria-pressed", String(muted));
+    b.setAttribute("aria-label", t(muted ? "Sound off" : "Sound on"));
+  }
+  if (!muted) tone("select");
+}
 /** v0.17: speaker symbol, crossed out when muted. */
 const speakerSvg = (off) =>
   `<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M3 9.5h4l5-4v13l-5-4H3z" fill="#ffe27a" stroke="#3a2404" stroke-width="1.4" stroke-linejoin="round"/>${off ? '<path d="M16 9l5 6M21 9l-5 6" stroke="#ff7a6e" stroke-width="2.4" stroke-linecap="round"/>' : '<path d="M15.5 9.2a4 4 0 0 1 0 5.6M18.2 6.8a7.4 7.4 0 0 1 0 10.4" fill="none" stroke="#ffe27a" stroke-width="2" stroke-linecap="round"/>'}</svg>`;
@@ -3970,7 +4164,7 @@ function audioModal(back) {
 }
 function graphicModal(back) {
   showModal(
-    `${subHeader(t("Graphic"))}<div id="menu-controls">${controlsRow()}</div><button class="secondary-button" id="menu-popnum">${t("Pop-up numbers")}: ${onOff(popNumbers)}</button><button class="secondary-button" id="menu-popnote">${t("Pop-up notifications")}: ${onOff(popNotes)}</button>`,
+    `${subHeader(t("Graphic"))}<div id="menu-controls">${controlsRow()}</div><div id="menu-minimap">${minimapRow()}</div><button class="secondary-button" id="menu-popnum">${t("Pop-up numbers")}: ${onOff(popNumbers)}</button><button class="secondary-button" id="menu-popnote">${t("Pop-up notifications")}: ${onOff(popNotes)}</button>`,
   );
   $("sub-back").onclick = back;
   $("menu-controls").onclick = (e) => {
@@ -3985,6 +4179,15 @@ function graphicModal(back) {
     applyControlMode();
     $("menu-controls").innerHTML = controlsRow();
     toast(controlMode === "pc" ? "PC version: mouse hover shows tips, mouse wheel and arrow keys switch fields, B / S switch Build and Send." : "Mobile version: touch controls, tips only in help mode.");
+    tone("select");
+  };
+  $("menu-minimap").onclick = (e) => {
+    const m = e.target.closest?.("[data-mini]")?.dataset.mini;
+    if (!m || m === minimapMode) return;
+    minimapMode = m;
+    savePref(MINIMAP_PREF, m);
+    $("menu-minimap").innerHTML = minimapRow();
+    arena?.refresh?.();
     tone("select");
   };
   $("menu-popnum").onclick = () => {
@@ -4049,6 +4252,8 @@ const FLAG_SVG = `<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M8 4v25" 
 const canRestart = () => sessionMode === "training" || sessionMode === "ffa";
 const RESTART_SVG = `<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M25 16a9 9 0 1 1-2.64-6.36" fill="none" stroke="#3a2a00" stroke-width="3.4" stroke-linecap="round"/><path d="M24.5 4.5v6.5H18" fill="none" stroke="#3a2a00" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 /** v0.09: you can give up from the pause menu (1v1: the other side wins, four players: you are out). */
+/** v0.18c: you are out of a match that goes on (Keep watching). */
+const watchingOut = () => begun && !!game?.players[own]?.out && !!game?.running;
 const canSurrender = () => begun && !shownResult && game?.running && !game.players[own]?.out;
 function surrender() {
   const early = (game?.round || 0) <= 1; // v0.16: giving up in the first round goes straight back to the menu
@@ -4070,11 +4275,22 @@ function surrender() {
 /** In-game menu: settings only, rulebook at the bottom. The red × closes it. */
 function menu() {
   showModal(
-    `${modalHeader(t(room ? "Menu" : "Paused"))}<div class="menu-clock"><img src="${iconUrl("hourglass")}" alt=""><span>${t("Match time")}</span><b id="menu-clock">${matchClock()}</b></div>${sessionMode === "hotseat" ? `<button class="secondary-button" id="switch-player">${t("Switch player")}</button>` : ""}${settingsButtons()}<button class="secondary-button" id="menu-catalog">${t("Card book")}</button><button class="secondary-button" id="menu-rules">${t("Rules & development status")}</button><p class="modal-note">${t("Training is saved automatically.")}</p>${canSurrender() ? `<div id="surrender-confirm" class="surrender-confirm" hidden><b>${t("Really surrender?")}</b><span>${t(isFfa() ? "You drop out of this match." : "Your opponent wins the duel.")}</span><div class="surrender-row"><button class="danger-button" id="surrender-yes" type="button">${t("Surrender")}</button><button class="secondary-button" id="surrender-no" type="button">${t("Resume")}</button></div></div>${canRestart() ? `<div class="surrender-pair" id="surrender-pair">` : ""}<button class="danger-button menu-surrender" id="menu-surrender" type="button">${FLAG_SVG}${t("Surrender")}</button>${canRestart() ? `<button class="restart-button" id="menu-restart" type="button">${RESTART_SVG}${t("Restart")}</button></div>` : ""}` : ""}`,
+    `${modalHeader(t(room ? "Menu" : "Paused"), `<div class="menu-clock" title="${t("Match time")}"><img src="${iconUrl("hourglass")}" alt=""><b id="menu-clock">${matchClock()}</b></div>`).replace('<div class="modal-header">', `<div class="modal-header menu-header"><button class="welcome-options header-mute" id="menu-mute" type="button" aria-pressed="${muted}" aria-label="${t(muted ? "Sound off" : "Sound on")}">${speakerSvg(muted)}</button>`)}${sessionMode === "hotseat" ? `<button class="secondary-button" id="switch-player">${t("Switch player")}</button>` : ""}${settingsButtons()}<button class="secondary-button" id="menu-catalog">${t("Card book")}</button><button class="secondary-button" id="menu-rules">${t("Rules & development status")}</button>${canSurrender() ? `<div id="surrender-confirm" class="surrender-confirm" hidden><b>${t("Really surrender?")}</b><span>${t(isFfa() ? "You drop out of this match." : "Your opponent wins the duel.")}</span><div class="surrender-row"><button class="danger-button" id="surrender-yes" type="button">${t("Surrender")}</button><button class="secondary-button" id="surrender-no" type="button">${t("Resume")}</button></div></div>${canRestart() ? `<div class="surrender-pair" id="surrender-pair">` : ""}<button class="danger-button menu-surrender" id="menu-surrender" type="button">${FLAG_SVG}${t("Surrender")}</button>${canRestart() ? `<button class="primary-button restart-button" id="menu-restart" type="button">${RESTART_SVG}${t("Restart")}</button></div>` : ""}` : ""}${watchingOut() ? `<button class="primary-button" id="menu-main" type="button">${t("Main menu")}</button>` : ""}`,
   );
   $("modal").classList.remove("with-flag");
+  $("menu-mute").onclick = () => toggleMute($("menu-mute")); // v0.18e
+  // v0.18c: watching on after a defeat: back to the main menu from the in-game menu
+  if ($("menu-main"))
+    $("menu-main").onclick = () => {
+      tone("tap");
+      closeModal();
+      begun = false;
+      shownResult = false;
+      welcome();
+    };
   if ($("menu-surrender")) {
     $("menu-surrender").onclick = () => {
+      if (canRestart()) return surrender(); // v0.18c: AI training: surrender at once, no question
       $("surrender-confirm").hidden = false;
       $("menu-surrender").hidden = true;
       if ($("surrender-pair")) $("surrender-pair").hidden = true;
@@ -4096,7 +4312,7 @@ function menu() {
     $("surrender-yes").onclick = surrender;
   }
   wireSettings(menu);
-  $("menu-catalog").onclick = catalogModal;
+  $("menu-catalog").onclick = () => catalogModal();
   if ($("switch-player"))
     $("switch-player").onclick = () => {
       own = 1 - own;
@@ -4126,9 +4342,12 @@ function installHelp() {
 
 // ---- v0.14: presence — anonymous counts of players searching a Quick Match and playing vs AI ----
 let presence = null,
-  presenceWanted = "idle";
+  presenceWanted = "idle",
+  presenceBase = "idle",
+  qmSearch = null; // v0.18a: the running Quick Match search
 function presenceState(state) {
-  presenceWanted = state;
+  presenceBase = state;
+  presenceWanted = qmSearch && state !== "pvp" ? "queue" : state; // v0.18a: a running search counts as "in the queue"
   if (presence) return presence.set(state);
   if (state === "idle") return;
   import("./multiplayer.js")
@@ -4139,60 +4358,123 @@ function presenceState(state) {
     .catch(() => {});
 }
 // Quick Match (v0.10i): automatic 1v1 against the next searching player, no room code.
-async function quickMatch() {
-  disconnectRoom();
-  networkAbort = new AbortController();
-  const signal = networkAbort.signal;
-  showModal(
-    `${modalHeader(t("Quick Match"))}<p class="modal-copy">${t("You'll be paired with the next player who is searching. Keep this page open.")}</p><div id="network-status" class="network-status">${t("Searching for an opponent …")}</div><div class="qm-presence" id="qm-presence"><span><b id="qm-queue">…</b>${t("in the queue")}</span><span><b id="qm-pve">…</b>${t("playing vs AI")}</span></div><button class="secondary-button" id="qm-cancel">${t("Cancel")}</button>`,
+// v0.18a: the search runs on its own. The dialog can be minimised to a small bar, and training
+// matches can be played meanwhile; a found match ends the training match and connects.
+const qmOnline = (c) => Math.max(1, (c.queue || 0) + (c.pve || 0) + (c.pvp || 0));
+function qmDialog() {
+  const q = qmSearch;
+  if (!q) return;
+  q.minimized = false;
+  const host = pvpModal(
+    `${modalHeader(t("Quick Match"))}<p class="modal-copy">${t("You'll be paired with the next player who is searching. Minimize this window to play a training match while you wait.")}</p><div id="network-status" class="network-status">${esc(q.status)}</div><div class="qm-presence" id="qm-presence"><span><b id="qm-queue">${q.counts ? Math.max(1, q.counts.queue) : "…"}</b>${t("in the queue")}</span><span><b id="qm-online">${q.counts ? qmOnline(q.counts) : "…"}</b>${t("Players online")}</span></div><div class="qm-actions"><button class="primary-button" id="qm-min">${t("Minimize")}</button><button class="secondary-button" id="qm-cancel">${t("Cancel")}</button></div>`,
   );
-  $("qm-cancel").onclick = () => {
-    networkAbort?.abort();
+  // v0.18g: from the main menu, cancel and minimize return to the PvP page underneath
+  const leave = closeModal;
+  const cancel = () => {
+    cancelQuickMatch();
     closeModal();
   };
+  $("qm-cancel").onclick = cancel;
+  const x = host.querySelector(".close-modal");
+  if (x) x.onclick = cancel;
+  $("qm-min").onclick = () => {
+    q.minimized = true;
+    leave();
+    refreshQmPill();
+  };
+  refreshQmPill();
+}
+function cancelQuickMatch() {
+  const q = qmSearch;
+  if (!q) return;
+  qmSearch = null;
+  q.abort.abort();
+  clearInterval(q.timer);
+  q.stopWatch?.();
+  presenceState(presenceBase);
+  refreshQmPill();
+}
+/** The small "searching" bar while the Quick Match dialog is not on screen. */
+function refreshQmPill() {
+  let pill = $("qm-pill");
+  if (!qmSearch || $("qm-cancel")) {
+    pill?.remove();
+    return;
+  }
+  if (!pill) {
+    pill = document.createElement("div");
+    pill.id = "qm-pill";
+    pill.className = "qm-pill";
+    pill.innerHTML = `<button type="button" class="qm-pill-open" aria-label="${t("Show the Quick Match search")}"><i class="qm-pill-dot" aria-hidden="true"></i><span class="qm-pill-text"></span></button><button type="button" class="qm-pill-x" aria-label="${t("Cancel the search")}">×</button>`;
+    pill.querySelector(".qm-pill-open").onclick = () => qmDialog();
+    pill.querySelector(".qm-pill-x").onclick = () => cancelQuickMatch();
+  }
+  const host = $("modal").open ? $("modal") : document.body;
+  if (pill.parentNode !== host) host.appendChild(pill);
+  const c = qmSearch.counts,
+    text = `${t("Quick Match")} · ${t("searching …")}${c ? ` · ${t("{n} online", { n: qmOnline(c) })}` : ""}`;
+  const span = pill.querySelector(".qm-pill-text");
+  if (span.textContent !== text) span.textContent = text;
+}
+async function quickMatch() {
+  if (qmSearch) return qmDialog();
+  if (!begun) disconnectRoom();
+  const abort = new AbortController(),
+    signal = abort.signal;
+  const q = (qmSearch = { abort, status: t("Searching for an opponent …"), counts: null, minimized: false, timer: 0, stopWatch: null });
+  presenceState(presenceBase); // counts as "in the queue" while the search runs
+  qmDialog();
+  const status = (message) => {
+    q.status = message;
+    if ($("qm-cancel") && $("network-status")) $("network-status").textContent = message;
+  };
   // v0.14: who else is online right now (you are counted in the queue)
-  presenceState("queue");
   const showCounts = (c) => {
-    if (!$("qm-queue")) return;
-    $("qm-queue").textContent = String(Math.max(1, c.queue));
-    $("qm-pve").textContent = String(c.pve);
+    q.counts = c;
+    if ($("qm-queue")) $("qm-queue").textContent = String(Math.max(1, c.queue));
+    if ($("qm-online")) $("qm-online").textContent = String(qmOnline(c));
+    refreshQmPill();
   };
   import("./multiplayer.js")
     .then(({ createPresence }) => {
+      if (signal.aborted) return;
       presence ||= createPresence();
       presence.set(presenceWanted);
-      const stop = presence.watch(showCounts);
-      signal.addEventListener("abort", () => {
-        stop();
-        if (presenceWanted === "queue") presenceState("idle");
-      }, { once: true });
+      q.stopWatch = presence.watch(showCounts);
     })
     .catch(() => {});
-  const status = (message) => {
-    if ($("network-status")) $("network-status").textContent = message;
-  };
-  // Closing the dialog any other way (× button) also stops the search.
-  const watch = setInterval(() => {
-    if (!$("qm-cancel")) networkAbort?.abort();
-    if (signal.aborted) clearInterval(watch);
-  }, 300);
+  q.timer = setInterval(refreshQmPill, 400);
   try {
     const { findQuickMatch } = await import("./multiplayer.js");
     const match = await findQuickMatch({ signal, onStatus: (s) => status(t(s.message)) });
-    clearInterval(watch);
-    if (signal.aborted) return;
+    if (signal.aborted || qmSearch !== q) return;
+    qmSearch = null;
+    clearInterval(q.timer);
+    q.stopWatch?.();
+    refreshQmPill();
     presenceState("pvp");
-    status(t("Opponent found! Connecting …"));
     sfx.play("matchFound"); // v0.15: notification sound when a Quick Match finds a player
     haptic([60, 40, 60]);
+    if (begun) {
+      // a training match played while waiting ends here
+      begun = false;
+      if (game) game.paused = true;
+      uiPauses.clear();
+      $("tower-panel").hidden = true;
+    }
+    pvpModal(`${modalHeader(t("Quick Match"))}<div id="network-status" class="network-status">${t("Opponent found! Connecting …")}</div>`); // v0.18f
     if (match.role === "host") connectOnline(undefined, match.code);
     else connectOnline(match.code, true);
   } catch (error) {
-    if (signal.aborted) return;
-    status(t("Connection failed:") + " " + error.message);
+    if (signal.aborted || qmSearch !== q) return;
+    cancelQuickMatch();
+    const msg = t("Connection failed:") + " " + error.message;
+    if ($("network-status")) $("network-status").textContent = msg;
+    else toast(msg);
   }
 }
 function onlineMenu() {
+  cancelQuickMatch(); // v0.18a: a room with a friend replaces a running Quick Match search
   showModal(
     `${modalHeader(t("Play with a friend"))}<p class="modal-copy">${t("One player opens a room. The other enters the same code. Each defends their own arena.")}</p><button class="primary-button" id="create-room">${t("Open a room →")}</button><label for="room-input" class="modal-label">${t("YOUR OPPONENT'S ROOM CODE")}</label><input id="room-input" maxlength="12" autocomplete="off" autocapitalize="characters" placeholder="XXXXXXXX"><button class="secondary-button" id="join-room">${t("Join room")}</button><div id="network-status" class="network-status">${t("Ready for a direct duel.")}</div><p class="modal-note">${t("Internet required. The connection runs directly over WebRTC; PeerJS brokers the contact. If a network blocks direct connections, the game switches to a relay server after a few seconds.")}</p>`,
   );
@@ -4239,7 +4521,7 @@ async function connectOnline(code, preset) {
         lastSnap = null;
         lastStateAt = lastPeerAt = performance.now();
         view = own;
-        if (r.role === "guest") r.send({ kind: "ready", faction: chosenFaction, name: playerNameChoice });
+        if (r.role === "guest") r.send({ kind: "ready", faction: chosenFaction, name: playerNameChoice, color: colorPick === "random" ? null : colorPick }); // v0.18a: the picked colour
         ensureBackgroundTicker(); // v0.16
       },
       onData: receiveNetwork,
@@ -4247,6 +4529,16 @@ async function connectOnline(code, preset) {
         if (signal.aborted) return;
         connected = false;
         if (!begun) {
+          // v0.18b: the other player left the lobby: no start, back to the menu with a note
+          if (lobby) {
+            clearTimeout(lobbyTimer);
+            lobbyTimer = 0;
+            lobby = null;
+            disconnectRoom();
+            welcome();
+            toast("The other player left.");
+            return;
+          }
           if ($("create-room")) $("create-room").disabled = false;
           if ($("join-room")) $("join-room").disabled = false;
           return;
@@ -4316,31 +4608,31 @@ function receiveNetwork(message) {
     return;
   }
   if (simRole === "host") {
-    if (message.kind === "ready" && !begun) {
-      const faction = catalog.factions.some((f) => f.id === message.faction) ? message.faction : "fire";
-      game = createGame({
-        seed: crypto.getRandomValues(new Uint32Array(1))[0],
-        mode: chosenMode,
-        factions: [chosenFaction, faction],
-        ai: false,
-        waves: wavesOn,
-      });
-      // v0.13: both names travel in the game state
-      game.players[0].name = playerNameChoice || "Player 1";
-      game.players[1].name = cleanName(message.name) || "Player 2";
-      warnedWave = 0;
-      own = 0;
-      view = 0;
-      begun = true;
-      shownResult = false;
-      game.paused = false;
-      uiPauses.clear();
-      selected = null;
-      lastEvent = 0;
-      closeModal();
-      setPage("build");
-      sendState();
+    if (message.kind === "ready" && !begun && !lobbyTimer) {
+      // v0.18a: colours are settled first; both sides see who plays which colour for a moment
+      const colors = assignColors([colorPick === "random" ? null : colorPick, typeof message.color === "string" ? message.color : null]);
+      const players = [
+        { name: playerNameChoice || "Player 1", color: colors[0], picked: colorPick === "random" ? null : colorPick },
+        { name: cleanName(message.name) || "Player 2", color: colors[1], picked: TEAM_COLORS[message.color] ? message.color : null },
+      ];
+      // v0.18b: the lobby waits for more players (up to LOBBY_MAX) or LOBBY_WAIT ms since the
+      // connection, unless someone presses Start; rooms still hold two players for now
+      const go = () => {
+        if (lobby.done) return;
+        clearTimeout(lobbyTimer);
+        lobbyTimer = 0;
+        lobby.done = true;
+        if (room && !begun && simRole === "host") {
+          room.send({ kind: "lobby-go" });
+          startHostedMatch(message, players);
+        }
+      };
+      lobby = { until: performance.now() + LOBBY_WAIT, done: false, go, players };
+      room.send({ kind: "lobby", players, left: LOBBY_WAIT });
+      showLobby(players, LOBBY_WAIT);
+      lobbyTimer = setTimeout(go, players.length >= LOBBY_MAX ? 400 : LOBBY_WAIT);
     }
+    if (message.kind === "lobby-start" && !begun && lobby?.go) lobby.go(); // v0.18b: the guest pressed Start
     if (
       message.kind === "command" &&
       begun &&
@@ -4374,6 +4666,10 @@ function receiveNetwork(message) {
       game.paused = transportBlocked || networkPauses.size > 0;
       sendState();
     }
+  } else if (message.kind === "lobby" && !begun && isFollower()) {
+    showLobby(message.players, Number(message.left) || LOBBY_WAIT); // v0.18a, v0.18b: with Start button and wait time
+  } else if (message.kind === "lobby-go" && !begun && isFollower()) {
+    lobbyStarting(); // v0.18b
   } else if (
     message.kind === "state" &&
     message.game?.version === SAVE_VERSION &&
@@ -4385,6 +4681,8 @@ function receiveNetwork(message) {
     guestReceived(message.game);
     game = message.game;
     if (!begun) {
+      if (TEAM_COLORS[game.players[own]?.color]) colorChoice = game.players[own].color; // v0.18a: the colour the host assigned
+      applyColors();
       begun = true;
       shownResult = false;
       uiPauses.clear();
@@ -4400,6 +4698,90 @@ function receiveNetwork(message) {
     else tone("tap");
     renderCards();
   }
+}
+// ---- v0.18a: online lobby: who plays which colour, shown for a moment before the match ----
+// v0.18b: the lobby waits up to 45 s for more players (at most 4) and has a Start button for everyone.
+const LOBBY_WAIT = 45000,
+  LOBBY_MAX = 4;
+let lobbyTimer = 0,
+  lobby = null,
+  lobbyTick = 0;
+const inkFor = (css) => {
+  const n = parseInt(String(css).slice(1), 16),
+    lum = 0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255);
+  return lum > 150 ? "#14181c" : "#fff";
+};
+function showLobby(players, left = LOBBY_WAIT) {
+  if (!Array.isArray(players)) return;
+  const until = performance.now() + Math.max(0, Math.min(LOBBY_WAIT, left));
+  if (!lobby || lobby.done) lobby = { ...(lobby || {}), done: false };
+  lobby.until = until;
+  const cards = players
+    .slice(0, 8)
+    .map((p, i) => {
+      const c = TEAM_COLORS[p?.color] ? p.color : "blue",
+        css = TEAM_COLORS[c].css;
+      // v0.18b: player icon left of the name; no colour name and no "… was taken" note any more
+      return `<div class="qm-player${i === own ? " me" : ""}" style="--pc:${css};--ink:${inkFor(css)}"><img class="qm-icon portrait" src="assets/art/portrait-player.webp" alt=""><b>${esc(cleanName(p?.name) || t("Player {n}", { n: i + 1 }))}${i === own ? ` <small>(${t("You")})</small>` : ""}</b></div>`;
+    })
+    .join("");
+  pvpModal(
+    `${modalHeader(t("Match found"))}<div class="qm-lobby">${cards}</div><p class="modal-note qm-wait" id="qm-wait"></p><button class="primary-button" id="lobby-start" type="button">${t("Start match")}</button>`,
+  );
+  const wait = () => {
+    const el = $("qm-wait");
+    if (!el) return clearInterval(lobbyTick);
+    const sec = Math.max(0, Math.ceil((lobby.until - performance.now()) / 1000));
+    el.textContent = lobby.done ? t("The match starts …") : t("Waiting for players ({n}/{m}) · starts in {s} s", { n: players.length, m: LOBBY_MAX, s: sec });
+  };
+  clearInterval(lobbyTick);
+  lobbyTick = setInterval(wait, 250);
+  wait();
+  $("lobby-start").onclick = () => {
+    tone("select");
+    if (simRole === "host") lobby?.go?.();
+    else room?.send({ kind: "lobby-start" });
+    lobbyStarting();
+  };
+}
+/** v0.18b: Start was pressed (here or on the other side): the button waits for the match. */
+function lobbyStarting() {
+  if (lobby) lobby.done = true;
+  const b = $("lobby-start");
+  if (b) {
+    b.disabled = true;
+    b.textContent = t("Starting …");
+  }
+  if ($("qm-wait")) $("qm-wait").textContent = t("The match starts …");
+}
+function startHostedMatch(message, players) {
+  const faction = catalog.factions.some((f) => f.id === message.faction) ? message.faction : "fire";
+  game = createGame({
+    seed: crypto.getRandomValues(new Uint32Array(1))[0],
+    mode: chosenMode,
+    factions: [chosenFaction, faction],
+    ai: false,
+    waves: wavesOn,
+  });
+  // v0.13: both names travel in the game state
+  game.players[0].name = playerNameChoice || "Player 1";
+  game.players[1].name = cleanName(message.name) || "Player 2";
+  game.players[0].color = players[0].color; // v0.18a: colours travel in the game state
+  game.players[1].color = players[1].color;
+  warnedWave = 0;
+  own = 0;
+  view = 0;
+  colorChoice = players[0].color;
+  applyColors();
+  begun = true;
+  shownResult = false;
+  game.paused = false;
+  uiPauses.clear();
+  selected = null;
+  lastEvent = 0;
+  closeModal();
+  setPage("build");
+  sendState();
 }
 // ---- v0.16: online duels without stutter -----------------------------------------------------
 // The side that simulates (simRole "host") steps the match by the wall clock, also while its tab
@@ -4585,6 +4967,12 @@ function warmupCountdown() {
     $("arena").append(el);
   }
   el.textContent = n;
+  // v0.18d: every number in your own player colour (each player sees their own)
+  const css = TEAM_COLORS[seatColors()[own]]?.css || "#ffe27a",
+    rgb = parseInt(css.slice(1), 16),
+    lum = 0.299 * ((rgb >> 16) & 255) + 0.587 * ((rgb >> 8) & 255) + 0.114 * (rgb & 255);
+  el.style.setProperty("--wc", css);
+  el.style.setProperty("--ws", lum < 70 ? "#e8eef4" : "#1c1408");
   el.classList.remove("pop");
   void el.offsetWidth;
   el.classList.add("pop");
@@ -4720,10 +5108,10 @@ function tick(dt) {
               ? t("Tip: build towers in rows so the path gets longer.")
               : t("Tip: tap towers and upgrade them instead of only building new ones.");
     tone(won ? "victory" : "defeat");
-    const summary = matchSummary(me);
+    const summary = matchSummary(me, isFfa() ? (won ? 1 : me.place || 2) : 0);
     if (sessionMode !== "online") presenceState("idle");
     showModal(
-      `<div class="result-banner ${won ? "win" : "lose"}">${t(won ? "Victory" : "Defeat")}</div>${isFfa() ? `<p class="modal-copy result-place">${t("Place {n} of {m}", { n: won ? 1 : me.place || 2, m: game.players.length })}</p>` : ""}<img class="modal-hero result-hero" src="${artUrl(won ? "tower-archer" : "creep-golem")}" alt=""><h2 class="welcome-title">${won ? t("Your line.<br><span>Your victory.</span>") : t("Well fought.<br><span>Another round?</span>")}</h2>${summary.html}<p class="modal-copy" style="text-align:center">${t("Match time")} ${$("match-clock").textContent}${sessionMode === "training" ? ` · ${t("AI")} ${t(AI_NAMES[game.aiLevel] || "Normal")}` : ""}</p>${tip ? `<p class="modal-note result-tip">${tip}</p>` : ""}<button class="primary-button" id="play-again">${t("Play again")}</button>${sessionMode === "training" && game.aiLevel !== "hard" && won ? `<button class="secondary-button" id="play-harder">${t("Harder AI")}</button>` : ""}<button class="secondary-button" id="to-menu">${t("Main menu")}</button>`,
+      `<div class="result-banner ${won ? "win" : "lose"}">${t(won ? "Victory" : "Defeat")}</div><img class="modal-hero result-hero" src="${artUrl(won ? "tower-archer" : "creep-golem")}" alt=""><h2 class="welcome-title">${won ? t("Your line.<br><span>Your victory.</span>") : t("Well fought.<br><span>Another round?</span>")}</h2>${summary.html}<p class="modal-copy" style="text-align:center">${t("Match time")} ${$("match-clock").textContent}${sessionMode === "training" ? ` · ${t("AI")} ${t(AI_NAMES[game.aiLevel] || "Normal")}` : ""}</p>${tip ? `<p class="modal-note result-tip">${tip}</p>` : ""}<div class="result-pair"><button class="secondary-button" id="play-again">${t("Play again")}</button>${sessionMode === "training" && game.aiLevel !== "hard" && won ? `<button class="secondary-button" id="play-harder">${t("Harder AI")}</button>` : ""}</div><button class="primary-button" id="to-menu">${t("Main menu")}</button>`,
       { pauseGame: false },
     );
     summary.wire();
@@ -4835,10 +5223,19 @@ async function init() {
       getOwnPlayer: () => own,
       getColors: seatColors,
       getPipPlayer: () => (view === own ? rivalIndex() : own),
+      // v0.18c: Minimap option; with "All" every other field still in the match (yours too while you watch another)
+      getMinimapMode: () => minimapMode,
+      getMiniPlayers: () => game.players.filter((q) => q.id !== view && !q.out).map((q) => q.id),
       getPreview: currentPreview,
       getQueued: () => (queuedFor === gameKey() ? queued : []),
       getUpQueued: () => (queuedFor === gameKey() ? upQueue : []),
-      onPip: () => {
+      onPip: (player) => {
+        // v0.18c: a tap on one of the "All" mini maps shows that field
+        if (typeof player === "number") {
+          showMaze(player, tab === "send");
+          tone("tap");
+          return;
+        }
         if (tab !== "build") setPage("build");
         else {
           view = view === own ? rivalIndex() : own;
@@ -4852,6 +5249,7 @@ async function init() {
         tone("tap");
       },
       onCell,
+      onCellRight: (pos) => cancelQueuedAt(pos), // v0.18a: right click on a pre-build cancels it
       onTower: onTowerTap,
       onTowerRight: onTowerRightClick,
       popups: { numbers: popNumbers, notes: popNotes },
@@ -5046,6 +5444,17 @@ async function init() {
           geometry: () => arena.geometry(),
           cellCenter: (x, y) => arena.cellCenter(x, y),
           startLocal,
+          get queued() {
+            return queued;
+          },
+          get colors() {
+            return { pick: colorPick, choice: colorChoice };
+          },
+          assignColors, // v0.18a
+          showLobby,
+          get qm() {
+            return qmSearch && { status: qmSearch.status, minimized: qmSearch.minimized };
+          },
         },
       });
   } catch (error) {
