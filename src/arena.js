@@ -1,4 +1,4 @@
-import { getStats, divineShield, isMagicTower, isMeleeTower, towerAt, towerSize, footprintOf, STRIP, HELLFIRE, LONE } from "./simulation.js";
+import { getStats, divineShield, isMagicTower, isMeleeTower, towerAt, towerSize, footprintOf, STRIP, HELLFIRE, LONE, loneCount } from "./simulation.js";
 import { ART_MANIFEST, ANIM_MANIFEST, animUrl, artFor, artUrl, towerTier, TOWER_ART, CREEP_ART, TEAM_COLORS, CLOTH_COLORS, recolorTeam } from "./art.js";
 import { t } from "./i18n.js";
 import { Stage, BLEND, TINT, hsvToColor } from "./b2d.js";
@@ -1290,7 +1290,7 @@ export function mountArena({
         glow.fillStyle(team, 0.16);
         glow.fillEllipse(cx, cy + tc * 0.06, tc * 1.0, tc * 0.5);
         // v0.13: Lone Guardians active: a white aura with beams turning outwards
-        if (!building && def.attacks && player.perks?.lone && player.towers.length <= LONE.towers) {
+        if (!building && def.attacks && player.perks?.lone && loneCount(player) <= LONE.towers + 1e-6) {
           const pulse = 0.5 + 0.5 * Math.sin(time * 0.005 + phase),
             ay = cy - tc * 0.12;
           glow.fillStyle(0xffffff, 0.1 + 0.07 * pulse);

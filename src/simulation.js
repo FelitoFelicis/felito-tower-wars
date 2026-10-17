@@ -626,7 +626,7 @@ function statsFor(game, player, item) {
     mana: item.mana,
   };
   // v0.16h: Lone Guardians back to v0.13: +125 % attack speed for all towers while you own 5 or fewer
-  let attackSpeed = item.isBuildable && item.attacks && perkLevel(player, "lone") && (player.towers?.length || 0) <= LONE.towers ? LONE.speed : 0,
+  let attackSpeed = item.isBuildable && item.attacks && perkLevel(player, "lone") && loneCount(player) <= LONE.towers + 1e-6 ? LONE.speed : 0,
     hpPercent = 0,
     damagePercent = 0;
   for (const id of item.researchAffected) {
@@ -783,7 +783,7 @@ export const PERKS = Object.freeze({
   crowd: { name: "Crowd Control", max: 3, text: "Thins out crowds: above 50 creeps in your field, every 5 s the 3 weakest die per level" }, // v0.10l: 3 per level
   pillage: { name: "Pillage", max: 5, text: "Steals gold: 1% of a player's gold per level on each breakthrough" }, // v0.10k: 1 % per level
   // v0.12: nine new perks
-  lone: { name: "Lone Guardians", max: 1, text: "Your towers attack 125% faster while you own 5 towers or fewer" }, // v0.16h: back to the v0.13 effect
+  lone: { name: "Lone Guardians", max: 1, text: "Your towers attack 125% faster while you own 5 towers or fewer (Walls count as 0.1)" }, // v0.16h: back to the v0.13 effect
   manufacture: { name: "Creep Manufacture", max: 3, element: "water", text: "Buffs the 4th creep of every tier: {manufacture} cheaper and restocks 10% faster" },
   summon: { name: "Summon Tower", max: 1, element: "arcane", powerup: true, text: "Summons a random level 1-3 tower of any element on a free field (sells for 10% of its value)" },
   nobility: { name: "Heavy Nobility", max: 3, element: "earth", text: "Buffs heavy creeps: {nobility} cheaper, {nobilityHp} more hit points, restock 10% faster" },
@@ -805,7 +805,9 @@ const perkLevel = (p, id) => p?.perks?.[id] || 0;
 export const perkElements = (id) => [].concat(PERKS[id]?.element || []);
 // ---- v0.12: new perks -------------------------------------------------------------------
 /** Lone Guardians: tower limit and attack speed bonus. */
-export const LONE = { towers: 5, speed: 1.25 }; // v0.13/v0.16h: +125 % attack speed
+export const LONE = { towers: 5, speed: 1.25, wall: 0.1 }; // v0.13/v0.16h: +125 % attack speed; v0.17n: a Wall counts as 0.1 tower
+/** v0.17n: towers counted for Lone Guardians (Walls 0.1, everything else 1). */
+export const loneCount = (p) => (p?.towers || []).reduce((n, t) => n + (t.typeId === WALL_ID ? LONE.wall : 1), 0);
 /** v0.13: Watcher Owl (research R00K): extra range of archer-line towers per level, in fields. */
 export const OWL = { range: [0.5, 0.33, 0.25] };
 export const owlRange = (level) => OWL.range.slice(0, Math.max(0, Math.min(OWL.range.length, level))).reduce((a, b) => a + b, 0);
@@ -1131,7 +1133,7 @@ function tickPocks(game, p) {
   if (game.time + EPS < p.pocksNext) return;
   p.pocksNext = game.time + POCKS.interval;
   let c = null;
-  for (const o of p.creeps) if (!o.dead && o.hp > 0 && (!c || o.hp > c.hp || (o.hp === c.hp && o.id < c.id))) c = o;
+  for (const o of p.creeps) if (!o.dead && o.hp > 0 && !divineShield(game, o) && (!c || o.hp > c.hp || (o.hp === c.hp && o.id < c.id))) c = o;
   if (!c) return;
   c.hp -= guardCut(game, c, c.hp * POCKS.hpShare * level);
   const tough = nerfClass(c) === "boss" || c.bossTier || obj(c.typeId)?.bossTier || c.defenseType === "large";
@@ -1150,7 +1152,7 @@ function tickHellfire(game, p) {
   const dps = hellfireDps(p);
   if (!dps) return;
   for (const c of p.creeps) {
-    if (c.dead || c.hp <= 0 || c.y < 0 || Math.floor(c.y * game.grid.rows) !== HELLFIRE.row) continue;
+    if (c.dead || c.hp <= 0 || c.y < 0 || Math.floor(c.y * game.grid.rows) !== HELLFIRE.row || divineShield(game, c)) continue; // v0.17n: Divine Shield
     c.hp -= guardCut(game, c, dps * TICK);
     if (c.hp <= 0) killCreep(game, p, c);
   }
@@ -1159,7 +1161,7 @@ function launchBurst(game, p, x, y) {
   const level = perkLevel(p, "burst"),
     r = burstRadius(level) * game.grid.cellUnits,
     centre = { x, y },
-    inside = p.creeps.filter((c) => !c.dead && c.hp > 0 && dist(game, c, centre) <= r),
+    inside = p.creeps.filter((c) => !c.dead && c.hp > 0 && !divineShield(game, c) && dist(game, c, centre) <= r), // v0.17n: shielded creeps are immune
     total = level * BURST.damage * (p.tier || 1),
     share = inside.length ? total / inside.length : 0;
   for (const c of inside) {
@@ -1669,7 +1671,9 @@ function finishQuest(game, p, won) {
     q = QUESTS[st.id];
   p.quest = null;
   p.questLog = { ...(p.questLog || {}), [st.id]: won ? "won" : "lost" };
-  const granted = [];
+  const granted = [],
+    gold0 = p.gold,
+    income0 = p.income; // v0.17m: gold/income rewards for the quest overlay
   let exp = 0;
   if (won && q.kind === "banter") exp = BANTER.exp;
   if (won && q.kind === "untouchable") {
@@ -1686,7 +1690,7 @@ function finishQuest(game, p, won) {
     for (let i = randoms; i < 2; i++) p.picks.push(makePick(game, p, "upgrade", true));
   }
   if (exp) gainExp(game, p, exp);
-  emit(game, "quest", { player: p.id, id: st.id, state: won ? "won" : "lost", exp, granted, rounds: st.need || 0 });
+  emit(game, "quest", { player: p.id, id: st.id, state: won ? "won" : "lost", exp, granted, rounds: st.need || 0, gold: Math.max(0, p.gold - gold0), income: Math.max(0, p.income - income0) });
 }
 /** Cost share of a send from finished banters (won: cheaper, lost: dearer). */
 function questCostShare(p, item) {
@@ -3175,7 +3179,8 @@ function moveCreep(game, p, c, dt) {
   // v0.10r: Red Boots of the sender: ground creeps 25 % less slowed per level
   const boots = c.flying || c.owner < 0 ? 1 : bootsResist(game.players[c.owner]);
   const frozen = c.flying ? 1 : 1 - 0.04 * perkLevel(p, "permafrost") * boots; // v0.10o: Permafrost of the defender
-  let remaining = clamp(c.speed * (1 - clamp(slow * boots, 0, 0.9)) * aura.speed * frozen, 24 * mobility, 1000 * mobility) * dt;
+  const auraSpeed = aura.speed < 1 ? 1 - (1 - aura.speed) * boots : aura.speed; // v0.17n: Red Boots also soften aura slows
+  let remaining = clamp(c.speed * (1 - clamp(slow * boots, 0, 0.9)) * auraSpeed * frozen, 24 * mobility, 1000 * mobility) * dt;
   // v0.17g: every creep walks its own line inside the path (up to a quarter field off the centre),
   // so packed groups spread out and splash damage hits fewer of them at once
   if (c.ox === undefined) {
@@ -3554,7 +3559,7 @@ function aiPick(game, p, persona) {
       // v0.12: perks the bot can hardly use rank low
       if (o.type === "perk" && o.id === "fort") return 0.5 + random(game);
       if (o.type === "quest") return 1 + random(game) * 2; // v0.15: the bot rarely takes quests
-      if (o.type === "perk" && o.id === "lone") return (p.towers.length <= LONE.towers && p.level <= 3 ? 3 : 0.5) + random(game);
+      if (o.type === "perk" && o.id === "lone") return (loneCount(p) <= LONE.towers + 1e-6 && p.level <= 3 ? 3 : 0.5) + random(game);
       const r = obj(o.id),
         effects = (r?.effects || []).map((e) => e.type);
       return ((effects.some((e) => ["ratt", "rats", "ratx", "ratr"].includes(e)) ? 6 : 4) + random(game) * 2) * (persona.researchBias ?? 1);

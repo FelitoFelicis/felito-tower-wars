@@ -86,7 +86,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.17l",
+const APP_VERSION = "0.17n",
   APP_DATE = "17.10.2026";
 const WAVES_PREF = "felito.waves";
 const COACH_PREF = "felito.coach.v1";
@@ -1312,8 +1312,8 @@ function statTip(item, action, towerId = null, who = own, bare = false) {
       ai = attackInfo(game, item.id);
     rows.push([t("Damage"), Math.abs(s.damage - item.damage) > 0.004 ? `${format(item.damage)} → ${format(s.damage)}` : format(s.damage)]);
     rows.push([t("Damage/second"), s.cooldown > 0 ? format(s.damage / s.cooldown) : "–"]); // v0.16e, v0.17g: right below Damage
-    rows.push([t("Range"), isMeleeTower(item) ? t("Melee") : `${format(s.range / cu)} ${t("fields")}`]);
-    if (ai.splash) rows.push([t("Splash Radius"), `${format(ai.splash / cu)} ${t("fields")}`]); // v0.17g
+    rows.push([t("Range"), isMeleeTower(item) ? t("Melee") : format(s.range / cu)]); // v0.17m: numbers only
+    if (ai.splash) rows.push([t("Splash Radius"), format(ai.splash / cu)]); // v0.17g, v0.17m: numbers only
     if (ai.multi) rows.push([t("Multi Targets"), String(ai.multi)]);
     if (ai.bounce) rows.push([t("Bouncing Targets"), String(ai.bounce)]);
     rows.push([t("Attacks every"), `${format(s.cooldown)} s`]);
@@ -2765,7 +2765,7 @@ function questEvent(e) {
   }
   if (e.state === "won") {
     const extra = (e.granted || []).map(optionName).filter(Boolean);
-    questSplat(true);
+    questSplat(true, e);
     toast(t("Quest completed: {name}", { name }) + (e.exp ? ` · +${format(e.exp)} EXP` : "") + (extra.length ? ` · ${extra.join(", ")}` : ""), "tier");
     if (e.exp) hudPop("#own-level", `+${format(e.exp)} EXP`, "exp");
     tone("tier");
@@ -2778,12 +2778,20 @@ function questEvent(e) {
 }
 /** v0.17b: a parchment scroll over the board, 35 % transparent: "Quest finished" (green) or "Quest failed" (red). */
 const QUEST_SCROLL = `<svg viewBox="0 0 320 120" aria-hidden="true"><defs><linearGradient id="qsP" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f7e7bd"/><stop offset=".5" stop-color="#ecd49a"/><stop offset="1" stop-color="#d6b571"/></linearGradient><linearGradient id="qsR" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#8a5a24"/><stop offset=".45" stop-color="#e2bd7a"/><stop offset="1" stop-color="#7a4c1c"/></linearGradient></defs><path d="M34 18 Q160 6 286 18 L286 102 Q160 114 34 102 Z" fill="url(#qsP)" stroke="#6b4518" stroke-width="3"/><path d="M48 30 Q160 22 272 30 M48 92 Q160 100 272 92" fill="none" stroke="#b8925a" stroke-width="1.5" opacity=".6"/><rect x="14" y="10" width="24" height="100" rx="12" fill="url(#qsR)" stroke="#5a3510" stroke-width="3"/><rect x="282" y="10" width="24" height="100" rx="12" fill="url(#qsR)" stroke="#5a3510" stroke-width="3"/><circle cx="26" cy="10" r="6" fill="#5a3510"/><circle cx="26" cy="110" r="6" fill="#5a3510"/><circle cx="294" cy="10" r="6" fill="#5a3510"/><circle cx="294" cy="110" r="6" fill="#5a3510"/></svg>`;
-function questSplat(won) {
+function questSplat(won, e) {
   const host = $("arena") || document.body,
     el = document.createElement("div");
-  el.className = `quest-splat ${won ? "won" : "lost"}`;
+  // v0.17m: a won quest lists its EXP, gold and income rewards as numbers in their colours
+  const rewards = won && e
+    ? [
+        e.exp > 0.004 ? `<span class="qs-exp">+${format(e.exp)} EXP</span>` : "",
+        e.gold > 0.004 ? `<span class="qs-gold"><img src="${iconUrl("coin")}" alt="">+${format(e.gold)}</span>` : "",
+        e.income > 0.004 ? `<span class="qs-inc">+${formatInc(e.income)} ${t("income")}</span>` : "",
+      ].join("")
+    : "";
+  el.className = `quest-splat ${won ? "won" : "lost"}${rewards ? " has-rewards" : ""}`;
   el.setAttribute("role", "status");
-  el.innerHTML = `${QUEST_SCROLL}<b>${won ? t("Quest finished") : t("Quest failed")}</b>`;
+  el.innerHTML = `${QUEST_SCROLL}<b>${won ? t("Quest finished") : t("Quest failed")}</b>${rewards ? `<span class="qs-rewards">${rewards}</span>` : ""}`;
   host.querySelector(".quest-splat")?.remove();
   host.append(el);
   setTimeout(() => el.remove(), 1900);
