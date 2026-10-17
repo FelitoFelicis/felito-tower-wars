@@ -6030,3 +6030,97 @@ html.layout-b .game-shell .bottom-nav [data-tab] img {
   width: 44px;
   height: 44px;
 }
+
+/* v0.17i: calm, flicker-free markers. The send nudge no longer animates "filter" on the whole button
+   (that flickered on phones, especially with the big zoomed buttons); a soft light layer fades instead.
+   The level glow is slower again. Keep it this way. */
+.game-shell .bottom-nav [data-tab].nudge,
+.game-shell .bottom-nav [data-tab].coach-nudge {
+  animation: none;
+  filter: none;
+}
+.game-shell .bottom-nav [data-tab].nudge::before,
+.game-shell .bottom-nav [data-tab].coach-nudge::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(circle at 50% 40%, #ffffff50, #ffffff00 72%);
+  opacity: 0;
+  animation: nudge-glow 2.6s ease-in-out infinite;
+}
+@keyframes nudge-glow {
+  0%, 100% { opacity: 0; }
+  50% { opacity: 1; }
+}
+.level-button.ready { animation-duration: 2s; }
+.level-button.ready::before { animation-duration: 6s; }
+
+/* v0.17k: zoomed layout: the cards reach 20 px into the bottom safe area (the v0.17j layout stays as B2) */
+html.layout-b:not(.layout-b2) .game-shell .command-deck {
+  bottom: max(0px, calc(env(safe-area-inset-bottom) - 20px));
+}
+/* v0.17k: abilities can be dragged (onto the board to use them, onto another ability to swap) */
+.volley-button {
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.volley-button.dragging {
+  opacity: 0.45;
+}
+.volley-button.swap-target {
+  box-shadow: inset 0 0 0 2px #fff, 0 0 0 3px #ffd34a, 0 3px 0 #10180a;
+}
+.drag-ghost.ability-ghost {
+  width: 56px;
+  height: 56px;
+}
+.drag-ghost.ability-ghost.over-field {
+  opacity: 0.55;
+}
+/* the ability book and its panel */
+.volley-button.ability-book {
+  background: radial-gradient(circle at 50% 30%, #6b4a8e, #2a1840 75%);
+  box-shadow: inset 0 0 0 1.5px #d9c2ff, 0 3px 0 #12061f;
+  overflow: visible;
+}
+.volley-button.ability-book.open {
+  box-shadow: inset 0 0 0 2px #fff, 0 0 12px #b47cff, 0 3px 0 #12061f;
+}
+.ability-book .book-count {
+  position: absolute;
+  right: -5px;
+  top: -5px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 3px;
+  border-radius: 9px;
+  border: 1.5px solid #12061f;
+  background: #b47cff;
+  color: #fff;
+  font: 400 11px/14px var(--font-number);
+  font-style: normal;
+  text-align: center;
+}
+.ability-panel {
+  position: absolute;
+  z-index: 9;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 6px;
+  border-radius: 12px;
+  border: 2px solid #12061f;
+  background: #1c1230ee;
+  box-shadow: inset 0 0 0 1.5px #8e55ff, 0 6px 14px #000a;
+}
+.ability-panel[hidden] {
+  display: none;
+}
+.ability-panel .volley-button {
+  position: relative;
+  left: auto !important;
+  top: auto !important;
+}

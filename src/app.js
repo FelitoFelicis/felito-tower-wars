@@ -86,7 +86,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.17h",
+const APP_VERSION = "0.17k",
   APP_DATE = "17.10.2026";
 const WAVES_PREF = "felito.waves";
 const COACH_PREF = "felito.coach.v1";
@@ -168,7 +168,7 @@ const LAYOUT_CHOICES = [
   ["mobile", "Mobile Default"],
   ["zoomed", "Mobile Zoomed"],
 ];
-const layoutChoice = () => (controlMode === "pc" ? "pc" : mobileLayout === "B" ? "zoomed" : "mobile");
+const layoutChoice = () => (controlMode === "pc" ? "pc" : mobileLayout === "B" || mobileLayout === "B2" ? "zoomed" : "mobile");
 const controlsRow = () =>
   `<div class="choice-row layout-row" role="group" aria-label="${t("Layout")}"><span>${t("Layout")}</span>${LAYOUT_CHOICES.map(
     ([m, name]) =>
@@ -177,12 +177,15 @@ const controlsRow = () =>
 // v0.17d: two layouts for the mobile version: A (bottom bar, mini map; the v0.17c layout, "LayoutMobileA")
 // and B (no mini map, all buttons in one column right of the board, bigger board).
 const MOBILE_LAYOUT_PREF = "felito.mobileLayout";
-const MOBILE_LAYOUTS = ["A", "B"];
+// v0.17k: "B2" = MobileZoomedLayoutB2, the zoomed layout of v0.17j (cards end at the safe-area edge). Internal
+// only (not in the menu); B lets the cards reach 20 px into the safe area.
+const MOBILE_LAYOUTS = ["A", "B", "B2"];
 let mobileLayout = MOBILE_LAYOUTS.includes(pref(MOBILE_LAYOUT_PREF, "A")) ? pref(MOBILE_LAYOUT_PREF, "A") : "A";
 function applyControlMode() {
   const root = document.documentElement,
-    b = controlMode === "mobile" && mobileLayout === "B";
+    b = controlMode === "mobile" && (mobileLayout === "B" || mobileLayout === "B2");
   root.classList.toggle("pc-controls", controlMode === "pc");
+  root.classList.toggle("layout-b2", controlMode === "mobile" && mobileLayout === "B2");
   if (root.classList.contains("layout-b") !== b) {
     root.classList.toggle("layout-b", b);
     const nav = document.querySelector(".bottom-nav");
@@ -401,15 +404,6 @@ function refreshBurst(p, slot) {
   btn.style.setProperty("--cd", ready ? 0 : Math.min(1, left / BURST.cooldown));
   const label = ready ? "" : String(Math.ceil(left));
   if ($("burst-time").textContent !== label) $("burst-time").textContent = label;
-  const z = arena?.geometry?.();
-  if (z?.side) {
-    const size = Math.round(z.side.w),
-      top = Math.round(z.side.y + 14 + (size + 14) * slot) + "px",
-      x = Math.round(z.side.x) + "px";
-    if (btn.style.left !== x) btn.style.left = x;
-    if (btn.style.top !== top) btn.style.top = top;
-    btn.style.setProperty("--slot", size + "px");
-  }
   if (!ready && volleyAim && aimKind === "burst") setVolleyAim(false);
 }
 // ---- v0.12: Pillar of Fire (aimed), Arcane Golem and Monsun (at once) -----------------
@@ -458,8 +452,6 @@ function ensureAbilityButtons() {
 }
 /** Shows the ability buttons the player owns below volley and burst; returns nothing. */
 function refreshAbilities(p) {
-  let slot = 1 + (p.perks?.volley > 0 ? 1 : 0) + (p.perks?.burst > 0 ? 1 : 0);
-  const z = arena?.geometry?.();
   for (const a of ABILITIES) {
     const btn = $(a.id + "-button");
     if (!btn) continue;
@@ -473,17 +465,218 @@ function refreshAbilities(p) {
     const label = ready ? "" : String(Math.ceil(left)),
       time = $(a.id + "-time");
     if (time && time.textContent !== label) time.textContent = label;
-    if (z?.side) {
-      const size = Math.round(z.side.w),
-        top = Math.round(z.side.y + 14 + (size + 14) * slot) + "px",
-        x = Math.round(z.side.x) + "px";
-      if (btn.style.left !== x) btn.style.left = x;
-      if (btn.style.top !== top) btn.style.top = top;
-      btn.style.setProperty("--slot", size + "px");
-    }
     if (!ready && a.aim && volleyAim && aimKind === a.id) setVolleyAim(false);
-    slot++;
   }
+}
+// ---- v0.17k: one list for all ability buttons ---------------------------------------------
+// Order is the player's (drag an ability onto another to swap their places); drag an ability onto
+// the board to use it there; in the zoomed mobile layout the ones that do not fit go into a book.
+const ABILITY_IDS = ["volley", "burst", "pillar", "agolem", "monsun"],
+  ABILITY_ORDER_PREF = "felito.abilityOrder",
+  BOOK_SVG = `<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="bk" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b0532f"/><stop offset="1" stop-color="#5a1f12"/></linearGradient><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff2a8"/><stop offset=".5" stop-color="#e3a72c"/><stop offset="1" stop-color="#8a5a10"/></linearGradient></defs><path d="M10 14q0-5 5-5h37v42H16q-6 0-6 5z" fill="url(#bk)" stroke="#2a0d06" stroke-width="2.5"/><path d="M10 56q0-5 6-5h36v6H16q-6 0-6-1z" fill="#f3e6c4" stroke="#2a0d06" stroke-width="2"/><path d="M15 9v42" stroke="#3a1208" stroke-width="2"/><path d="M47 9v42" stroke="url(#bg)" stroke-width="4"/><circle cx="32" cy="29" r="9" fill="url(#bg)" stroke="#2a0d06" stroke-width="2"/><path d="M32 22l2.4 4.8 5.2.8-3.8 3.7.9 5.2-4.7-2.5-4.7 2.5.9-5.2-3.8-3.7 5.2-.8z" fill="#7a2cd9" stroke="#2a0d06" stroke-width="1"/><circle cx="29.5" cy="26.5" r="1.6" fill="#fff" opacity=".85"/><path d="M20 15h22" stroke="#e7b84a" stroke-width="1.5" opacity=".7"/></svg>`;
+let abilityOrder = (() => {
+    try {
+      const v = JSON.parse(pref(ABILITY_ORDER_PREF, "[]"));
+      return Array.isArray(v) ? v.filter((id) => ABILITY_IDS.includes(id)) : [];
+    } catch {
+      return [];
+    }
+  })(),
+  abilityDrag = null,
+  bookOpen = false,
+  abilityLayoutKey = "";
+const abilityRank = (id) => (abilityOrder.includes(id) ? abilityOrder.indexOf(id) : 100 + ABILITY_IDS.indexOf(id));
+const ownedAbilities = (p) => ABILITY_IDS.filter((id) => begun && p?.perks?.[id] > 0).sort((a, b) => abilityRank(a) - abilityRank(b));
+const abilityReadyKey = (id) => (id === "volley" ? "volleyReady" : id === "burst" ? "burstReady" : ABILITIES.find((a) => a.id === id)?.ready);
+const abilityAims = (id) => id === "volley" || id === "burst" || !!ABILITIES.find((a) => a.id === id)?.aim;
+const abilityName = (id) => (id === "volley" ? "Arrow Volley" : id === "burst" ? "Arcane Burst" : ABILITIES.find((a) => a.id === id)?.name || id);
+function pressAbility(id) {
+  if (id === "volley") return volleyPress();
+  if (id === "burst") return burstPress();
+  const a = ABILITIES.find((x) => x.id === id);
+  if (a) abilityPress(a);
+}
+/** Swaps the places of two abilities and remembers the order. */
+function swapAbilities(a, b) {
+  const list = [...ABILITY_IDS].sort((x, y) => abilityRank(x) - abilityRank(y)),
+    i = list.indexOf(a),
+    j = list.indexOf(b);
+  if (i < 0 || j < 0 || i === j) return;
+  [list[i], list[j]] = [list[j], list[i]];
+  abilityOrder = list;
+  savePref(ABILITY_ORDER_PREF, JSON.stringify(list));
+  abilityLayoutKey = "";
+  tone("select");
+}
+function ensureAbilityBook() {
+  if ($("ability-book")) return;
+  const book = document.createElement("button");
+  book.id = "ability-book";
+  book.type = "button";
+  book.className = "volley-button ability-book";
+  book.hidden = true;
+  book.setAttribute("aria-label", t("Abilities"));
+  book.dataset.help = t("Ability book: the abilities that do not fit beside the board. Tap to open, then tap one or drag it onto your field. Drag an ability onto another to swap their places.");
+  book.innerHTML = `<img src="${"data:image/svg+xml," + encodeURIComponent(BOOK_SVG)}" alt=""><i class="book-count" aria-hidden="true"></i>`;
+  book.onclick = () => {
+    if (performance.now() < suppressClickUntil) return;
+    bookOpen = !bookOpen;
+    $("ability-panel").hidden = !bookOpen;
+    book.classList.toggle("open", bookOpen);
+    tone("select");
+  };
+  const panel = document.createElement("div");
+  panel.id = "ability-panel";
+  panel.className = "ability-panel";
+  panel.hidden = true;
+  $("arena")?.append(book, panel);
+  document.addEventListener("pointerdown", (e) => {
+    if (bookOpen && !e.target.closest?.("#ability-panel, #ability-book")) closeAbilityBook();
+  });
+}
+function closeAbilityBook() {
+  bookOpen = false;
+  if ($("ability-panel")) $("ability-panel").hidden = true;
+  $("ability-book")?.classList.remove("open");
+}
+/** Places the owned ability buttons below the level button; in the zoomed layout the rest go into the book. */
+function layoutAbilities(p) {
+  ensureAbilityBook();
+  const z = arena?.geometry?.(),
+    book = $("ability-book"),
+    panel = $("ability-panel"),
+    arenaEl = $("arena");
+  if (!z?.side || !book || !panel) return;
+  const owned = ownedAbilities(p),
+    size = Math.round(z.side.w),
+    gap = z.side.layoutB ? 8 : 14, // tighter in the zoomed column so more abilities fit
+    pitch = size + gap,
+    first = z.side.y + 14 + size + gap, // the level button sits above the first slot
+    dock = $("side-dock"),
+    limit = z.side.layoutB && dock && !dock.hidden && dock.style.top ? parseFloat(dock.style.top) - 6 : Infinity,
+    fit = Math.max(1, Math.floor((limit - first + gap) / pitch));
+  let shown = owned,
+    inBook = [];
+  if (owned.length > fit) {
+    shown = owned.slice(0, fit - 1);
+    inBook = owned.slice(fit - 1);
+  }
+  const x = Math.round(z.side.x),
+    key = [owned.join(","), shown.length, x, Math.round(first), size, bookOpen].join("|");
+  if (key === abilityLayoutKey) return;
+  abilityLayoutKey = key;
+  const place = (el, slot) => {
+    const left = x + "px",
+      top = Math.round(first + pitch * slot) + "px";
+    if (el.style.left !== left) el.style.left = left;
+    if (el.style.top !== top) el.style.top = top;
+    if (el.style.getPropertyValue("--slot") !== size + "px") el.style.setProperty("--slot", size + "px");
+  };
+  shown.forEach((id, i) => {
+    const btn = $(id + "-button");
+    if (!btn) return;
+    if (btn.parentNode !== arenaEl) arenaEl.insertBefore(btn, book);
+    place(btn, i);
+  });
+  inBook.forEach((id, i) => {
+    const btn = $(id + "-button");
+    if (!btn) return;
+    if (panel.children[i] !== btn) panel.insertBefore(btn, panel.children[i] || null); // keeps the player's order
+    if (btn.style.getPropertyValue("--slot") !== size + "px") btn.style.setProperty("--slot", size + "px");
+  });
+  book.hidden = !inBook.length;
+  if (inBook.length) {
+    place(book, shown.length);
+    book.querySelector(".book-count").textContent = inBook.length;
+    const top = Math.round(first + pitch * shown.length);
+    Object.assign(panel.style, { left: Math.max(4, x - size - 22) + "px", top: top + "px" });
+    panel.style.setProperty("--slot", size + "px");
+  } else if (bookOpen) closeAbilityBook();
+}
+function bindAbilityButton(id) {
+  const btn = $(id + "-button");
+  if (!btn || btn.dataset.dragBound) return;
+  btn.dataset.dragBound = "1";
+  const press = btn.onclick;
+  btn.onclick = (e) => {
+    if (performance.now() < suppressClickUntil) return;
+    if (btn.parentNode?.id === "ability-panel") closeAbilityBook();
+    press?.(e);
+  };
+  btn.addEventListener("pointerdown", (e) => {
+    if ((e.button ?? 0) > 0 || !begun) return;
+    abilityDrag = { id, x0: e.clientX, y0: e.clientY, pointerId: e.pointerId, active: false, cell: null, swap: null };
+  });
+}
+document.addEventListener(
+  "pointermove",
+  (e) => {
+    const d = abilityDrag;
+    if (!d || e.pointerId !== d.pointerId) return;
+    if (!d.active) {
+      if (Math.hypot(e.clientX - d.x0, e.clientY - d.y0) < 10) return;
+      d.active = true;
+      const ghost = $("drag-ghost");
+      ghost.src = svgUrl(d.id);
+      ghost.classList.add("ability-ghost");
+      ghost.hidden = false;
+      $(d.id + "-button")?.classList.add("dragging");
+    }
+    e.preventDefault();
+    const ghost = $("drag-ghost"),
+      box = document.querySelector(".game-shell").getBoundingClientRect();
+    ghost.style.transform = `translate(${e.clientX - box.left - 30}px, ${e.clientY - box.top - 70}px)`;
+    const under = document.elementFromPoint(e.clientX, e.clientY)?.closest?.(".volley-button"),
+      swap = under && under.id !== d.id + "-button" ? under : null;
+    if (d.swap !== swap) {
+      d.swap?.classList.remove("swap-target");
+      swap?.classList.add("swap-target");
+      d.swap = swap;
+    }
+    d.cell = swap ? null : dragTarget(e);
+    ghost.classList.toggle("over-field", !!d.cell);
+  },
+  { passive: false },
+);
+function endAbilityDrag(e, cancelled = false) {
+  const d = abilityDrag;
+  if (!d || e.pointerId !== d.pointerId) return;
+  abilityDrag = null;
+  if (!d.active) return;
+  const ghost = $("drag-ghost");
+  ghost.hidden = true;
+  ghost.classList.remove("ability-ghost", "over-field");
+  $(d.id + "-button")?.classList.remove("dragging");
+  d.swap?.classList.remove("swap-target");
+  suppressClickUntil = performance.now() + 400;
+  if (cancelled) return;
+  if (d.swap) {
+    const other = d.swap.id === "ability-book" ? [...$("ability-panel").children].map((b) => b.id.replace(/-button$/, ""))[0] : d.swap.id.replace(/-button$/, "");
+    if (other) swapAbilities(d.id, other);
+    return;
+  }
+  if (d.cell) castAbilityAt(d.id, d.cell);
+}
+document.addEventListener("pointerup", (e) => endAbilityDrag(e));
+document.addEventListener("pointercancel", (e) => endAbilityDrag(e, true));
+/** Uses an ability dropped on the board: aimed ones strike that cell, the others simply start. */
+function castAbilityAt(id, cell) {
+  const p = game?.players[own];
+  if (!p || !begun || !(p.perks?.[id] > 0)) return;
+  closeAbilityBook();
+  const readyAt = p[abilityReadyKey(id)] ?? 0;
+  if (readyAt > game.time) {
+    note(t("{name} ready in {n} s", { name: t(abilityName(id)), n: Math.ceil(readyAt - game.time) }));
+    return;
+  }
+  if (abilityAims(id) && view !== own) {
+    note("Drop it on your own field.");
+    return;
+  }
+  setVolleyAim(false);
+  if (abilityAims(id)) dispatch({ type: id, x: (cell.gridX + 0.5) / game.grid.cols, y: (cell.gridY + 0.5) / game.grid.rows });
+  else dispatch({ type: id });
+  tone("select");
 }
 /** Fires the volley at a point of your field (x, y as shares of the board). */
 function fireVolley(x, y) {
@@ -502,16 +695,6 @@ function refreshVolley(p) {
   btn.style.setProperty("--cd", ready ? 0 : Math.min(1, left / VOLLEY.cooldown));
   const label = ready ? "" : String(Math.ceil(left));
   if ($("volley-time").textContent !== label) $("volley-time").textContent = label;
-  const lvl = $("level-button"),
-    z = arena?.geometry?.();
-  if (z?.side && lvl) {
-    const size = Math.round(z.side.w),
-      top = Math.round(z.side.y + 14 + size + 14) + "px",
-      x = Math.round(z.side.x) + "px";
-    if (btn.style.left !== x) btn.style.left = x;
-    if (btn.style.top !== top) btn.style.top = top;
-    btn.style.setProperty("--slot", size + "px");
-  }
   if (!ready && volleyAim && aimKind === "volley") setVolleyAim(false);
 }
 /** Show a player's maze (from the plates or a swipe). */
@@ -2630,14 +2813,15 @@ function refreshLevelButton(p) {
   const btn = $("level-button");
   btn.hidden = !begun;
   if (!begun) return;
-  $("level-number").textContent = p.level;
-  $("level-pending").hidden = !p.picks.length;
+  // v0.17i: only touch the DOM when something changed (constant rewrites made the glow flicker on phones)
+  if ($("level-number").textContent !== String(p.level)) $("level-number").textContent = p.level;
+  if ($("level-pending").hidden !== !p.picks.length) $("level-pending").hidden = !p.picks.length;
   const unspent = String(p.picks.length);
   if ($("level-pending").textContent !== unspent) $("level-pending").textContent = unspent;
   // v0.09t: the button fills with experience from the bottom up
   const fill = Math.round(Math.max(0, Math.min(1, p.exp / Math.max(1, p.expNext))) * 1000) / 10 + "%";
   if (btn.style.getPropertyValue("--xp") !== fill) btn.style.setProperty("--xp", fill);
-  btn.classList.toggle("ready", p.picks.length > 0);
+  if (btn.classList.contains("ready") !== p.picks.length > 0) btn.classList.toggle("ready", p.picks.length > 0);
   // Left of the board: the level button on top, the auto-spawn slot at the bottom edge.
   const z = arena?.geometry?.();
   if (z?.side) {
@@ -2651,10 +2835,10 @@ function refreshLevelButton(p) {
       top = Math.round(z.side.y + 14) + "px";
     if (z.col) placeColumn(z, dock, size);
     else if (dock.style.left !== x || dock.style.top !== dockTop) Object.assign(dock.style, { left: x, top: dockTop, width: size + "px" });
-    dock.style.setProperty("--slot", size + "px");
+    if (dock.style.getPropertyValue("--slot") !== size + "px") dock.style.setProperty("--slot", size + "px");
     if (btn.style.left !== x) btn.style.left = x;
     if (btn.style.top !== top) btn.style.top = top;
-    btn.style.setProperty("--slot", size + "px");
+    if (btn.style.getPropertyValue("--slot") !== size + "px") btn.style.setProperty("--slot", size + "px");
   }
   // the opening element choice opens by itself
   const key = `${game.seed}:${own}`;
@@ -2673,13 +2857,15 @@ function placeColumn(z, dock, size) {
     deck = document.querySelector(".command-deck")?.getBoundingClientRect(),
     rise = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--send-h")) || 0,
     offset = arenaBox.top - (shell?.getBoundingClientRect().top || 0),
-    sendTop = deck ? deck.bottom - rise - arenaBox.top : Infinity,
+    cardsTop = $("cards").getBoundingClientRect().top - arenaBox.top,
+    // v0.17i: in Send the column ends above the tall send buttons; in Build it drops down to the (lower) tower cards
+    sendTop = shell?.dataset.page === "send" ? (deck ? deck.bottom - rise - arenaBox.top : Infinity) : cardsTop > 0 ? cardsTop - 2 : Infinity,
     bottom = Math.min(z.top + z.bh, sendTop - 4),
     { x, y, w, sq } = z.col;
   if (nav) {
     const st = { left: Math.round(x) + "px", top: Math.round(y + offset) + "px", width: Math.round(w) + "px", height: Math.round(bottom - y) + "px" };
     if (Object.entries(st).some(([k, v]) => nav.style[k] !== v)) Object.assign(nav.style, st);
-    nav.style.setProperty("--sq", sq + "px");
+    if (nav.style.getPropertyValue("--sq") !== sq + "px") nav.style.setProperty("--sq", sq + "px");
   }
   const left = Math.round(z.side.x) + "px",
     big = 2 * sq + 4, // v0.17h: Send above Build, both twice as big (one column wide)
@@ -2762,6 +2948,7 @@ function refreshUI() {
   refreshVolley(p);
   refreshBurst(p, p.perks?.volley > 0 ? 2 : 1);
   refreshAbilities(p); // v0.12
+  layoutAbilities(p); // v0.17k
   bumpNumber("rival-lives", enemy.lives);
   renderEnemyStack();
   markTopIncome(p, enemy);
@@ -3212,8 +3399,11 @@ function updateNudge(p) {
     .filter((s) => s.playable && s.tier === p.tier && !s.bossTier)
     .reduce((min, s) => Math.min(min, s.cost), Infinity);
   const sinceAction = game.time - Math.max(lastSendTime, game.rules?.warmup ?? 12);
-  const idle = !game.warmup && game.running && tab !== "send" && sinceAction > 25 && p.gold >= cheapest * 2;
-  tabButton.classList.toggle("nudge", idle);
+  const can = !game.warmup && game.running && tab !== "send",
+    on = tabButton.classList.contains("nudge"),
+    // v0.17i: hysteresis, so gold hovering around the threshold no longer switches the marker on and off
+    idle = on ? can && sinceAction > 25 && p.gold >= cheapest : can && sinceAction > 25 && p.gold >= cheapest * 2;
+  if (idle !== on) tabButton.classList.toggle("nudge", idle);
   if (idle && tipsEnabled && nudgeShown < 2 && sinceAction > 25 + nudgeShown * 60) {
     nudgeShown++;
     toast("Gold to spare? Send creeps – it raises your income for good.");
@@ -4580,6 +4770,7 @@ async function init() {
     $("burst-button").innerHTML = `<img src="${svgUrl("burst")}" alt=""><i class="volley-cd" aria-hidden="true"></i><b id="burst-time"></b>`;
     $("burst-button").onclick = burstPress;
     ensureAbilityButtons(); // v0.12
+    for (const id of ABILITY_IDS) bindAbilityButton(id); // v0.17k
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape" && volleyAim) setVolleyAim(false);
     });
