@@ -1,10 +1,13 @@
 /**
- * Felito 1v1 transport. The host owns the simulation; this module only carries JSON.
+ * Felito online transport. The host owns the simulation; this module only carries JSON.
+ * v0.19: rooms hold up to six players (the host plus MAX_GUESTS guests, star topology).
  * Real PeerJS/WebRTC, no simulated online transport and no embedded credentials.
  */
 // Version 3 requires the schema-4 expanded board and mobile movement rules. Keep the address namespace
 // stable so an old client receives a clear handshake mismatch, not a lost room.
-export const PROTOCOL_VERSION = 4;
+// v0.19: protocol 5 = rooms with up to six players (seat assignment in the lobby).
+export const PROTOCOL_VERSION = 5;
+export const MAX_GUESTS = 5;
 export const MAX_PAYLOAD_BYTES = 512 * 1024;
 export const ROOM_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const PROTOCOL = "felito-tw";
@@ -595,6 +598,277 @@ function peerFailure(err) {
   );
 }
 
+/**
+ * v0.19: one data channel between the host and one guest. A room holds up to MAX_GUESTS links
+ * (star: every guest talks only to the host, the host owns the simulation). Each link has its own
+ * handshake, relay fallback, sequence numbers, rate limits and heartbeat.
+ */
+class Link {
+  constructor(session, id) {
+    this.s = session;
+    this.id = id;
+    this.role = session.role;
+    this.code = session.code;
+    this.timers = new Set();
+    this.listeners = [];
+    this.closed = false;
+    this.connected = false;
+    this.channelOpen = false;
+    this.sequence = 0;
+    this.receivedSequence = 0;
+    const now = session.now;
+    this.outbound = tokenBucket(now, 80, 60);
+    this.inbound = tokenBucket(now, 120, 90);
+    this.outboundBytes = tokenBucket(now, 4 * 1024 * 1024, 2 * 1024 * 1024);
+    this.inboundBytes = tokenBucket(now, 4 * 1024 * 1024, 2 * 1024 * 1024);
+  }
+  get relay() {
+    return !!this.connection?.relay;
+  }
+  later(fn, ms) {
+    const timer = this.s.setTimer(() => {
+      this.timers.delete(timer);
+      if (!this.closed) fn();
+    }, ms);
+    this.timers.add(timer);
+    return timer;
+  }
+  cancel(timer) {
+    if (timer !== undefined) {
+      this.s.clearTimer(timer);
+      this.timers.delete(timer);
+    }
+  }
+  disposeListeners() {
+    for (const dispose of this.listeners.splice(0)) dispose();
+  }
+  attach(connection) {
+    if (this.closed) {
+      try {
+        connection.close();
+      } catch {}
+      return;
+    }
+    this.connection = connection;
+    // v0.13a: no direct channel after a few seconds: switch both sides to the MQTT relay
+    let relayNow = null;
+    if (!connection.relay) {
+      const secret = this.role === "guest" ? this.s.relaySecret : connection.metadata?.relay;
+      if (validSecret(secret) && this.s.dependencies.relay !== false) {
+        relayNow = () => {
+          if (this.closed || this.connection !== connection || this.channelOpen) return false;
+          this.cancel(this.relayTimer);
+          this.useRelay(connection, secret);
+          return true;
+        };
+        this.relayTimer = this.later(relayNow, RELAY_AFTER_MS);
+      }
+    }
+    this.phase = this.role === "host" ? "hello" : "welcome";
+    this.s.listen(connection, "data", (data) => this.receive(data), this.listeners);
+    this.s.listen(connection, "error", (err) => relayNow?.() || this.failure(peerFailure(err)), this.listeners);
+    this.s.listen(
+      connection,
+      "close",
+      () => {
+        if (this.closed || relayNow?.()) return;
+        this.failure(error("opponent-left", this.role === "guest" ? "Your opponent left the room." : "A player left the room."));
+      },
+      this.listeners,
+    );
+    let opened = false;
+    const onOpen = () => {
+      if (this.closed || opened) return;
+      opened = true;
+      this.channelOpen = true;
+      this.cancel(this.relayTimer);
+      this.cancel(this.connectionTimer);
+      this.handshakeTimer = this.later(
+        () => this.failure(error("handshake-timeout", "The other side didn't finish the handshake.")),
+        this.s.handshakeTimeout,
+      );
+      if (this.role === "guest") this.control("hello");
+      else this.s.status("connecting", "Player found. Checking the game version …");
+    };
+    this.s.listen(connection, "open", onOpen, this.listeners);
+    this.connectionTimer = this.later(
+      () =>
+        this.failure(
+          error("connection-timeout", "The direct data channel isn't answering. A firewall or mobile network may be blocking it."),
+        ),
+      this.s.timeout,
+    );
+    if (connection.open) onOpen();
+  }
+  useRelay(connection, secret) {
+    this.disposeListeners();
+    this.cancel(this.connectionTimer);
+    try {
+      connection.close();
+    } catch {}
+    this.s.status("connecting", "No direct connection. Switching to the relay server …");
+    const relay = new RelayChannel(secret, this.role, this.code);
+    this.attach(relay);
+    relay.start();
+  }
+  failure(err) {
+    if (this.closed) return;
+    this.s.linkFailed(this, err);
+  }
+  control(type, extra = {}) {
+    if (this.closed || !this.connection?.open) return false;
+    try {
+      this.connection.send(JSON.stringify({ protocol: PROTOCOL, version: PROTOCOL_VERSION, room: this.code, type, ...extra }));
+      return true;
+    } catch (err) {
+      this.failure(peerFailure(err));
+      return false;
+    }
+  }
+  receive(raw) {
+    if (this.closed) return;
+    if (typeof raw !== "string" || raw.length > MAX_WIRE_BYTES || !this.inbound()) {
+      this.failure(error("invalid-traffic", "The data channel received invalid or too many messages."));
+      return;
+    }
+    if (!this.inboundBytes(raw.length)) {
+      this.failure(error("traffic-limit", "The data channel exceeded its data limit."));
+      return;
+    }
+    let packet;
+    try {
+      packet = JSON.parse(raw);
+    } catch {
+      this.failure(error("invalid-json", "The other side sent invalid game data."));
+      return;
+    }
+    if (
+      !packet ||
+      typeof packet !== "object" ||
+      Array.isArray(packet) ||
+      packet.protocol !== PROTOCOL ||
+      packet.version !== PROTOCOL_VERSION ||
+      packet.room !== this.code
+    ) {
+      this.failure(error("protocol-mismatch", "The game versions or room codes don't match."));
+      return;
+    }
+    this.lastReceived = this.s.now();
+    if (packet.type === "reject") {
+      this.s.fail(
+        packet.reason === "match-started"
+          ? error("match-started", "This match has already started.")
+          : error("room-full", `The room is full (${MAX_GUESTS + 1} players).`),
+      );
+      return;
+    }
+    if (!this.connected) {
+      if (this.role === "host" && this.phase === "hello" && packet.type === "hello") {
+        this.phase = "confirm";
+        this.control("welcome");
+        return;
+      }
+      if (this.role === "guest" && this.phase === "welcome" && packet.type === "welcome") {
+        this.phase = "ready";
+        this.control("confirm");
+        return;
+      }
+      if (this.role === "host" && this.phase === "confirm" && packet.type === "confirm") {
+        if (this.control("ready")) this.connectedNow();
+        return;
+      }
+      if (this.role === "guest" && this.phase === "ready" && packet.type === "ready") {
+        this.connectedNow();
+        return;
+      }
+      this.failure(error("invalid-handshake", "The handshake failed."));
+      return;
+    }
+    if (packet.type === "ping") {
+      this.control("pong");
+      return;
+    }
+    if (packet.type === "pong") return;
+    if (packet.type !== "data" || !Number.isSafeInteger(packet.sequence) || packet.sequence <= this.receivedSequence) {
+      this.failure(error("invalid-message", "The data channel received an invalid message sequence."));
+      return;
+    }
+    const payload = packet.payload;
+    if (!payload || typeof payload !== "object") {
+      this.failure(error("invalid-payload", "Only valid JSON game data can be sent."));
+      return;
+    }
+    this.receivedSequence = packet.sequence;
+    callback(this.s.callbacks, "onData", payload, this.s.room, this.id);
+  }
+  connectedNow() {
+    if (this.closed || this.connected) return;
+    this.connected = true;
+    this.phase = "connected";
+    this.cancel(this.handshakeTimer);
+    this.cancel(this.connectionTimer);
+    this.lastReceived = this.s.now();
+    const heartbeat = () => {
+      if (this.s.now() - this.lastReceived > this.s.idleTimeout) {
+        this.failure(
+          error(
+            "opponent-timeout",
+            this.role === "guest" ? "The host stopped responding. The match has ended." : "A player stopped responding.",
+          ),
+        );
+        return;
+      }
+      this.control("ping");
+      if (!this.closed) this.later(heartbeat, this.s.heartbeatInterval);
+    };
+    this.later(heartbeat, this.s.heartbeatInterval);
+    this.s.linkConnected(this);
+  }
+  /** Sends one already serialized JSON object (the payload). */
+  sendBody(body) {
+    if (this.closed || !this.connected || !this.connection?.open) return false;
+    try {
+      const wire =
+        JSON.stringify({ protocol: PROTOCOL, version: PROTOCOL_VERSION, room: this.code, type: "data", sequence: this.sequence + 1 }).slice(0, -1) +
+        ',"payload":' +
+        body +
+        "}";
+      if ((this.connection.bufferSize || 0) > 16 || (this.connection.dataChannel?.bufferedAmount || 0) > 1024 * 1024) {
+        throw error("backpressure", "The connection is busy. The next update will try again.");
+      }
+      if (!this.outbound() || !this.outboundBytes(wire.length)) {
+        throw error("send-limit", "Too many game messages. Please wait for the next update.");
+      }
+      this.connection.send(wire);
+      this.sequence++;
+      return true;
+    } catch (err) {
+      if (err instanceof MultiplayerError) this.s.status("warning", err.message, err);
+      else this.failure(peerFailure(err));
+      return false;
+    }
+  }
+  close() {
+    if (this.closed) return;
+    this.closed = true;
+    this.connected = false;
+    for (const timer of this.timers) this.s.clearTimer(timer);
+    this.timers.clear();
+    this.disposeListeners();
+    try {
+      this.connection?.close();
+    } catch {}
+  }
+}
+
+/** Serializes a payload once (v0.13b: one pass) and checks it. */
+function payloadBody(data) {
+  const body = JSON.stringify(data);
+  if (!body || body[0] !== "{") throw error("invalid-payload", "Only valid JSON game data can be sent.");
+  if (body.length > MAX_PAYLOAD_BYTES) throw error("payload-too-large", "The game data is too large for one message.");
+  return body;
+}
+
 class Session {
   constructor(role, code, callbacks, dependencies) {
     this.role = role;
@@ -608,23 +882,31 @@ class Session {
     this.handshakeTimeout = dependencies.handshakeTimeoutMs || 8000;
     this.heartbeatInterval = dependencies.heartbeatIntervalMs || 5000;
     this.idleTimeout = dependencies.idleTimeoutMs || 30000;
+    // v0.19: a host takes up to maxGuests guests (default 5 = six players)
+    this.maxGuests = Math.max(1, Math.min(MAX_GUESTS, Math.round(Number(dependencies.maxGuests)) || MAX_GUESTS));
     this.timers = new Set();
     this.peerListeners = [];
-    this.connectionListeners = [];
+    this.links = new Map();
+    this.nextLinkId = 1;
+    this.locked = false;
     this.closed = false;
-    this.connected = false;
-    this.sequence = 0;
-    this.receivedSequence = 0;
-    this.outbound = tokenBucket(this.now, 80, 60);
-    this.inbound = tokenBucket(this.now, 120, 90);
-    this.outboundBytes = tokenBucket(this.now, 4 * 1024 * 1024, 2 * 1024 * 1024);
-    this.inboundBytes = tokenBucket(this.now, 4 * 1024 * 1024, 2 * 1024 * 1024);
     this.relaySecret = role === "guest" ? randomSecret(dependencies) : null;
+    const connectedLinks = () => [...this.links.values()].filter((l) => l.connected);
     this.room = Object.freeze({
       code,
       role,
-      isRelay: () => !!this.connection?.relay,
-      send: (data) => this.send(data),
+      maxPlayers: role === "host" ? this.maxGuests + 1 : null,
+      isRelay: () => connectedLinks().some((l) => l.relay),
+      /** Connected peers: guest ids on the host (1, 2, …), [0] (the host) on a guest. */
+      peers: () => connectedLinks().map((l) => l.id),
+      /** Host: to every connected guest; guest: to the host. True if at least one link took it. */
+      send: (data) => this.broadcast(data),
+      sendTo: (id, data) => this.sendTo(id, data),
+      /** Host: no new guests (the match started) or open again. */
+      lock: (value = true) => {
+        this.locked = !!value;
+      },
+      kick: (id) => this.dropLink(this.links.get(id), error("kicked", "Removed from the room.")),
       close: () => this.finish("closed", "Room closed."),
     });
   }
@@ -663,6 +945,11 @@ class Session {
     });
   }
 
+  anyConnected() {
+    for (const l of this.links.values()) if (l.connected) return true;
+    return false;
+  }
+
   async start(PeerClass) {
     this.status("connecting", "Connecting to the room service …");
     const options = await peerOptions(this.dependencies);
@@ -686,8 +973,10 @@ class Session {
           this.peer,
           "connection",
           (connection) => {
-            if (this.closed || this.role !== "host" || this.connection) this.rejectExtra(connection);
-            else this.attach(connection);
+            if (this.closed || this.role !== "host") return this.rejectExtra(connection, "room-full");
+            if (this.locked) return this.rejectExtra(connection, "match-started");
+            if (this.links.size >= this.maxGuests) return this.rejectExtra(connection, "room-full");
+            this.addLink(connection);
           },
           this.peerListeners,
         );
@@ -695,32 +984,27 @@ class Session {
           this.peer,
           "error",
           (err) => {
-            if (
-              this.connected &&
-              ["network", "socket-error", "socket-closed", "server-error", "disconnected"].includes(err?.type)
-            ) {
-              this.status(
-                "warning",
-                "Room service disconnected; the running duel stays directly connected.",
-                peerFailure(err),
-              );
+            if (this.anyConnected() && ["network", "socket-error", "socket-closed", "server-error", "disconnected"].includes(err?.type)) {
+              this.status("warning", "Room service disconnected; the running match stays directly connected.", peerFailure(err));
+            } else if (this.role === "host" && this.opened && err?.type === "peer-unavailable") {
+              // not ours to handle on the host
             } else this.fail(peerFailure(err));
           },
           this.peerListeners,
         );
-        this.listen(
-          this.peer,
-          "close",
-          () => this.finish("disconnected", "The room was closed."),
-          this.peerListeners,
-        );
+        this.listen(this.peer, "close", () => this.finish("disconnected", "The room was closed."), this.peerListeners);
         this.listen(
           this.peer,
           "disconnected",
           () => {
-            if (this.connected)
-              this.status("warning", "Room service disconnected; the running duel stays directly connected.");
-            else this.fail(error("signaling-disconnected", "The connection to the room service was interrupted."));
+            if (this.anyConnected()) this.status("warning", "Room service disconnected; the running match stays directly connected.");
+            else if (this.role === "host" && this.opened) {
+              // v0.19: a waiting room tries to stay registered
+              try {
+                this.peer.reconnect?.();
+              } catch {}
+              this.status("warning", "The room service connection was interrupted. Reconnecting …");
+            } else this.fail(error("signaling-disconnected", "The connection to the room service was interrupted."));
           },
           this.peerListeners,
         );
@@ -735,7 +1019,7 @@ class Session {
     if (this.closed || this.opened) return;
     this.opened = true;
     this.cancel(this.startTimer);
-    if (this.role === "host") this.status("ready", "Room ready. Share the code with your opponent.");
+    if (this.role === "host") this.status("ready", `Room ready. Share the code with your friends (up to ${this.maxGuests + 1} players).`);
     else {
       this.status("connecting", "Connecting to the host …");
       try {
@@ -745,7 +1029,7 @@ class Session {
           serialization: "binary",
           reliable: true,
         });
-        this.attach(connection);
+        this.addLink(connection, 0);
       } catch (err) {
         this.fail(peerFailure(err));
         return;
@@ -755,27 +1039,23 @@ class Session {
     this.resolve = this.reject = null;
   }
 
-  rejectExtra(connection) {
-    if (this.closed) {
-      connection.close();
-      return;
-    }
+  addLink(connection, id = this.nextLinkId++) {
+    const link = new Link(this, id);
+    this.links.set(id, link);
+    link.attach(connection);
+    return link;
+  }
+
+  rejectExtra(connection, reason = "room-full") {
     const close = () => {
       try {
         connection.close();
       } catch {}
     };
+    if (this.closed) return close();
     const reject = () => {
       try {
-        connection.send(
-          JSON.stringify({
-            protocol: PROTOCOL,
-            version: PROTOCOL_VERSION,
-            room: this.code,
-            type: "reject",
-            reason: "room-full",
-          }),
-        );
+        connection.send(JSON.stringify({ protocol: PROTOCOL, version: PROTOCOL_VERSION, room: this.code, type: "reject", reason }));
       } catch {}
       this.later(close, 100);
     };
@@ -787,236 +1067,58 @@ class Session {
     }
   }
 
-  attach(connection) {
-    if (this.closed) {
-      connection.close();
-      return;
+  linkConnected(link) {
+    if (this.role === "guest") {
+      this.status("connected", link.relay ? "Connected through the relay server. The match can start." : "Directly connected. The match can start.");
+    } else {
+      const n = this.room.peers().length;
+      this.status("connected", `${n + 1}/${this.maxGuests + 1} players in the room.`);
     }
-    this.connection = connection;
-    // v0.13a: no direct channel after a few seconds: switch both sides to the MQTT relay
-    let relayNow = null;
-    if (!connection.relay) {
-      const secret = this.role === "guest" ? this.relaySecret : connection.metadata?.relay;
-      if (validSecret(secret) && this.dependencies.relay !== false) {
-        relayNow = () => {
-          if (this.closed || this.connection !== connection || this.channelOpen) return false;
-          this.cancel(this.relayTimer);
-          this.useRelay(connection, secret);
-          return true;
-        };
-        this.relayTimer = this.later(relayNow, RELAY_AFTER_MS);
-      }
-    }
-    this.phase = this.role === "host" ? "hello" : "welcome";
-    this.listen(connection, "data", (data) => this.receive(data), this.connectionListeners);
-    this.listen(connection, "error", (err) => relayNow?.() || this.connectionFailure(peerFailure(err)), this.connectionListeners);
-    this.listen(
-      connection,
-      "close",
-      () => {
-        if (this.closed || relayNow?.()) return;
-        this.connectionFailure(error("opponent-left", "Your opponent left the room."));
-      },
-      this.connectionListeners,
-    );
-    let opened = false;
-    const onOpen = () => {
-      if (this.closed || opened) return;
-      opened = true;
-      this.channelOpen = true;
-      this.cancel(this.relayTimer);
-      this.cancel(this.connectionTimer);
-      this.handshakeTimer = this.later(
-        () =>
-          this.connectionFailure(
-            error("handshake-timeout", "Your opponent didn't finish the handshake."),
-          ),
-        this.handshakeTimeout,
-      );
-      if (this.role === "guest") this.control("hello");
-      else this.status("connecting", "Opponent found. Checking the game version …");
-    };
-    this.listen(connection, "open", onOpen, this.connectionListeners);
-    this.connectionTimer = this.later(
-      () =>
-        this.connectionFailure(
-          error(
-            "connection-timeout",
-            "The direct data channel isn't answering. A firewall or mobile network may be blocking it.",
-          ),
-        ),
-      this.timeout,
-    );
-    if (connection.open) onOpen();
+    callback(this.callbacks, "onConnect", this.room, link.id);
   }
 
-  useRelay(connection, secret) {
-    for (const dispose of this.connectionListeners.splice(0)) dispose();
-    this.cancel(this.connectionTimer);
-    try {
-      connection.close();
-    } catch {}
-    this.status("connecting", "No direct connection. Switching to the relay server …");
-    const relay = new RelayChannel(secret, this.role, this.code);
-    this.attach(relay);
-    relay.start();
+  dropLink(link, err) {
+    if (!link || link.closed) return;
+    const wasConnected = link.connected;
+    link.close();
+    this.links.delete(link.id);
+    if (!wasConnected) return;
+    callback(this.callbacks, "onPeerLeave", { id: link.id, reason: err?.code || "left", message: err?.message || "A player left the room." });
   }
 
-  connectionFailure(err) {
+  linkFailed(link, err) {
     if (this.closed) return;
-    // Invalid or abandoned candidates do not destroy a host's waiting room.
-    if (this.role === "host" && !this.connected && this.opened) {
-      this.channelOpen = false;
-      this.cancel(this.relayTimer);
-      this.cancel(this.connectionTimer);
-      this.cancel(this.handshakeTimer);
-      for (const dispose of this.connectionListeners.splice(0)) dispose();
-      const connection = this.connection;
-      this.connection = null;
-      try {
-        connection?.close();
-      } catch {}
+    if (this.role === "guest") return this.fail(err);
+    // v0.19, host: a lost guest never closes the room; a failed candidate leaves it waiting
+    const wasConnected = link.connected;
+    this.dropLink(link, err);
+    if (!wasConnected) {
       this.status("warning", err.message, err);
-      this.status("ready", "Room still ready. An opponent can join.");
-    } else this.fail(err);
+      if (!this.anyConnected() && !this.locked) this.status("ready", "Room still ready. Players can join.");
+    }
   }
 
-  control(type, extra = {}) {
-    if (this.closed || !this.connection?.open) return false;
+  broadcast(data) {
+    if (this.closed) return false;
+    let body;
     try {
-      this.connection.send(
-        JSON.stringify({ protocol: PROTOCOL, version: PROTOCOL_VERSION, room: this.code, type, ...extra }),
-      );
-      return true;
+      body = payloadBody(data);
     } catch (err) {
-      this.connectionFailure(peerFailure(err));
+      this.status("warning", err.message, err);
       return false;
     }
+    let ok = false;
+    for (const link of [...this.links.values()]) if (link.connected && link.sendBody(body)) ok = true;
+    return ok;
   }
 
-  receive(raw) {
-    if (this.closed) return;
-    if (typeof raw !== "string" || raw.length > MAX_WIRE_BYTES || !this.inbound()) {
-      this.connectionFailure(
-        error("invalid-traffic", "The data channel received invalid or too many messages."),
-      );
-      return;
-    }
-    const bytes = raw.length; // v0.13b: no per-message re-encoding
-    if (bytes > MAX_WIRE_BYTES || !this.inboundBytes(bytes)) {
-      this.connectionFailure(error("traffic-limit", "The data channel exceeded its data limit."));
-      return;
-    }
-    let packet;
+  sendTo(id, data) {
+    const link = this.links.get(id);
+    if (this.closed || !link?.connected) return false;
     try {
-      packet = JSON.parse(raw);
-    } catch {
-      this.connectionFailure(error("invalid-json", "Your opponent sent invalid game data."));
-      return;
-    }
-    if (
-      !packet ||
-      typeof packet !== "object" ||
-      Array.isArray(packet) ||
-      packet.protocol !== PROTOCOL ||
-      packet.version !== PROTOCOL_VERSION ||
-      packet.room !== this.code
-    ) {
-      this.connectionFailure(error("protocol-mismatch", "The game versions or room codes don't match."));
-      return;
-    }
-    this.lastReceived = this.now();
-    if (packet.type === "reject") {
-      this.fail(error("room-full", "The room already has two players."));
-      return;
-    }
-    if (!this.connected) {
-      if (this.role === "host" && this.phase === "hello" && packet.type === "hello") {
-        this.phase = "confirm";
-        this.control("welcome");
-        return;
-      }
-      if (this.role === "guest" && this.phase === "welcome" && packet.type === "welcome") {
-        this.phase = "ready";
-        this.control("confirm");
-        return;
-      }
-      if (this.role === "host" && this.phase === "confirm" && packet.type === "confirm") {
-        if (this.control("ready")) this.connectedNow();
-        return;
-      }
-      if (this.role === "guest" && this.phase === "ready" && packet.type === "ready") {
-        this.connectedNow();
-        return;
-      }
-      this.connectionFailure(error("invalid-handshake", "The handshake failed."));
-      return;
-    }
-    if (packet.type === "ping") {
-      this.control("pong");
-      return;
-    }
-    if (packet.type === "pong") return;
-    if (packet.type !== "data" || !Number.isSafeInteger(packet.sequence) || packet.sequence <= this.receivedSequence) {
-      this.connectionFailure(error("invalid-message", "The data channel received an invalid message sequence."));
-      return;
-    }
-    try {
-      // v0.13b: the packet was parsed once already; no second validate/copy pass (it cost frames)
-      const payload = packet.payload;
-      if (!payload || typeof payload !== "object") throw error("invalid-payload", "Only valid JSON game data can be sent.");
-      this.receivedSequence = packet.sequence;
-      callback(this.callbacks, "onData", payload, this.room);
+      return link.sendBody(payloadBody(data));
     } catch (err) {
-      this.connectionFailure(err);
-    }
-  }
-
-  connectedNow() {
-    if (this.closed || this.connected) return;
-    this.connected = true;
-    this.phase = "connected";
-    this.cancel(this.handshakeTimer);
-    this.cancel(this.connectionTimer);
-    this.lastReceived = this.now();
-    this.status("connected", this.connection?.relay ? "Connected through the relay server. The duel can start." : "Directly connected. The duel can start.");
-    callback(this.callbacks, "onConnect", this.room);
-    const heartbeat = () => {
-      if (this.closed) return;
-      if (this.now() - this.lastReceived > this.idleTimeout) {
-        this.fail(error("opponent-timeout", "Your opponent stopped responding. The duel has ended."));
-        return;
-      }
-      this.control("ping");
-      if (!this.closed) this.heartbeatTimer = this.later(heartbeat, this.heartbeatInterval);
-    };
-    this.heartbeatTimer = this.later(heartbeat, this.heartbeatInterval);
-  }
-
-  send(data) {
-    if (this.closed || !this.connected || !this.connection?.open) return false;
-    try {
-      // v0.13b: one serialization pass per message (was four)
-      const body = JSON.stringify(data);
-      if (!body || body[0] !== "{") throw error("invalid-payload", "Only valid JSON game data can be sent.");
-      if (body.length > MAX_PAYLOAD_BYTES) throw error("payload-too-large", "The game data is too large for one message.");
-      const wire =
-        JSON.stringify({ protocol: PROTOCOL, version: PROTOCOL_VERSION, room: this.code, type: "data", sequence: this.sequence + 1 }).slice(0, -1) +
-        ',"payload":' +
-        body +
-        "}";
-      if ((this.connection.bufferSize || 0) > 16 || (this.connection.dataChannel?.bufferedAmount || 0) > 1024 * 1024) {
-        throw error("backpressure", "The connection is busy. The next update will try again.");
-      }
-      if (!this.outbound() || !this.outboundBytes(wire.length)) {
-        throw error("send-limit", "Too many game messages. Please wait for the next update.");
-      }
-      this.connection.send(wire);
-      this.sequence++;
-      return true;
-    } catch (err) {
-      if (err instanceof MultiplayerError) this.status("warning", err.message, err);
-      else this.connectionFailure(peerFailure(err));
+      this.status("warning", err.message, err);
       return false;
     }
   }
@@ -1028,14 +1130,12 @@ class Session {
   finish(state, message, err) {
     if (this.closed) return;
     this.closed = true;
-    this.connected = false;
     for (const timer of this.timers) this.clearTimer(timer);
     this.timers.clear();
-    for (const dispose of [...this.connectionListeners.splice(0), ...this.peerListeners.splice(0)]) dispose();
+    for (const link of this.links.values()) link.close();
+    this.links.clear();
+    for (const dispose of this.peerListeners.splice(0)) dispose();
     this.callbacks.signal?.removeEventListener("abort", this.abort);
-    try {
-      this.connection?.close();
-    } catch {}
     try {
       this.peer?.destroy();
     } catch {}
@@ -1064,7 +1164,12 @@ async function startRoom(role, code, callbacks, dependencies) {
   return new Session(role, code, callbacks, dependencies).start(PeerClass);
 }
 
-/** Resolves after signaling registration. Wait for onConnect before sending. */
+/**
+ * Resolves after signaling registration. Wait for onConnect before sending.
+ * v0.19 callbacks: onConnect(room, peerId) for every guest that joins (host) or once (guest),
+ * onData(payload, room, peerId), onPeerLeave({ id, reason, message }) when a guest drops (host),
+ * onDisconnect(info) when the whole room ends. dependencies.maxGuests limits the room (1–5).
+ */
 export async function createRoom(callbacks = {}, dependencies = {}, presetCode) {
   const code = presetCode ? normalizeRoomCode(presetCode) : randomCode(dependencies);
   return startRoom("host", code, callbacks, dependencies);
@@ -1080,7 +1185,9 @@ export async function joinRoom(code, callbacks = {}, dependencies = {}) {
  * Whoever registers a free slot waits there; the next searcher finds the id taken, connects and
  * receives a fresh room code. Both then use the normal room flow (host = waiter). A slot is
  * released as soon as a pair is made, so stale or busy slots only cost a few seconds.
- * Resolves { role: "host" | "guest", code }.
+ * v0.19: the waiter keeps its slot open and hands the same code to up to five searchers.
+ * Resolves { role: "host" | "guest", code, slot? } (slot: host only; close() it when the room
+ * starts or is full).
  */
 export const QUICK_SLOTS = 6;
 const lobbyId = (slot) => `felito-qm-p${PROTOCOL_VERSION}-${slot}`;
@@ -1123,57 +1230,90 @@ export async function findQuickMatch({ signal, onStatus } = {}, dependencies = {
       close: () => setTimeout(() => links.forEach((l) => l.close()), 600),
     };
   };
-  // Waits on a claimed slot for one opponent; hands it a fresh room code. The match only counts
-  // once the opponent takes the code; otherwise the slot keeps waiting.
+  // Waits on a claimed slot. v0.19: the slot hands one room code to up to MAX_GUESTS searchers, so
+  // a Quick Match room fills up to six players. It resolves with the first taker and stays open
+  // (`slot`) until the app closes it (match starts, room full) or 60 s have passed.
   const hostSlot = (peer) =>
     new Promise((resolve, reject) => {
-      let matched = false,
-        offering = null,
-        settled = false;
+      const code = randomCode(dependencies),
+        offer = { protocol: PROTOCOL, kind: "qm-match", code },
+        offers = new Map();
+      let acks = 0,
+        settled = false,
+        closed = false,
+        life = null;
       const stop = () => {
         try {
           peer.destroy();
         } catch {}
+      };
+      const slot = {
+        code,
+        get joined() {
+          return acks;
+        },
+        close() {
+          if (closed) return;
+          closed = true;
+          clearTimeout(rescan);
+          clearTimeout(life);
+          for (const o of offers.values()) o.end();
+          offers.clear();
+          stop();
+        },
       };
       const settle = (value, err) => {
         if (settled) return;
         settled = true;
         clearTimeout(rescan);
         signal?.removeEventListener("abort", abort);
-        if (err) reject(err);
-        else resolve(value);
-        stop();
+        if (err) {
+          reject(err);
+          slot.close();
+        } else if (!value) {
+          resolve(null);
+          slot.close();
+        } else resolve(value);
       };
       const abort = () => settle(null, error("aborted", "Search cancelled."));
       signal?.addEventListener("abort", abort, { once: true });
       // Give other free slots a chance: re-scan every 20 s so two waiting players find each other.
       const rescan = setTimeout(() => {
-        if (!matched && !offering) settle(null);
+        if (!acks && !offers.size) settle(null);
       }, 20000);
       peer.on("connection", async (conn) => {
         const secret = conn.metadata?.qm;
-        if (matched || offering || settled || !validSecret(secret)) {
+        if (closed || offers.has(secret) || acks + offers.size >= MAX_GUESTS || !validSecret(secret)) {
           setTimeout(() => conn.close(), 300);
           return;
         }
-        const code = randomCode(dependencies),
-          offer = { protocol: PROTOCOL, kind: "qm-match", code };
-        offering = secret;
         let talk = null,
-          repeat = null;
+          repeat = null,
+          done = false;
+        const o = {
+          end() {
+            done = true;
+            clearTimeout(giveUp);
+            clearInterval(repeat);
+            talk?.close();
+          },
+        };
+        offers.set(secret, o);
         const take = (msg) => {
-          if (matched || offering !== secret || msg?.protocol !== PROTOCOL || msg.kind !== "qm-ack" || msg.code !== code) return;
-          matched = true;
-          clearTimeout(giveUp);
-          clearInterval(repeat);
-          talk?.close();
-          setTimeout(() => settle({ role: "host", code }), 250);
+          if (done || closed || msg?.protocol !== PROTOCOL || msg.kind !== "qm-ack" || msg.code !== code) return;
+          o.end();
+          offers.delete(secret);
+          acks++;
+          if (!settled) {
+            life = setTimeout(() => slot.close(), 60000);
+            setTimeout(() => settle({ role: "host", code, slot }), 250);
+          }
+          if (acks >= MAX_GUESTS) setTimeout(() => slot.close(), 600);
         };
         const giveUp = setTimeout(() => {
-          if (matched || offering !== secret) return;
-          offering = null;
-          clearInterval(repeat);
-          talk?.close();
+          if (done) return;
+          o.end();
+          offers.delete(secret);
           try {
             conn.close();
           } catch {}
@@ -1185,12 +1325,12 @@ export async function findQuickMatch({ signal, onStatus } = {}, dependencies = {
           } catch {}
         });
         talk = await lobbyTalk(secret, "h", take);
-        if (matched || offering !== secret) return talk.close();
+        if (done) return talk.close();
         talk.send(offer);
         repeat = setInterval(() => talk.send(offer), 700);
       });
       peer.on("error", (e) => {
-        if (!matched && ["network", "server-error", "socket-error", "socket-closed"].includes(e?.type)) settle(null);
+        if (!acks && ["network", "server-error", "socket-error", "socket-closed"].includes(e?.type)) settle(null);
       });
     });
   // Asks a waiting slot for a match; resolves the room code or null.

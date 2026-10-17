@@ -266,6 +266,7 @@ function initialPlayer(id, faction, ai, seats = 2) {
     ghoulCount: 0,
     nextAiTick: 0,
     autoSend: null,
+    autoMode: "default", // v0.18h
     infernalBossCount: 0,
     bossBought: {},
     paybackRemaining: 0, // v0.09k: no bonus any more; kept for saves
@@ -683,6 +684,11 @@ function statsFor(game, player, item) {
   }
   stats.damageMultiplier *= 1 + damagePercent;
   if (perkLevel(player, "archery") && archerLine().has(item.id)) stats.damageMultiplier *= 1 + 0.05 * perkLevel(player, "archery");
+  // v0.18h: Backup Line (ranged) and Low Tides (melee) while their rows stay free of towers
+  if (item.isBuildable && item.attacks) {
+    if (player.backupOn && perkLevel(player, "backup") && !isMeleeTower(item)) stats.damageMultiplier *= 1 + BACKUP.damage;
+    if (player.tidesOn && perkLevel(player, "tides") && isMeleeTower(item)) stats.damageMultiplier *= 1 + TIDES.damage;
+  }
   stats.damage = (stats.damage + stats.damageBonus) * stats.damageMultiplier;
   stats.cooldown /= Math.max(0.1, 1 + attackSpeed);
   stats.speed *= movementMultiplier(game);
@@ -710,6 +716,9 @@ function sendIncomeParts(p, item) {
   // Feudality (v0.18b): +2 / 3.5 / 5 / 6 / 7 % of the income this creep brings, in hundredths
   const feudal = feudalBonus(perkLevel(p, "feudal"));
   if (feudal) decimal += Math.round((base * 100 + (item.incomeHundredths || 0)) * feudal);
+  // v0.18h: Sanction Policy: +15 % (first creep +7.5 %) for the creeps it did not lock
+  const sanction = p.sanction?.bonus?.[item.id];
+  if (sanction) decimal += Math.round((base * 100 + (item.incomeHundredths || 0)) * sanction);
   // v0.10p: Wings of War: +10 % income per level for flying creeps
   const wings = item.flying ? perkLevel(p, "wings") : 0;
   if (wings) decimal += Math.round((base * 100 + (item.incomeHundredths || 0)) * WINGS.income * wings);
@@ -795,6 +804,11 @@ export const PERKS = Object.freeze({
   // v0.14: two new perks
   slave: { name: "Slave Labour", max: 3, element: "plague", text: "Buffs the 1st creep of every tier: +{slaveStock} max stock and {slaveSpeed} faster recruitment" },
   guardian: { name: "River Guardian", max: 5, element: "water", text: "Shields sent creeps: every {guardCd} s the strongest one you just sent gets a water shield of {guardShield} of its hit points; while it holds, magic damage is reduced by {guardMagic}" },
+  // v0.18h: four new perks; "unpopular" = the share by which the offer chance drops after each refusal
+  quarry: { name: "Quarry", max: 1, element: "earth", powerup: true, unpopular: 0.5, text: "Instantly +100 gold. Places 8 stones on your field. Remove all stones to get a random Earth perk" },
+  backup: { name: "Backup Line", max: 1, element: "storm", unpopular: 0.5, text: "Ranged towers +30% damage while your top 3 rows hold no tower" },
+  tides: { name: "Low Tides", max: 1, element: "water", unpopular: 0.5, text: "Melee towers +50% damage while your bottom 4 rows hold no tower" },
+  sanction: { name: "Sanction Policy", max: 1, element: "arcane", text: "Instantly +100 gold. Every 2nd creep and the boss of your tier locked for 30 rounds, the others +15% income. Abilities 20% faster" },
   monsun: { name: "Monsun", max: 5, element: "storm", text: "Active ability: storm winds push creeps back for {monsun} s, lightning strikes flyers (40 s cooldown)" },
 });
 /** v0.09q: Arrow Volley: cooldown, area radius in fields, arrows per perk level, extra base damage. */
@@ -803,7 +817,10 @@ export const VOLLEY = { cooldown: 20, radius: 1.5, perLevel: 3, bonus: 3, spread
 export const RESEARCH_ELEMENT = Object.freeze({ R002: "water", R005: "earth", R006: "arcane", R00K: "storm", R00C: "plague", R00J: "fire", R00U: "earth", R00V: "fire", R00W: "storm", R00X: "plague", R001: "water", R00D: "arcane" });
 const perkLevel = (p, id) => p?.perks?.[id] || 0;
 /** v0.12: element(s) a perk needs; Fortifications takes Earth or Water. */
-export const perkElements = (id) => [].concat(PERKS[id]?.element || []);
+export const perkElements = (id) => [].concat(PERKS[id]?.element || []).filter((el) => !/^x/i.test(el));
+/** v0.18h: elements written with an X in front ("xwater"): the perk is never offered to a player who owns that element. */
+export const perkExcluded = (id) => [].concat(PERKS[id]?.element || []).filter((el) => /^x/i.test(el)).map((el) => el.slice(1).toLowerCase());
+const ownsElement = (p, el) => !!p.research[FACTIONS.find((f) => f.id === el)?.unlock];
 // ---- v0.12: new perks -------------------------------------------------------------------
 /** Lone Guardians: tower limit and attack speed bonus. */
 export const LONE = { towers: 5, speed: 1.25, wall: 0.1 }; // v0.13/v0.16h: +125 % attack speed; v0.17n: a Wall counts as 0.1 tower
@@ -822,6 +839,8 @@ export function towerPerkBuffs(game, index, id) {
   const out = [];
   if (perkLevel(p, "archery") && archerLine().has(item.id)) out.push({ id: "archery", level: perkLevel(p, "archery"), text: `+${5 * perkLevel(p, "archery")}% damage` });
   if (perkLevel(p, "lone") && item.isBuildable && item.attacks && loneCount(p) <= LONE.towers + 1e-6) out.push({ id: "lone", level: 1, text: `+${Math.round(LONE.speed * 100)}% attack speed` });
+  if (item.isBuildable && item.attacks && p.backupOn && perkLevel(p, "backup") && !isMeleeTower(item)) out.push({ id: "backup", level: 1, text: `+${Math.round(BACKUP.damage * 100)}% damage` }); // v0.18h
+  if (item.isBuildable && item.attacks && p.tidesOn && perkLevel(p, "tides") && isMeleeTower(item)) out.push({ id: "tides", level: 1, text: `+${Math.round(TIDES.damage * 100)}% damage` });
   if (perkLevel(p, "voltage") && item.woodIncome) out.push({ id: "voltage", level: perkLevel(p, "voltage"), text: `+${Math.round(VOLTAGE.bonus * 100 * perkLevel(p, "voltage"))}% EXP` });
   return out;
 }
@@ -979,7 +998,101 @@ function tickSummons(game, p) {
   for (const s of due) {
     if (s.kind === "summon") summonTower(game, p);
     else if (s.kind === "militia") placeMilitia(game, p, 2);
+    else if (s.kind === "quarry") placeQuarry(game, p); // v0.18h
   }
+}
+// ---- v0.18h: Quarry, Backup Line, Low Tides, Sanction Policy ----------------------------------
+/** Quarry (Earth): gold, stones (1-3 large, the rest small), demolition prices. */
+export const QUARRY = { gold: 100, stones: 8, large: [1, 3], price: { small: 50, large: 200 } };
+/** Free fields where a stone could stand right now (path stays open), at most `limit`. */
+function freeCells(game, p, limit = Infinity) {
+  const out = [];
+  for (let y = 0; y < game.grid.rows && out.length < limit; y++)
+    for (let x = 0; x < game.grid.cols && out.length < limit; x++) if (canBuild(game, p.id, x, y, ROCK_ID).ok) out.push([x, y]);
+  return out;
+}
+function placeQuarry(game, p) {
+  const large = QUARRY.large[0] + Math.floor(random(game) * (QUARRY.large[1] - QUARRY.large[0] + 1));
+  let placed = 0;
+  for (let k = 0; k < QUARRY.stones; k++) {
+    const cells = freeCells(game, p);
+    if (!cells.length) break;
+    const [x, y] = cells[Math.floor(random(game) * cells.length)],
+      t = newTower(game, p, ROCK_ID, x, y),
+      kind = k < large ? "large" : "small";
+    t.buildRemaining = 0;
+    t.preset = true;
+    t.quarry = true;
+    t.stone = kind;
+    t.stonePrice = QUARRY.price[kind];
+    p.towers.push(t);
+    p.path = findPath(game, p.id) || [];
+    completeTower(game, p, t);
+    placed++;
+    emit(game, "build", { player: p.id, towerId: t.id, x: t.x, y: t.y, stone: kind });
+  }
+  if (placed) p.quarryOpen = true;
+}
+/** All Quarry stones gone: a random Earth perk the player could take (its level window first). */
+function finishQuarry(game, p) {
+  if (!p.quarryOpen || p.towers.some((t) => t.quarry)) return;
+  p.quarryOpen = false;
+  const valid = Object.keys(PERKS).filter((id) => id !== "quarry" && perkElements(id).includes("earth") && optionValid(game, p, { type: "perk", id })),
+    now = valid.filter((id) => perkAvailable({ type: "perk", id }, p.level, p)),
+    pool = now.length ? now : valid;
+  if (!pool.length) return emit(game, "quarryPerk", { player: p.id, id: null });
+  const id = pool[Math.floor(random(game) * pool.length)];
+  applyOption(game, p, { type: "perk", id }, p.level);
+  refreshPicks(game, p);
+  emit(game, "quarryPerk", { player: p.id, id });
+}
+/** Backup Line (Storm): top rows; Low Tides (Water): bottom rows. Damage bonus and creep speed in the zone. */
+export const BACKUP = { rows: 3, damage: 0.3, slow: 0.1, haste: 0.1 };
+export const TIDES = { rows: 4, damage: 0.5, slow: 0.25, haste: 0.1 };
+const towerInRows = (p, from, to) => p.towers.some((t) => t.typeId !== ROCK_ID && t.gridY < to && t.gridY + towerSize(t) > from);
+/** Rows of a zone and whether its bonus is on (null = the player has no such perk). */
+export function zoneOf(game, p, id) {
+  const rows = game.grid.rows;
+  if (id === "backup") return perkLevel(p, "backup") ? { from: 0, to: BACKUP.rows, on: !towerInRows(p, 0, BACKUP.rows) } : null;
+  if (id === "tides") return perkLevel(p, "tides") ? { from: rows - TIDES.rows, to: rows, on: !towerInRows(p, rows - TIDES.rows, rows) } : null;
+  return null;
+}
+function tickZones(game, p) {
+  p.backupOn = !!zoneOf(game, p, "backup")?.on;
+  p.tidesOn = !!zoneOf(game, p, "tides")?.on;
+}
+/** Speed factor of a creep in the defender's Backup Line mist (all creeps) or Low Tides water (ground). */
+function zoneSpeed(game, p, c) {
+  if (!perkLevel(p, "backup") && !perkLevel(p, "tides")) return 1;
+  const row = gridAt(game, c).y,
+    rows = game.grid.rows;
+  let f = 1;
+  if (perkLevel(p, "backup") && row >= 0 && row < BACKUP.rows) f *= p.backupOn ? 1 - BACKUP.slow : 1 + BACKUP.haste;
+  if (perkLevel(p, "tides") && !c.flying && row >= rows - TIDES.rows && row < rows) f *= p.tidesOn ? 1 - TIDES.slow : 1 + TIDES.haste;
+  return f;
+}
+/** Sanction Policy (Arcane): gold, lock length in rounds, income bonus, ability cooldown cut. */
+export const SANCTION = { gold: 100, rounds: 30, income: 0.15, first: 0.075, cooldown: 0.2 };
+/** v0.18h: cooldown of an active ability for this player (Sanction Policy: 20 % shorter). */
+export const abilityCd = (p, cd) => cd * (perkLevel(p, "sanction") ? 1 - SANCTION.cooldown : 1);
+function lockStock(game, p, id, rounds) {
+  const st = (p.stock[id] ||= { count: 0, next: LOCKED_NEXT });
+  st.lockRound = Math.max(st.lockRound || 0, game.round) + rounds; // added onto a lock that is still running
+  st.next = LOCKED_NEXT;
+}
+function applySanction(game, p) {
+  p.gold += SANCTION.gold;
+  p.stats.goldEarned += SANCTION.gold;
+  const sends = tierSends(p.tier),
+    bonus = {};
+  sends.filter((x) => !x.bossTier).forEach((x, i) => {
+    if (i % 2 === 1) lockStock(game, p, x.id, SANCTION.rounds);
+    else bonus[x.id] = i === 0 ? SANCTION.first : SANCTION.income;
+  });
+  const boss = sends.find((x) => x.bossTier);
+  if (boss && !p.bossBought?.[boss.id]) lockStock(game, p, boss.id, SANCTION.rounds);
+  p.sanction = { tier: p.tier, bonus };
+  emit(game, "sanction", { player: p.id });
 }
 /** Summon Tower: towers of level 1-3 that may appear (any element, single field, no support towers). */
 function summonPool(level) {
@@ -1022,7 +1135,7 @@ function launchPillar(game, p, x, y) {
     next: game.time + PILLAR.delay,
     until: game.time + PILLAR.delay + PILLAR.duration + PILLAR.scorch,
   });
-  p.pillarReady = game.time + PILLAR.cooldown;
+  p.pillarReady = game.time + abilityCd(p, PILLAR.cooldown);
   emit(game, "pillar", { player: p.id, x, y, radius: PILLAR.radius });
 }
 function tickPillars(game) {
@@ -1047,7 +1160,7 @@ function tickPillars(game) {
 function launchMonsun(game, p) {
   const level = perkLevel(p, "monsun");
   p.monsun = { start: game.time, until: game.time + MONSUN.duration[Math.min(5, level) - 1], next: game.time + MONSUN.strike, force: monsunForce(p, level), damage: monsunDamage(p, level) };
-  p.monsunReady = game.time + MONSUN.cooldown;
+  p.monsunReady = game.time + abilityCd(p, MONSUN.cooldown);
   emit(game, "monsun", { player: p.id, until: p.monsun.until });
 }
 function tickMonsun(game, p) {
@@ -1095,7 +1208,7 @@ function launchGolem(game, p) {
     statuses: [],
     hit: [],
   });
-  p.golemReady = game.time + AGOLEM.cooldown;
+  p.golemReady = game.time + abilityCd(p, AGOLEM.cooldown);
   emit(game, "golem", { player: p.id, x: path[0].x, y: path[0].y });
   return { ok: true };
 }
@@ -1205,7 +1318,7 @@ function launchBurst(game, p, x, y) {
     c.hp -= guardCut(game, c, share, true);
     if (c.hp <= 0) killCreep(game, p, c);
   }
-  p.burstReady = game.time + BURST.cooldown;
+  p.burstReady = game.time + abilityCd(p, BURST.cooldown);
   emit(game, "burst", { player: p.id, x, y, radius: burstRadius(level), hits: inside.length, damage: Math.round(share) });
 }
 function bossDiscount(p, item, gold) {
@@ -1413,6 +1526,10 @@ export const PERK_AVAILABILITY = {
   monsun: "5+",
   slave: "2+", // v0.14
   guardian: "6+", // v0.14
+  quarry: "2-4", // v0.18h
+  backup: "2-4",
+  tides: "2-4",
+  sanction: "2+",
   // research (needs the matching element)
   R00K: "1+", // Watcher Owl
   R00U: "1+", // Creep Armor
@@ -1465,9 +1582,16 @@ function makePick(game, p, kind, noQuest = false) {
     return { kind, level: p.level, options: draw(FACTIONS.filter((f) => !p.research[f.unlock]).map((f) => ({ type: "element", id: f.id })), 3) };
   // v0.09q: no general rewards any more; perks and research, each on its own levels
   const open = (o) => perkAvailable(o, p.level, p) && optionValid(game, p, o);
+  // v0.18h: an unpopular perk the player turned down drops out of the draw with its share (stacking per refusal)
+  const liked = (o) => {
+    const share = PERKS[o.id]?.unpopular,
+      refused = p.perkRefused?.[o.id] || 0;
+    return !(share > 0 && refused > 0) || random(game) < Math.pow(1 - share, refused);
+  };
   const perks = Object.keys(PERKS)
     .map((id) => ({ type: "perk", id }))
-    .filter(open);
+    .filter(open)
+    .filter(liked);
   // through level 3 one perk is always among the options
   const early = p.level <= 3 && perks.length ? draw(perks, 1) : [];
   const rest = upgradeOptions(game, p).filter(open).concat(perks.filter((x) => !early.some((e) => e.id === x.id)));
@@ -1495,7 +1619,10 @@ function optionValid(game, p, o) {
     return !!f && !p.research[f.unlock];
   }
   if (o.type === "research") return available(game, p.id, "research", o.id, null, true).ok;
-  if (o.type === "perk" && perkElements(o.id).length && !perkElements(o.id).some((el) => p.research[FACTIONS.find((f) => f.id === el)?.unlock])) return false;
+  if (o.type === "perk" && perkElements(o.id).length && !perkElements(o.id).some((el) => ownsElement(p, el))) return false;
+  if (o.type === "perk" && perkExcluded(o.id).some((el) => ownsElement(p, el))) return false; // v0.18h
+  if (o.type === "perk" && o.id === "lone" && loneCount(p) >= 6 - 1e-6) return false; // v0.18h: only for players with fewer than 6 towers
+  if (o.type === "perk" && o.id === "quarry" && freeCells(game, p, QUARRY.stones).length < QUARRY.stones) return false; // v0.18h
   if (o.type === "perk" && o.id === "gold" && !goldPerkOpen(game, p)) return false;
   if (o.type === "perk") return perkLevel(p, o.id) < (PERKS[o.id]?.max || 0) && (o.id !== "evolution" || evolutionTargets(game, p).length > 0);
   return true;
@@ -1523,6 +1650,8 @@ function resolvePick(game, p, index) {
   p.picks.shift();
   // v0.15: a quest shown in this dialog counts as offered once, taken or not
   for (const o of pick.options) if (o.type === "quest") p.questOffers = { ...(p.questOffers || {}), [o.id]: (p.questOffers?.[o.id] || 0) + 1 };
+  // v0.18h: unpopular perks shown here and not taken become less likely
+  for (const o of pick.options) if (o !== option && o.type === "perk" && PERKS[o.id]?.unpopular) p.perkRefused = { ...(p.perkRefused || {}), [o.id]: (p.perkRefused?.[o.id] || 0) + 1 };
   applyOption(game, p, option, pick.level);
   refreshPicks(game, p);
   emit(game, "picked", { player: p.id, option, level: pick.level });
@@ -1549,6 +1678,12 @@ function applyOption(game, p, option, level) {
     if (option.id === "monsun" && !(p.monsunReady > game.time)) p.monsunReady = game.time;
     if (option.id === "patrol") p.freeArchers = (p.freeArchers || 0) + 2;
     if (option.id === "militia") queueSummon(game, p, "militia"); // v0.17q
+    if (option.id === "quarry") {
+      p.gold += QUARRY.gold;
+      p.stats.goldEarned += QUARRY.gold;
+      queueSummon(game, p, "quarry"); // v0.18h: stones appear after the view moved to the own field
+    }
+    if (option.id === "sanction") applySanction(game, p); // v0.18h
     if (option.id === "evolution") evolveTower(game, p);
     if (option.id === "gold") {
       const gold = perkGold(pick.level);
@@ -1814,7 +1949,7 @@ function launchVolley(game, p, x, y) {
   }
   const n = arrows.length;
   arrows.forEach((a, i) => (game.volleys ||= []).push({ player: p.id, x, y, time: game.time + (VOLLEY.spread * i) / Math.max(1, n), ...a }));
-  p.volleyReady = game.time + VOLLEY.cooldown;
+  p.volleyReady = game.time + abilityCd(p, VOLLEY.cooldown);
   emit(game, "volleyStart", { player: p.id, x, y, arrows: n });
 }
 function tickVolleys(game) {
@@ -1957,6 +2092,11 @@ export function command(game, input) {
     // Auto-spawn slot: a creep id (or null to clear) and whether it is switched on.
     p.autoSend = input.id === undefined ? p.autoSend : input.id || null;
     p.autoSendActive = input.active ?? true;
+    // v0.18h: modes Default (the creep in the slot), Eco (best budget creep) and Tier Up (save for the boss)
+    if (AUTO_MODES.includes(input.mode)) {
+      p.autoMode = input.mode;
+      if (input.mode !== "default") p.autoSend = null;
+    } else if (input.id) p.autoMode = "default";
     return { ok: true };
   }
   if (type === "autoHold") {
@@ -2222,7 +2362,7 @@ export function getSellValue(game, playerIndex, towerId) {
   if (!t) return 0;
   const item = obj(t.typeId);
   if (t.free && t.typeId === "h003") return 0; // a Forest Patrol archer was free
-  if (t.typeId === ROCK_ID) return -(game.mission?.rockCost ?? 40); // v0.17: clearing a rock costs gold
+  if (t.typeId === ROCK_ID) return -(t.stonePrice ?? game.mission?.rockCost ?? 40); // v0.17: clearing a rock costs gold (v0.18h: Quarry stones 50 / 200)
   if (item.support === "farm") return 0;
   const value = Math.trunc(item.pointValue * item.sellRate);
   // v0.12: a summoned tower gives back only 10 % of its own value (paid upgrades in full)
@@ -2237,12 +2377,13 @@ function sellTower(game, p, towerId) {
   if (t.buildRemaining > EPS) return { ok: false, reason: "Still under construction" };
   if (t.typeId === ROCK_ID) {
     // v0.17: a rock is cleared for gold, not sold
-    const price = game.mission?.rockCost ?? 40;
-    if (p.gold + EPS < price) return { ok: false, reason: `Need ${Math.ceil(price - p.gold)} more gold to clear the rock` };
+    const price = t.stonePrice ?? game.mission?.rockCost ?? 40;
+    if (p.gold + EPS < price) return { ok: false, reason: `Need ${Math.ceil(price - p.gold)} more gold to ${t.quarry ? "demolish the stone" : "clear the rock"}` };
     p.gold -= price;
     p.towers.splice(i, 1);
     p.path = findPath(game, p.id) || [];
-    emit(game, "rock", { player: p.id, towerId, x: t.x, y: t.y, cleared: true });
+    emit(game, "rock", { player: p.id, towerId, x: t.x, y: t.y, cleared: true, stone: t.stone || null });
+    if (t.quarry) finishQuarry(game, p); // v0.18h
     return { ok: true, refund: -price };
   }
   const refund = getSellValue(game, p.id, towerId);
@@ -2270,6 +2411,65 @@ function sellTower(game, p, towerId) {
   return { ok: true, refund };
 }
 
+// ---- v0.18h: auto-send modes --------------------------------------------------------------------
+export const AUTO_MODES = ["default", "eco", "tierup"];
+/** Profit of a creep for this player: income per purchase in % of its price (the "Profit" row of the tooltip). */
+export function creepProfit(game, p, id) {
+  const item = obj(id),
+    price = item ? bossDiscount(p, item, item.cost) : 0;
+  return price > 0 ? (sendIncome(game, p.id, id) / price) * 100 : 0;
+}
+/**
+ * Budget creeps of a tier: the three non-boss creeps with the highest profit, plus every creep whose
+ * profit is at most 0.5 points below the lowest of those three. Sorted by profit, best first.
+ */
+export function budgetCreeps(game, p, tier = p.tier) {
+  const list = tierSends(tier)
+    .filter((x) => !x.bossTier && sendAllowed(p, x))
+    .map((x) => ({ id: x.id, profit: creepProfit(game, p, x.id) }))
+    .filter((x) => x.profit > 0)
+    .sort((a, b) => b.profit - a.profit || (a.id < b.id ? -1 : 1));
+  if (list.length <= 3) return list;
+  const floor = list[2].profit - 0.5 - 1e-9;
+  return list.filter((x, i) => i < 3 || x.profit >= floor);
+}
+const incomeNow = (p) => p.income + (p.incomeDecimal || 0) / 100;
+/** Rounds (income ticks) until `gold` reaches `need` with `income` per round, but never before `locked` rounds. */
+function roundsTo(need, gold, income, locked) {
+  const missing = need - gold;
+  if (missing <= EPS) return { whole: locked, exact: locked };
+  if (!(income > EPS)) return { whole: Infinity, exact: Infinity };
+  return { whole: Math.max(locked, Math.ceil(missing / income - 1e-9)), exact: Math.max(locked, missing / income) };
+}
+function autoModeSend(game, p) {
+  const budget = budgetCreeps(game, p),
+    trySend = (id) => available(game, p.id, "send", id).ok && command(game, { type: "send", player: p.id, id, auto: true }).ok;
+  if (p.autoMode === "tierup") {
+    const boss = tierSends(p.tier).find((x) => x.bossTier),
+      a = boss && available(game, p.id, "send", boss.id);
+    if (boss && !p.bossBought?.[boss.id] && p.tier < 6 && sendAllowed(p, boss)) {
+      if (a.ok) return void command(game, { type: "send", player: p.id, id: boss.id, auto: true });
+      if (/Restocking|Warm up/.test(a.reason || "")) return;
+      const need = bossDiscount(p, boss, boss.cost),
+        locked = lockRoundsLeft(game, p.stock[boss.id]),
+        now = roundsTo(need, p.gold, incomeNow(p), locked);
+      // a budget creep is bought only if the boss is still reached as fast or faster
+      for (const b of budget) {
+        const item = obj(b.id),
+          price = bossDiscount(p, item, item.cost);
+        if (!available(game, p.id, "send", b.id).ok) continue;
+        const after = roundsTo(need, p.gold - price, incomeNow(p) + sendIncome(game, p.id, b.id), locked),
+          raw = roundsTo(need, p.gold - price, incomeNow(p) + sendIncome(game, p.id, b.id), 0),
+          rawNow = roundsTo(need, p.gold, incomeNow(p), 0);
+        // the gold for the boss comes in sooner, or still in time while the boss is locked anyway
+        if (after.whole <= now.whole && (raw.exact < rawNow.exact - 1e-9 || raw.exact <= locked + 1e-9)) return void trySend(b.id);
+      }
+      return;
+    }
+  }
+  // Eco (and Tier Up without a boss left to buy): the best budget creep that can be sent now
+  for (const b of budget) if (trySend(b.id)) return;
+}
 // ---- v0.08b: seats, targets and knock-outs (1v1 and 4 players) ---------------------------
 // With four players everybody sends to the player on their right in rounds 1–3; every three
 // rounds the target moves one seat further right (players already out are skipped).
@@ -3323,7 +3523,10 @@ function moveCreep(game, p, c, dt) {
   const boots = c.flying || c.owner < 0 ? 1 : bootsResist(game.players[c.owner]);
   const frozen = c.flying ? 1 : 1 - 0.04 * perkLevel(p, "permafrost") * boots; // v0.10o: Permafrost of the defender
   const auraSpeed = aura.speed < 1 ? 1 - (1 - aura.speed) * boots : aura.speed; // v0.17n: Red Boots also soften aura slows
-  let remaining = clamp(c.speed * (1 - clamp(slow * boots, 0, 0.9)) * auraSpeed * frozen, 24 * mobility, 1000 * mobility) * dt;
+  // v0.18h: Backup Line mist / Low Tides water of the defender (Red Boots soften the slow part)
+  const zoneRaw = zoneSpeed(game, p, c),
+    zone = zoneRaw < 1 ? 1 - (1 - zoneRaw) * boots : zoneRaw;
+  let remaining = clamp(c.speed * (1 - clamp(slow * boots, 0, 0.9)) * auraSpeed * frozen * zone, 24 * mobility, 1000 * mobility) * dt;
   // v0.17g: every creep walks its own line inside the path (up to a quarter field off the centre),
   // so packed groups spread out and splash damage hits fewer of them at once
   if (c.ox === undefined) {
@@ -3702,6 +3905,7 @@ function aiPick(game, p, persona) {
       if (o.type === "lives") return p.lives < 12 ? 9 : 1 + random(game);
       // v0.12: perks the bot can hardly use rank low
       if (o.type === "perk" && o.id === "fort") return 0.5 + random(game);
+      if (o.type === "perk" && ["quarry", "backup", "tides", "sanction"].includes(o.id)) return 0.8 + random(game); // v0.18h: the bot's mazes rarely fit these
       if (o.type === "quest") return 1 + random(game) * 2; // v0.15: the bot rarely takes quests
       if (o.type === "perk" && o.id === "lone") return (loneCount(p) <= LONE.towers + 1e-6 && p.level <= 3 ? 3 : 0.5) + random(game);
       const r = obj(o.id),
@@ -4592,6 +4796,7 @@ function fixedTick(game) {
         stock.next = game.time + Math.max(TICK, stockRegenOf(p, item));
       }
     }
+    tickZones(game, p); // v0.18h
     crowdControl(game, p); // v0.10l
     tickSummons(game, p); // v0.17q
     tickHellfire(game, p); // v0.10p
@@ -4660,6 +4865,7 @@ function fixedTick(game) {
     // the player waits for gold for queued pre-builds or upgrades
     if (p.autoSend && p.autoSendActive !== false && !p.autoHold && game.tick % 5 === 0 && p.gold >= (obj(p.autoSend)?.cost ?? Infinity))
       command(game, { type: "send", player: p.id, id: p.autoSend, auto: true });
+    else if (!p.autoSend && (p.autoMode === "eco" || p.autoMode === "tierup") && p.autoSendActive !== false && !p.autoHold && game.tick % 5 === 0) autoModeSend(game, p); // v0.18h
     if (p.ai) think(game, p);
   }
   game.effects = game.events.filter(

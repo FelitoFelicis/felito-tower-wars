@@ -1,4 +1,4 @@
-import { getStats, divineShield, isHeavy, isMagicTower, isMeleeTower, towerAt, towerSize, footprintOf, STRIP, HELLFIRE, LONE, loneCount } from "./simulation.js";
+import { getStats, divineShield, isHeavy, isMagicTower, isMeleeTower, towerAt, towerSize, footprintOf, STRIP, HELLFIRE, LONE, loneCount, zoneOf } from "./simulation.js";
 import { ART_MANIFEST, ANIM_MANIFEST, animUrl, artFor, artUrl, towerTier, TOWER_ART, CREEP_ART, TEAM_COLORS, CLOTH_COLORS, recolorTeam } from "./art.js";
 import { t } from "./i18n.js";
 import { Stage, BLEND, TINT, hsvToColor } from "./b2d.js";
@@ -1216,6 +1216,47 @@ export function mountArena({
           pl.lineBetween(x0 + cell * 0.5, y0 + cell * 0.55, x0 + cell * 0.46, y0 + cell * 0.82);
         }
       }
+      // ---- v0.18h: Low Tides water (bottom rows) and Backup Line mist (top rows)
+      const tides = zoneOf(game, player, "tides");
+      if (tides) {
+        const calm = tides.on;
+        for (let y = tides.from; y < tides.to; y++)
+          for (let col = 0; col < z.logicalCols; col++) {
+            const x0 = z.left + col * cell,
+              y0 = z.top + y * cell,
+              w = 0.5 + 0.5 * Math.sin(time * (calm ? 0.0016 : 0.0034) + col * 0.9 + y * 1.3);
+            pl.fillStyle(calm ? 0x7fd4ff : 0x1c3a5c, calm ? 0.26 : 0.42);
+            pl.fillRect(x0, y0, cell, cell);
+            pl.lineStyle(calm ? 2 : 2.5, calm ? 0xe4f8ff : 0x9ab4c8, calm ? 0.28 + 0.14 * w : 0.3 + 0.25 * w);
+            for (let k = 0; k < 2; k++) {
+              const yy = y0 + cell * (0.3 + 0.4 * k) + Math.sin(time * (calm ? 0.002 : 0.004) + col + k * 2) * cell * (calm ? 0.03 : 0.07),
+                amp = cell * (calm ? 0.04 : 0.09);
+              pl.beginPath();
+              for (let i = 0; i <= 8; i++) {
+                const xx = x0 + (cell * i) / 8,
+                  py = yy + Math.sin((i / 8) * Math.PI * 2 + time * (calm ? 0.003 : 0.007) + col) * amp;
+                i ? pl.lineTo(xx, py) : pl.moveTo(xx, py);
+              }
+              pl.strokePath();
+            }
+          }
+      }
+      const mist = zoneOf(game, player, "backup");
+      if (mist) {
+        const white = mist.on,
+          tone = white ? 0xf4f8ff : 0x6e7480;
+        for (let y = mist.from; y < mist.to; y++)
+          for (let col = 0; col < z.logicalCols; col++)
+            for (let k = 0; k < 2; k++) {
+              const drift = Math.sin(time * 0.0006 + col * 1.1 + y * 0.7 + k * 2.4),
+                cx = z.left + (col + 0.3 + 0.4 * k + drift * 0.12) * cell,
+                cy = z.top + (y + 0.35 + 0.3 * hash(col, y, 50 + k)) * cell;
+              glow.fillStyle(tone, white ? 0.13 : 0.17);
+              glow.fillEllipse(cx, cy, cell * 1.05, cell * 0.62);
+              glow.fillStyle(tone, white ? 0.09 : 0.12);
+              glow.fillEllipse(cx + cell * 0.18, cy - cell * 0.12, cell * 0.7, cell * 0.42);
+            }
+      }
       // ---- route flow on the dirt tiles
       const path = player.path || [];
       if (path.length) {
@@ -1276,12 +1317,12 @@ export function mountArena({
         }
         const building = (t.buildRemaining || 0) > 0,
           // Higher levels of the same figure stand a little taller on a slightly larger pedestal.
-          base = ((tc * 0.98 * TOWER_SCALE) / m.plateW) * levelScale(def.level || 1),
+          base = ((tc * 0.98 * TOWER_SCALE) / m.plateW) * levelScale(def.level || 1) * (t.stone === "large" ? 1.16 : t.stone === "small" ? 0.8 : 1), // v0.18h: Quarry stones
           phase = (parseInt(String(t.id).replace(/\D/g, ""), 10) || 0) * 1.7;
         const popT = sprite.getData("pop") ? clamp((time - sprite.getData("pop")) / 280, 0, 1) : 1,
           pop = popT < 1 ? 0.5 + 0.5 * this.backOut(popT) : 1,
           recoil = 0,
-          breathe = Math.sin(time * 0.0032 + phase) * 0.014;
+          breathe = t.stone ? 0 : Math.sin(time * 0.0032 + phase) * 0.014; // v0.18h: stones stand still
         // v0.09: every figure without its own frame animation acts out each attack (see attackPose)
         const pose = !anim && !building ? this.attackPose(def, sprite, time) : null;
         if (pose) sprite.setBend((m.plateCY - (m.plateCY - m.plateTop) * 0.35) / m.h, pose.lean * m.h * 0.12, pose.stretch);
@@ -1306,6 +1347,7 @@ export function mountArena({
           .setDepth(Math.floor(cy) + 100)
           .setAlpha(building ? 0.55 : 1);
         if (t.curse && t.curse.until > game.time) sprite.setTint(0xd2b0ff).setTintMode(TINT.MULTIPLY);
+        else if (t.stone === "large") sprite.setTint(0xb8ae9e).setTintMode(TINT.MULTIPLY); // v0.18h: large stones a shade darker
         else sprite.clearTint();
         // v0.17p: Trueshot Aura buff: a small, transparent crosshair on the figure's torso (static, no flicker)
         if (t.trueshot && !building) {
