@@ -66,7 +66,9 @@ const tierGrowth = (tier) => 1 + 0.01 * Math.max(0, (tier || 1) - 1);
 const SIZE_BOOST = { n00S: 1.3, nAGO: 1.45 }; // tier 1 Raiders, v0.12: Arcane Golem
 /** v0.17d: mobile layout B is switched on by a class on <html> (set by the app). */
 const layoutB = () => typeof document !== "undefined" && document.documentElement.classList.contains("layout-b");
-export function arenaGeometry(width, height, grid = { cols: 6, rows: 9 }, mode = "build", insets = { top: 84, bottom: 172 }) {
+/** Mobile Max: the board fills the whole screen width and runs under the HUD and the buttons. */
+const layoutFull = () => typeof document !== "undefined" && document.documentElement.classList.contains("layout-full");
+export function arenaGeometry(width, height, grid = { cols: 6, rows: 9 }, mode = "build", insets = { top: 84, bottom: 172 }, scrollY = 0) {
   const w = Math.max(1, width),
     h = Math.max(1, height),
     logicalCols = grid.cols,
@@ -78,6 +80,43 @@ export function arenaGeometry(width, height, grid = { cols: 6, rows: 9 }, mode =
     frameV = 5;
   const availableHeight = Math.max(9, h - safeTop - safeBottom - frameV * 2),
     byHeight = availableHeight / (logicalRows + STRIP); // v0.09: no exit strip below the board
+  // Mobile Max: the board is as wide as the screen and taller than the free space between the
+  // HUD and the cards. It sits in world space from y = 0 down; the camera scrolls over it
+  // (`scrollY` = world y at the top edge of the screen). Level button and mini map float in the top
+  // corners, the auto slot and the abilities in a row above the cards.
+  if (layoutFull()) {
+    const fr = 7,
+      cell = Math.max(1, (w - fr * 2) / logicalCols),
+      bw = cell * logicalCols,
+      bh = cell * logicalRows,
+      strip = cell * STRIP,
+      left = fr,
+      top = frameV + strip,
+      sideW = clamp(Math.round(w * 0.1), 38, 52),
+      pipW = sideW,
+      pipH = (pipW * logicalRows) / logicalCols,
+      band = sideW + 42,
+      clearTop = safeTop + 8 + Math.max(sideW * 1.3, pipH + 16),
+      clearBottom = h - safeBottom - band,
+      // lo: the first row right below the corner buttons; hi: the last row right above the bottom row
+      lo0 = top - clearTop,
+      hi0 = top + bh + 4 - clearBottom,
+      fits = hi0 <= lo0,
+      centre = top + bh / 2 - (clearTop + clearBottom) / 2,
+      lo = fits ? centre : lo0,
+      hi = fits ? centre : hi0;
+    return {
+      w, h, mode, mini: false, rotated: false, passive: mode !== "build",
+      logicalCols, logicalRows, cols: logicalCols, rows: logicalRows,
+      left, top, bw, bh, cw: cell, ch: cell, frame: fr, frameV, strip,
+      full: true,
+      scroll: { lo, hi, def: (lo + hi) / 2 },
+      clearTop,
+      clearBottom,
+      pip: { x: w - pipW - 8, y: scrollY + safeTop + 8, w: pipW, h: pipH },
+      side: { x: 6, y: safeTop + 6 - 14, w: sideW, full: true },
+    };
+  }
   // v0.17d: mobile layout B: no mini map; one button column right of the board (options and help on
   // top, level and auto slot in the middle, Build and Send at the bottom), so the board can grow.
   if (layoutB()) {
@@ -231,14 +270,34 @@ export function mountArena({
     peekEl.style.width = Math.round(w) + "px";
     peekEl.style.opacity = String(Math.min(1, w / 40));
   }
+  // Mobile Max: a thin bar on the right edge shows where the board stands while it moves
+  const thumbEl = document.createElement("div");
+  thumbEl.className = "scroll-thumb";
+  container.append(thumbEl);
+  let thumbHide = 0;
+  function showThumb(z, y, linger = 900) {
+    const r = z?.scroll;
+    if (!r || r.hi - r.lo < 2) return;
+    const track = Math.max(40, z.clearBottom - z.clearTop),
+      size = Math.max(28, (track * track) / (track + r.hi - r.lo)),
+      k = clamp((y - r.lo) / (r.hi - r.lo), 0, 1);
+    thumbEl.style.top = Math.round(z.clearTop + k * (track - size)) + "px";
+    thumbEl.style.height = Math.round(size) + "px";
+    thumbEl.classList.add("show");
+    clearTimeout(thumbHide);
+    thumbHide = setTimeout(() => thumbEl.classList.remove("show"), linger);
+  }
   let insets = { top: 84, bottom: 172 };
   function measureInsets() {
     const box = container.getBoundingClientRect(),
       hud = document.querySelector(".mini-hud")?.getBoundingClientRect(),
-      dock = document.querySelector(".command-deck")?.getBoundingClientRect();
+      dock = document.querySelector(".command-deck")?.getBoundingClientRect(),
+      // Mobile Max: the send buttons rise above the deck; the board may scroll up to their top edge
+      cards = layoutFull() ? document.getElementById("cards")?.getBoundingClientRect() : null,
+      dockTop = dock ? Math.min(dock.top, cards && cards.height > 0 ? cards.top - 8 : Infinity) : null;
     insets = {
       top: hud ? Math.max(0, hud.bottom - box.top) : 84,
-      bottom: dock ? Math.max(0, box.bottom - dock.top) : 172,
+      bottom: dockTop !== null ? Math.max(0, box.bottom - dockTop) : 172,
     };
   }
   measureInsets();
@@ -376,14 +435,17 @@ export function mountArena({
       document.getElementById("game-loader")?.remove();
       // Commit a tap on release. A drag/scroll gesture or an intervening view
       // change never spends resources; the attack/research views are passive.
+      // Pointer positions stay in screen pixels (gestures); `wy` turns a screen y into board (world) y.
       const canvas = this.stage.canvas,
         at = (ev) => {
           const box = canvas.getBoundingClientRect();
           return { id: ev.pointerId, x: ev.clientX - box.left, y: ev.clientY - box.top };
-        };
+        },
+        wy = (y) => y + (this.stage.scrollY || 0);
       canvas.addEventListener("pointerdown", (ev) => {
         if ((ev.button ?? 0) > 0) return; // right and middle clicks never build (v0.09f)
         const p = at(ev);
+        this.scrollVel = 0; // a touch stops the board gliding
         this.press = { id: p.id, x: p.x, y: p.y, view: getViewPlayer(), seed: getState()?.seed, t: performance.now() };
         try {
           canvas.setPointerCapture(ev.pointerId);
@@ -397,7 +459,21 @@ export function mountArena({
         if (press && press.id === p.id) {
           const dx = p.x - press.x,
             dy = p.y - press.y;
-          if (!press.swiping && Math.abs(dx) > 16 && Math.abs(dx) > Math.abs(dy) * 1.3) press.swiping = true;
+          if (!press.swiping && !press.scrolling && Math.abs(dx) > 16 && Math.abs(dx) > Math.abs(dy) * 1.3) press.swiping = true;
+          // Mobile Max: an up/down drag moves the board under the HUD and the buttons
+          const range = this.geometry().scroll;
+          if (range && !press.swiping && !press.scrolling && Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx) * 1.1)
+            Object.assign(press, { scrolling: true, scroll0: this.scrollY ?? range.def, y0: p.y, lastY: p.y, lastT: performance.now(), vel: 0 });
+          if (press.scrolling) {
+            const now = performance.now(),
+              step = now - press.lastT;
+            if (step > 0) press.vel = press.vel * 0.6 + ((-(p.y - press.lastY) / step) * 1000) * 0.4;
+            press.lastY = p.y;
+            press.lastT = now;
+            this.setScroll(this.rubber(press.scroll0 - (p.y - press.y0), range));
+            if (ev.pointerType === "mouse") onHover(null);
+            return;
+          }
           if (press.swiping) {
             // v0.15: the board follows the finger closely; the next field's border shows in the gap
             const step = dx < 0 ? 1 : -1;
@@ -411,7 +487,7 @@ export function mountArena({
         this.pointer = { x: p.x, y: p.y, at: performance.now() };
         if (ev.pointerType === "mouse" || ev.pointerType === "pen") {
           const state = getState(),
-            pos = this.toGrid(p.x, p.y),
+            pos = this.toGrid(p.x, wy(p.y)),
             inside = state && pos.gridX >= 0 && pos.gridX < state.grid.cols && pos.gridY >= 0 && pos.gridY < state.grid.rows;
           onHover(inside ? pos : null);
         }
@@ -422,11 +498,23 @@ export function mountArena({
         const state = getState();
         if (!state || getMode() !== "build") return;
         const box = canvas.getBoundingClientRect(),
-          pos = this.toGrid(ev.clientX - box.left, ev.clientY - box.top);
+          pos = this.toGrid(ev.clientX - box.left, wy(ev.clientY - box.top));
         if (pos.gridX < 0 || pos.gridX >= state.grid.cols || pos.gridY < 0 || pos.gridY >= state.grid.rows) return;
         const tower = towerAt(state.players[getViewPlayer()], pos.gridX, pos.gridY);
         if (tower) onTowerRight(tower, ev.timeStamp);
       });
+      // Mobile Max with a mouse: the mouse wheel moves the board up and down
+      canvas.addEventListener(
+        "wheel",
+        (ev) => {
+          const range = this.geometry().scroll;
+          if (!range) return;
+          ev.preventDefault();
+          this.scrollVel = 0;
+          this.setScroll(clamp((this.scrollY ?? range.def) + ev.deltaY, range.lo, range.hi));
+        },
+        { passive: false },
+      );
       canvas.addEventListener("pointerup", (ev) => {
         const p = at(ev);
         const press = this.press;
@@ -436,6 +524,11 @@ export function mountArena({
           const dx = p.x - press.x,
             dy = p.y - press.y,
             quick = performance.now() - press.t < 700;
+          if (press.scrolling) {
+            // the board glides on a little after a flick, then settles inside its range
+            this.scrollVel = performance.now() - press.lastT < 80 ? clamp(press.vel, -2600, 2600) : 0;
+            return;
+          }
           if (press.swiping || (quick && Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.3)) {
             const step = dx < 0 ? 1 : -1,
               info = press.peekStep === step ? press.peek : peekLane(step);
@@ -447,17 +540,20 @@ export function mountArena({
           if (this.stage.slideX && !this.slide) this.slideTo(0, 200);
         }
         if (!press || press.id !== p.id || press.seed !== state?.seed || Math.hypot(p.x - press.x, p.y - press.y) > 12) return;
-        const r = pipGeometry(this.geometry());
-        if (r && p.x >= r.x - 6 && p.x <= r.x + r.w + 6 && p.y >= r.y - 6 && p.y <= r.y + r.h + 12) {
+        // Mobile Max: fields hidden under the HUD are never built by a tap that lands on the HUD
+        if (this.geometry().full && p.y < insets.top) return;
+        const r = pipGeometry(this.geometry()),
+          y = wy(p.y);
+        if (r && p.x >= r.x - 6 && p.x <= r.x + r.w + 6 && y >= r.y - 6 && y <= r.y + r.h + 12) {
           onPip();
           return;
         }
         if (press.view !== getViewPlayer()) return;
-        const pos = this.toGrid(p.x, p.y);
+        const pos = this.toGrid(p.x, y);
         if (pos.gridX < 0 || pos.gridX >= state.grid.cols || pos.gridY < 0 || pos.gridY >= state.grid.rows) return;
         const z = this.geometry();
         pos.fx = (p.x - z.left) / z.bw; // exact point on the board, as a share (v0.09q: volley aim)
-        pos.fy = (p.y - z.top) / z.bh;
+        pos.fy = (y - z.top) / z.bh;
         const player = state.players[getViewPlayer()],
           tower = towerAt(player, pos.gridX, pos.gridY);
         // v0.17h: towers (own or enemy) can be tapped outside Build too; empty fields only in Build
@@ -515,7 +611,44 @@ export function mountArena({
       }
     }
     geometry() {
-      return arenaGeometry(this.stage.width, this.stage.height, getState()?.grid, getMode(), insets);
+      return arenaGeometry(this.stage.width, this.stage.height, getState()?.grid, getMode(), insets, this.stage.scrollY || 0);
+    }
+    // ---- Mobile Max: scrolling the board up and down ---------------------------------
+    setScroll(y, linger) {
+      const moved = this.scrollY != null && Math.abs(y - this.scrollY) > 0.05;
+      this.scrollY = y;
+      this.stage.scrollY = y;
+      if (moved || linger) showThumb(this.geometry(), y, linger);
+    }
+    /** Past either end the board follows the finger only a little (rubber band). */
+    rubber(y, range) {
+      const pull = (d) => 70 * (1 - 1 / (1 + d / 140));
+      if (y < range.lo) return range.lo - pull(range.lo - y);
+      if (y > range.hi) return range.hi + pull(y - range.hi);
+      return y;
+    }
+    /** Per frame: start in the middle, glide after a flick, spring back into the range. */
+    stepScroll(z, dt) {
+      const range = z.scroll;
+      if (!range) {
+        if (this.stage.scrollY) this.setScroll(0);
+        this.scrollY = null;
+        return;
+      }
+      if (this.scrollY == null) return this.setScroll(range.def, 2600); // at the start the bar shows for a moment
+      if (this.press?.scrolling) return;
+      let y = this.scrollY,
+        v = this.scrollVel || 0;
+      if (Math.abs(v) > 12) {
+        y += v * dt;
+        v *= Math.exp(-dt * (y < range.lo || y > range.hi ? 18 : 4.2));
+      } else v = 0;
+      if (y < range.lo) y += (range.lo - y) * Math.min(1, dt * 11);
+      else if (y > range.hi) y -= (y - range.hi) * Math.min(1, dt * 11);
+      if (Math.abs(y - range.lo) < 0.3 && y < range.lo) y = range.lo;
+      if (Math.abs(y - range.hi) < 0.3 && y > range.hi) y = range.hi;
+      this.scrollVel = v;
+      if (y !== this.scrollY) this.setScroll(y);
     }
     point(x, y) {
       const z = this.geometry();
@@ -538,12 +671,14 @@ export function mountArena({
         f = this.frameG,
         cell = z.cw;
       g.clear();
-      // Night forest around the arena.
+      // Night forest around the arena (Mobile Max: also above and below, where the board scrolls).
+      const y0 = z.scroll ? Math.min(0, z.scroll.lo) - 160 : 0,
+        span = z.scroll ? Math.max(z.h, z.scroll.hi + z.h + 160 - y0) : z.h;
       g.fillGradientStyle(0x0d2a2a, 0x0d2a2a, 0x081815, 0x081815, 1);
-      g.fillRect(0, 0, z.w, z.h);
+      g.fillRect(0, y0, z.w, span);
       for (let i = 0; i < 46; i++) {
         const x = hash(i, 1) * z.w,
-          y = hash(i, 2) * z.h,
+          y = y0 + hash(i, 2) * span,
           s = 18 + hash(i, 4) * 26,
           shade = [0x0f3330, 0x123b33, 0x0b2622][i % 3];
         g.fillStyle(shade, 0.95);
@@ -552,7 +687,7 @@ export function mountArena({
       }
       for (let i = 0; i < 26; i++) {
         const x = hash(i, 11) * z.w,
-          y = hash(i, 12) * z.h,
+          y = y0 + hash(i, 12) * span,
           c = i % 2 ? 0x46e0d0 : 0xb06cff;
         g.fillStyle(c, 0.16);
         g.fillCircle(x, y, 7);
@@ -592,7 +727,7 @@ export function mountArena({
       f.fillStyle(0x0a1412, 0.7);
       f.fillRect(z.left - 2, z.top - z.strip - 2, z.bw + 4, z.bh + z.strip + 4);
       this.braziers = [];
-      for (const yy of [1.5, 4.5, 7.5])
+      for (const yy of z.full ? [] : [1.5, 4.5, 7.5])
         for (const xx of [L + z.frame / 2, L + W - z.frame / 2]) {
           const y = z.top + yy * cell;
           f.fillStyle(0x24292d);
@@ -644,6 +779,14 @@ export function mountArena({
         if (x < 6 || x > z.w - 6) continue;
         outside.push([["deco-pine", "deco-rock", "deco-bush", "deco-mush-teal", "deco-crystal"][i % 5], x, y]);
       }
+      // Mobile Max: forest above and below the wall, seen when the board is pulled to either end
+      if (z.full)
+        for (let i = 0; i < 16; i++) {
+          const above = i % 2 === 0,
+            x = 14 + hash(i, 51) * (z.w - 28),
+            y = above ? T - 12 - hash(i, 52) * 120 : T + H + 34 + hash(i, 52) * 130;
+          outside.push([["deco-pine", "deco-rock", "deco-bush", "deco-pine", "deco-mush-teal", "deco-crystal"][i % 6], x, y]);
+        }
       for (const [key, x, y] of outside) deco(key, x, y, cell * (key === "deco-pine" ? 0.9 : 0.55), 1.5);
       // Grout between tiles.
       const gr = this.grout;
@@ -970,7 +1113,10 @@ export function mountArena({
         this.gameSeed = game.seed;
         this.lastEvent = game.eventId || 0;
         this.clearFx();
+        this.scrollY = null; // Mobile Max: a new match starts with the board in the middle
+        this.scrollVel = 0;
       }
+      this.stepScroll(this.geometry(), dt);
       const view = getViewPlayer(),
         own = getOwnPlayer(),
         player = game.players[view],
@@ -1017,7 +1163,7 @@ export function mountArena({
       }
       for (const f of this.fireflies) {
         const x = (f.x * z.w + Math.sin(time * 0.0004 + f.seed) * 40 + z.w) % z.w,
-          y = (f.y * z.h + Math.cos(time * 0.0003 + f.seed * 2) * 30 + z.h) % z.h,
+          y = ((f.y * z.h + Math.cos(time * 0.0003 + f.seed * 2) * 30 + z.h) % z.h) + (this.stage.scrollY || 0),
           a = 0.35 + 0.35 * Math.sin(time * 0.003 + f.seed * 5);
         glow.fillStyle(0xd8ff8a, a * 0.35);
         glow.fillCircle(x, y, 4);
@@ -1899,15 +2045,16 @@ export function mountArena({
       if (this.flash <= 0) return;
       this.flash = Math.max(0, this.flash - dt * 1.8);
       const a = this.flash,
-        band = 5;
+        band = 5,
+        sy = this.stage.scrollY || 0; // the red edge stays on the screen edge while the board scrolls
       for (let i = 0; i < 12; i++) {
         const alpha = a * 0.34 * (1 - i / 12),
           o = i * band;
         g.fillStyle(0xff2a3a, alpha);
-        g.fillRect(o, o, z.w - o * 2, band);
-        g.fillRect(o, z.h - o - band, z.w - o * 2, band);
-        g.fillRect(o, o + band, band, z.h - o * 2 - band * 2);
-        g.fillRect(z.w - o - band, o + band, band, z.h - o * 2 - band * 2);
+        g.fillRect(o, sy + o, z.w - o * 2, band);
+        g.fillRect(o, sy + z.h - o - band, z.w - o * 2, band);
+        g.fillRect(o, sy + o + band, band, z.h - o * 2 - band * 2);
+        g.fillRect(z.w - o - band, sy + o + band, band, z.h - o * 2 - band * 2);
       }
     }
     backOut(t) {
@@ -2029,6 +2176,7 @@ export function mountArena({
     document.querySelector(".mini-hud"),
     document.querySelector(".command-deck"),
     document.querySelector(".bottom-nav"),
+    document.getElementById("cards"),
   ])
     if (el) resize.observe(el);
   const scene = () => (started ? arena : null);
@@ -2059,17 +2207,23 @@ export function mountArena({
         scene()?.geometry() || arenaGeometry(container.clientWidth, container.clientHeight, getState()?.grid, getMode(), insets)
       );
     },
+    /** A cell's centre in screen pixels of the board container (Mobile Max: after scrolling). */
     cellCenter(gridX, gridY) {
-      const grid = getState().grid;
-      return scene()?.point((gridX + 0.5) / grid.cols, (gridY + 0.5) / grid.rows);
+      const grid = getState().grid,
+        pt = scene()?.point((gridX + 0.5) / grid.cols, (gridY + 0.5) / grid.rows);
+      return pt && { x: pt.x, y: pt.y - (stage.scrollY || 0) };
     },
     gridAt(x, y) {
-      return scene()?.toGrid(x, y);
+      return scene()?.toGrid(x, y + (stage.scrollY || 0));
     },
     /** Client coordinates (e.g. a card drag) to a grid cell. */
     gridAtClient(clientX, clientY) {
       const box = container.getBoundingClientRect();
-      return scene()?.toGrid(clientX - box.left, clientY - box.top);
+      return scene()?.toGrid(clientX - box.left, clientY - box.top + (stage.scrollY || 0));
+    },
+    /** Mobile Max: how far the board is scrolled (world y at the top of the screen). */
+    scrollY() {
+      return stage.scrollY || 0;
     },
   };
 }
