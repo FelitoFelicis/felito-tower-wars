@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Felito Tower Wars · v0.19</title>
+<title>Felito Tower Wars · v0.20a</title>
 <script>
   // Start diagnostics: show script errors on the loading screen instead of hanging silently.
   (function () {
@@ -34,8 +34,8 @@
   <link rel="icon" href="assets/app-icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="assets/app-icon-192.png">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="style.css?v=v019">
-  <script type="importmap">{"imports":{"./src/music.js":"./src/music.js?v=v019","./src/art.js":"./src/art.js?v=v019","./src/soundtrack.js":"./src/soundtrack.js?v=v019","./src/sfx.js":"./src/sfx.js?v=v019","./src/app.js":"./src/app.js?v=v019","./src/arena.js":"./src/arena.js?v=v019","./src/content.js":"./src/content.js?v=v019","./src/simulation.js":"./src/simulation.js?v=v019","./src/multiplayer.js":"./src/multiplayer.js?v=v019","./src/i18n.js":"./src/i18n.js?v=v019","./src/b2d.js":"./src/b2d.js?v=v019","./src/campaign.js":"./src/campaign.js?v=v019"}}</script>
+  <link rel="stylesheet" href="style.css?v=v020a">
+  <script type="importmap">{"imports":{"./src/music.js":"./src/music.js?v=v020a","./src/art.js":"./src/art.js?v=v020a","./src/soundtrack.js":"./src/soundtrack.js?v=v020a","./src/sfx.js":"./src/sfx.js?v=v020a","./src/app.js":"./src/app.js?v=v020a","./src/arena.js":"./src/arena.js?v=v020a","./src/content.js":"./src/content.js?v=v020a","./src/simulation.js":"./src/simulation.js?v=v020a","./src/multiplayer.js":"./src/multiplayer.js?v=v020a","./src/i18n.js":"./src/i18n.js?v=v020a","./src/b2d.js":"./src/b2d.js?v=v020a","./src/campaign.js":"./src/campaign.js?v=v020a"}}</script>
 </head>
 <body>
 <div id="boot-screen" class="boot-screen" aria-live="polite"><img src="assets/art/ui-logo.webp" alt="Felito Tower Wars"><span id="boot-msg">Loading …</span></div>
@@ -76,7 +76,7 @@
         <div id="game-loader" data-t="Preparing the arena …">Preparing the arena …</div>
         <span id="arena-label" class="sr-only">Your arena</span>
         <div id="arena-hint" class="sr-only"></div>
-        <div id="side-dock" class="side-dock" hidden><span class="side-label" id="auto-kicker">Auto</span><button id="auto-slot" class="auto-slot" type="button" aria-label="Auto-Spawn" data-help="Auto-spawn: in Send, drag a creep card here and it is sent automatically. Tap to pause, drag out to clear."><span class="auto-slot-empty">+</span></button><span id="tier-badge" class="tier-badge" data-help="Your send tier. Buying the boss unlocks the next tier.">T1</span></div>
+        <div id="side-dock" class="side-dock" hidden><span class="side-label" id="auto-kicker">Auto</span><button id="auto-slot" class="auto-slot" type="button" aria-label="Auto-Spawn" data-help="Drag creep to activate. Double click to switch mode"><span class="auto-slot-empty auto-slot-label">Auto Spawn</span></button><span id="tier-badge" class="tier-badge" data-help="Your send tier. Buying the boss unlocks the next tier.">T1</span></div>
         <button id="level-button" class="level-button" type="button" data-ta="Choose a level reward" aria-label="Choose a level reward" data-help="Your level. It fills up with experience. With every level-up you pick one of three rewards here; when it glows, a reward is waiting." hidden><s class="level-fill" aria-hidden="true"></s><span>Lv</span><b id="level-number">1</b><i id="level-pending" hidden>1</i></button>
         <button id="volley-button" class="volley-button" type="button" aria-label="Arrow Volley" data-help="Arrow Volley: tap it, then tap your field. Arrows rain on that area (cooldown 20 s)." hidden></button>
         <button id="burst-button" class="volley-button burst-button" type="button" aria-label="Arcane Burst" data-help="Arcane Burst: tap it, then tap your field. The damage is split among all creeps in the area (cooldown 40 s)." hidden></button>
@@ -112,7 +112,7 @@
     <section id="tower-panel" class="tower-panel" hidden></section>
   </main>
   <dialog id="modal"><div id="modal-body"></div></dialog>
-  <script src="vendor/babylon-felito.js?v=v019"></script>
-  <script type="module" src="src/app.js?v=v019"></script>
+  <script src="vendor/babylon-felito.js?v=v020a"></script>
+  <script type="module" src="src/app.js?v=v020a"></script>
 </body>
 </html>

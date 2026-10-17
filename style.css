@@ -744,6 +744,11 @@ dialog,
     opacity 0.2s,
     transform 0.2s;
 }
+/* v0.19d2: player names in notifications, in the player colour */
+#toast .toast-name {
+  font-weight: 800;
+  text-shadow: 0 0 2px #000, 0 1px 3px #000c;
+}
 #toast.show {
   opacity: 1;
   transform: none;
@@ -4544,22 +4549,28 @@ dialog.welcome-modal {
   -webkit-mask-composite: xor;
   mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
 }
-.pick-card.el-fire::before {
+.pick-card.el-fire::before,
+.perk-book.book-el.el-fire::before {
   background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 18'%3E%3Cg transform='translate(0 18) scale(1 -1)'%3E%3Cpath d='M0 18 C3 10 5 14 7 8 C8 12 10 13 11 6 C13 11 15 12 17 2 C19 9 21 11 23 5 C25 11 27 12 29 4 C31 10 33 11 35 7 C37 12 38 13 40 18Z' fill='%23ff6a1a'/%3E%3Cpath d='M2 18 C5 13 7 15 9 11 C11 15 13 15 15 9 C17 14 19 15 21 10 C23 15 25 15 27 10 C29 15 31 15 33 12 C35 15 37 16 38 18Z' fill='%23ffc23a'/%3E%3C/g%3E%3C/svg%3E") top center / 20px 9px repeat-x, url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 18'%3E%3Cpath d='M0 18 C3 10 5 14 7 8 C8 12 10 13 11 6 C13 11 15 12 17 2 C19 9 21 11 23 5 C25 11 27 12 29 4 C31 10 33 11 35 7 C37 12 38 13 40 18Z' fill='%23ff6a1a'/%3E%3Cpath d='M2 18 C5 13 7 15 9 11 C11 15 13 15 15 9 C17 14 19 15 21 10 C23 15 25 15 27 10 C29 15 31 15 33 12 C35 15 37 16 38 18Z' fill='%23ffc23a'/%3E%3C/svg%3E") bottom center / 20px 9px repeat-x, url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 40'%3E%3Cg transform='translate(18 0) rotate(90)'%3E%3Cpath d='M0 18 C3 10 5 14 7 8 C8 12 10 13 11 6 C13 11 15 12 17 2 C19 9 21 11 23 5 C25 11 27 12 29 4 C31 10 33 11 35 7 C37 12 38 13 40 18Z' fill='%23ff6a1a'/%3E%3Cpath d='M2 18 C5 13 7 15 9 11 C11 15 13 15 15 9 C17 14 19 15 21 10 C23 15 25 15 27 10 C29 15 31 15 33 12 C35 15 37 16 38 18Z' fill='%23ffc23a'/%3E%3C/g%3E%3C/svg%3E") left center / 9px 20px repeat-y, url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 40'%3E%3Cg transform='translate(0 40) rotate(-90)'%3E%3Cpath d='M0 18 C3 10 5 14 7 8 C8 12 10 13 11 6 C13 11 15 12 17 2 C19 9 21 11 23 5 C25 11 27 12 29 4 C31 10 33 11 35 7 C37 12 38 13 40 18Z' fill='%23ff6a1a'/%3E%3Cpath d='M2 18 C5 13 7 15 9 11 C11 15 13 15 15 9 C17 14 19 15 21 10 C23 15 25 15 27 10 C29 15 31 15 33 12 C35 15 37 16 38 18Z' fill='%23ffc23a'/%3E%3C/g%3E%3C/svg%3E") right center / 9px 20px repeat-y;
 }
-.pick-card.el-water::before {
+.pick-card.el-water::before,
+.perk-book.book-el.el-water::before {
   background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 12'%3E%3Cg transform='translate(0 12) scale(1 -1)'%3E%3Cpath d='M0 6 C5 0 10 0 15 6 S25 12 30 6 S37 0 40 4 V12 H0Z' fill='%232f8fe0'/%3E%3Cpath d='M0 9 C5 4 10 4 15 9 S25 14 30 9 S37 5 40 7 V12 H0Z' fill='%239fe2ff' opacity='.85'/%3E%3C/g%3E%3C/svg%3E") top center / 30px 9px repeat-x, url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 12'%3E%3Cpath d='M0 6 C5 0 10 0 15 6 S25 12 30 6 S37 0 40 4 V12 H0Z' fill='%232f8fe0'/%3E%3Cpath d='M0 9 C5 4 10 4 15 9 S25 14 30 9 S37 5 40 7 V12 H0Z' fill='%239fe2ff' opacity='.85'/%3E%3C/svg%3E") bottom center / 30px 9px repeat-x, url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 40'%3E%3Cg transform='translate(12 0) rotate(90)'%3E%3Cpath d='M0 6 C5 0 10 0 15 6 S25 12 30 6 S37 0 40 4 V12 H0Z' fill='%232f8fe0'/%3E%3Cpath d='M0 9 C5 4 10 4 15 9 S25 14 30 9 S37 5 40 7 V12 H0Z' fill='%239fe2ff' opacity='.85'/%3E%3C/g%3E%3C/svg%3E") left center / 9px 30px repeat-y, url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 40'%3E%3Cg transform='translate(0 40) rotate(-90)'%3E%3Cpath d='M0 6 C5 0 10 0 15 6 S25 12 30 6 S37 0 40 4 V12 H0Z' fill='%232f8fe0'/%3E%3Cpath d='M0 9 C5 4 10 4 15 9 S25 14 30 9 S37 5 40 7 V12 H0Z' fill='%239fe2ff' opacity='.85'/%3E%3C/g%3E%3C/svg%3E") right center / 9px 30px repeat-y;
 }
-.pick-card.el-earth::before {
+.pick-card.el-earth::before,
+.perk-book.book-el.el-earth::before {
   background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 16'%3E%3Cg transform='translate(0 16) scale(1 -1)'%3E%3Cpolygon points='0,16 2,8 7,5 11,9 12,16' fill='%238a6438'/%3E%3Cpolygon points='10,16 13,6 19,3 24,7 25,16' fill='%23a67c4a'/%3E%3Cpolygon points='23,16 26,9 31,7 34,10 35,16' fill='%237a5630'/%3E%3Cpolygon points='33,16 35,8 40,6 40,16' fill='%239a7242'/%3E%3Cpolyline points='13,6 19,3 24,7' fill='none' stroke='%23e4c896' stroke-width='1'/%3E%3C/g%3E%3C/svg%3E") top center / 22px 9px repeat-x, url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 16'%3E%3Cpolygon points='0,16 2,8 7,5 11,9 12,16' fill='%238a6438'/%3E%3Cpolygon points='10,16 13,6 19,3 24,7 25,16' fill='%23a67c4a'/%3E%3Cpolygon points='23,16 26,9 31,7 34,10 35,16' fill='%237a5630'/%3E%3Cpolygon points='33,16 35,8 40,6 40,16' fill='%239a7242'/%3E%3Cpolyline points='13,6 19,3 24,7' fill='none' stroke='%23e4c896' stroke-width='1'/%3E%3C/svg%3E") bottom center / 22px 9px repeat-x, url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 40'%3E%3Cg transform='translate(16 0) rotate(90)'%3E%3Cpolygon points='0,16 2,8 7,5 11,9 12,16' fill='%238a6438'/%3E%3Cpolygon points='10,16 13,6 19,3 24,7 25,16' fill='%23a67c4a'/%3E%3Cpolygon points='23,16 26,9 31,7 34,10 35,16' fill='%237a5630'/%3E%3Cpolygon points='33,16 35,8 40,6 40,16' fill='%239a7242'/%3E%3Cpolyline points='13,6 19,3 24,7' fill='none' stroke='%23e4c896' stroke-width='1'/%3E%3C/g%3E%3C/svg%3E") left center / 9px 22px repeat-y, url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 40'%3E%3Cg transform='translate(0 40) rotate(-90)'%3E%3Cpolygon points='0,16 2,8 7,5 11,9 12,16' fill='%238a6438'/%3E%3Cpolygon points='10,16 13,6 19,3 24,7 25,16' fill='%23a67c4a'/%3E%3Cpolygon points='23,16 26,9 31,7 34,10 35,16' fill='%237a5630'/%3E%3Cpolygon points='33,16 35,8 40,6 40,16' fill='%239a7242'/%3E%3Cpolyline points='13,6 19,3 24,7' fill='none' stroke='%23e4c896' stroke-width='1'/%3E%3C/g%3E%3C/svg%3E") right center / 9px 22px repeat-y;
 }
-.pick-card.el-storm::before {
+.pick-card.el-storm::before,
+.perk-book.book-el.el-storm::before {
   background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 14'%3E%3Cg transform='translate(0 14) scale(1 -1)'%3E%3Cpolyline points='0,10 6,3 10,9 16,1 20,8 26,2 30,10 35,4 40,9' fill='none' stroke='%23d4c6ff' stroke-width='2' stroke-linejoin='round'/%3E%3Cpolyline points='0,12 6,6 10,11 16,4 20,10 26,5 30,12 35,7 40,11' fill='none' stroke='%237a6cff' stroke-width='1.5' stroke-linejoin='round'/%3E%3C/g%3E%3C/svg%3E") top center / 26px 9px repeat-x, url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 14'%3E%3Cpolyline points='0,10 6,3 10,9 16,1 20,8 26,2 30,10 35,4 40,9' fill='none' stroke='%23d4c6ff' stroke-width='2' stroke-linejoin='round'/%3E%3Cpolyline points='0,12 6,6 10,11 16,4 20,10 26,5 30,12 35,7 40,11' fill='none' stroke='%237a6cff' stroke-width='1.5' stroke-linejoin='round'/%3E%3C/svg%3E") bottom center / 26px 9px repeat-x, url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 40'%3E%3Cg transform='translate(14 0) rotate(90)'%3E%3Cpolyline points='0,10 6,3 10,9 16,1 20,8 26,2 30,10 35,4 40,9' fill='none' stroke='%23d4c6ff' stroke-width='2' stroke-linejoin='round'/%3E%3Cpolyline points='0,12 6,6 10,11 16,4 20,10 26,5 30,12 35,7 40,11' fill='none' stroke='%237a6cff' stroke-width='1.5' stroke-linejoin='round'/%3E%3C/g%3E%3C/svg%3E") left center / 9px 26px repeat-y, url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 40'%3E%3Cg transform='translate(0 40) rotate(-90)'%3E%3Cpolyline points='0,10 6,3 10,9 16,1 20,8 26,2 30,10 35,4 40,9' fill='none' stroke='%23d4c6ff' stroke-width='2' stroke-linejoin='round'/%3E%3Cpolyline points='0,12 6,6 10,11 16,4 20,10 26,5 30,12 35,7 40,11' fill='none' stroke='%237a6cff' stroke-width='1.5' stroke-linejoin='round'/%3E%3C/g%3E%3C/svg%3E") right center / 9px 26px repeat-y;
 }
-.pick-card.el-arcane::before {
+.pick-card.el-arcane::before,
+.perk-book.book-el.el-arcane::before {
   background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 14'%3E%3Cg transform='translate(0 14) scale(1 -1)'%3E%3Cpath d='M8 1 L9.5 5.5 L14 7 L9.5 8.5 L8 13 L6.5 8.5 L2 7 L6.5 5.5Z' fill='%23ffb8f0'/%3E%3Cpath d='M28 3 L29 6 L32 7 L29 8 L28 11 L27 8 L24 7 L27 6Z' fill='%23f070d8'/%3E%3Ccircle cx='19' cy='5' r='1.3' fill='%23fff'/%3E%3Ccircle cx='36' cy='10' r='1' fill='%23ffd6f6'/%3E%3C/g%3E%3C/svg%3E") top center / 26px 9px repeat-x, url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 14'%3E%3Cpath d='M8 1 L9.5 5.5 L14 7 L9.5 8.5 L8 13 L6.5 8.5 L2 7 L6.5 5.5Z' fill='%23ffb8f0'/%3E%3Cpath d='M28 3 L29 6 L32 7 L29 8 L28 11 L27 8 L24 7 L27 6Z' fill='%23f070d8'/%3E%3Ccircle cx='19' cy='5' r='1.3' fill='%23fff'/%3E%3Ccircle cx='36' cy='10' r='1' fill='%23ffd6f6'/%3E%3C/svg%3E") bottom center / 26px 9px repeat-x, url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 40'%3E%3Cg transform='translate(14 0) rotate(90)'%3E%3Cpath d='M8 1 L9.5 5.5 L14 7 L9.5 8.5 L8 13 L6.5 8.5 L2 7 L6.5 5.5Z' fill='%23ffb8f0'/%3E%3Cpath d='M28 3 L29 6 L32 7 L29 8 L28 11 L27 8 L24 7 L27 6Z' fill='%23f070d8'/%3E%3Ccircle cx='19' cy='5' r='1.3' fill='%23fff'/%3E%3Ccircle cx='36' cy='10' r='1' fill='%23ffd6f6'/%3E%3C/g%3E%3C/svg%3E") left center / 9px 26px repeat-y, url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 40'%3E%3Cg transform='translate(0 40) rotate(-90)'%3E%3Cpath d='M8 1 L9.5 5.5 L14 7 L9.5 8.5 L8 13 L6.5 8.5 L2 7 L6.5 5.5Z' fill='%23ffb8f0'/%3E%3Cpath d='M28 3 L29 6 L32 7 L29 8 L28 11 L27 8 L24 7 L27 6Z' fill='%23f070d8'/%3E%3Ccircle cx='19' cy='5' r='1.3' fill='%23fff'/%3E%3Ccircle cx='36' cy='10' r='1' fill='%23ffd6f6'/%3E%3C/g%3E%3C/svg%3E") right center / 9px 26px repeat-y;
 }
-.pick-card.el-plague::before {
+.pick-card.el-plague::before,
+.perk-book.book-el.el-plague::before {
   background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 12'%3E%3Cg transform='translate(0 12) scale(1 -1)'%3E%3Ccircle cx='5' cy='8' r='3' fill='none' stroke='%23a9de7e' stroke-width='1.2'/%3E%3Ccircle cx='15' cy='5' r='2' fill='%237fd23a'/%3E%3Ccircle cx='26' cy='8' r='3.4' fill='none' stroke='%23b8ff6a' stroke-width='1.2'/%3E%3Ccircle cx='35' cy='4' r='1.6' fill='%23a9de7e'/%3E%3C/g%3E%3C/svg%3E") top center / 30px 9px repeat-x, url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 12'%3E%3Ccircle cx='5' cy='8' r='3' fill='none' stroke='%23a9de7e' stroke-width='1.2'/%3E%3Ccircle cx='15' cy='5' r='2' fill='%237fd23a'/%3E%3Ccircle cx='26' cy='8' r='3.4' fill='none' stroke='%23b8ff6a' stroke-width='1.2'/%3E%3Ccircle cx='35' cy='4' r='1.6' fill='%23a9de7e'/%3E%3C/svg%3E") bottom center / 30px 9px repeat-x, url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 40'%3E%3Cg transform='translate(12 0) rotate(90)'%3E%3Ccircle cx='5' cy='8' r='3' fill='none' stroke='%23a9de7e' stroke-width='1.2'/%3E%3Ccircle cx='15' cy='5' r='2' fill='%237fd23a'/%3E%3Ccircle cx='26' cy='8' r='3.4' fill='none' stroke='%23b8ff6a' stroke-width='1.2'/%3E%3Ccircle cx='35' cy='4' r='1.6' fill='%23a9de7e'/%3E%3C/g%3E%3C/svg%3E") left center / 9px 30px repeat-y, url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 40'%3E%3Cg transform='translate(0 40) rotate(-90)'%3E%3Ccircle cx='5' cy='8' r='3' fill='none' stroke='%23a9de7e' stroke-width='1.2'/%3E%3Ccircle cx='15' cy='5' r='2' fill='%237fd23a'/%3E%3Ccircle cx='26' cy='8' r='3.4' fill='none' stroke='%23b8ff6a' stroke-width='1.2'/%3E%3Ccircle cx='35' cy='4' r='1.6' fill='%23a9de7e'/%3E%3C/g%3E%3C/svg%3E") right center / 9px 30px repeat-y;
 }
 
@@ -6736,3 +6747,359 @@ body.menu-under-on #modal::backdrop {
   width: 28px;
   height: 28px;
 }
+
+/* v0.19a1: the card book's Perks tab: one section per element, framed with that element's ornament band */
+.perk-book.book-el {
+  position: relative;
+  margin: 7px 6px;
+  border-radius: 12px;
+  overflow: visible;
+  background: color-mix(in srgb, var(--el) 9%, #07131bcc);
+}
+.perk-book.book-el::before {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  padding: 8px;
+  border-radius: 16px;
+  pointer-events: none;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+}
+.perk-book.book-el h3 { color: color-mix(in srgb, var(--el) 70%, #fff); padding-left: 4px; }
+
+/* v0.19b1: start lives picker of a friend room (host) */
+.lobby-lives { margin: 8px 0 4px; justify-content: center; }
+/* v0.19b1: the "Open the game website" link looks like the other menu buttons */
+a.primary-button { display: flex; align-items: center; justify-content: center; text-decoration: none; }
+
+/* ---- v0.19c1 ------------------------------------------------------------------------------------ */
+/* colour chips 75 % taller */
+.color-picker button,
+.color-picker button.active {
+  height: 32px;
+}
+/* PvP menu: player icon right of the name field (v0.19e2), framed like the in-game plate portraits in your colour */
+.name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.welcome-group .pvp-name + .name-row .name-input,
+.name-row .name-input {
+  flex: 1;
+  margin: 0;
+}
+.icon-pick,
+.icon-cell {
+  --fc: var(--pc, #8a96a3);
+  flex: none;
+  width: 46px;
+  height: 46px;
+  min-height: 0;
+  padding: 0;
+  border-radius: 9px;
+  border: 2px solid transparent;
+  background:
+    radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--fc) 45%, #2f3f4a), #0f1a22) padding-box,
+    linear-gradient(135deg, color-mix(in srgb, var(--fc) 45%, #fff) 0%, var(--fc) 28%, color-mix(in srgb, var(--fc) 55%, #000) 52%, color-mix(in srgb, var(--fc) 70%, #fff) 74%, color-mix(in srgb, var(--fc) 60%, #000) 100%) border-box;
+  box-shadow: 0 0 0 1px #0009, 0 1px 2px #0008;
+  overflow: hidden;
+  cursor: pointer;
+}
+.icon-pick img,
+.icon-cell img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 7px;
+}
+.icon-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+  padding: 6px 2px 4px;
+  justify-items: center;
+}
+.icon-cell {
+  width: 100%;
+  max-width: 64px;
+  height: auto;
+  aspect-ratio: 1;
+}
+.icon-cell.active {
+  box-shadow: 0 0 0 3px var(--gold, #f2c75c), 0 0 12px #ffcf4a99;
+}
+/* v0.19e2: golem icons stay greyed out until their campaign mission is won */
+.icon-cell.locked,
+.icon-cell:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+.icon-cell.locked img {
+  filter: grayscale(1) brightness(0.6);
+}
+/* lobby: room code, bot difficulty and kick buttons */
+.lobby-code {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 10px;
+  margin: 0 0 8px;
+}
+.lobby-code span {
+  font: 700 12px var(--font-display, sans-serif);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #9fb3c2;
+}
+.lobby-code b {
+  font: 400 30px var(--font-display, sans-serif);
+  letter-spacing: 0.18em;
+  color: var(--gold, #f2c75c);
+}
+.qm-player {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.qm-player b {
+  flex: 1;
+  min-width: 0;
+}
+.qm-player .bot-level {
+  flex: none;
+  min-height: 0;
+  padding: 4px 8px;
+  border-radius: 8px;
+  border: 2px solid #050d13;
+  background: linear-gradient(180deg, #4f8fd0, #2c5f9a);
+  color: #fff;
+  font: 700 11px var(--font-display, sans-serif);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.qm-player .bot-level:disabled {
+  filter: grayscale(1);
+  opacity: 0.55;
+}
+.qm-player .kick-x {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  min-height: 0;
+  padding: 0;
+  border-radius: 6px;
+  border: 2px solid #050d13;
+  background: linear-gradient(180deg, #ff6b5e, #c0281e);
+  color: #fff;
+  font: 800 14px/1 sans-serif;
+}
+#lobby-add-bot {
+  width: 100%;
+  margin: 0 0 8px;
+}
+#lobby-cancel {
+  width: 100%;
+  margin-top: 8px;
+}
+.lobby-lives .segmented { display: grid; grid-template-columns: repeat(3, 1fr); flex: 1; }
+/* v0.19e2: "Max Level n" and "Available in Lv a-b" at the bottom of perk cards, in white, one per line */
+.book-card small.book-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+.book-card small.book-meta .meta-line {
+  color: #fff;
+}
+.book-card small.book-meta .meta-extra {
+  opacity: 0.85;
+}
+.book-card small.book-meta span {
+  font-size: inherit;
+}
+/* v0.19h1: a sell value below the normal one: red, the normal value in brackets */
+.sell-cut {
+  color: var(--red);
+}
+.sell-base {
+  font-size: 0.8em;
+  opacity: 0.9;
+}
+/* v0.19h1: card book tech tree without a sideways scroll bar: a wider dialog where the screen allows,
+   otherwise upgrades that do not fit wrap below the previous ones */
+dialog:has(.catalog-grid.techtree) {
+  max-width: 600px;
+}
+.catalog-grid.techtree .tt-tree {
+  overflow-x: visible;
+}
+.catalog-grid.techtree .tt-chain {
+  flex-wrap: wrap;
+  width: auto;
+  max-width: 100%;
+  row-gap: 6px;
+}
+
+/* v0.19j: Constructor / Highrise / Tycoon — a tower in a bronze, silver or gold frame, 30 % see-through like every splat */
+.tower-splat {
+  position: fixed;
+  z-index: 60;
+  left: 50%;
+  top: 34%;
+  width: min(230px, 62vw);
+  display: grid;
+  justify-items: center;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  animation: first-blood 1.9s ease-out forwards;
+  --m1: #f0b27a; --m2: #a5612c; --m3: #5e3414;
+}
+.tower-splat.ts-silver { --m1: #ffffff; --m2: #aab4bf; --m3: #4f5965; }
+.tower-splat.ts-gold { --m1: #fff2a8; --m2: #e0a62a; --m3: #7a4d06; }
+.tower-splat .ts-frame {
+  width: 58%;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border-radius: 14%;
+  padding: 7px;
+  background: linear-gradient(145deg, var(--m1), var(--m2) 45%, var(--m3) 75%, var(--m2));
+  box-shadow: 0 5px 12px #000a, inset 0 0 0 2px #0006;
+}
+.tower-splat .ts-frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 10%;
+  background: radial-gradient(circle at 50% 40%, #2b3d46, #0c171c 75%);
+  box-shadow: inset 0 0 0 2px var(--m3), inset 0 0 10px #000c;
+}
+.tower-splat b {
+  margin-top: 6px;
+  font: 400 clamp(32px, 9.5vw, 44px)/1 var(--font-number);
+  letter-spacing: 0.02em;
+  color: var(--m1);
+  text-transform: uppercase;
+  text-shadow: -2px -2px 0 var(--m3), 2px -2px 0 var(--m3), -2px 2px 0 var(--m3), 2px 2px 0 var(--m3), 0 4px 0 #000a;
+}
+.tower-splat small {
+  margin-top: 4px;
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  font: 800 12px/1 var(--font-display);
+}
+.tower-splat .fb-name {
+  font: 800 24px/1 var(--font-display);
+  color: var(--fb);
+  text-shadow: -1.5px -1.5px 0 #111, 1.5px -1.5px 0 #111, -1.5px 1.5px 0 #111, 1.5px 1.5px 0 #111;
+}
+/* v0.19j: Bloodthirst darker, Bloodrage darker and bigger */
+.first-blood.bloodthirst svg path, .first-blood.bloodthirst svg circle { fill: #7a0606; stroke: #7a0606; }
+.first-blood.bloodrage { width: min(290px, 74vw); }
+.first-blood.bloodrage svg path, .first-blood.bloodrage svg circle { fill: #5a0303; stroke: #5a0303; }
+.fb-exp { color: #d2b0ff; }
+/* v0.19j/l, v0.20, v0.20a: Fire frame: one continuous band of fire with broad, flickering flames licking
+   alternately outwards and inwards; the straight bands end where the corners begin and every corner is a
+   rounded arc of the same band (no spheres), like the rounded water frame */
+.pick-card.el-fire::before,
+.perk-book.book-el.el-fire::before,
+.pick-card.el-fire::after,
+.perk-book.book-el.el-fire::after {
+  content: "";
+  position: absolute;
+  inset: -7px;
+  height: auto;
+  pointer-events: none;
+  -webkit-mask: none;
+  mask: none;
+  border-radius: 0;
+  box-sizing: border-box;
+}
+.pick-card.el-fire::before,
+.perk-book.book-el.el-fire::before {
+  padding: 0 17.5px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 25 25'%3E%3Cg transform='rotate(0 12.5 12.5)'%3E%3Cpath d='M11.42 7.74 Q8.99 4.57 4.49 4.49 Q4.57 8.99 7.74 11.42 Z' fill='%23ff5a14' stroke='%233a0a02' stroke-width='.6' stroke-linejoin='round'/%3E%3Cpath d='M12.69 9.86 Q15.00 11.60 14.95 14.95 Q11.60 15.00 9.86 12.69 Z' fill='%23ff5a14' stroke='%233a0a02' stroke-width='.6' stroke-linejoin='round'/%3E%3Cpath d='M5.6 17.5 A11.9 11.9 0 0 1 17.5 5.6 L17.5 9.4 A8.1 8.1 0 0 0 9.4 17.5 Z' fill='%23ff5a14'/%3E%3Cpath d='M5.6 17.5 A11.9 11.9 0 0 1 17.5 5.6' fill='none' stroke='%233a0a02' stroke-width='.6'/%3E%3Cpath d='M9.4 17.5 A8.1 8.1 0 0 1 17.5 9.4' fill='none' stroke='%233a0a02' stroke-width='.6'/%3E%3Cpath d='M6.300000000000001 17.5 A11.2 11.2 0 0 1 17.5 6.300000000000001 L17.5 8.7 A8.8 8.8 0 0 0 8.7 17.5 Z' fill='%23ffb21a'/%3E%3Cpath d='M7.199999999999999 17.5 A10.3 10.3 0 0 1 17.5 7.199999999999999 L17.5 7.800000000000001 A9.7 9.7 0 0 0 7.800000000000001 17.5 Z' fill='%23fff2a0'/%3E%3Cpath d='M10.64 8.52 Q8.91 6.36 6.04 6.04 Q6.36 8.91 8.52 10.64 Z' fill='%23ffb21a'/%3E%3Cpath d='M12.06 10.50 Q13.53 11.67 13.68 13.68 Q11.67 13.53 10.50 12.06 Z' fill='%23ffb21a'/%3E%3C/g%3E%3C/svg%3E") left top / 25px 25px no-repeat border-box, url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 25 25'%3E%3Cg transform='rotate(90 12.5 12.5)'%3E%3Cpath d='M11.42 7.74 Q8.99 4.57 4.49 4.49 Q4.57 8.99 7.74 11.42 Z' fill='%23ff5a14' stroke='%233a0a02' stroke-width='.6' stroke-linejoin='round'/%3E%3Cpath d='M12.69 9.86 Q15.00 11.60 14.95 14.95 Q11.60 15.00 9.86 12.69 Z' fill='%23ff5a14' stroke='%233a0a02' stroke-width='.6' stroke-linejoin='round'/%3E%3Cpath d='M5.6 17.5 A11.9 11.9 0 0 1 17.5 5.6 L17.5 9.4 A8.1 8.1 0 0 0 9.4 17.5 Z' fill='%23ff5a14'/%3E%3Cpath d='M5.6 17.5 A11.9 11.9 0 0 1 17.5 5.6' fill='none' stroke='%233a0a02' stroke-width='.6'/%3E%3Cpath d='M9.4 17.5 A8.1 8.1 0 0 1 17.5 9.4' fill='none' stroke='%233a0a02' stroke-width='.6'/%3E%3Cpath d='M6.300000000000001 17.5 A11.2 11.2 0 0 1 17.5 6.300000000000001 L17.5 8.7 A8.8 8.8 0 0 0 8.7 17.5 Z' fill='%23ffb21a'/%3E%3Cpath d='M7.199999999999999 17.5 A10.3 10.3 0 0 1 17.5 7.199999999999999 L17.5 7.800000000000001 A9.7 9.7 0 0 0 7.800000000000001 17.5 Z' fill='%23fff2a0'/%3E%3Cpath d='M10.64 8.52 Q8.91 6.36 6.04 6.04 Q6.36 8.91 8.52 10.64 Z' fill='%23ffb21a'/%3E%3Cpath d='M12.06 10.50 Q13.53 11.67 13.68 13.68 Q11.67 13.53 10.50 12.06 Z' fill='%23ffb21a'/%3E%3C/g%3E%3C/svg%3E") right top / 25px 25px no-repeat border-box,
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 25 25'%3E%3Cg transform='rotate(180 12.5 12.5)'%3E%3Cpath d='M11.42 7.74 Q8.99 4.57 4.49 4.49 Q4.57 8.99 7.74 11.42 Z' fill='%23ff5a14' stroke='%233a0a02' stroke-width='.6' stroke-linejoin='round'/%3E%3Cpath d='M12.69 9.86 Q15.00 11.60 14.95 14.95 Q11.60 15.00 9.86 12.69 Z' fill='%23ff5a14' stroke='%233a0a02' stroke-width='.6' stroke-linejoin='round'/%3E%3Cpath d='M5.6 17.5 A11.9 11.9 0 0 1 17.5 5.6 L17.5 9.4 A8.1 8.1 0 0 0 9.4 17.5 Z' fill='%23ff5a14'/%3E%3Cpath d='M5.6 17.5 A11.9 11.9 0 0 1 17.5 5.6' fill='none' stroke='%233a0a02' stroke-width='.6'/%3E%3Cpath d='M9.4 17.5 A8.1 8.1 0 0 1 17.5 9.4' fill='none' stroke='%233a0a02' stroke-width='.6'/%3E%3Cpath d='M6.300000000000001 17.5 A11.2 11.2 0 0 1 17.5 6.300000000000001 L17.5 8.7 A8.8 8.8 0 0 0 8.7 17.5 Z' fill='%23ffb21a'/%3E%3Cpath d='M7.199999999999999 17.5 A10.3 10.3 0 0 1 17.5 7.199999999999999 L17.5 7.800000000000001 A9.7 9.7 0 0 0 7.800000000000001 17.5 Z' fill='%23fff2a0'/%3E%3Cpath d='M10.64 8.52 Q8.91 6.36 6.04 6.04 Q6.36 8.91 8.52 10.64 Z' fill='%23ffb21a'/%3E%3Cpath d='M12.06 10.50 Q13.53 11.67 13.68 13.68 Q11.67 13.53 10.50 12.06 Z' fill='%23ffb21a'/%3E%3C/g%3E%3C/svg%3E") right bottom / 25px 25px no-repeat border-box, url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 25 25'%3E%3Cg transform='rotate(270 12.5 12.5)'%3E%3Cpath d='M11.42 7.74 Q8.99 4.57 4.49 4.49 Q4.57 8.99 7.74 11.42 Z' fill='%23ff5a14' stroke='%233a0a02' stroke-width='.6' stroke-linejoin='round'/%3E%3Cpath d='M12.69 9.86 Q15.00 11.60 14.95 14.95 Q11.60 15.00 9.86 12.69 Z' fill='%23ff5a14' stroke='%233a0a02' stroke-width='.6' stroke-linejoin='round'/%3E%3Cpath d='M5.6 17.5 A11.9 11.9 0 0 1 17.5 5.6 L17.5 9.4 A8.1 8.1 0 0 0 9.4 17.5 Z' fill='%23ff5a14'/%3E%3Cpath d='M5.6 17.5 A11.9 11.9 0 0 1 17.5 5.6' fill='none' stroke='%233a0a02' stroke-width='.6'/%3E%3Cpath d='M9.4 17.5 A8.1 8.1 0 0 1 17.5 9.4' fill='none' stroke='%233a0a02' stroke-width='.6'/%3E%3Cpath d='M6.300000000000001 17.5 A11.2 11.2 0 0 1 17.5 6.300000000000001 L17.5 8.7 A8.8 8.8 0 0 0 8.7 17.5 Z' fill='%23ffb21a'/%3E%3Cpath d='M7.199999999999999 17.5 A10.3 10.3 0 0 1 17.5 7.199999999999999 L17.5 7.800000000000001 A9.7 9.7 0 0 0 7.800000000000001 17.5 Z' fill='%23fff2a0'/%3E%3Cpath d='M10.64 8.52 Q8.91 6.36 6.04 6.04 Q6.36 8.91 8.52 10.64 Z' fill='%23ffb21a'/%3E%3Cpath d='M12.06 10.50 Q13.53 11.67 13.68 13.68 Q11.67 13.53 10.50 12.06 Z' fill='%23ffb21a'/%3E%3C/g%3E%3C/svg%3E") left bottom / 25px 25px no-repeat border-box,
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 14'%3E%3Cg%3E%3Cpath d='M0 5.2 C1.2 5 1.6 4.2 1.9 3.2 C2.3 1.9 3.3 1.6 3.6 0.4 C4.4 1.4 4.6 2.2 4.4 3.1 C5.2 2.2 5.5 0.9 6.4 0 C7.6 1.3 8.4 2.6 8.2 3.6 C9 3.2 9.3 2.3 9.4 1.6 C10.6 2.8 10.9 4.2 12 5 C14 5.4 16 4.8 18 5 C20 4.8 22 5.4 24 5.2 L24 8.8 C22.8 9 22.4 9.8 22.1 10.8 C21.7 12.1 20.7 12.4 20.4 13.6 C19.6 12.6 19.4 11.8 19.6 10.9 C18.8 11.8 18.5 13.1 17.6 14 C16.4 12.7 15.6 11.4 15.8 10.4 C15 10.8 14.7 11.7 14.6 12.4 C13.4 11.2 13.1 9.8 12 9 C10 8.6 8 9.2 6 9 C4 9.2 2 8.6 0 8.8 Z' fill='%23ff5a14' stroke='%233a0a02' stroke-width='.6' stroke-linejoin='round'/%3E%3Crect x='-0.5' y='5.5' width='1.1' height='3' fill='%23ff5a14'/%3E%3Crect x='23.4' y='5.5' width='1.1' height='3' fill='%23ff5a14'/%3E%3Cpath d='M0 6.3 C2 6.1 3 5.6 3.4 4.4 C4.2 4.9 4.8 3.6 6.2 2.2 C7.2 3.4 7.6 4.6 7.4 5.4 C8.4 5 8.8 4.4 9.2 3.8 C10 5 10.6 5.9 12 6.2 C16 6.4 20 6.2 24 6.3 L24 7.7 C22 7.9 21 8.4 20.6 9.6 C19.8 9.1 19.2 10.4 17.8 11.8 C16.8 10.6 16.4 9.4 16.6 8.6 C15.6 9 15.2 9.6 14.8 10.2 C14 9 13.4 8.1 12 7.8 C8 7.6 4 7.8 0 7.7 Z' fill='%23ffb21a'/%3E%3Cpath d='M0 6.9 C8 6.6 16 7.4 24 7.1 L24 7.3 C16 7.6 8 6.8 0 7.2 Z' fill='%23fff2a0'/%3E%3C/g%3E%3C/svg%3E") center top / 26px 15px round no-repeat content-box content-box, url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 14'%3E%3Cg transform='translate(0 14) scale(1 -1)'%3E%3Cpath d='M0 5.2 C1.2 5 1.6 4.2 1.9 3.2 C2.3 1.9 3.3 1.6 3.6 0.4 C4.4 1.4 4.6 2.2 4.4 3.1 C5.2 2.2 5.5 0.9 6.4 0 C7.6 1.3 8.4 2.6 8.2 3.6 C9 3.2 9.3 2.3 9.4 1.6 C10.6 2.8 10.9 4.2 12 5 C14 5.4 16 4.8 18 5 C20 4.8 22 5.4 24 5.2 L24 8.8 C22.8 9 22.4 9.8 22.1 10.8 C21.7 12.1 20.7 12.4 20.4 13.6 C19.6 12.6 19.4 11.8 19.6 10.9 C18.8 11.8 18.5 13.1 17.6 14 C16.4 12.7 15.6 11.4 15.8 10.4 C15 10.8 14.7 11.7 14.6 12.4 C13.4 11.2 13.1 9.8 12 9 C10 8.6 8 9.2 6 9 C4 9.2 2 8.6 0 8.8 Z' fill='%23ff5a14' stroke='%233a0a02' stroke-width='.6' stroke-linejoin='round'/%3E%3Crect x='-0.5' y='5.5' width='1.1' height='3' fill='%23ff5a14'/%3E%3Crect x='23.4' y='5.5' width='1.1' height='3' fill='%23ff5a14'/%3E%3Cpath d='M0 6.3 C2 6.1 3 5.6 3.4 4.4 C4.2 4.9 4.8 3.6 6.2 2.2 C7.2 3.4 7.6 4.6 7.4 5.4 C8.4 5 8.8 4.4 9.2 3.8 C10 5 10.6 5.9 12 6.2 C16 6.4 20 6.2 24 6.3 L24 7.7 C22 7.9 21 8.4 20.6 9.6 C19.8 9.1 19.2 10.4 17.8 11.8 C16.8 10.6 16.4 9.4 16.6 8.6 C15.6 9 15.2 9.6 14.8 10.2 C14 9 13.4 8.1 12 7.8 C8 7.6 4 7.8 0 7.7 Z' fill='%23ffb21a'/%3E%3Cpath d='M0 6.9 C8 6.6 16 7.4 24 7.1 L24 7.3 C16 7.6 8 6.8 0 7.2 Z' fill='%23fff2a0'/%3E%3C/g%3E%3C/svg%3E") center bottom / 26px 15px round no-repeat content-box content-box;
+}
+.pick-card.el-fire::after,
+.perk-book.book-el.el-fire::after {
+  padding: 17.5px 0;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 24'%3E%3Cg transform='translate(0 24) rotate(-90)'%3E%3Cpath d='M0 5.2 C1.2 5 1.6 4.2 1.9 3.2 C2.3 1.9 3.3 1.6 3.6 0.4 C4.4 1.4 4.6 2.2 4.4 3.1 C5.2 2.2 5.5 0.9 6.4 0 C7.6 1.3 8.4 2.6 8.2 3.6 C9 3.2 9.3 2.3 9.4 1.6 C10.6 2.8 10.9 4.2 12 5 C14 5.4 16 4.8 18 5 C20 4.8 22 5.4 24 5.2 L24 8.8 C22.8 9 22.4 9.8 22.1 10.8 C21.7 12.1 20.7 12.4 20.4 13.6 C19.6 12.6 19.4 11.8 19.6 10.9 C18.8 11.8 18.5 13.1 17.6 14 C16.4 12.7 15.6 11.4 15.8 10.4 C15 10.8 14.7 11.7 14.6 12.4 C13.4 11.2 13.1 9.8 12 9 C10 8.6 8 9.2 6 9 C4 9.2 2 8.6 0 8.8 Z' fill='%23ff5a14' stroke='%233a0a02' stroke-width='.6' stroke-linejoin='round'/%3E%3Crect x='-0.5' y='5.5' width='1.1' height='3' fill='%23ff5a14'/%3E%3Crect x='23.4' y='5.5' width='1.1' height='3' fill='%23ff5a14'/%3E%3Cpath d='M0 6.3 C2 6.1 3 5.6 3.4 4.4 C4.2 4.9 4.8 3.6 6.2 2.2 C7.2 3.4 7.6 4.6 7.4 5.4 C8.4 5 8.8 4.4 9.2 3.8 C10 5 10.6 5.9 12 6.2 C16 6.4 20 6.2 24 6.3 L24 7.7 C22 7.9 21 8.4 20.6 9.6 C19.8 9.1 19.2 10.4 17.8 11.8 C16.8 10.6 16.4 9.4 16.6 8.6 C15.6 9 15.2 9.6 14.8 10.2 C14 9 13.4 8.1 12 7.8 C8 7.6 4 7.8 0 7.7 Z' fill='%23ffb21a'/%3E%3Cpath d='M0 6.9 C8 6.6 16 7.4 24 7.1 L24 7.3 C16 7.6 8 6.8 0 7.2 Z' fill='%23fff2a0'/%3E%3C/g%3E%3C/svg%3E") left center / 15px 26px no-repeat round content-box content-box, url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 24'%3E%3Cg transform='translate(14 0) rotate(90)'%3E%3Cpath d='M0 5.2 C1.2 5 1.6 4.2 1.9 3.2 C2.3 1.9 3.3 1.6 3.6 0.4 C4.4 1.4 4.6 2.2 4.4 3.1 C5.2 2.2 5.5 0.9 6.4 0 C7.6 1.3 8.4 2.6 8.2 3.6 C9 3.2 9.3 2.3 9.4 1.6 C10.6 2.8 10.9 4.2 12 5 C14 5.4 16 4.8 18 5 C20 4.8 22 5.4 24 5.2 L24 8.8 C22.8 9 22.4 9.8 22.1 10.8 C21.7 12.1 20.7 12.4 20.4 13.6 C19.6 12.6 19.4 11.8 19.6 10.9 C18.8 11.8 18.5 13.1 17.6 14 C16.4 12.7 15.6 11.4 15.8 10.4 C15 10.8 14.7 11.7 14.6 12.4 C13.4 11.2 13.1 9.8 12 9 C10 8.6 8 9.2 6 9 C4 9.2 2 8.6 0 8.8 Z' fill='%23ff5a14' stroke='%233a0a02' stroke-width='.6' stroke-linejoin='round'/%3E%3Crect x='-0.5' y='5.5' width='1.1' height='3' fill='%23ff5a14'/%3E%3Crect x='23.4' y='5.5' width='1.1' height='3' fill='%23ff5a14'/%3E%3Cpath d='M0 6.3 C2 6.1 3 5.6 3.4 4.4 C4.2 4.9 4.8 3.6 6.2 2.2 C7.2 3.4 7.6 4.6 7.4 5.4 C8.4 5 8.8 4.4 9.2 3.8 C10 5 10.6 5.9 12 6.2 C16 6.4 20 6.2 24 6.3 L24 7.7 C22 7.9 21 8.4 20.6 9.6 C19.8 9.1 19.2 10.4 17.8 11.8 C16.8 10.6 16.4 9.4 16.6 8.6 C15.6 9 15.2 9.6 14.8 10.2 C14 9 13.4 8.1 12 7.8 C8 7.6 4 7.8 0 7.7 Z' fill='%23ffb21a'/%3E%3Cpath d='M0 6.9 C8 6.6 16 7.4 24 7.1 L24 7.3 C16 7.6 8 6.8 0 7.2 Z' fill='%23fff2a0'/%3E%3C/g%3E%3C/svg%3E") right center / 15px 26px no-repeat round content-box content-box;
+}
+/* v0.19j: Plague frame in the card book's Perks tab: the generic 12 px ornament height no longer cuts it to a strip */
+.perk-book.book-el::before {
+  height: auto;
+  width: auto;
+}
+.perk-book.book-el:not(.el-fire)::before {
+  background-repeat: repeat-x, repeat-x, repeat-y, repeat-y;
+}
+/* v0.19j: card book creeps: the tier boss wears the boss frame of the Send menu (no next-tier marker any more) */
+.tt-boss-art { position: relative; display: block; width: 46px; height: 46px; margin: 1px 0 6px; border-radius: 8px; background: #0b1822; }
+.tt-boss-art img { width: 100%; height: 100%; object-fit: contain; padding: 4px; box-sizing: border-box; }
+.tt-boss-art .frame-boss { border-width: 5px; }
+.tt-boss-art .frame-boss::after { width: 15px; height: 11px; }
+/* v0.19j: gold, income and EXP values in tooltips and reviews in their HUD colours */
+b.val.gold { color: #ffe27a; }
+b.val.inc { color: #6ee87a; }
+b.val.exp { color: #d2b0ff; }
+.tower-splat .ts-frame { box-sizing: border-box; overflow: hidden; }
+.tower-splat .ts-frame img { aspect-ratio: 1; height: auto; min-height: 0; display: block; }
+.first-blood.bloodthirst b, .first-blood.bloodrage b { font-size: clamp(30px, 9vw, 42px); }
+/* v0.19k: Auto-Spawn slot a little bigger (as big as the level button looks), its name inside, no "Auto" headline and no tier badge */
+.side-dock .auto-slot { width: calc(var(--slot, 44px) * 1.06); height: calc(var(--slot, 44px) * 1.06); }
+.side-dock #auto-kicker, .side-dock .tier-badge { display: none; }
+.auto-slot .auto-slot-label {
+  padding: 0 2px;
+  font: 400 10px/1.05 var(--font-number, "Lilita One"), system-ui, sans-serif;
+  letter-spacing: 0.03em;
+  text-align: center;
+  text-transform: uppercase;
+  color: #e9d8ff;
+  text-shadow: 0 1px 0 #000;
+  white-space: normal;
+}
+.help-tip .tip-row.tip-gold b { color: #ffe27a; }
+/* v0.19k: the builder splat shows a drawn tower pictogram */
+.tower-splat .ts-frame .ts-picto { width: 100%; height: 100%; display: block; border-radius: 10%; background: radial-gradient(circle at 50% 35%, #34505c, #0c171c 75%); box-shadow: inset 0 0 0 2px var(--m3), inset 0 0 10px #000c; }
+/* v0.19k: player name and EXP in every splat a little larger */
+.first-blood .fb-name, .tower-splat .fb-name { font-size: 30px; }
+.first-blood .fb-exp, .tower-splat .fb-exp { font-size: 14.5px; }
+.tower-splat b { font-size: clamp(26px, 8vw, 36px); }
+.tower-splat .ts-frame { width: min(132px, 36vw); }
+
+/* v0.19l: EXP reward in splats 30 % larger */
+.first-blood .fb-exp, .tower-splat .fb-exp { font-size: 18.9px; }
+.pick-card .pick-cd { color: #cfe3ef; }
+
+/* v0.20: friend room options and team columns */
+.room-opts { display: grid; gap: 6px; margin: 8px 0 2px; }
+.room-opts .room-opt { margin: 0; }
+p.room-opts { text-align: center; }
+.qm-lobby.teams { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: start; }
+.team-col { display: grid; gap: 6px; align-content: start; min-height: 120px; padding: 6px; border-radius: 12px; border: 2px solid color-mix(in srgb, var(--tc) 70%, #050d13); background: color-mix(in srgb, var(--tc) 14%, #0a1520cc); transition: box-shadow 0.15s; }
+.team-col.drop { box-shadow: 0 0 0 3px var(--tc), 0 0 14px var(--tc); }
+.team-head { display: flex; align-items: center; gap: 6px; font: 400 14px/1 var(--font-number); color: color-mix(in srgb, var(--tc) 55%, #fff); text-transform: uppercase; }
+.team-head small { padding: 1px 6px; border-radius: 8px; background: #0008; color: #fff; font-size: 11px; }
+.team-head .team-join { margin-left: auto; padding: 3px 8px; border-radius: 8px; border: 0; background: var(--tc); color: #fff; font: 700 11px var(--font-display); cursor: pointer; }
+.team-empty { margin: 8px 0; text-align: center; font-size: 11px; color: #9fb3c0; }
+.qm-player.team-drag { cursor: grab; touch-action: none; }
+.qm-player.dragging { opacity: 0.35; }
+.team-ghost { opacity: 0.9; transform: rotate(-2deg) scale(1.03); box-shadow: 0 8px 18px #000a; }
+/* v0.20: team mates in the enemy list */
+.enemy-cell.ally { outline: 2px solid #6ee87a; outline-offset: -2px; }
+.qm-lobby.teams { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.qm-lobby.teams .team-col { min-width: 0; }
+.qm-lobby.teams .qm-player { min-width: 0; padding: 6px 8px; gap: 2px 6px; }
+.qm-lobby.teams .qm-player b { font-size: 12px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qm-lobby.teams .qm-player .qm-icon { width: 26px; height: 26px; }
+.qm-lobby.teams .qm-player .bot-level { padding: 2px 5px; font-size: 9px; }
+.qm-player.team-drag, .qm-player.team-drag img { user-select: none; -webkit-user-drag: none; }
+.qm-lobby.many { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .qm-lobby.many .qm-player { min-width: 0; }

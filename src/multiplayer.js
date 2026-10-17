@@ -6,7 +6,7 @@
 // Version 3 requires the schema-4 expanded board and mobile movement rules. Keep the address namespace
 // stable so an old client receives a clear handshake mismatch, not a lost room.
 // v0.19: protocol 5 = rooms with up to six players (seat assignment in the lobby).
-export const PROTOCOL_VERSION = 5;
+export const PROTOCOL_VERSION = 6; // v0.20: team games and room options (older versions cannot join)
 export const MAX_GUESTS = 5;
 export const MAX_PAYLOAD_BYTES = 512 * 1024;
 export const ROOM_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -460,13 +460,20 @@ export function normalizeRoomCode(value) {
     .trim()
     .toUpperCase()
     .replace(/[\s-]/g, "");
+  if (/^\d{4}$/.test(code)) return code; // v0.19c1: friend rooms use four digits
   if (code.length !== 8 || [...code].some((char) => !ROOM_ALPHABET.includes(char))) {
-    throw error("invalid-code", "The room code must have 8 letters or digits.");
+    throw error("invalid-code", "The room code must have 4 digits.");
   }
   return code;
 }
 
 function randomCode(dependencies) {
+  // v0.19c1: Play a friend: a four-digit code (Quick Match keeps its internal eight-letter codes)
+  if (dependencies.digits) {
+    const n = globalThis.crypto?.getRandomValues(new Uint16Array(1))?.[0];
+    if (n === undefined) throw error("crypto-unavailable", "This browser can't create a secure room code.");
+    return String(n % 10000).padStart(4, "0");
+  }
   const bytes = dependencies.randomBytes
     ? dependencies.randomBytes(8)
     : globalThis.crypto?.getRandomValues(new Uint8Array(8));
@@ -988,6 +995,13 @@ class Session {
               this.status("warning", "Room service disconnected; the running match stays directly connected.", peerFailure(err));
             } else if (this.role === "host" && this.opened && err?.type === "peer-unavailable") {
               // not ours to handle on the host
+            } else if (this.role === "guest" && this.opened && err?.type === "peer-unavailable" && !this.anyConnected() && (this.unavailableTries || 0) < (this.dependencies.retryUnavailable || 0)) {
+              // v0.19b1: Quick Match guest: the host registers its room a moment later; ask again shortly
+              this.unavailableTries = (this.unavailableTries || 0) + 1;
+              for (const link of this.links.values()) link.close();
+              this.links.clear();
+              this.status("connecting", "Waiting for the host's room …");
+              this.later(() => this.connectToHost(), 1500);
             } else this.fail(peerFailure(err));
           },
           this.peerListeners,
@@ -1019,24 +1033,29 @@ class Session {
     if (this.closed || this.opened) return;
     this.opened = true;
     this.cancel(this.startTimer);
-    if (this.role === "host") this.status("ready", `Room ready. Share the code with your friends (up to ${this.maxGuests + 1} players).`);
-    else {
-      this.status("connecting", "Connecting to the host …");
-      try {
-        const connection = this.peer.connect("felito-v1-" + this.code, {
-          label: PROTOCOL,
-          metadata: { protocol: PROTOCOL, version: PROTOCOL_VERSION, room: this.code, relay: this.relaySecret },
-          serialization: "binary",
-          reliable: true,
-        });
-        this.addLink(connection, 0);
-      } catch (err) {
-        this.fail(peerFailure(err));
-        return;
-      }
-    }
+    if (this.role === "host") this.status("ready", `Room ready (up to ${this.maxGuests + 1} players).`); // v0.19c1: no code talk (Quick Match has none)
+    else if (!this.connectToHost()) return;
     this.resolve?.(this.room);
     this.resolve = this.reject = null;
+  }
+
+  /** Guest: opens the data channel to the host's room (again after a retry). */
+  connectToHost() {
+    if (this.closed) return false;
+    this.status("connecting", "Connecting to the host …");
+    try {
+      const connection = this.peer.connect("felito-v1-" + this.code, {
+        label: PROTOCOL,
+        metadata: { protocol: PROTOCOL, version: PROTOCOL_VERSION, room: this.code, relay: this.relaySecret },
+        serialization: "binary",
+        reliable: true,
+      });
+      this.addLink(connection, 0);
+    } catch (err) {
+      this.fail(peerFailure(err));
+      return false;
+    }
+    return true;
   }
 
   addLink(connection, id = this.nextLinkId++) {

@@ -1,4 +1,14 @@
-import { getStats, divineShield, isHeavy, isMagicTower, isMeleeTower, towerAt, towerSize, footprintOf, STRIP, HELLFIRE, LONE, loneCount, zoneOf } from "./simulation.js";
+import { getStats, divineShield, isHeavy, isMagicTower, isMeleeTower, towerAt, towerSize, footprintOf, STRIP, HELLFIRE, LONE, loneCount, zoneOf, hpBarScale, tierSends } from "./simulation.js";
+/** v0.19j: is this send one of the 4 most expensive non-boss creeps of its tier? (heavy HP-bar frame) */
+const TOP_FOUR = new Map();
+function topFour(def) {
+  if (!def?.isSend || !def.tier) return true;
+  if (!TOP_FOUR.has(def.id)) {
+    const list = tierSends(def.tier).filter((x) => !x.bossTier);
+    TOP_FOUR.set(def.id, list.findIndex((x) => x.id === def.id) >= list.length - 4);
+  }
+  return TOP_FOUR.get(def.id);
+}
 import { ART_MANIFEST, ANIM_MANIFEST, animUrl, artFor, artUrl, towerTier, TOWER_ART, CREEP_ART, TEAM_COLORS, CLOTH_COLORS, recolorTeam } from "./art.js";
 import { t } from "./i18n.js";
 import { Stage, BLEND, TINT, hsvToColor } from "./b2d.js";
@@ -988,6 +998,11 @@ export function mountArena({
             this.floatText(tq.x, tq.y - cell * 0.9, t("MAGIC BURST"), "#d8b8ff", 13, 34, 1);
             this.ring(q.x, q.y, cell * 0.1, cell * 0.75, 0xb88cff, 0.75, 4);
             this.burst(q.x, q.y - cell * 0.2, 0xd0b0ff, 12, 100, 2.8, 0.5, 0, true);
+          } else if (e.kind === "fireblock") {
+            // v0.19j: Fire Block: a small explosion near the breach
+            this.floatText(q.x, q.y - cell * 0.7, t("FIRE BLOCK"), "#ffb070", 13, 34, 1.1);
+            this.ring(q.x, q.y, cell * 0.2, cell * 1.5, 0xff7a2a, 0.8, 5);
+            this.burst(q.x, q.y - cell * 0.2, 0xffb040, 18, 130, 3, 0.55, -40, true);
           } else if (e.kind === "waterblock") {
             this.floatText(q.x, q.y - cell * 0.6, t("BLOCKED"), "#9ee0ff", 13, 34, 1.1);
             this.ring(q.x, q.y, cell * 0.2, cell * 1.1, 0x7fd0ff, 0.8, 4);
@@ -1058,8 +1073,8 @@ export function mountArena({
         } else if (e.type === "volleyStart" && e.player === view) {
           const q = this.point(e.x, e.y);
           this.ring(q.x, q.y, cell * 0.3, cell * 1.5, 0xffe7a8, 0.6, 3);
-        } else if (e.type === "income" && e.player === view && e.gens?.length) {
-          // v0.17c: EXP pop-up over every EXP generator at the start of a round
+        } else if ((e.type === "income" || e.type === "expGen") && e.player === view && e.gens?.length) {
+          // v0.17c: EXP pop-up over every EXP generator (v0.19d2: every 5 s)
           for (const gen of e.gens) {
             const q = this.point(gen.x, gen.y),
               n = Math.round(gen.exp * 100) / 100;
@@ -1317,7 +1332,7 @@ export function mountArena({
         }
         const building = (t.buildRemaining || 0) > 0,
           // Higher levels of the same figure stand a little taller on a slightly larger pedestal.
-          base = ((tc * 0.98 * TOWER_SCALE) / m.plateW) * levelScale(def.level || 1) * (t.stone === "large" ? 1.16 : t.stone === "small" ? 0.8 : 1), // v0.18h: Quarry stones
+          base = ((tc * 0.98 * TOWER_SCALE) / m.plateW) * levelScale(def.level || 1) * (t.stone === "large" ? 1.23 : t.stone === "small" ? 0.8 : 1), // v0.18h: Quarry stones; v0.19c1: large ones 6 % larger
           phase = (parseInt(String(t.id).replace(/\D/g, ""), 10) || 0) * 1.7;
         const popT = sprite.getData("pop") ? clamp((time - sprite.getData("pop")) / 280, 0, 1) : 1,
           pop = popT < 1 ? 0.5 + 0.5 * this.backOut(popT) : 1,
@@ -1363,6 +1378,18 @@ export function mountArena({
           bars.lineBetween(hx, hy + hr * 0.45, hx, hy + hr * 1.5);
           bars.fillStyle(0xfff2c0, 0.42);
           bars.fillCircle(hx, hy, Math.max(1, hr * 0.14));
+        }
+        // v0.19b1: Earth Laser after a Focus Fire kill: grey smoke rises from the weapon for 1 s (calm, fades out)
+        if (t.smokeUntil > game.time && !building) {
+          const left = clamp(t.smokeUntil - game.time, 0, 1),
+            sb = this.bars;
+          for (let k = 0; k < 4; k++) {
+            const age = (1 - left + k * 0.25) % 1,
+              sx = cx + Math.sin(phase + k * 2.1 + age * 3) * tc * 0.07,
+              sy = cy - tc * (0.62 + age * 0.38);
+            sb.fillStyle(0x8c9198, 0.5 * Math.min(1, left * 2) * (1 - age * 0.6));
+            sb.fillCircle(sx, sy, tc * (0.05 + age * 0.08));
+          }
         }
         // team glow under the pedestal
         glow.fillStyle(team, 0.16);
@@ -1555,13 +1582,14 @@ export function mountArena({
           else if (poisoned) sprite.setTint(0xc4f59a);
           else if (c.immune) sprite.setTint(0xe2d2ff);
           else if (c.burning) sprite.setTint(0xffa060); // v0.10w: Burning Treant
+          else if (c.spiritWolf) sprite.setTint(0xe8d0ff); // v0.19a1: Spirit Wolves
           else sprite.clearTint();
         }
         const flap = flying ? 1 + Math.sin(time * 0.03 + phase0) * 0.05 : 1;
         sprite
           .setOrigin(walk ? (m.w / 2 + walk.ox) / walk.fw : 0.5, walk ? (m.footY + walk.oy) / walk.fh : m.footY / m.h)
           .setPosition(q.x, q.y + cell * 0.18 - lift)
-          .setScale(s * (sprite.getData("face") === -1 ? -1 : 1) * (c.buff === "fat" ? 1.42 : 1), s * flap * (c.buff === "fat" ? 1.06 : 1)) // v0.15: fat quest creeps
+          .setScale(s * (sprite.getData("face") === -1 ? -1 : 1) * (c.buff === "fat" ? 1.42 : 1) * (c.spiritWolf ? 1.08 : 1), s * flap * (c.buff === "fat" ? 1.06 : 1) * (c.spiritWolf ? 1.08 : 1)) // v0.15: fat quest creeps; v0.19a1: Spirit Wolves a little larger
           .setRotation(flying || walk ? 0 : Math.sin(step) * 0.07)
           .setDepth(3000 + Math.floor(q.y) + (flying ? 1200 : 0)); // creeps always draw in front of towers
         g.fillStyle(0x06120e, flying ? 0.22 : 0.32);
@@ -1648,25 +1676,42 @@ export function mountArena({
           g.lineStyle(2, 0xd8a8ff, 0.8);
           g.strokeEllipse(q.x, q.y + cell * 0.2, cell * 0.8, cell * 0.28);
         }
+        if (c.spiritWolf) {
+          // v0.19a1: Spirit Wolves: a soft arcane veil with slowly glittering sparks (calm, never flickering)
+          const cy = q.y + cell * 0.18 - lift - height * 0.45;
+          glow.fillStyle(0xd88aff, 0.18);
+          glow.fillEllipse(q.x, cy, height * 0.95, height * 0.9);
+          for (let k = 0; k < 4; k++) {
+            const a = phase0 * 1.3 + k * 1.57 + time * 0.0012,
+              tw = 0.5 + 0.5 * Math.sin(time * 0.0035 + k * 1.7 + phase0);
+            glow.fillStyle(0xfff0ff, 0.3 + 0.45 * tw);
+            glow.fillCircle(q.x + Math.cos(a) * height * 0.33, cy + Math.sin(a) * height * 0.3, Math.max(1.5, height * (0.022 + 0.02 * tw)));
+          }
+        }
         // v0.17: no ring under neutral creeps any more; their grey clothes set them apart
         // Health bar only once a creep has lost health; drawn on top of everything on the board.
         const ratio = clamp(c.hp / (c.maxHp || def.hp), 0, 1);
         if (ratio < 0.999) {
           const hb = this.hpBars,
-            bar = boss ? cell * 0.95 : cell * 0.55,
+            bar = boss ? cell * 0.95 : cell * 0.55 * hpBarScale(def), // v0.19h1: weak creeps get shorter bars
             barH = boss ? 6 : 4,
             barY = q.y + cell * 0.18 - lift - height - 6;
           // v0.17q: heavy creeps carry an iron frame, bosses a gold frame
           const frame = boss ? "gold" : c.heavy || isHeavy(def) ? "iron" : null;
           if (frame) {
-            const [outer, inner, rivet] = frame === "gold" ? [0x6a4206, 0xffcc3a, 0xfff2a8] : [0x23282e, 0x9aa4ae, 0xe2e8ee],
-              fw = frame === "gold" ? 4 : 3.5;
-            hb.fillStyle(outer, 1);
+            // v0.19j: heavy creeps outside the 4 strongest of their tier get a slimmer, plainer iron frame
+            const light = frame === "iron" && !topFour(def),
+              [outer, inner, rivet] = frame === "gold" ? [0x6a4206, 0xffcc3a, 0xfff2a8] : light ? [0x2c3238, 0x737d87, 0xb8c0c8] : [0x23282e, 0x9aa4ae, 0xe2e8ee],
+              fw = frame === "gold" ? 4 : light ? 2 : 3.5,
+              alpha = light ? 0.8 : 1;
+            hb.fillStyle(outer, alpha);
             hb.fillRoundedRect(q.x - bar / 2 - fw - 1.5, barY - fw - 1.5, bar + fw * 2 + 3, barH + fw * 2 + 3, 4);
-            hb.fillStyle(inner, 1);
+            hb.fillStyle(inner, alpha);
             hb.fillRoundedRect(q.x - bar / 2 - fw, barY - fw, bar + fw * 2, barH + fw * 2, 3);
-            hb.fillStyle(rivet, 1);
-            for (const sx of [-1, 1]) hb.fillCircle(q.x + sx * (bar / 2 + 1.5 + (fw - 1.5) / 2), barY + barH / 2, Math.max(0.8, (fw - 1.5) * 0.38));
+            if (!light) {
+              hb.fillStyle(rivet, 1);
+              for (const sx of [-1, 1]) hb.fillCircle(q.x + sx * (bar / 2 + 1.5 + (fw - 1.5) / 2), barY + barH / 2, Math.max(0.8, (fw - 1.5) * 0.38));
+            }
           }
           hb.fillStyle(0x0b1512, 0.9);
           hb.fillRoundedRect(q.x - bar / 2 - 1.5, barY - 1.5, bar + 3, barH + 3, 3);
@@ -2253,7 +2298,7 @@ export function mountArena({
         if (erupting) {
           // the pillar itself: a tall column of fire, brightest in the middle
           const life = clamp((f.end - now) / Math.max(0.01, f.end - f.erupt), 0, 1),
-            top = q.y - cell * 3.4,
+            top = q.y - cell * (f.small ? 1.8 : 3.4), // v0.19j: Fire Block explosions are smaller
             w = r * 0.55 * (0.8 + 0.2 * Math.sin(time * 0.03));
           for (let k = 0; k < 9; k++) {
             const y = q.y - (q.y - top) * (k / 8),
@@ -2266,7 +2311,7 @@ export function mountArena({
           glow.fillStyle(0xfff4c0, 0.5);
           glow.fillEllipse(q.x, q.y - cell * 0.4, w * 0.6, cell * 1.6);
           if (Math.random() < 0.35) this.burst(q.x + (Math.random() - 0.5) * r, q.y - Math.random() * cell, 0xffb040, 3, 110, 2.6, 0.5, -60, true);
-          if (!this.shook?.has(f.start)) {
+          if (!f.small && !this.shook?.has(f.start)) {
             (this.shook ||= new Set()).add(f.start);
             this.stage.shake(260, 0.008);
           }
