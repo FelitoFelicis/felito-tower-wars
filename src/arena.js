@@ -1067,15 +1067,7 @@ export function mountArena({
           g.lineStyle(3, 0xffe47a, 0.55 + pulse * 0.4);
           g.strokeEllipse(q.x, q.y + sc * 0.12, sc * 0.98, sc * 0.5);
         }
-      } else if (selected && view === selected.player) {
-        for (let y = 0; y < z.logicalRows; y++)
-          for (let x = 0; x < z.logicalCols; x++) {
-            if (towerAt(player, x, y)) continue;
-            const q = this.point((x + 0.5) / z.logicalCols, (y + 0.5) / z.logicalRows);
-            g.lineStyle(1.5, 0xf6f0c0, 0.35 + 0.15 * Math.sin(time * 0.006 + x + y));
-            g.strokeRoundedRect(q.x - cell / 2 + 4, q.y - cell / 2 + 4, cell - 8, cell - 8, 6);
-          }
-      }
+      } // v0.17l: no more glowing frames on free fields while a tower card is picked
       // v0.09q: Arrow Volley aim — the area follows the pointer
       const aim = getAim();
       if (aim && this.pointer) {
