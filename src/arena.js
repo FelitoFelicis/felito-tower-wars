@@ -1,4 +1,4 @@
-import { getStats, divineShield, isMagicTower, isMeleeTower, towerAt, towerSize, footprintOf, STRIP, HELLFIRE, LONE, loneCount } from "./simulation.js";
+import { getStats, divineShield, isHeavy, isMagicTower, isMeleeTower, towerAt, towerSize, footprintOf, STRIP, HELLFIRE, LONE, loneCount } from "./simulation.js";
 import { ART_MANIFEST, ANIM_MANIFEST, animUrl, artFor, artUrl, towerTier, TOWER_ART, CREEP_ART, TEAM_COLORS, CLOTH_COLORS, recolorTeam } from "./art.js";
 import { t } from "./i18n.js";
 import { Stage, BLEND, TINT, hsvToColor } from "./b2d.js";
@@ -93,10 +93,9 @@ export function arenaGeometry(width, height, grid = { cols: 6, rows: 9 }, mode =
       left = fr,
       top = frameV + strip,
       sideW = clamp(Math.round(w * 0.1), 38, 52),
-      pipW = sideW,
-      pipH = (pipW * logicalRows) / logicalCols,
       band = sideW + 42,
-      clearTop = safeTop + 8 + Math.max(sideW * 1.3, pipH + 16),
+      // v0.17o: no enemy mini map in Mobile Max, only the level button in the top corner
+      clearTop = safeTop + 8 + sideW * 1.3,
       clearBottom = h - safeBottom - band,
       // lo: the first row right below the corner buttons; hi: the last row right above the bottom row
       lo0 = top - clearTop,
@@ -113,7 +112,7 @@ export function arenaGeometry(width, height, grid = { cols: 6, rows: 9 }, mode =
       scroll: { lo, hi, def: (lo + hi) / 2 },
       clearTop,
       clearBottom,
-      pip: { x: w - pipW - 8, y: scrollY + safeTop + 8, w: pipW, h: pipH },
+      pip: null,
       side: { x: 6, y: safeTop + 6 - 14, w: sideW, full: true },
     };
   }
@@ -950,6 +949,10 @@ export function mountArena({
           } else if (e.kind === "entangle") {
             this.floatText(q.x, q.y - cell * 0.55, t("ENTANGLED"), "#9cff8a", 12, 30, 0.9);
             this.ring(q.x, q.y + cell * 0.1, cell * 0.1, cell * 0.45, 0x6bdc5a, 0.6, 3);
+          } else if (e.kind === "howl") {
+            // v0.17p: Pit Lord's Howl
+            const r = ((e.radius || 192) / game.grid.cellUnits) * cell;
+            this.ring(q.x, q.y + cell * 0.1, cell * 0.2, r, 0xb04a8a, 0.6, 4);
           } else if (e.kind === "stomp") {
             const r = ((e.radius || 256) / game.grid.cellUnits) * cell;
             this.ring(q.x, q.y + cell * 0.1, cell * 0.2, r, 0xd8b070, 0.7, 5);
@@ -1286,6 +1289,21 @@ export function mountArena({
           .setAlpha(building ? 0.55 : 1);
         if (t.curse && t.curse.until > game.time) sprite.setTint(0xd2b0ff).setTintMode(TINT.MULTIPLY);
         else sprite.clearTint();
+        // v0.17p: Trueshot Aura buff: a small, transparent crosshair on the figure's torso (static, no flicker)
+        if (t.trueshot && !building) {
+          const hx = cx,
+            hy = cy - tc * 0.42,
+            hr = tc * 0.1,
+            bars = this.bars;
+          bars.lineStyle(1.6, 0xfff2c0, 0.42);
+          bars.strokeCircle(hx, hy, hr);
+          bars.lineBetween(hx - hr * 1.5, hy, hx - hr * 0.45, hy);
+          bars.lineBetween(hx + hr * 0.45, hy, hx + hr * 1.5, hy);
+          bars.lineBetween(hx, hy - hr * 1.5, hx, hy - hr * 0.45);
+          bars.lineBetween(hx, hy + hr * 0.45, hx, hy + hr * 1.5);
+          bars.fillStyle(0xfff2c0, 0.42);
+          bars.fillCircle(hx, hy, Math.max(1, hr * 0.14));
+        }
         // team glow under the pedestal
         glow.fillStyle(team, 0.16);
         glow.fillEllipse(cx, cy + tc * 0.06, tc * 1.0, tc * 0.5);
@@ -1578,6 +1596,18 @@ export function mountArena({
             bar = boss ? cell * 0.95 : cell * 0.55,
             barH = boss ? 6 : 4,
             barY = q.y + cell * 0.18 - lift - height - 6;
+          // v0.17q: heavy creeps carry an iron frame, bosses a gold frame
+          const frame = boss ? "gold" : c.heavy || isHeavy(def) ? "iron" : null;
+          if (frame) {
+            const [outer, inner, rivet] = frame === "gold" ? [0x6a4206, 0xffcc3a, 0xfff2a8] : [0x23282e, 0x9aa4ae, 0xe2e8ee],
+              fw = frame === "gold" ? 4 : 3.5;
+            hb.fillStyle(outer, 1);
+            hb.fillRoundedRect(q.x - bar / 2 - fw - 1.5, barY - fw - 1.5, bar + fw * 2 + 3, barH + fw * 2 + 3, 4);
+            hb.fillStyle(inner, 1);
+            hb.fillRoundedRect(q.x - bar / 2 - fw, barY - fw, bar + fw * 2, barH + fw * 2, 3);
+            hb.fillStyle(rivet, 1);
+            for (const sx of [-1, 1]) hb.fillCircle(q.x + sx * (bar / 2 + 1.5 + (fw - 1.5) / 2), barY + barH / 2, Math.max(0.8, (fw - 1.5) * 0.38));
+          }
           hb.fillStyle(0x0b1512, 0.9);
           hb.fillRoundedRect(q.x - bar / 2 - 1.5, barY - 1.5, bar + 3, barH + 3, 3);
           hb.fillStyle(ratio > 0.5 ? 0x8ff05a : ratio > 0.25 ? 0xffc75a : 0xff5f52);
@@ -1669,8 +1699,8 @@ export function mountArena({
     immolation(def, catalog) {
       this.burnCache ||= new Map();
       if (!this.burnCache.has(def.id)) {
-        const a = (def.abilities || []).map((id) => catalog.abilities[id]).find((x) => x?.baseId === "AIcf");
-        const r = a ? Number(a.fields?.aare?.[1] ?? a.fields?.aare?.[0] ?? 192) : 0;
+        // v0.17p: the widest immolation aura (Phoenix has two)
+        const r = Math.max(0, ...(def.abilities || []).map((id) => catalog.abilities[id]).filter((x) => x?.baseId === "AIcf").map((a) => Number(a.fields?.aare?.[1] ?? a.fields?.aare?.[0] ?? 192)));
         this.burnCache.set(def.id, r);
       }
       return this.burnCache.get(def.id);

@@ -4893,6 +4893,50 @@ dialog.welcome-modal {
   width: 22px;
   height: 22px;
 }
+/* v0.17o: AI training: Surrender at half width, a yellow Restart button to its right */
+.surrender-pair {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+.surrender-pair[hidden] {
+  display: none;
+}
+.surrender-pair > button {
+  flex: 1 1 0;
+  min-width: 0;
+  margin-top: 0;
+}
+.surrender-pair .danger-button {
+  padding-inline: 8px;
+  font-size: 16px;
+}
+.restart-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 50px;
+  padding: 8px;
+  border: 2px solid #050d13;
+  border-radius: 12px;
+  color: #3a2a00;
+  font: 800 16px var(--font-display);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-shadow: 0 1px 0 #fff6;
+  background: linear-gradient(#ffe066, #e0a81c);
+  box-shadow:
+    inset 0 2px 0 #ffffff70,
+    inset 0 -3px 0 #00000025,
+    0 4px 0 #050d13;
+  cursor: pointer;
+}
+.restart-button svg {
+  width: 22px;
+  height: 22px;
+  flex: none;
+}
 /* mixed difficulty toggle */
 .segmented.ai-levels .ai-mixed {
   background: linear-gradient(#2a3b4a, #17242f);
@@ -5303,16 +5347,16 @@ dialog.welcome-modal.hard-eyes .welcome-eyes {
   -webkit-text-stroke: 5px #3a2404;
   paint-order: stroke fill;
   text-shadow: 0 7px 0 #3a2404, 0 10px 18px #000a;
-  opacity: 0.68; /* v0.17g: 32 % see-through like every splat */
+  opacity: 0.7; /* v0.17g, v0.17q: 30 % see-through like every splat */
 }
 .warmup-count.pop {
   animation: warmup-pop 0.9s cubic-bezier(0.2, 1.6, 0.4, 1) both;
 }
 @keyframes warmup-pop {
   0% { transform: translate(-50%, -50%) scale(0.2) rotate(-12deg); opacity: 0; }
-  35% { transform: translate(-50%, -50%) scale(1.15) rotate(4deg); opacity: 0.68; }
+  35% { transform: translate(-50%, -50%) scale(1.15) rotate(4deg); opacity: 0.7; }
   60% { transform: translate(-50%, -50%) scale(0.96) rotate(-1deg); }
-  85% { transform: translate(-50%, -50%) scale(1); opacity: 0.68; }
+  85% { transform: translate(-50%, -50%) scale(1); opacity: 0.7; }
   100% { transform: translate(-50%, -50%) scale(1.25); opacity: 0; }
 }
 /* crossed swords (your target) sit a few px higher */
@@ -5536,17 +5580,17 @@ dialog.welcome-modal.hard-eyes .welcome-eyes {
   color: var(--fb);
   text-shadow: -1.5px -1.5px 0 #2a0000, 1.5px -1.5px 0 #2a0000, -1.5px 1.5px 0 #2a0000, 1.5px 1.5px 0 #2a0000;
 }
-/* v0.17g: every splat over the board: 32 % see-through, fades out after 1.5 s */
+/* v0.17g, v0.17q: every splat over the board: 30 % see-through, fades out after 1.5 s */
 .first-blood {
   animation-duration: 1.9s;
 }
 @keyframes first-blood {
   0% { opacity: 0; transform: translate(-50%, -50%) scale(2.2) rotate(-8deg); }
-  12.6% { opacity: 0.68; transform: translate(-50%, -50%) scale(0.92) rotate(2deg); }
+  12.6% { opacity: 0.7; transform: translate(-50%, -50%) scale(0.92) rotate(2deg); }
   17.9% { transform: translate(-52%, -50%) scale(1.04) rotate(-2deg); }
   22.6% { transform: translate(-48%, -50%) scale(1) rotate(1deg); }
   27.9% { transform: translate(-50%, -50%) scale(1) rotate(0); }
-  79% { opacity: 0.68; transform: translate(-50%, -50%) scale(1); }
+  79% { opacity: 0.7; transform: translate(-50%, -50%) scale(1); }
   100% { opacity: 0; transform: translate(-50%, -46%) scale(1.06); }
 }
 
@@ -5822,7 +5866,7 @@ b.val {
 .quest-splat .qs-exp{color:#d2b0ff}
 .quest-splat .qs-gold{color:#ffe27a}
 .quest-splat .qs-inc{color:#6ee87a}
-@keyframes questSplat{0%{opacity:0;transform:translate(-50%,-50%) scale(.6)}15.8%{opacity:.68;transform:translate(-50%,-50%) scale(1.06)}27%{transform:translate(-50%,-50%) scale(1)}79%{opacity:.68;transform:translate(-50%,-50%) scale(1)}100%{opacity:0;transform:translate(-50%,-56%) scale(1)}}
+@keyframes questSplat{0%{opacity:0;transform:translate(-50%,-50%) scale(.6)}15.8%{opacity:.7;transform:translate(-50%,-50%) scale(1.06)}27%{transform:translate(-50%,-50%) scale(1)}79%{opacity:.7;transform:translate(-50%,-50%) scale(1)}100%{opacity:0;transform:translate(-50%,-56%) scale(1)}}
 
 /* v0.17b: perks section of the card book (display cards, not buttons) */
 .perk-book { overflow-x: visible; }
@@ -6063,7 +6107,9 @@ html.layout-b .game-shell .bottom-nav [data-tab] img {
   50% { opacity: 1; }
 }
 .level-button.ready { animation-duration: 2s; }
-.level-button.ready::before { animation-duration: 6s; }
+/* v0.17q: the halo no longer runs as a CSS animation: app.js turns it by the clock (--halo), one turn
+   in 6 s, so it can never spin faster on phones (hard cap 2 turns per second) */
+.level-button.ready::before { animation: none; transform: rotate(var(--halo, 0deg)); }
 
 /* v0.17k: zoomed layout: the cards reach 20 px into the bottom safe area (the v0.17j layout stays as B2) */
 html.layout-b:not(.layout-b2) .game-shell .command-deck {
@@ -6157,4 +6203,88 @@ html.layout-full .game-shell .bottom-nav {
 .scroll-thumb.show {
   opacity: 0.75;
   transition-duration: 0.1s;
+}
+/* v0.17q: active ability tooltips (head with level, short description, value rows) */
+.help-tip .tip-level {
+  color: #d8bfff;
+  font-size: 12px;
+  font-weight: 700;
+}
+.help-tip.stats .tip-text {
+  margin: 2px 0 5px;
+  font-size: 12.5px;
+  line-height: 1.35;
+  color: #e4edf3;
+}
+/* v0.17q: a player is out in a 3+ player match: torn banner in their colour, portrait below, 30 % see-through */
+.defeat-splat {
+  position: fixed;
+  z-index: 60;
+  left: 50%;
+  top: 36%;
+  width: min(270px, 72vw);
+  display: grid;
+  justify-items: center;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  animation: defeat-splat 1.9s ease-out forwards;
+}
+.defeat-splat .ds-banner {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 240 / 150;
+  display: grid;
+  place-items: center;
+  transform: rotate(-4deg);
+}
+.defeat-splat .ds-banner svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 4px 6px #000a);
+}
+.defeat-splat b {
+  position: relative;
+  margin-bottom: 14%;
+  padding: 0 12%;
+  text-align: center;
+  font: 400 clamp(22px, 6.6vw, 30px)/1.05 var(--font-number);
+  color: #f2ece6;
+  text-transform: uppercase;
+  text-shadow: -2px -2px 0 #1a0f0a, 2px -2px 0 #1a0f0a, -2px 2px 0 #1a0f0a, 2px 2px 0 #1a0f0a, 0 3px 0 #1a0f0a;
+}
+.defeat-splat .ds-name {
+  display: block;
+  color: var(--pc);
+  text-transform: none;
+  font-size: 1.05em;
+}
+.defeat-splat .ds-face {
+  width: 64px;
+  height: 64px;
+  margin-top: -14px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid var(--pc);
+  background: #0b1822;
+  filter: grayscale(0.7) drop-shadow(0 3px 4px #000a);
+}
+@keyframes defeat-splat {
+  0% { opacity: 0; transform: translate(-50%, -62%) scale(1.1); }
+  14% { opacity: 0.7; transform: translate(-50%, -50%) scale(1); }
+  20% { transform: translate(-50%, -49%) rotate(1.5deg); }
+  27% { transform: translate(-50%, -50%) rotate(0); }
+  79% { opacity: 0.7; transform: translate(-50%, -50%); }
+  100% { opacity: 0; transform: translate(-50%, -44%); }
+}
+/* v0.17q: a note line below the version number */
+.app-version {
+  text-align: right;
+}
+.app-version-note {
+  display: block;
+  margin-top: 3px;
+  font-size: 10px;
+  letter-spacing: 0.02em;
 }

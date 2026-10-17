@@ -81,6 +81,17 @@ export function configureContent(data) {
     rawAbilities = mergeObjects(data.abilities);
   // v0.17b: own creep abilities (not in the map data): damage resistance against one tower line
   for (const a of CUSTOM_ABILITIES) rawAbilities.set(a.id, { ...a, fields: { ...a.fields } });
+  // v0.17p: ability fixes (field patches, removed and added abilities per unit)
+  for (const [id, patch] of Object.entries(ABILITY_PATCH)) {
+    const a = rawAbilities.get(id);
+    if (a) rawAbilities.set(id, { ...a, ...(patch.props || {}), fields: { ...a.fields, ...(patch.fields || {}) } });
+  }
+  for (const [id, raw] of rawUnits) {
+    const list = splitIds(raw.fields.uabi),
+      next = list.flatMap((x) => (UNIT_ABILITY_SWAP[id]?.[x] !== undefined ? [UNIT_ABILITY_SWAP[id][x]].filter(Boolean) : REMOVED_ABILITIES.has(x) ? [] : [x]));
+    for (const x of UNIT_ABILITY_ADD[id] || []) if (!next.includes(x)) next.unshift(x);
+    if (next.join(",") !== list.join(",")) rawUnits.set(id, { ...raw, fields: { ...raw.fields, uabi: next.join(",") } });
+  }
   const byId = {},
     allUnits = [],
     allResearch = [];
@@ -502,7 +513,40 @@ export const CUSTOM_ABILITIES = [
   { id: "XA01", baseId: "Xlrs", custom: true, line: "h003", reduce: 0.33, fields: { anam: { 0: "Arrow Resistance" }, aub1: { 1: "Takes 33% less damage from Archer-line towers" } } },
   { id: "XA02", baseId: "Xlrs", custom: true, line: "h02R", reduce: 0.33, fields: { anam: { 0: "Siege Resistance" }, aub1: { 1: "Takes 33% less damage from Bombard-line towers" } } },
   { id: "XA03", baseId: "Xinf", custom: true, fields: { anam: { 0: "Deathrattle" }, aub1: { 1: "Summons 3 Skeletons on death" } } }, // v0.17g: display only (the spawn runs through DEATH_PLANS)
+  // v0.17p: Pit Lord tower: Howl. When creeps come near it howls: creeps within 1.5 fields are slowed and take more tower damage for 12 s.
+  { id: "XA04", baseId: "Xhwl", custom: true, radius: 192, slow: 0.25, amp: 0.2, duration: 12, cooldown: 20, fields: { anam: { 0: "Howl" }, aub1: { 1: "Creeps within 1.5 fields: 25% slower, +20% tower damage for 12 s" } } },
+  // v0.17p: Phoenix: Phoenix Fire as an immolation aura with full damage to ground and air
+  { id: "XA05", baseId: "AIcf", custom: true, fields: { anam: { 0: "Phoenix Fire" }, aare: { 1: 192 }, aub1: { 1: "Deals 350 damage per second\nRange 192\nTargets Ground & Air" } } },
 ];
+/**
+ * v0.17p: ability fixes.
+ * - Critical Hit (Zombie Tower 4-6) and Critical Shot (Bird Hunter 4-6): 10/12/15 % chance for
+ *   200/250/300 % damage, keyed by tower level; no research needed any more.
+ * - Endurance Aura is now one "Speed Aura" for ground and air; flyers get half the bonus (`airFactor`).
+ */
+const speedAura = (bonus) => ({
+  fields: { anam: { 0: "Speed Aura" }, Oae1: { 1: bonus }, atar: { 1: "ground,air,friend,self,invulnerable,vulnerable" }, aub1: { 1: `Creeps nearby run ${Math.round(bonus * 100)}% faster (flyers half)` } },
+  props: { airFactor: 0.5 },
+});
+const CRIT_BY_LEVEL = { alev: { 0: 6 }, Ocr1: { 4: 0.1, 5: 0.12, 6: 0.15 }, Ocr2: { 4: 2, 5: 2.5, 6: 3 }, areq: { 0: "" } };
+const ABILITY_PATCH = {
+  A02K: { fields: CRIT_BY_LEVEL }, // Zombie Tower: Critical Hit (was stored as 12 instead of 0.12, so every hit crit)
+  A05Q: { fields: CRIT_BY_LEVEL }, // Bird Hunter: Critical Shot (damage factor was missing, so it never crit)
+  A03Q: speedAura(0.1), // Alchemist, Tauren Chief (the ground bonus was 0)
+  A03P: speedAura(0.15), // Grom Hellscream
+  A01U: speedAura(0.18), // Cairne Bloodhoof
+  A03M: speedAura(0.2), // Demon Hunter, Lord Garithos
+};
+/** Removed everywhere: Blitz Weapon + its lightning (Bash Tower), Poison Weapon (Death Knight), the air halves of Endurance Aura, every Unholy Aura. */
+const REMOVED_ABILITIES = new Set(["A00P", "A01W", "A02S", "A06K", "A08E", "A08G", "A08I", "A09R", "A0D3", "A06X", "A09O"]);
+/** Per unit: map ability → replacement ("" removes it). */
+const UNIT_ABILITY_SWAP = {
+  h024: { A09W: "" }, // Naga Archer: no Howl
+  h01Z: { A09W: "XA04" }, // Pit Lord tower: working Howl
+  h020: { A0CI: "XA05" }, // Phoenix: Phoenix Fire is an immolation aura
+};
+/** Per unit: abilities added in front. */
+const UNIT_ABILITY_ADD = { h03A: ["A05Q"], h03B: ["A05Q"] }; // Bird Hunter 4 and 5 get Critical Shot too
 export const CREEP_TUNING = {
   n00E: { income: 1, cost: 5, stockMax: 18 }, // Goblin: income 1.17 → 1 (v0.07g), cost 6 → 5 (v0.07h); peon companion removed (v0.07i); stock 16 → 18 (v0.08b)
   n007: { cost: 10, income: 1.9 }, // Horse: cost 12 → 10, income 2 → 1.9 (v0.08b)
@@ -510,9 +554,9 @@ export const CREEP_TUNING = {
   n00M: { hp: 156, name: "[06] Orc", shortName: "Orc", abilities: ["A01A", "XA02"] }, // Grunt → Orc (v0.17b): hit points +30 %, 120 → 156 (v0.09s); Siege Resistance 33 % (v0.17b)
   n00R: { abilities: ["A01A", "XA01"] }, // Skeleton: Arrow Resistance now 33 % less damage from Archer-line towers (v0.17b, was: ignores 1 ranged damage)
   n00N: { hp: 180, abilities: ["A01A", "XA03"] }, // Necromancer: hit points 170 → 180 (v0.17f); Unholy Aura removed, Deathrattle shown (v0.17g)
-  n00P: { hp: 85, speed: 138.56 }, // Flying Sheep: hit points 80 → 85, speed 1.06 → 1.08 fields/s (v0.17b)
+  n00P: { hp: 85, speed: 138.56, stockRegen: 11 }, // Flying Sheep: hit points 80 → 85, speed 1.06 → 1.08 fields/s (v0.17b); restock 10 → 11 s (v0.17o)
   n00L: { speed: 375 }, // Wolf: 25 % faster, 300 → 375 (v0.08d)
-  n00S: { speed: 420 }, // Raider: 25 % faster (v0.07b)
+  n00S: { speed: 420, stockRegen: 13, income: 8 }, // Raider: 25 % faster (v0.07b); restock 12 → 13 s (v0.17o); income 9 → 8 (v0.17q)
   n010: { hp: 1300 }, // Forest Troll: hit points −10 %, 1450 → 1300 (v0.16i: broke through 5–8× as often as other tier-2 creeps in self-play)
 };
 function applyCreepTuning(byId) {

@@ -944,6 +944,25 @@ function pushBack(game, c, units) {
     else break;
   }
 }
+/**
+ * v0.17q: towers from perks (Summon Tower, Militia) appear 0.3 s after the pick, so the app can
+ * first move the player's view to their own field ("summonStart") and then show the arrival.
+ */
+export const SUMMON_DELAY = 0.3;
+function queueSummon(game, p, kind) {
+  p.pendingSummons = [...(p.pendingSummons || []), { kind, at: game.time + SUMMON_DELAY }];
+  emit(game, "summonStart", { player: p.id, kind });
+}
+function tickSummons(game, p) {
+  if (!p.pendingSummons?.length) return;
+  const due = p.pendingSummons.filter((s) => s.at <= game.time + EPS);
+  if (!due.length) return;
+  p.pendingSummons = p.pendingSummons.filter((s) => s.at > game.time + EPS);
+  for (const s of due) {
+    if (s.kind === "summon") summonTower(game, p);
+    else if (s.kind === "militia") placeMilitia(game, p, 2);
+  }
+}
 /** Summon Tower: towers of level 1-3 that may appear (any element, single field, no support towers). */
 function summonPool(level) {
   return getCatalog().towers.filter((u) => u.playable && u.attacks && !u.perkUnit && !u.isHall && !u.support && (u.level || 1) === level && footprintOf(u.id) === 1 && !UNIQUE_TOWERS.has(u.id) && !/hall of/i.test(u.name || ""));
@@ -1506,12 +1525,12 @@ function applyOption(game, p, option, level) {
   else if (option.type === "perk") {
     p.perks = { ...(p.perks || {}), [option.id]: perkLevel(p, option.id) + 1 };
     p.perkTakenAt = { ...(p.perkTakenAt || {}), [option.id]: pick.level }; // v0.12
-    if (option.id === "summon") summonTower(game, p);
+    if (option.id === "summon") queueSummon(game, p, "summon"); // v0.17q: after a short delay
     if (option.id === "pillar" && !(p.pillarReady > game.time)) p.pillarReady = game.time;
     if (option.id === "agolem" && !(p.golemReady > game.time)) p.golemReady = game.time;
     if (option.id === "monsun" && !(p.monsunReady > game.time)) p.monsunReady = game.time;
     if (option.id === "patrol") p.freeArchers = (p.freeArchers || 0) + 2;
-    if (option.id === "militia") placeMilitia(game, p, 2);
+    if (option.id === "militia") queueSummon(game, p, "militia"); // v0.17q
     if (option.id === "evolution") evolveTower(game, p);
     if (option.id === "gold") {
       const gold = perkGold(pick.level);
@@ -1719,6 +1738,7 @@ function placeMilitia(game, p, count) {
     p.stats.built++;
     repath(game, p);
     emit(game, "build", { player: p.id, id: "h000", towerId: tower.id, x: tower.x, y: tower.y });
+    emit(game, "summon", { player: p.id, id: "h000", towerId: tower.id, x: tower.x, y: tower.y, level: 1, militia: true }); // v0.17q: same arrival effect
     completeTower(game, p, tower);
   }
 }
@@ -2344,9 +2364,15 @@ function aurasOf(unit) {
       .filter((a) => AURA_KINDS.has(a.baseId))
       .map((a) => {
         const level = abilityLevel(null, unit, a),
-          targets = splitIds(field(a.fields, "atar", level));
+          targets = splitIds(field(a.fields, "atar", level)),
+          name = String(field(a.fields, "anam", 0) || "");
         return {
           baseId: a.baseId,
+          // v0.17p: auras that name only air or only ground affect only those creeps
+          air: targets.includes("air"),
+          ground: targets.includes("ground"),
+          airFactor: a.airFactor ?? 1, // v0.17p: Speed Aura: flyers get half the bonus
+          only: /Trueshot/i.test(name) ? "ranged" : /Skirmish/i.test(name) ? "melee" : null, // v0.17p
           friend: targets.includes("friend"),
           self: targets.includes("self"),
           enemies: targets.includes("enemies"),
@@ -2371,7 +2397,8 @@ function auraAt(game, target, owner, units) {
     armorUp = 0,
     armorDown = 0,
     damage = 0,
-    regen = 0;
+    regen = 0,
+    trueshot = false;
   for (const source of units) {
     if (source.dead || source.buildRemaining > EPS) continue;
     const auras = aurasOf(source);
@@ -2383,9 +2410,18 @@ function auraAt(game, target, owner, units) {
       if (!friendly && !a.enemies) continue;
       if (target === source && !a.self) continue;
       if (a.radius <= 0 || dist(game, source, target) > a.radius) continue;
+      const fly = !!target.flying;
+      if (a.air !== a.ground && (fly ? !a.air : !a.ground)) continue; // v0.17p: air-only / ground-only auras
+      if (a.only) {
+        // v0.17p: Trueshot Aura only for ranged towers, Skirmish Aura only for melee towers
+        const it = obj(target.typeId);
+        if (!it?.attacks || (a.only === "melee") !== isMeleeTower(it)) continue;
+        if (a.only === "ranged" && a.ear1 > 0) trueshot = true;
+      }
       if (a.baseId === "AOae") {
-        speedUp = Math.max(speedUp, a.oae1);
-        speedDown = Math.min(speedDown, a.oae1);
+        const speed = a.oae1 * (fly ? a.airFactor : 1);
+        speedUp = Math.max(speedUp, speed);
+        speedDown = Math.min(speedDown, speed);
         attackUp = Math.max(attackUp, a.oae2);
         attackDown = Math.min(attackDown, a.oae2);
       }
@@ -2406,6 +2442,7 @@ function auraAt(game, target, owner, units) {
     armor: armorUp + armorDown,
     damage: 1 + damage,
     regen,
+    trueshot,
   };
 }
 // ---- Passive tower and creep skills (pass 3) -----------------------------------------
@@ -2418,6 +2455,8 @@ const tipNum = (a, level, re, fallback = 0) => {
   const m = tipText(a, level).match(re);
   return m ? Number(m[1]) : fallback;
 };
+const DEATH_KNIGHT = "h02C";
+const MANA_REGEN_AURA = 0.5; // v0.17p
 const EXECUTE_DAMAGE = { h01Y: 140, h00M: 450, h04I: 1250, h050: 3250 };
 const STOMP_LEVEL = { h02T: 3, h01T: 4, h01U: 5, h01V: 6 };
 const STOMP_DAMAGE = { 3: 50, 4: 200, 5: 575, 6: 1200 };
@@ -2453,6 +2492,15 @@ function skillOf(a, level = 1) {
       break;
     case "AHab":
       sk = { type: "manaAura", regen: fval(a, "Hab1", level), radius: fval(a, "aare", level, 525) };
+      break;
+    case "ANre":
+      // v0.17p: Mana Regeneration Aura (Hall of Elements, Magic City): towers in range regain mana 50 % faster
+      // (the map value Arm1 = 1 would be +100 %; halved because Magic Towers fire their empowered bolt on a full bar)
+      sk = { type: "manaRegenAura", rate: MANA_REGEN_AURA, radius: fval(a, "aare", level, 600) };
+      break;
+    case "Xhwl":
+      // v0.17p: own ability (content.js CUSTOM_ABILITIES): Pit Lord's Howl
+      sk = { type: "howl", radius: a.radius, slow: a.slow, amp: a.amp, duration: a.duration, cooldown: a.cooldown };
       break;
     case "Adtg":
       sk = { type: "detect", radius: fval(a, "aran", level, tipNum(a, level, /Range (\d+)/, 300)) };
@@ -2505,7 +2553,7 @@ function skillOf(a, level = 1) {
   return sk;
 }
 /** Abilities whose effect the port now covers (shown as implemented in the card details). */
-const COVERED_BASES = new Set(["Xlrs", "Xinf", "AHfa", "Avul", "Aslo", "ANca", "Aroc", "Afra", "AIcf", "Afbt", "AHbh", "AHab", "Adtg", "Abof", "Amgl", "ACat", "AUau", "ACes", "Ansk", "AIsr", "Apiv", "Arsk", "Aspt", "Asal", "Aimp"]);
+const COVERED_BASES = new Set(["ANre", "Xhwl", "Xlrs", "Xinf", "AHfa", "Avul", "Aslo", "ANca", "Aroc", "Afra", "AIcf", "Afbt", "AHbh", "AHab", "Adtg", "Abof", "Amgl", "ACat", "AUau", "ACes", "Ansk", "AIsr", "Apiv", "Arsk", "Aspt", "Asal", "Aimp"]);
 const VISUAL_ONLY = (a) => (a.baseId === "Aasl" && fval(a, "Slo1", 1) === 0) || ["Aroa", "Aeth"].includes(a.baseId) || a.id === "A06Z";
 function towerSkills(player, tower) {
   return unitAbilities(tower)
@@ -2534,7 +2582,7 @@ function detected(game, p, c) {
   return p.towers.some((t) => !(t.buildRemaining > 0) && towerSkills(p, t).some((sk) => sk.type === "detect" && dist(game, t, c) <= sk.radius));
 }
 /** One damage instance against a creep, with creep-side skills applied. */
-function strike(game, p, tower, c, damage, attackType, spell = false, extraArmor = 0) {
+function strike(game, p, tower, c, damage, attackType, spell = false, extraArmor = c.auraArmor || 0) {
   if (c.dead || damage <= 0 || divineShield(game, c)) return 0;
   const cs = creepSkills(c);
   if (!spell) {
@@ -2558,6 +2606,9 @@ function strike(game, p, tower, c, damage, attackType, spell = false, extraArmor
     // v0.17b: Arrow / Siege Resistance – less damage from every tower of one line
     const lr = cs.find((sk) => sk.type === "lineResist");
     if (lr && lineSet(lr.root).has(tower.typeId)) dealt *= 1 - lr.reduce;
+    // v0.17p: Howl: more damage from towers
+    const howl = c.statuses.find((st) => st.amp);
+    if (howl) dealt *= 1 + howl.amp;
   }
   c.hp -= guardCut(game, c, dealt, spell || attackType === "magic");
   if (tower) c.lastHit = tower.id;
@@ -2580,6 +2631,14 @@ function applySkills(game, p, tower, item, target, damage, skills) {
       target.statuses.push({ abilityId: "stun", remaining: negativeDuration(target, sk.duration, sk.bossDuration), slow: 0, dps: 0, stun: true, owner: p.id });
       strike(game, p, tower, target, sk.bonus, item.attackType);
       emit(game, "skill", { player: p.id, kind: "stun", x: target.x, y: target.y });
+    } else if (sk.type === "execute" && tower.typeId === DEATH_KNIGHT) {
+      // v0.17p: Death Knight culls: a creep below 10 % of its max health or below 666 health dies at once
+      if (target.hp > 0 && target.hp <= Math.max(target.maxHp * 0.1, 666) && !target.guard && !divineShield(game, target)) {
+        const amount = target.hp;
+        target.hp = 0;
+        target.lastHit = tower.id;
+        emit(game, "skill", { player: p.id, kind: "execute", x: target.x, y: target.y, amount });
+      }
     } else if (sk.type === "execute" && EXECUTE_DAMAGE[tower.typeId] && target.hp > 0 && target.hp <= target.maxHp * 0.25) {
       if (random(game) < { normal: 1, resist: 1 / 3, boss: 1 / 5 }[cls]) {
         const amount = EXECUTE_DAMAGE[tower.typeId];
@@ -2772,6 +2831,22 @@ function tickAreaDamage(game, p, tower, skills) {
     }
   }
 }
+/**
+ * v0.17p: Pit Lord's Howl. When creeps come within its radius the tower howls: those creeps are
+ * slowed and take more damage from towers for a while; then it rests for its cooldown.
+ */
+function tickHowl(game, p, tower, skills) {
+  const sk = skills.find((x) => x.type === "howl");
+  if (!sk || (tower.howlReady || 0) > game.time) return;
+  const near = p.creeps.filter((c) => !c.dead && c.hp > 0 && dist(game, tower, c) <= sk.radius);
+  if (!near.length) return;
+  for (const c of near) {
+    c.statuses = c.statuses.filter((st) => st.abilityId !== "howl");
+    c.statuses.push({ abilityId: "howl", remaining: negativeDuration(c, sk.duration), slow: sk.slow, amp: sk.amp, dps: 0, owner: p.id });
+  }
+  tower.howlReady = game.time + sk.cooldown;
+  emit(game, "skill", { player: p.id, kind: "howl", x: tower.x, y: tower.y, radius: sk.radius, towerId: tower.id });
+}
 function tickClouds(game, p) {
   if (!game.clouds?.length) return;
   for (const cl of game.clouds) {
@@ -2861,6 +2936,7 @@ function attack(game, p, tower, dt) {
   if (!item.attacks) return;
   const stats = statsFor(game, p, item),
     aura = auraAt(game, tower, p, p.towers.concat(p.creeps));
+  tower.trueshot = aura.trueshot; // v0.17p: drawn as a small crosshair
   const cursed = tower.curse && tower.curse.until > game.time ? tower.curse.amount : 0;
   if (item.weapon2) secondWeapon(game, p, tower, item, stats, aura, dt, cursed);
   tower.cooldown -= dt;
@@ -3155,6 +3231,7 @@ function moveCreep(game, p, c, dt) {
     stunned = c.statuses.some((s) => s.stun),
     aura = auraAt(game, c, game.players[c.owner], p.creeps.concat(p.towers));
   c.hp = Math.min(c.maxHp, c.hp + (c.regen + (aura.regen || 0)) * dt);
+  c.auraArmor = aura.armor; // v0.17p: armor auras (Corrosive, Napalm, Creep Armor) count for every hit, not only the main target
   const curse = creepSkills(c).find((sk) => sk.type === "curse");
   if (curse && !stunned) {
     c.cooldown = (c.cooldown || 0) - dt;
@@ -4427,6 +4504,7 @@ function fixedTick(game) {
       }
     }
     crowdControl(game, p); // v0.10l
+    tickSummons(game, p); // v0.17q
     tickHellfire(game, p); // v0.10p
     tickPocks(game, p); // v0.10q
     tickGuardian(game, p); // v0.14
@@ -4438,9 +4516,14 @@ function fixedTick(game) {
       if (q.remaining <= EPS) finishResearch(game, p, q.id);
     }
     p.researchQueue = p.researchQueue.filter((q) => q.remaining > EPS);
-    const manaAuras = [];
+    const manaAuras = [],
+      regenAuras = [];
     for (const t of p.towers)
-      if (!(t.buildRemaining > 0)) for (const sk of towerSkills(p, t)) if (sk.type === "manaAura") manaAuras.push({ t, sk });
+      if (!(t.buildRemaining > 0))
+        for (const sk of towerSkills(p, t)) {
+          if (sk.type === "manaAura") manaAuras.push({ t, sk });
+          else if (sk.type === "manaRegenAura") regenAuras.push({ t, sk }); // v0.17p
+        }
     for (const t of p.towers) {
       if (t.buildRemaining > 0) {
         t.buildRemaining = Math.max(0, t.buildRemaining - TICK);
@@ -4452,10 +4535,13 @@ function fixedTick(game) {
         stats = statsFor(game, p, item);
       t.hp = Math.min(t.maxHp, t.hp + stats.regen * TICK);
       const manaBonus = Math.max(0, ...manaAuras.filter((m) => dist(game, m.t, t) <= m.sk.radius).map((m) => m.sk.regen));
-      const regen = isMagicTower(item) ? stats.mana / MAGIC_CHARGE_SECONDS : item.manaRegen;
-      t.mana = Math.min(stats.mana, t.mana + (regen + manaBonus) * TICK);
+      const regen = isMagicTower(item) ? stats.mana / MAGIC_CHARGE_SECONDS : item.manaRegen,
+        regenRate = 1 + Math.max(0, ...regenAuras.filter((m) => dist(game, m.t, t) <= m.sk.radius).map((m) => m.sk.rate)); // v0.17p
+      t.mana = Math.min(stats.mana, t.mana + (regen + manaBonus) * regenRate * TICK);
       attack(game, p, t, TICK);
-      tickAreaDamage(game, p, t, towerSkills(p, t));
+      const tSkills = towerSkills(p, t);
+      tickAreaDamage(game, p, t, tSkills);
+      tickHowl(game, p, t, tSkills); // v0.17p
     }
     tickClouds(game, p);
     // BOSS T2 Clockwork: every 8.25 s a Siege Golem with 50 mana calls two clockwork escorts.
