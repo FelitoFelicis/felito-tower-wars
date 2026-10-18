@@ -32,6 +32,7 @@ import {
   PILLAGE,
   BURST,
   hellfireDps,
+  hellfireRound, // v0.21n
   OWL,
   researchMax, // v0.19a1
   WINGS, // v0.19b1: per-level tooltip values
@@ -129,7 +130,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.21m",
+const APP_VERSION = "0.21n",
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "18.10.2026";
 // v0.18: the version also stands in the page title (browser tab and the artifact window in chats)
@@ -1571,6 +1572,15 @@ function statTip(item, action, towerId = null, who = own, bare = false) {
     const classes = creepClasses(item);
     if (classes.length) rows.push([t("Classification"), classes.join(", ")]); // v0.17c
     after.push([t("Stock"), `${stockCount(item)}/${stockMaxOf(game.players[own], item)}`]);
+  } else if (!item.attacks && item.woodIncome) {
+    // v0.21n: EXP Generator: no attack values, just what it is
+    return {
+      html:
+        (bare ? "" : `<div class="tip-head"><b>${esc(itemName(item))}</b><span class="tip-gold"><img src="${iconUrl("coin")}" alt="Gold">${esc(price)}</span></div>`) +
+        `<div class="tip-text">${esc(t("A building that does not attack. It generates EXP for you every few seconds."))}</div>` +
+        (a.ok || bare ? "" : `<div class="tip-warn">${esc(t(a.reason))}</div>`) +
+        perkBuffRow(item, who),
+    };
   } else {
     const s = getStats(game, who, item.id),
       air = item.targets?.includes("air"),
@@ -3265,7 +3275,7 @@ const perkText = (id, level, q = game?.players[own], next = false) => {
     pillar: format(pillarDamage(q, lv)),
     monsun: MONSUN.duration[Math.min(5, lv) - 1],
     // v0.16g: values of the current (or offered) level instead of "a / b / c" lists
-    hellfire: format(hellfireDps(q, lv)),
+    hellfire: format(Math.round(hellfireDps(q, lv) * hellfireRound(game?.round || 0))), // v0.21n: the value of this round
     burst: format(lv * BURST.damage * (q?.tier || 1)),
     boots: pct(BOOTS.slow[l3]),
     bootsInc: pct(BOOTS.income * Math.min(3, lv)),

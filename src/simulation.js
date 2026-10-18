@@ -870,7 +870,7 @@ export const PERKS = Object.freeze({
   novice: { name: "Novice", max: 5, text: "Increases EXP gain +{novice}. Next EXP generator is free" }, // v0.19g1: 20 / 35 / 50 / 60 / 70 %, every level one free level 1 EXP generator
   volley: { name: "Arrow Volley", max: 5, text: "Arrows rain on an area dealing {volleyDmg} damage each" }, // v0.20e: shorter tooltip
   wings: { name: "Wings of War", max: 10, element: "storm", text: "Flying creeps +{wingsHp} HP, +{wingsSpeed} speed, +{wingsInc} income" }, // v0.10p
-  hellfire: { name: "Lava Floor", max: 10, element: "fire", text: "Creeps in your 6th row burn for {hellfire} damage per second" }, // v0.10p, v0.16g
+  hellfire: { name: "Lava Floor", max: 10, element: "fire", text: "Ground creeps in your 6th row burn for {hellfire} damage per second" }, // v0.10p, v0.16g
   burst: { name: "Arcane Burst", max: 5, element: "arcane", text: "Active ability: {burst} damage, split among the creeps in an area" }, // v0.10p
   treasure: { name: "Gold Treasure", max: 1, powerup: true, text: "Instantly +{treasure} gold and +{treasureInc} income" }, // v0.10r; v0.19e2: +20 % gold, +60 income (doubled when far behind)
   voltage: { name: "High Voltage", max: 20, element: "storm", unpopular: 0.5, text: "EXP generators are {voltage} more efficient" }, // v0.10r; v0.19j: tooltip
@@ -1524,6 +1524,8 @@ export const WINGS = { hp: 0.06, speed: 0.03, income: 0.1 };
 // v0.16g: buffed and scaled with the owner's send tier (creep hit points grow steeply per tier)
 export const HELLFIRE = { row: 5, perLevel: 10, base: 5, tierScale: [1, 4, 10, 25, 60, 120], perPlayerLevel: 0.06 };
 // v0.19b1: Lava Floor (was Hellfire): also +6 % damage per player level
+/** v0.21n: Lava Floor is a little weaker early on: 70 % in round 0, +1.5 % per round, full from round 20. */
+export const hellfireRound = (round) => Math.min(1, 0.7 + 0.015 * Math.max(0, round || 0));
 export const hellfireDps = (p, level = perkLevel(p, "hellfire")) =>
   level ? (HELLFIRE.perLevel * level + HELLFIRE.base) * HELLFIRE.tierScale[Math.max(0, Math.min(HELLFIRE.tierScale.length, p?.tier || 1) - 1)] * (1 + HELLFIRE.perPlayerLevel * (p?.level || 1)) : 0;
 /** v0.10p: Arcane Burst (Arcane): cooldown, radius in fields (base + per level), damage per level and tier. */
@@ -1554,10 +1556,10 @@ function tickPocks(game, p) {
   if (c.hp <= 0) killCreep(game, p, c);
 }
 function tickHellfire(game, p) {
-  const dps = hellfireDps(p);
+  const dps = hellfireDps(p) * hellfireRound(game.round); // v0.21n: weaker in early rounds
   if (!dps) return;
   for (const c of p.creeps) {
-    if (c.dead || c.hp <= 0 || c.y < 0 || Math.floor(c.y * game.grid.rows) !== HELLFIRE.row || divineShield(game, c)) continue; // v0.17n: Divine Shield
+    if (c.dead || c.hp <= 0 || c.flying || c.y < 0 || Math.floor(c.y * game.grid.rows) !== HELLFIRE.row || divineShield(game, c)) continue; // v0.17n: Divine Shield
     c.hp -= guardCut(game, c, dps * TICK);
     if (c.hp <= 0) killCreep(game, p, c);
   }
