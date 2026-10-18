@@ -129,7 +129,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.21g",
+const APP_VERSION = "0.21h",
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "18.10.2026";
 // v0.18: the version also stands in the page title (browser tab and the artifact window in chats)
@@ -1215,7 +1215,7 @@ const REWORK_HINT = {
 };
 
 // The original names, except for the creeps and buildings renamed in this port.
-const namesEn = { Peon: "Goblin", "Chaos Peon": "Imp", Lumbermill: "EXP Generator" };
+const namesEn = { Peon: "Goblin", "Chaos Peon": "Imp", Lumbermill: "EXP Generator", "Skeleton Grunt": "Skeleton Berserker", "Draenai Marauder": "Arcane Marauder" }; // v0.21h: two renames
 function itemName(item) {
   if (researchCopy[item?.id]) return t(researchCopy[item.id][0]);
   if (item?.id === "n00Y" && game && burningTreant(game.players[own])) return t("Burning Treant"); // v0.10w
