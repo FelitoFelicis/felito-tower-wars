@@ -129,7 +129,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.21h",
+const APP_VERSION = "0.21i",
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "18.10.2026";
 // v0.18: the version also stands in the page title (browser tab and the artifact window in chats)

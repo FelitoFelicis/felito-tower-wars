@@ -1030,7 +1030,9 @@ export const CREEP_ARMOR = { hp: 0.08, income: 0.015 };
 export const wolfRoundHp = (round) => (round < 5 ? 0.4 : round <= 10 ? 0.6 : round <= 15 ? 0.8 : round >= 40 ? 1 + 0.002 * (round - 39) : 1);
 export const WOLVES = { ids: ["n01Z", "n020", "n024", "n035", "n02T", "n01K"], early: 15, earlyIncome: 0.75, hp: 4, hpPerLevel: 0.4, hpPerTier: 200, speed: 0.02, speedPerLevel: 0.004, speedPerTier: 0.03, magic: 3, tierIncome: [0, 2, 4, 8, 16, 32] };
 /** v0.19b1: income of one Spirit Wolf: tier part (0 / 2 / 4 / 8 / 16 / 32) plus perk level part (2, 4, 8 … 1024). */
-export const wolfIncome = (tier, level) => (WOLVES.tierIncome[Math.max(1, Math.min(6, tier || 1)) - 1] || 0) + 2 ** Math.max(1, level || 1);
+// v0.21i: halved (WOLVES_INCOME); the night test showed Spirit Wolves far ahead of every other perk
+export const WOLVES_INCOME = 0.5;
+export const wolfIncome = (tier, level) => ((WOLVES.tierIncome[Math.max(1, Math.min(6, tier || 1)) - 1] || 0) + 2 ** Math.max(1, level || 1)) * WOLVES_INCOME;
 /** Units the creep perks act on: every send plus what they summon (the creep list of Leadership in the map data). */
 let CREEP_UNITS = null;
 const isCreepUnit = (item) => {
