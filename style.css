@@ -7193,3 +7193,5 @@ p.room-opts { text-align: center; }
 .player-plate.own.allied > .plate-exp {
   right: calc(46% + 8px);
 }
+/* v0.21f: card book, Perks tab: the "Neutral" heading in white */
+.perk-book.book-neutral h3 { color: #fff; }
