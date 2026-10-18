@@ -298,7 +298,7 @@ const CREEP_PATTERNS = [
   [/shaman|wizard|witch|mage/i, "creep-shaman"],
   [/knight|captain|hunter/i, "creep-darkknight"],
   [/grunt|orc|ogre|golem/i, "creep-orc"],
-  [/chaos peon|wichtel/i, "creep-wichtel", "creep-goblin"],
+  [/chaos peon|wichtel|^imp$|\bimp\b/i, "creep-wichtel", "creep-goblin"], // v0.21m: Chaos Peon is called Imp
   [/peon|goblin/i, "creep-goblin"],
 ];
 /** Tower figures by name and level: upgrades change the figure, not just a badge. */
@@ -335,7 +335,7 @@ const TOWER_PATTERNS = [
   [/glaive/i, () => "tower-glaive"],
   [/treant/i, () => "tower-treant"],
   [/disease/i, () => "tower-disease"],
-  [/lumbermill|exp-generator/i, () => "tower-exp-generator"],
+  [/lumbermill|exp[- ]generator/i, () => "tower-exp-generator"], // v0.21m: Lumbermill is called EXP Generator
   [/repurpose\] footman/i, () => "tower-guard"],
   [/repurpose\] bombard/i, () => "tower-cannon"],
   [/repurpose\] magic/i, () => "tower-arcane"],
@@ -373,7 +373,7 @@ function baseArtFor(item) {
   if (/footman|knight|guard|soldier|bash|glaive|crusader/i.test(name)) return "tower-guard";
   if (/cannon|canon|bombard|siege|stomp|launcher|robogoblin|laser/i.test(name)) return "tower-cannon";
   if (/mage|magic|wizard|kel|death knight|archangel|phoenix/i.test(name)) return "tower-arcane";
-  if (/lumbermill|tree|treant|ogre/i.test(name)) return "tower-earth";
+  if (/lumbermill|exp generator|tree|treant|ogre/i.test(name)) return "tower-earth";
   return "tower-archer";
 }
 /** Visual tier for the pedestal aura: 4 silver, 5 gold, 6 violet, 7 prismatic (top tier and combos). */

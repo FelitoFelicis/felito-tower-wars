@@ -162,8 +162,8 @@ export function configureContent(data) {
     const unit = {
       id: raw.id,
       baseId: raw.baseId,
-      name,
-      shortName: name.replace(/^\[[^\]]+\]\s*/, "").replace(/\s*\[[^\]]+\]/g, ""),
+      name: renameFull(name), // v0.21m
+      shortName: unitName(name.replace(/^\[[^\]]+\]\s*/, "").replace(/\s*\[[^\]]+\]/g, "")), // v0.21m: our names replace the Warcraft ones
       description,
       kind: isTower ? "tower" : isSend ? "send" : "unit",
       cost: value("ugol"),
@@ -555,6 +555,16 @@ const ABILITY_PATCH = {
   A03G: { fields: { aub1: { 1: "Shoots |c00FFFF005|r arrows simultaneously" } } },
   A05G: { fields: { aub1: { 1: "Shoots |c00FFFF006|r arrows simultaneously" } } },
 };
+/**
+ * v0.21m: the names this port gave its units, written over the Warcraft names in the catalog itself, so every
+ * text (cards, tooltips, card book, messages, neutral waves) uses them: Peon → Goblin, Chaos Peon → Imp, …
+ */
+export const UNIT_NAMES = Object.freeze({ Peon: "Goblin", "Chaos Peon": "Imp", Lumbermill: "EXP Generator", "Skeleton Grunt": "Skeleton Berserker", "Draenai Marauder": "Arcane Marauder" });
+const unitName = (short) => UNIT_NAMES[short] || short;
+const renameFull = (full) => {
+  const short = full.replace(/^\[[^\]]+\]\s*/, "").replace(/\s*\[[^\]]+\]/g, "");
+  return UNIT_NAMES[short] ? full.replace(short, UNIT_NAMES[short]) : full;
+};
 /** Removed everywhere: Critical Shot (Bird Hunter, v0.18a), Blitz Weapon + its lightning (Bash Tower), Poison Weapon (Death Knight), the air halves of Endurance Aura, every Unholy Aura. */
 const REMOVED_ABILITIES = new Set(["A05Q", "A00P", "A01W", "A02S", "A06K", "A08E", "A08G", "A08I", "A09R", "A0D3", "A06X", "A09O",
   // v0.21j: Detector removed from every tower, and with it invisibility (Eredar Warlock A0B2, Warden Apiv)
@@ -600,7 +610,7 @@ export const CREEP_TUNING = {
   n00E: { income: 1, cost: 5, stockMax: 18 }, // Goblin: income 1.17 → 1 (v0.07g), cost 6 → 5 (v0.07h); peon companion removed (v0.07i); stock 16 → 18 (v0.08b)
   n007: { cost: 10, income: 1.9 }, // Horse: cost 12 → 10, income 2 → 1.9 (v0.08b)
   n00K: { income: 3.5 }, // Gnoll: income 3 → 3.5 (v0.08d)
-  n00M: { hp: 312, count: 1, bountyBase: 11, name: "[06] Orc", shortName: "Orc", abilities: ["A01A", "XA02"] }, // Grunt → Orc (v0.17b): hit points +30 %, 120 → 156 (v0.09s); Siege Resistance 33 % (v0.17b); v0.18e: one Orc per purchase (heavy), hit points 156 → 312, bounty 5+1d1 → 11+1d1 (12 per purchase as before), restocks 1 Goblin
+  n00M: { hp: 300, speed: 180, count: 1, bountyBase: 11, name: "[06] Orc", shortName: "Orc", abilities: ["A01A", "XA02"] }, // Grunt → Orc (v0.17b): hit points +30 %, 120 → 156 (v0.09s); Siege Resistance 33 % (v0.17b); v0.18e: one Orc per purchase (heavy), hit points 156 → 312, bounty 5+1d1 → 11+1d1 (12 per purchase as before), restocks 1 Goblin; v0.21m: hit points 312 → 300, speed 190 → 180 (−5 %)
   n00R: { abilities: ["A01A", "XA01"] }, // Skeleton: Arrow Resistance now 33 % less damage from Archer-line towers (v0.17b, was: ignores 1 ranged damage)
   n00N: { hp: 180, abilities: ["A01A", "XA03"] }, // Necromancer: hit points 170 → 180 (v0.17f); Unholy Aura removed, Deathrattle shown (v0.17g)
   n00P: { hp: 85, speed: 138.56, stockRegen: 11 }, // Flying Sheep: hit points 80 → 85, speed 1.06 → 1.08 fields/s (v0.17b); restock 10 → 11 s (v0.17o)

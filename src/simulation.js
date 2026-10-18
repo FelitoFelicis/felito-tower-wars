@@ -876,7 +876,7 @@ export const PERKS = Object.freeze({
   voltage: { name: "High Voltage", max: 20, element: "storm", unpopular: 0.5, text: "EXP generators are {voltage} more efficient" }, // v0.10r; v0.19j: tooltip
   boots: { name: "Red Boots", max: 3, element: "fire", text: "Ground creeps {boots} less slowed, +{bootsInc} income" }, // v0.10r
   exhume: { name: "Exhumination", max: 3, element: "plague", text: "Undead creeps cost {exhume} less and recruit 10% faster" }, // v0.20c: 10 % faster instead of 20 % slower // v0.10r; v0.19j: tooltip (they still restock 20% slower)
-  fireblock: { name: "Fire Block", max: 3, element: "fire", text: "Every {fireBlockCd} s the first breach explodes: {fireBlock} damage 3 times" }, // v0.19j
+  fireblock: { name: "Fire Block", max: 3, element: "fire", text: "Every {fireBlockCd} s the first breach is pushed back 1 field and explodes at once: {fireBlock} damage 3 times" }, // v0.19j
   airblock: { name: "Air Block", max: 3, element: "storm", text: "Every {airBlockCd} s the first flying breach is pushed back {airBlockBack} fields, struck by lightning for {airBlock} damage and stunned {airBlockStun} s. Speeds up Monsun by {airBlockMonsun} s" }, // v0.20c
   supergrowth: { name: "Supergrowth", max: 3, element: "earth", text: "Each purchase of a ground creep from the stronger half of its tier gives that creep type +{growth} HP, less for weaker ones" }, // v0.20f
   waterblock: { name: "Water Block", max: 3, element: "water", text: "Every {blockCd} s the first breach is pushed back {blockBack} fields and frozen" }, // v0.10r
@@ -1396,7 +1396,7 @@ function tickPillars(game) {
   if (!game.pillars?.length) return;
   for (const f of game.pillars) {
     const p = game.players[f.player];
-    while (p && !p.out && f.next < f.end - EPS && game.time + EPS >= f.next) {
+    while (p && !p.out && f.next < f.end - EPS && (f.burst || game.time + EPS >= f.next)) { // v0.21m: Fire Block bursts at once
       f.next += PILLAR.interval;
       const r = f.radius * game.grid.cellUnits;
       for (const c of p.creeps) {
@@ -1599,14 +1599,21 @@ export const VOLTAGE = { bonus: 0.5 };
  * on the path just before the exit: 3 pulses in 0.9 s, radius 1.5 fields, up to +75 % in the centre, flyers half.
  * Damage per pulse = (8 + 6 × perk level) × send-tier factor (1 / 4 / 10 / 25 / 60 / 120) × (1 + 5 % per player level).
  */
-export const FIREBLOCK = { cooldown: [12, 9, 6], radius: 1.5, pulses: 3, base: 8, perLevel: 6, scorch: 6 };
+export const FIREBLOCK = { cooldown: [12, 9, 6], radius: 1.5, pulses: 3, base: 8, perLevel: 6, scorch: 6, back: 1 }; // v0.21m: push back 1 field
 export const fireBlockDamage = (p, level = Math.min(3, perkLevel(p, "fireblock"))) =>
   Math.round((FIREBLOCK.base + FIREBLOCK.perLevel * level) * PILLAR_TIER[Math.max(1, Math.min(PILLAR_TIER.length, p?.tier || 1)) - 1] * (1 + 0.05 * (p?.level || 1)));
 function fireBlock(game, p, c) {
   const level = Math.min(3, perkLevel(p, "fireblock"));
-  if (!level || p.fireBlockReady > game.time + EPS) return;
+  if (!level || p.fireBlockReady > game.time + EPS) return false;
   p.fireBlockReady = game.time + FIREBLOCK.cooldown[level - 1];
   const spot = !c.flying && c.path?.length > 1 ? c.path[c.path.length - 2] : { x: c.x, y: c.y };
+  // v0.21m: the creep that set it off is pushed back 1 field (no breach), like Water Block
+  if (c.flying) {
+    const column = gridAt(game, c).x;
+    c.path = [pos(game, column, -1), pos(game, column, game.grid.rows)];
+    c.pathIndex = 1;
+  } else if (c.path?.length) c.pathIndex = c.path.length;
+  knockBack(game, c, FIREBLOCK.back * game.grid.cellUnits, p);
   (game.pillars ||= []).push({
     player: p.id,
     x: spot.x,
@@ -1618,9 +1625,12 @@ function fireBlock(game, p, c) {
     erupt: game.time,
     end: game.time + FIREBLOCK.pulses * PILLAR.interval,
     next: game.time,
+    burst: true, // v0.21m: all explosions at once, no delay between them
     until: game.time + FIREBLOCK.pulses * PILLAR.interval + FIREBLOCK.scorch,
   });
   emit(game, "skill", { player: p.id, kind: "fireblock", x: spot.x, y: spot.y });
+  tickPillars(game);
+  return true;
 }
 export const WATERBLOCK = { cooldown: [15, 13, 11], back: [6, 9, 12], frost: 5, slow: 0.5 };
 export const treasureGold = (game) => Math.max(1, game?.round || 0) * 30; // v0.19e2: +20 % (was 25 per round)
@@ -4127,7 +4137,7 @@ function moveCreep(game, p, c, dt) {
     if (!way) {
       if (airBlock(game, p, c)) break; // v0.20c: flyers first meet the Air Block
       if (waterBlock(game, p, c)) break; // v0.10r
-      fireBlock(game, p, c); // v0.19j
+      if (fireBlock(game, p, c)) break; // v0.19j; v0.21m: pushes the creep back, no breach
       touchdown(game, p, c);
       break;
     }
