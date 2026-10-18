@@ -373,7 +373,7 @@ export function createGame({
 // each player's own (host's choice). A smaller team gets the same start gold and income in total.
 // Creeps a team sends go to the players of the other team in turn (one creep each); a creep that
 // breaks through runs on in the lane of the next player of that team.
-export const TEAM_LIVES = [10, 25, 60]; // v0.20c: 60 instead of 50
+export const TEAM_LIVES = [20, 40, 60]; // v0.20c: 60 instead of 50; v0.21d: 20 / 40 / 60
 export const teamOf = (game, p) => (game?.teams ? (p?.team ?? 0) : p?.id);
 export const teamMates = (game, p) => (game?.teams ? game.players.filter((q) => !q.out && q.team === p.team) : [p]);
 const teamEnemies = (game, p) => game.players.filter((q) => !q.out && q.id !== p.id && (!game.teams || q.team !== p.team));
@@ -385,7 +385,7 @@ function setupTeams(game, teams, lives) {
   game.players.forEach((p, i) => (p.team = members[i]));
   const size = [0, 1].map((t) => members.filter((m) => m === t).length),
     big = Math.max(...size),
-    start = TEAM_LIVES.includes(lives) ? lives : 25;
+    start = TEAM_LIVES.includes(lives) ? lives : TEAM_LIVES[1]; // v0.21d: 40 when the choice is missing
   game.teamState = {};
   for (const t of [0, 1]) {
     const list = game.players.filter((p) => p.team === t),

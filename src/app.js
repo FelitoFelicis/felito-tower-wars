@@ -129,7 +129,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.21c",
+const APP_VERSION = "0.21d",
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "18.10.2026";
 // v0.18: the version also stands in the page title (browser tab and the artifact window in chats)
@@ -441,6 +441,7 @@ function renderEnemyStack(force = false) {
     multi = !!game && begun && isFfa();
   plate.classList.toggle("multi", multi);
   stack.hidden = !multi;
+  if (!multi || !game.teams) showAllyStack(false); // v0.21d: the allies' window only exists in team games
   if (!multi) return;
   const colors = seatColors(),
     n = game.players.length,
@@ -496,25 +497,38 @@ const teamValues = (team) => {
     income: live.reduce((sum, q) => sum + q.income, 0),
   };
 };
+/** v0.21d: the allies' shared window sits in your own plate on the left, beside your own info. */
+function showAllyStack(on) {
+  const ally = $("ally-stack");
+  if (!ally) return;
+  ally.hidden = !on;
+  document.querySelector(".player-plate.own")?.classList.toggle("allied", on);
+  if (!on && ally.innerHTML) ally.innerHTML = "";
+}
 function renderTeamStack(stack, colors, force) {
   const me = game.players[own],
     teams = [1 - (me?.team | 0), me?.team | 0].filter((tm) => game.players.some((q) => q.team === tm && q.id !== own)),
-    key = "teams:" + teams.map((tm) => tm + "=" + game.players.filter((q) => q.team === tm && q.id !== own).map((q) => q.id + colors[q.id]).join("/")).join(",");
-  stack.dataset.count = String(teams.length);
+    key = "teams:" + teams.map((tm) => tm + "=" + game.players.filter((q) => q.team === tm && q.id !== own).map((q) => q.id + colors[q.id]).join("/")).join(","),
+    mine = me?.team | 0,
+    foes = teams.filter((tm) => tm !== mine),
+    allyStack = $("ally-stack"),
+    hasAllies = teams.includes(mine) && !!allyStack;
+  stack.dataset.count = String(foes.length);
+  showAllyStack(hasAllies);
   if (force || key !== enemyStackKey) {
     enemyStackKey = key;
-    stack.innerHTML = teams
-      .map((tm) => {
+    const cellHtml = (tm) => {
         const mates = game.players.filter((q) => q.team === tm && q.id !== own),
           css = TEAM_COLORS[colors[mates[0].id]]?.css || "#888";
         return `<div class="enemy-cell team-cell${tm === (me?.team | 0) ? " ally" : ""}" role="button" tabindex="0" data-team="${tm}" style="--pc:${css}"><span class="tc-faces">${mates
           .map((q) => `<span class="tc-face" data-seat="${q.id}" style="--pc:${TEAM_COLORS[colors[q.id]]?.css || css}"><img class="portrait" src="assets/art/portrait-enemy.webp" alt=""><i class="plate-skull" aria-hidden="true"></i><img class="ec-target" src="${iconUrl("attack")}" alt=""></span>`)
           .join("")}</span><span class="ec-lives"><img src="${iconUrl("heart")}" alt=""><b></b></span><span class="ec-gold"><img src="${iconUrl("coin")}" alt=""><b></b></span><em class="ec-inc"></em></div>`;
-      })
-      .join("");
+    };
+    stack.innerHTML = foes.map(cellHtml).join("");
+    if (allyStack) allyStack.innerHTML = hasAllies ? cellHtml(mine) : ""; // v0.21d: allies on the left
   }
   const target = me?.out ? -1 : targetOf(game, own).id;
-  for (const cell of stack.querySelectorAll(".team-cell")) {
+  for (const cell of [...stack.querySelectorAll(".team-cell"), ...(allyStack?.querySelectorAll(".team-cell") || [])]) {
     const v = teamValues(Number(cell.dataset.team)),
       lives = String(v.lives),
       gold = v.out ? "–" : resourceNumber(Math.floor(v.gold)),
@@ -5264,7 +5278,7 @@ function wireRoomOptions() {
         const key = b.dataset.roomopt,
           v = b.dataset.val;
         roomOpts[key] = key === "waves" || key === "rotation" ? v === "true" : v;
-        if (!roomLivesList().includes(roomLives)) roomLives = 25;
+        if (!roomLivesList().includes(roomLives)) roomLives = roomLivesList()[1]; // v0.21d: the middle option (25 free for all, 40 teams)
         tone("select");
         if (lobby && !lobby.done) {
           if (key === "mode") lobbyColors();
@@ -6174,6 +6188,8 @@ async function init() {
       // v0.18c: Minimap option; with "All" every other field still in the match (yours too while you watch another)
       getMinimapMode: () => minimapMode,
       getMiniPlayers: () => game.players.filter((q) => q.id !== view && !q.out).map((q) => q.id),
+      // v0.21d: team games: your allies (you too while you watch an ally's field)
+      getAllyPlayers: () => (game?.teams ? game.players.filter((q) => !q.out && q.team === game.players[own]?.team && q.id !== view).map((q) => q.id) : []),
       getPreview: currentPreview,
       getQueued: () => (queuedFor === gameKey() ? queued : []),
       getUpQueued: () => (queuedFor === gameKey() ? upQueue : []),
@@ -6352,7 +6368,19 @@ async function init() {
       arena.refresh();
     };
     // Tapping a player's info plate opens that player's maze.
-    document.querySelector(".player-plate.own").onclick = () => showMaze(own);
+    document.querySelector(".player-plate.own").onclick = (e) => {
+      // v0.21d: the allies' window inside your plate: a portrait opens that maze, the rest the first ally's
+      const seat = e.target.closest?.("#ally-stack [data-seat]");
+      if (seat) {
+        if (!game.players[Number(seat.dataset.seat)]?.out) showMaze(Number(seat.dataset.seat));
+        return;
+      }
+      if (e.target.closest?.("#ally-stack")) {
+        const q = game.players.find((x) => game.teams && x.team === game.players[own]?.team && x.id !== own && !x.out);
+        if (q) return showMaze(q.id);
+      }
+      showMaze(own);
+    };
     document.querySelector(".player-plate.rival").onclick = (e) => {
       const cell = e.target.closest?.("[data-seat]");
       if (cell) {

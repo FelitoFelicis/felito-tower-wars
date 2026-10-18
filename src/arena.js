@@ -250,6 +250,7 @@ export function mountArena({
   getPipPlayer = null,
   getMinimapMode = () => "on", // v0.18c: "on", "off" or "all"
   getMiniPlayers = () => [], // v0.18c: the fields shown in the "All" row
+  getAllyPlayers = () => [], // v0.21d: team games: your allies' fields, shown beside the normal mini map
 }) {
   /** A lane's colour: the player's choice, else blue for you and red for the other side. */
   const colorOf = (player) => {
@@ -2203,6 +2204,24 @@ export function mountArena({
         return;
       }
       this.drawLaneMap(g, game, lane, other, own, r, catalog, 1, false);
+      // v0.21d: team games: while the mini map is visible, your allies' fields always show too, as
+      // see-through mini maps on the left (like the "All" row, framed in their colours)
+      const allies = getAllyPlayers().filter((id) => id !== other && game.players[id]);
+      if (allies.length) {
+        const gap = 8,
+          mw = Math.max(18, Math.min(44, (z.w / 2 - 16 - (allies.length - 1) * gap) / allies.length)),
+          mh = (mw * rows) / cols,
+          y0 = (this.stage.scrollY || 0) + insets.top + 8;
+        // beside the board (desktop) they would cover the level button: there they stack under the enemy map
+        const below = !z.side?.compact,
+          bw2 = Math.min(r.w, Math.max(18, r.w * 0.75)),
+          bh2 = (bw2 * rows) / cols;
+        allies.forEach((id, i) => {
+          const m = below ? { x: r.x + (r.w - bw2) / 2, y: r.y + r.h + 34 + i * (bh2 + gap), w: bw2, h: bh2, player: id } : { x: 8 + i * (mw + gap), y: y0, w: mw, h: mh, player: id };
+          this.miniRects.push(m);
+          this.drawLaneMap(g, game, game.players[id], id, own, m, catalog, 0.6, true);
+        });
+      }
       const mine = lane.creeps.filter((c) => c.owner === own && c.hp > 0).length;
       this.pipLabel
         .setText(other === own ? t("YOU") : mine ? `${t("ENEMY")}\n${mine}` : t("ENEMY"))

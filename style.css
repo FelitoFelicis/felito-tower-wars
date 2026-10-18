@@ -7170,3 +7170,26 @@ p.room-opts { text-align: center; }
     linear-gradient(135deg, color-mix(in srgb, var(--fc) 45%, #fff) 0%, var(--fc) 28%, color-mix(in srgb, var(--fc) 55%, #000) 52%, color-mix(in srgb, var(--fc) 70%, #fff) 74%, color-mix(in srgb, var(--fc) 60%, #000) 100%) border-box !important;
   box-shadow: 0 0 0 1px #0009, 0 1px 2px #0008;
 }
+
+/* v0.21d: team games: the allies' shared window sits on the left, inside your own plate beside your info */
+.game-header:has(.player-plate.own.allied) {
+  grid-template-columns: 1.25fr auto 0.75fr;
+}
+.player-plate.own.allied {
+  gap: 4px;
+  padding-right: 4px;
+}
+.player-plate.own.allied > .plate-body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.player-plate.own .ally-stack {
+  flex: 0 0 46%;
+  width: auto;
+  min-width: 0;
+  height: 100%;
+  margin-left: auto;
+}
+.player-plate.own.allied > .plate-exp {
+  right: calc(46% + 8px);
+}
