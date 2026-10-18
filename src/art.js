@@ -252,6 +252,7 @@ const RESEARCH_ART = {
 };
 /** Monster figures; the first matching name wins. Missing art falls back to the generic set. */
 const CREEP_PATTERNS = [
+  [/\[murloc\]/i, "creep-siren", "creep-siren"], // v0.21p: Naga Siren's death spawns look like little Naga Sirens
   [/flying sheep/i, "creep-sheep-fly", "creep-harpy"],
   [/flying machine/i, "creep-gyrocopter", "creep-harpy"],
   [/zeppelin/i, "creep-zeppelin", "creep-harpy"],

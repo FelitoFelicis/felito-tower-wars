@@ -7210,3 +7210,49 @@ p.room-opts { text-align: center; }
   81% { opacity: 0.72; transform: translate(-50%, -50%) scale(1); }
   100% { opacity: 0; transform: translate(-50%, -46%) scale(1.06); }
 }
+
+/* v0.21y: card book perk submenu (factors behind a perk's values) */
+.book-card.book-open { cursor: pointer; }
+.perk-lab .lab-head { display: flex; align-items: center; gap: 12px; }
+.perk-lab .lab-body { display: grid; grid-template-columns: minmax(150px, 210px) 1fr; gap: 16px; align-items: start; padding: 4px 2px 8px; }
+.perk-lab .lab-card { cursor: default; }
+.perk-lab .lab-card img { max-width: 64px; height: 64px; }
+.perk-lab .lab-card b { font-size: 14px; }
+.perk-lab .lab-card span { font-size: 12.5px; }
+.perk-lab .lab-controls { display: grid; gap: 10px; }
+.perk-lab .lab-row { display: grid; grid-template-columns: 96px 30px 1fr 30px 38px; align-items: center; gap: 6px; font: 700 13px var(--font-body); color: #f3ead2; }
+.perk-lab .lab-row input[type="range"] { width: 100%; height: 26px; margin: 0; accent-color: var(--gold, #f2c75c); cursor: pointer; }
+.perk-lab .lab-row b { text-align: right; font: 400 17px var(--font-number); color: var(--gold, #f2c75c); }
+.perk-lab .lab-step { width: 30px; height: 30px; border-radius: 9px; border: 2px solid #4a3405; background: linear-gradient(#ffe08a, #d9a531); color: #3a2604; font: 800 18px/1 var(--font-display); cursor: pointer; padding: 0; }
+.perk-lab .lab-step:active { transform: translateY(2px); }
+.perk-lab .lab-toggle { grid-template-columns: 96px auto; }
+.perk-lab .lab-toggle input { width: 22px; height: 22px; accent-color: var(--gold, #f2c75c); }
+.perk-lab .lab-none { margin: 0; color: #c9b4f0; font: 600 13px var(--font-body); }
+@media (max-width: 520px) {
+  .perk-lab .lab-body { grid-template-columns: 1fr; }
+  .perk-lab .lab-card-wrap { max-width: 230px; margin: 0 auto; }
+}
+/* v0.21z: achievements in the card book */
+.achievement-book .achievement-note { margin: -2px 8px 8px; color: #b9c6cf; font-size: 11px; text-align: center; }
+.achievement-card { gap: 3px; }
+.achievement-card img { width: 40px; height: 40px; object-fit: contain; }
+.achievement-card .achievement-exp { margin-top: auto; color: #d2b0ff; font-style: normal; font-weight: 800; font-size: 11.5px; }
+.pills button { min-width: 0; padding-left: 4px; padding-right: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pills:has(> :nth-child(4)) button { font-size: 12px; letter-spacing: 0.01em; }
+@media (max-width: 420px) { .pills:has(> :nth-child(4)) button { font-size: 10.5px; } }
+/* v0.21z: Training menu picture. Very Easy: the creeps close their eyes and the banners carry goblin smileys.
+   Hard: every evil creep stares with glowing red eyes and a skull shadow lies on the moon. */
+.welcome-mood {
+  position: absolute;
+  inset: 0;
+  background: center top / cover no-repeat;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.5s ease;
+}
+.mood-easy { background-image: url("assets/art/keyart-easy.webp?v=021z"); }
+.mood-hard { background-image: url("assets/art/keyart-hard.webp?v=021z"); }
+.mood-hard-glow { background-image: url("assets/art/keyart-hard-glow.webp?v=021z"); }
+dialog.welcome-modal.easy-eyes .mood-easy,
+dialog.welcome-modal.hard-eyes .mood-hard { opacity: 1; }
+dialog.welcome-modal.hard-eyes .mood-hard-glow { opacity: 0.8; } /* v0.22: only the wolf's eyes pulse; the others glow steadily */

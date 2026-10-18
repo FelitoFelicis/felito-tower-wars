@@ -1,5 +1,6 @@
-import { loadContent, getCatalog, WALL_ID } from "./content.js";
+import { loadContent, getCatalog, WALL_ID, RULES } from "./content.js";
 import {
+  gunpowderTiles,
   createGame,
   step,
   command,
@@ -49,6 +50,7 @@ import {
   TEAM_LIVES,
   FIREBLOCK,
   fireBlockDamage,
+  fireBlockBack,
   HEALING,
   BANK,
   MIND,
@@ -69,6 +71,15 @@ import {
   treasureGold,
   treasureIncome,
   burningTreant,
+  TREANT,
+  ENRAGED_GOLEM,
+  burstDamage,
+  TOWER_ACHIEVEMENTS,
+  GLOBAL_ACHIEVEMENTS,
+  collectorExp,
+  RECRUITER_ACHIEVEMENTS,
+  BUILDER_ACHIEVEMENTS,
+  BLOOD_ACHIEVEMENTS,
   PILLAR,
   AGOLEM,
   MONSUN,
@@ -101,6 +112,7 @@ import {
   isHeavy,
   hasDeathrattle,
   attackInfo,
+  baseStats,
   feudalBonus,
   towerPerkBuffs,
   abilityCd,
@@ -130,7 +142,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.21o",
+const APP_VERSION = "0.22",
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "18.10.2026";
 // v0.18: the version also stands in the page title (browser tab and the artifact window in chats)
@@ -1439,6 +1451,7 @@ const ABILITY_DESC = {
   "Arrow Resistance": "Takes 33% less damage from Archer-line towers",
   "Siege Resistance": "Takes 33% less damage from Bombard-line towers",
   Deathrattle: "Summons 3 Skeletons on death",
+  "Spawn Wisp": "Spawns a Wisp on death", // v0.21z: Treant
   "Scale Armor": "Ignores a little damage from every hit",
   "Nerf Resistance": "Slows, stuns and curses last much shorter",
   "Magic Resistance": "Takes much less magic damage",
@@ -1501,6 +1514,16 @@ function abilityDesc(name, item) {
     if (chance > 0 && chance < 1 && mult > 1) return `${Math.round(chance * 100)}% chance to deal ${Math.round(mult * 100)}% damage`;
   }
   if (name === "Flash Execution" && item.id === "h02C") return "Instantly kills creeps below 10% of their max health or below 666 health";
+  // v0.21z: Treant EXP (30 − Treants you bought) and the Meat Golem's Enrage
+  if (name === "EXP Bonus") {
+    const bought = (game && game.players[own]?.treantCount) || 0,
+      exp = Math.max(0, TREANT.exp - bought);
+    return `Gives you ${exp} EXP when killed, 1 less for every Treant you buy`;
+  }
+  if (name === "Enrage") {
+    const base = catalog.byId[ENRAGED_GOLEM.id];
+    return `Denies its first death: stops, growls and rises enraged with ${num(ENRAGED_GOLEM.hp)} HP, ${Math.round((ENRAGED_GOLEM.speed / (base?.speed || ENRAGED_GOLEM.speed) - 1) * 100)}% more speed and ${ENRAGED_GOLEM.armor} armor`;
+  }
   return ABILITY_DESC[name];
 }
 /**
@@ -1546,6 +1569,10 @@ function creepClasses(item) {
   if (hasDeathrattle(item.id)) out.push(t("Spawns on death"));
   return out;
 }
+/** v0.21x: a stat as "5 → 6" when perks or upgrades change it, else just the value. */
+function changed(base, value, fmt = format) {
+  return Number.isFinite(base) && Math.abs(value - base) > 0.004 && fmt(base) !== fmt(value) ? `${fmt(base)} → ${fmt(value)}` : fmt(value);
+}
 /**
  * Tooltip of a card or a tower. `who` = whose stats (v0.17c: enemy towers too); `bare` leaves out
  * the head line and the warning (used inside the detail dialog).
@@ -1563,12 +1590,13 @@ function statTip(item, action, towerId = null, who = own, bare = false) {
     // v0.17: Income and Profit (v0.18h, was Value) first (green), then Hitpoints, Speed, Abilities, Stock (current / max)
     const unit = catalog.byId[item.spawnIds?.[0]] || item,
       us = getStats(game, who, unit.id),
+      ub = baseStats(game, who, unit.id), // v0.21x
       inc = incomeFor(item),
       cost = itemPrice(item).gold;
-    rows.push([t("Income"), "+" + formatInc(inc) + (Math.abs(inc - item.income) > 0.004 ? ` (${t("base")} ${formatInc(item.income)})` : ""), "inc"]);
+    rows.push([t("Income"), changed(item.income, inc, (v) => "+" + formatInc(v)), "inc"]); // v0.21x: base → current, no "base"
     rows.push([t("Profit"), cost > 0 ? `${num((inc / cost) * 100, { maximumFractionDigits: 1 })} %` : "–", "inc"]);
-    rows.push([t("Hitpoints"), format(us.hp)]);
-    rows.push([t("Speed"), `${format(us.speed / game.grid.cellUnits)} ${t("fields/s")}`]);
+    rows.push([t("Hitpoints"), changed(ub.hp, us.hp)]);
+    rows.push([t("Speed"), `${changed(ub.speed / game.grid.cellUnits, us.speed / game.grid.cellUnits)} ${t("fields/s")}`]);
     const classes = creepClasses(item);
     if (classes.length) rows.push([t("Classification"), classes.join(", ")]); // v0.17c
     after.push([t("Stock"), `${stockCount(item)}/${stockMaxOf(game.players[own], item)}`]);
@@ -1583,18 +1611,19 @@ function statTip(item, action, towerId = null, who = own, bare = false) {
     };
   } else {
     const s = getStats(game, who, item.id),
+      b = baseStats(game, who, item.id), // v0.21x: "base → current"
       air = item.targets?.includes("air"),
       ground = item.targets?.includes("ground");
     // v0.17c: "10 → 12" when upgrades raise the damage
     const cu = game.grid.cellUnits,
-      ai = attackInfo(game, item.id);
-    rows.push([t("Damage"), Math.abs(s.damage - item.damage) > 0.004 ? `${format(item.damage)} → ${format(s.damage)}` : format(s.damage)]);
-    rows.push([t("Damage/second"), s.cooldown > 0 ? format(s.damage / s.cooldown) : "–"]); // v0.16e, v0.17g: right below Damage
-    rows.push([t("Range"), isMeleeTower(item) ? t("Melee") : format(s.range / cu)]); // v0.17m: numbers only
-    if (ai.splash) rows.push([t("Splash Radius"), format(ai.splash / cu)]); // v0.17g, v0.17m: numbers only
+      ai = attackInfo(game, item.id, game.players[who]); // v0.21u: Gunpowder
+    rows.push([t("Damage"), changed(b.damage, s.damage)]);
+    rows.push([t("Damage/second"), s.cooldown > 0 ? changed(b.cooldown > 0 ? b.damage / b.cooldown : NaN, s.damage / s.cooldown) : "–"]); // v0.16e, v0.17g: right below Damage
+    rows.push([t("Range"), isMeleeTower(item) ? t("Melee") : changed(b.range / cu, s.range / cu)]); // v0.17m: numbers only
+    if (ai.splash) rows.push([t("Splash Radius"), changed(attackInfo(game, item.id, null).splash / cu, ai.splash / cu)]); // v0.17g, v0.17m: numbers only
     if (ai.multi) rows.push([t("Multi Targets"), String(ai.multi)]);
     if (ai.bounce) rows.push([t("Bouncing Targets"), String(ai.bounce)]);
-    rows.push([t("Attacks every"), `${format(s.cooldown)} s`]);
+    rows.push([t("Attacks every"), `${changed(b.cooldown, s.cooldown)} s`]);
     rows.push([t("Targets"), ground && air ? t("ground and air") : air ? t("air only") : t("ground only")]);
     // v0.17g: towers without abilities show no Abilities line (like creeps)
   }
@@ -1655,7 +1684,7 @@ function abilityTip(id) {
     fields = (n) => `${format(n)}`,
     tips = {
       volley: () => ["Arrows rain on an area", [["Damage", `${format(VOLLEY.bonus + getStats(game, own, "h003").damage)} per arrow`], ["Arrows", `${VOLLEY.perLevel * lv} + ${VOLLEY.perTower} per Archer-line tower`], ["Radius", fields(VOLLEY.radius)], ["Cooldown", `${volleyCd(lv)} s`]]],
-      burst: () => ["Deals damage split among creeps in a radius", [["Damage", format(lv * BURST.damage * (p?.tier || 1))], ["Radius", fields(burstRadius(lv))], ["Cooldown", `${BURST.cooldown} s`]]],
+      burst: () => ["Deals damage split among creeps in a radius", [["Damage", format(burstDamage(p, lv))], ["Radius", fields(burstRadius(lv))], ["Cooldown", `${BURST.cooldown} s`]]],
       pillar: () => [`A pillar of fire burns an area for ${PILLAR.duration} s, up to 75% more in its centre`, [["Damage", `${format(pillarDamage(p, lv))} every ${PILLAR.interval} s`], ["Radius", fields(PILLAR.radius)], ["Cooldown", `${PILLAR.cooldown} s`]]],
       agolem: () => {
         const hp = golemHp(p, lv);
@@ -2159,7 +2188,7 @@ function welcome() {
   }
   const saved = unusableSave ? null : localStorage.getItem(SAVE);
   showModal(
-    `<div class="welcome-eyes" aria-hidden="true"></div><div class="welcome-art" aria-hidden="true"></div><button class="welcome-options" id="welcome-options" type="button" aria-label="${t("Options")}"><img src="${iconUrl("gear")}" alt=""></button><button class="welcome-options welcome-mute" id="welcome-mute" type="button" aria-pressed="${muted}" aria-label="${t(muted ? "Sound off" : "Sound on")}">${speakerSvg(muted)}</button><span class="app-version">v${APP_VERSION} · ${APP_DATE}${APP_NOTE ? `<small class="app-version-note">${esc(APP_NOTE)}</small>` : ""}</span><img class="welcome-logo" src="assets/art/ui-logo.webp" alt="Felito Tower Wars"><div class="welcome-panel" id="welcome-panel" data-view="home"><div class="welcome-home"><span class="modal-label">${t("Your color")}: <b id="color-name">${colorLabel()}</b></span><div class="color-picker" role="radiogroup" aria-label="${t("Your color")}">${Object.entries(TEAM_COLORS).map(([id, c]) => `<button role="radio" data-color="${id}" aria-checked="${id === colorPick}" aria-label="${t(c.name)}" title="${t(c.name)}" class="${id === colorPick ? "active" : ""}" style="--c:${c.css}"></button>`).join("")}</div><div class="welcome-modes"><button class="primary-button big welcome-mode" data-open="ai">${t("Training")}</button><button class="primary-button big welcome-mode alt" data-open="player"><span class="keep-case">${t("PvP")}</span></button></div></div><section class="welcome-group" data-sub="ai" aria-label="${t("Training")}"><h3 class="welcome-group-title"><button class="welcome-back" type="button" data-back aria-label="${t("Back")}">${t("Back")}</button>${t("Training")}</h3><div class="segmented ai-levels" role="radiogroup" aria-label="${t("Difficulty")}">${Object.entries(AI_NAMES).map(([id, name]) => `<button role="radio" data-ai="${id}" aria-checked="${id === aiChoice}" class="${id === aiChoice ? "active" : ""}">${t(name)}</button>`).join("")}<button type="button" class="ai-mixed${aiMixed ? " active" : ""}" id="ai-mixed" aria-pressed="${aiMixed}" title="${t("Shuffles AI enemies of different difficulties into the match, up to the chosen one")}">${t("Mixed")}</button></div><div class="welcome-inline"><span class="modal-label">${t("Neutral waves")}</span><div class="segmented" role="radiogroup" aria-label="${t("Neutral waves")}">${[["on", "On"], ["off", "Off"]].map(([id, name]) => `<button role="radio" data-waves="${id}" aria-checked="${(id === "on") === wavesOn}" class="${(id === "on") === wavesOn ? "active" : ""}">${t(name)}</button>`).join("")}</div></div><span class="modal-label">${t("Number of AI enemies")}</span><div class="segmented ai-count" role="radiogroup" aria-label="${t("Number of AI enemies")}">${AI_COUNTS.map((n) => `<button role="radio" data-aicount="${n}" aria-checked="${n === aiCount}" class="${n === aiCount ? "active" : ""}">${n}</button>`).join("")}</div><button class="primary-button big" id="start-training">${t("Start")}</button><button class="secondary-button big campaign-open" id="start-campaign">${t("Campaign")} · ${campaignDone().size}/${MISSIONS.length}</button></section><section class="welcome-group" data-sub="player" aria-label="${t("PvP")}"><h3 class="welcome-group-title"><button class="welcome-back" type="button" data-back aria-label="${t("Back")}">${t("Back")}</button><span class="keep-case">${t("PvP")}</span></h3><label class="modal-label name-label pvp-name" for="player-name">${t("Player name")}</label><div class="name-row"><input id="player-name" class="name-input" maxlength="16" autocomplete="nickname" spellcheck="false" placeholder="${t("Your name")}" value="${esc(playerNameChoice)}"><button type="button" class="icon-pick" id="icon-pick" aria-label="${t("Choose your player icon")}" style="--pc:${iconColor()}"><img src="${iconSrc(iconChoice)}" alt=""></button></div><div class="welcome-row pvp-row"><button class="primary-button" id="start-quick">${t("Quick Match")}</button><button class="secondary-button" id="start-online">${t("Play a friend")}</button><button class="secondary-button" id="start-ranked" disabled aria-disabled="true" title="${t("Ranked matches are coming soon.")}">${t("Ranked match")}</button></div></section></div>`,
+    `<div class="welcome-eyes" aria-hidden="true"></div><div class="welcome-mood mood-easy" aria-hidden="true"></div><div class="welcome-mood mood-hard" aria-hidden="true"></div><div class="welcome-mood mood-hard-glow" aria-hidden="true"></div><div class="welcome-art" aria-hidden="true"></div><button class="welcome-options" id="welcome-options" type="button" aria-label="${t("Options")}"><img src="${iconUrl("gear")}" alt=""></button><button class="welcome-options welcome-mute" id="welcome-mute" type="button" aria-pressed="${muted}" aria-label="${t(muted ? "Sound off" : "Sound on")}">${speakerSvg(muted)}</button><span class="app-version">v${APP_VERSION} · ${APP_DATE}${APP_NOTE ? `<small class="app-version-note">${esc(APP_NOTE)}</small>` : ""}</span><img class="welcome-logo" src="assets/art/ui-logo.webp" alt="Felito Tower Wars"><div class="welcome-panel" id="welcome-panel" data-view="home"><div class="welcome-home"><span class="modal-label">${t("Your color")}: <b id="color-name">${colorLabel()}</b></span><div class="color-picker" role="radiogroup" aria-label="${t("Your color")}">${Object.entries(TEAM_COLORS).map(([id, c]) => `<button role="radio" data-color="${id}" aria-checked="${id === colorPick}" aria-label="${t(c.name)}" title="${t(c.name)}" class="${id === colorPick ? "active" : ""}" style="--c:${c.css}"></button>`).join("")}</div><div class="welcome-modes"><button class="primary-button big welcome-mode" data-open="ai">${t("Training")}</button><button class="primary-button big welcome-mode alt" data-open="player"><span class="keep-case">${t("PvP")}</span></button></div></div><section class="welcome-group" data-sub="ai" aria-label="${t("Training")}"><h3 class="welcome-group-title"><button class="welcome-back" type="button" data-back aria-label="${t("Back")}">${t("Back")}</button>${t("Training")}</h3><div class="segmented ai-levels" role="radiogroup" aria-label="${t("Difficulty")}">${Object.entries(AI_NAMES).map(([id, name]) => `<button role="radio" data-ai="${id}" aria-checked="${id === aiChoice}" class="${id === aiChoice ? "active" : ""}">${t(name)}</button>`).join("")}<button type="button" class="ai-mixed${aiMixed ? " active" : ""}" id="ai-mixed" aria-pressed="${aiMixed}" title="${t("Shuffles AI enemies of different difficulties into the match, up to the chosen one")}">${t("Mixed")}</button></div><div class="welcome-inline"><span class="modal-label">${t("Neutral waves")}</span><div class="segmented" role="radiogroup" aria-label="${t("Neutral waves")}">${[["on", "On"], ["off", "Off"]].map(([id, name]) => `<button role="radio" data-waves="${id}" aria-checked="${(id === "on") === wavesOn}" class="${(id === "on") === wavesOn ? "active" : ""}">${t(name)}</button>`).join("")}</div></div><span class="modal-label">${t("Number of AI enemies")}</span><div class="segmented ai-count" role="radiogroup" aria-label="${t("Number of AI enemies")}">${AI_COUNTS.map((n) => `<button role="radio" data-aicount="${n}" aria-checked="${n === aiCount}" class="${n === aiCount ? "active" : ""}">${n}</button>`).join("")}</div><button class="primary-button big" id="start-training">${t("Start")}</button><button class="secondary-button big campaign-open" id="start-campaign">${t("Campaign")} · ${campaignDone().size}/${MISSIONS.length}</button></section><section class="welcome-group" data-sub="player" aria-label="${t("PvP")}"><h3 class="welcome-group-title"><button class="welcome-back" type="button" data-back aria-label="${t("Back")}">${t("Back")}</button><span class="keep-case">${t("PvP")}</span></h3><label class="modal-label name-label pvp-name" for="player-name">${t("Player name")}</label><div class="name-row"><input id="player-name" class="name-input" maxlength="16" autocomplete="nickname" spellcheck="false" placeholder="${t("Your name")}" value="${esc(playerNameChoice)}"><button type="button" class="icon-pick" id="icon-pick" aria-label="${t("Choose your player icon")}" style="--pc:${iconColor()}"><img src="${iconSrc(iconChoice)}" alt=""></button></div><div class="welcome-row pvp-row"><button class="primary-button" id="start-quick">${t("Quick Match")}</button><button class="secondary-button" id="start-online">${t("Play a friend")}</button><button class="secondary-button" id="start-ranked" disabled aria-disabled="true" title="${t("Ranked matches are coming soon.")}">${t("Ranked match")}</button></div></section></div>`,
     { pauseGame: false, welcome: true },
   );
   $("modal-body")
@@ -2534,10 +2563,13 @@ function mixedLevels(seats, top) {
   if (seats > 1 && !out.includes(top)) out[1 + Math.floor(roll() * (seats - 1))] = top;
   return out;
 }
-/** v0.14: the wolf in the main-menu picture lets its eyes glow while Hard is picked for Vs AI. */
+/** v0.14: the wolf in the main-menu picture lets its eyes glow while Hard is picked for Vs AI (v0.21z: all evil creeps, skull on the moon; Very Easy: everyone asleep). */
 function wolfEyes() {
   const panel = $("welcome-panel");
-  document.querySelector("dialog.welcome-modal")?.classList.toggle("hard-eyes", !!panel && panel.dataset.view === "ai" && aiChoice === "hard");
+  const dialog = document.querySelector("dialog.welcome-modal"),
+    training = !!panel && panel.dataset.view === "ai";
+  dialog?.classList.toggle("hard-eyes", training && aiChoice === "hard");
+  dialog?.classList.toggle("easy-eyes", training && aiChoice === "veryEasy"); // v0.21z: Very Easy: eyes closed, smileys on the banners
 }
 // ---- v0.17: single-player campaign ---------------------------------------------------------
 let campaignIndex = 0;
@@ -3183,11 +3215,12 @@ const researchArt = (item) => (RESEARCH_SVG[item.id] ? svgUrl(RESEARCH_SVG[item.
 const PERK_ART = {
   recruit: () => iconUrl("attack"),
   feudal: () => iconUrl("crown"),
-  archery: () => svgUrl("arrowhead"),
-  militia: () => svgUrl("militia"),
+  gunpowder: () => "assets/art/perk-gunpowder.webp?v=v021u", // v0.21u: powder keg and cannonballs
+  archery: () => "assets/art/perk-archery.webp?v=v021t", // v0.21t: painted target
+  militia: () => "assets/art/perk-militia.webp?v=v021t", // v0.21t: painted sword
   evolution: () => svgUrl("evolution"),
   gold: () => iconUrl("coin"),
-  novice: () => svgUrl("novice"),
+  novice: () => "assets/art/perk-novice.webp?v=v021t", // v0.21t: painted scroll and quill
   volley: () => svgUrl("volley"),
   pillage: () => svgUrl("pillage"),
   crowd: () => svgUrl("crowd"),
@@ -3206,7 +3239,7 @@ const PERK_ART = {
   airblock: () => svgUrl("airblock"), // v0.20c
   supergrowth: () => svgUrl("supergrowth"), // v0.20c
   // v0.12
-  lone: () => svgUrl("lone"),
+  lone: () => "assets/art/perk-lone.webp?v=v021u", // v0.21u: painted shield and sword
   manufacture: () => svgUrl("manufacture"),
   // v0.21: the former level-up upgrades keep their painted icons
   owl: () => svgUrl("owl"),
@@ -3245,7 +3278,7 @@ const perkText = (id, level, q = game?.players[own], next = false) => {
     lv = Math.max(1, Math.min(PERKS[id]?.max || 1, (q?.perks?.[id] || 0) + (next ? 1 : 0))),
     l3 = Math.min(3, lv) - 1;
   return t(PERKS[id].text, {
-    gold: format(perkGold(level)),
+    gold: format(perkGold(level, q, game)),
     treasure: format(treasureGold(game)),
     treasureInc: format(treasureIncome(game, q)), // v0.19e2
     manufacture: pct(MANUFACTURE.discount[l3]),
@@ -3276,13 +3309,14 @@ const perkText = (id, level, q = game?.players[own], next = false) => {
     monsun: MONSUN.duration[Math.min(5, lv) - 1],
     // v0.16g: values of the current (or offered) level instead of "a / b / c" lists
     hellfire: format(Math.round(hellfireDps(q, lv) * hellfireRound(game?.round || 0))), // v0.21n: the value of this round
-    burst: format(lv * BURST.damage * (q?.tier || 1)),
-    boots: pct(BOOTS.slow[l3]),
-    bootsInc: pct(BOOTS.income * Math.min(3, lv)),
+    burst: format(burstDamage(q, lv)),
+    boots: num(BOOTS.slow[Math.min(BOOTS.slow.length, lv) - 1] * 100, { maximumFractionDigits: 1 }) + "%", // v0.22: 25 / 35 / 45 / 52.5 / 60 %
+    bootsInc: num(BOOTS.income * Math.min(BOOTS.slow.length, lv) * 100, { maximumFractionDigits: 1 }) + "%",
     exhume: pct(EXHUME.discount[l3]),
     blockCd: WATERBLOCK.cooldown[l3],
     fireBlockCd: FIREBLOCK.cooldown[l3], // v0.19j
     fireBlock: format(fireBlockDamage(q, Math.min(3, lv))),
+    fireBlockBack: format(fireBlockBack(Math.min(3, lv))), // v0.21y
     blockBack: WATERBLOCK.back[l3],
     airBlockCd: AIRBLOCK.cooldown[l3], // v0.20c
     airBlockBack: AIRBLOCK.back[l3],
@@ -3299,6 +3333,7 @@ const perkText = (id, level, q = game?.players[own], next = false) => {
     // v0.19b1: every "per level" value shows the amount of the current (or offered) level; cooldowns include Sanction Policy
     recruit: pct(0.1 * lv),
     archery: pct(0.05 * lv),
+    gunpowder: format(gunpowderTiles(lv)), // v0.21u: table per level
     archeryFree: next && lv === 1 ? ". " + t("Next 2 Archer Towers are free") : "", // v0.19h1: only when first offered
     novice: pct(NOVICE[Math.min(5, lv)]), // v0.19g1
     volleyArrows: VOLLEY.perLevel * lv,
@@ -4403,12 +4438,13 @@ function researchDetail(id) {
     `${modalHeader(itemName(item))}<img class="modal-hero" src="${researchArt(item)}" alt=""><p class="modal-copy">${valHtml(cardHint(item))}</p><div class="rule-row"><strong>${t(owned ? "Already unlocked" : "Level reward")}</strong>${t(owned ? "Active in this match." : "Upgrades come with level-ups: collect EXP from breakthroughs, creeps and EXP generators.")}</div><details class="info-disclosure"><summary>${t("Exact values")}</summary><p class="modal-copy">${esc(item.description).replace(/\n/g, "<br>")}</p></details><button class="primary-button" data-close>${t("Back")}</button>`,
   );
 }
-function itemDetail(id, towerId, detailPlayer = own) {
+/** `back` (v0.22): opened from the card book, a Back button returns there. */
+function itemDetail(id, towerId, detailPlayer = own, back = null) {
   const item = catalog.byId[id],
     stats = item.kind === "research" ? null : getStats(game, detailPlayer, id),
     canAct = detailPlayer === own;
   showModal(
-    `${modalHeader(itemName(item))}<img class="modal-hero" src="${towerArtUrl(artFor(item))}" alt="">${stats ? `<div class="help-tip stats detail-tip">${statTip(item, "info", towerId, detailPlayer, true).html}</div>` : `<p class="modal-copy">${esc(cardHint(item))}</p>`}${
+    `${back ? subHeader(itemName(item)) : modalHeader(itemName(item))}<img class="modal-hero" src="${towerArtUrl(artFor(item))}" alt="">${stats ? `<div class="help-tip stats detail-tip">${statTip(item, "info", towerId, detailPlayer, true).html}</div>` : `<p class="modal-copy">${esc(cardHint(item))}</p>`}${
       // v0.18b: a placed tower shows no upgrade buttons here, but a way to its place in the tech tree
       towerId
         ? `<button class="secondary-button" id="detail-techtree">${t("Techtree")}</button>`
@@ -4430,9 +4466,10 @@ function itemDetail(id, towerId, detailPlayer = own) {
           if (towerId && canAct) {
             closeModal();
             dispatch({ type: "upgrade", id: b.dataset.detailUpgrade, towerId });
-          } else itemDetail(b.dataset.detailUpgrade, undefined, detailPlayer);
+          } else itemDetail(b.dataset.detailUpgrade, undefined, detailPlayer, back);
         }),
     );
+  if (back && $("sub-back")) $("sub-back").onclick = back; // v0.22
   if ($("detail-techtree")) $("detail-techtree").onclick = () => catalogModal({ filter: "tower", focus: id });
   if (!towerId && canAct && (item.kind === "research" || item.isRoot)) { // v0.17h: no "Send creep" button for creeps
     const action = document.createElement("button");
@@ -4559,7 +4596,84 @@ function perkBookCard(e, p, section = null) {
   const d = PERKS[e.id],
     els = perkLook(e.id),
     pel = els.length ? elementOf(els.includes(section) ? section : els[0]) : null; // v0.19a1: a two-element perk wears the frame of the section it sits in
-  return `<div class="pick-card book-card pick-perk perk-${e.id}${pel ? " pick-element el-" + pel.id : ""}"${pel ? ` style="--el:${pel.color}"` : ""}><img src="${PERK_ART[e.id]()}" alt=""><b>${esc(e.name)}</b><span>${valHtml(perkText(e.id, p.level || 1, p, false))}</span>${bookMeta(d.powerup ? 1 : d.max, PERK_AVAILABILITY[e.id], "", perkCd(e.id, p))}</div>`;
+  return `<div class="pick-card book-card pick-perk perk-${e.id}${pel ? " pick-element el-" + pel.id : ""}${section === "lab" ? "" : " book-open"}"${pel ? ` style="--el:${pel.color}"` : ""}${section === "lab" ? "" : ` data-perk="${e.id}" role="button" tabindex="0"`}><img src="${PERK_ART[e.id]()}" alt=""><b>${esc(e.name)}</b><span>${valHtml(perkText(e.id, p.level || 1, p, false))}</span>${bookMeta(d.powerup ? 1 : d.max, PERK_AVAILABILITY[e.id], "", perkCd(e.id, p))}</div>`;
+}
+/**
+ * v0.21y: perk values under made-up conditions (card book submenu). A blank player with only this
+ * perk, the chosen player level and tier, in a stand-in match at the chosen round; the real match
+ * is put back right away.
+ */
+function perkSim(id, s) {
+  const real = game,
+    q = { id: 0, perks: { [id]: s.perk, ...(s.sanction ? { sanction: 1 } : {}) }, research: {}, level: s.level, tier: s.tier, towers: [], creeps: [], picks: [], stock: {}, stats: {}, questLog: {}, gold: 0, income: 0, incomeDecimal: 0, lives: 30 },
+    stand = { round: s.round, time: s.round * 15, tick: 0, running: true, warmup: false, teams: null, grid: real?.grid || { cols: 6, rows: 14, cellUnits: 128 }, players: [q] };
+  game = stand;
+  try {
+    return { text: perkText(id, s.level, q, false), cd: perkCd(id, q) };
+  } catch {
+    return null;
+  } finally {
+    game = real;
+  }
+}
+/** v0.21y: the factors a perk's numbers can depend on; only those that change something get a control. */
+const LAB_FACTORS = [
+  { key: "perk", label: "Perk level", min: 1 },
+  { key: "level", label: "Player level", min: 1, max: 100 },
+  { key: "tier", label: "Tier", min: 1, max: 5 },
+  { key: "round", label: "Round", min: 0, max: 100 },
+];
+function perkLab(id, back) {
+  const d = PERKS[id],
+    p = game?.players?.[own],
+    max = d.powerup ? 1 : d.max || 1,
+    first = Math.max(1, bookFirstLevel({ type: "perk", id }) || 1),
+    s = {
+      perk: Math.max(1, Math.min(max, p?.perks?.[id] || 1)),
+      level: Math.max(first, p?.level || first),
+      tier: p?.tier || 1,
+      round: Math.max(0, game?.round || 10),
+      sanction: false,
+    },
+    bounds = (f) => [f.min, f.key === "perk" ? max : f.max],
+    sig = (v) => { const r = perkSim(id, v); return r ? r.text + "|" + r.cd : ""; },
+    // a factor counts when its smallest and largest value give different numbers
+    useful = LAB_FACTORS.filter((f) => {
+      const [lo, hi] = bounds(f);
+      return hi > lo && sig({ ...s, [f.key]: lo }) !== sig({ ...s, [f.key]: hi });
+    }),
+    sanctionUseful = !!PERK_CD[id] && sig({ ...s, sanction: true }) !== sig(s),
+    entry = perkBookEntries().find((e) => e.type === "perk" && e.id === id),
+    grid = $("catalog-grid");
+  const card = () => {
+    const r = perkSim(id, s) || { text: "", cd: "" };
+    const els = perkLook(id),
+      pel = els.length ? elementOf(els[0]) : null;
+    return `<div class="pick-card book-card pick-perk lab-card perk-${id}${pel ? " pick-element el-" + pel.id : ""}"${pel ? ` style="--el:${pel.color}"` : ""}><img src="${PERK_ART[id]()}" alt=""><b>${esc(entry?.name || t(d.name))}</b><span>${valHtml(r.text)}</span>${bookMeta(max, PERK_AVAILABILITY[id], "", r.cd)}</div>`;
+  };
+  const control = (f) => {
+    const [lo, hi] = bounds(f);
+    return `<div class="lab-row" data-key="${f.key}"><span>${t(f.label)}</span><button type="button" class="lab-step" data-step="-1" aria-label="${t("Less")}">−</button><input type="range" min="${lo}" max="${hi}" step="1" value="${s[f.key]}" aria-label="${t(f.label)}"><button type="button" class="lab-step" data-step="1" aria-label="${t("More")}">+</button><b>${s[f.key]}</b></div>`;
+  };
+  grid.classList.add("techtree");
+  grid.innerHTML = `<section class="tt-tree perk-lab"><h3 class="lab-head"><button class="welcome-back modal-back" type="button" id="lab-back">${t("Back")}</button><span>${esc(entry?.name || t(d.name))}</span></h3><div class="lab-body"><div class="lab-card-wrap" id="lab-card">${card()}</div><div class="lab-controls">${useful.map(control).join("")}${sanctionUseful ? `<label class="lab-row lab-toggle"><span>${t("Sanction Policy")}</span><input type="checkbox" id="lab-sanction"></label>` : ""}${useful.length || sanctionUseful ? "" : `<p class="lab-none">${t("Nothing changes the values of this perk.")}</p>`}</div></div></section>`;
+  const refresh = () => ($("lab-card").innerHTML = card());
+  grid.querySelectorAll(".lab-row[data-key]").forEach((row) => {
+    const key = row.dataset.key,
+      range = row.querySelector("input"),
+      out = row.querySelector("b"),
+      set = (v) => {
+        s[key] = Math.max(Number(range.min), Math.min(Number(range.max), v));
+        range.value = s[key];
+        out.textContent = s[key];
+        refresh();
+      };
+    range.oninput = () => set(Number(range.value));
+    row.querySelectorAll("[data-step]").forEach((b) => (b.onclick = () => set(s[key] + Number(b.dataset.step))));
+  });
+  if ($("lab-sanction")) $("lab-sanction").onchange = (e) => ((s.sanction = e.target.checked), refresh());
+  $("lab-back").onclick = back;
+  grid.scrollTop = 0;
 }
 function perkBook(query = "") {
   const p = game?.players?.[own] || { perks: {}, research: {}, picks: [], level: 1, tier: 1 },
@@ -4573,17 +4687,71 @@ function perkBook(query = "") {
     })
     .join("");
 }
+/** v0.21z: achievements for the card book: what each one asks for and the EXP it gives. */
+function achievementGroups() {
+  const R = ["I", "II", "III", "IV", "V"],
+    lab = GLOBAL_ACHIEVEMENTS.labyrinth;
+  return [
+    {
+      id: "personal",
+      title: "Personal",
+      note: "Every player can earn these once per match.",
+      list: [
+        { name: TOWER_ACHIEVEMENTS.element.name, text: "Build or upgrade your first element tower", exp: TOWER_ACHIEVEMENTS.element.exp, icon: "upgrade" },
+        { name: TOWER_ACHIEVEMENTS.maxed.name, text: "Upgrade a tower to its highest level for the first time", exp: TOWER_ACHIEVEMENTS.maxed.exp, icon: "upgrade" },
+      ],
+    },
+    {
+      id: "global",
+      title: "Global",
+      note: "Only the first player in a match gets these.",
+      list: [
+        { name: "Hall Builder", text: "Build one of the first two Element Halls of the match", exp: 75, exp2: 50, icon: "build" },
+        { name: "First Blood", text: "The first creep of the match that breaks through", exp: RULES.firstBloodWood, icon: "first-blood" },
+        ...BLOOD_ACHIEVEMENTS.map((b) => ({ name: b.name, text: `Take ${b.lives} lives from your enemies`, exp: RULES.firstBloodWood * b.mult, icon: b.key })),
+        { name: lab.name, text: `Make the creeps' path ${lab.fields} fields long or longer`, exp: lab.exp, icon: "hourglass" },
+        ...R.map((r, i) => ({ name: "Creep Collector " + r, text: `Buy every creep of tier ${i + 1} at least once (the boss excepted)`, exp: collectorExp(i + 1), icon: "crown" })),
+        ...RECRUITER_ACHIEVEMENTS.map((x, i) => ({ name: "Recruiter " + R[i], text: `Spend ${num(x.gold)} gold on creeps (bosses don't count)`, exp: x.exp, icon: "coin" })),
+        ...BUILDER_ACHIEVEMENTS.map((b) => ({ name: b.name, text: `Own towers worth ${num(b.gold)} gold`, exp: b.exp, icon: "build" })),
+      ],
+    },
+  ];
+}
+function achievementBook(query = "") {
+  return achievementGroups()
+    .map((g) => {
+      const list = g.list.filter((a) => !query || [a.name, a.text].join(" ").toLowerCase().includes(query));
+      if (!list.length) return "";
+      return `<section class="tt-tree perk-book achievement-book book-neutral"><h3>${esc(t(g.title))}</h3><p class="achievement-note">${esc(t(g.note))}</p><div class="pick-grid book-grid">${list
+        .map((a) => `<div class="pick-card book-card achievement-card"><img src="${iconUrl(a.icon)}" alt=""><b>${esc(t(a.name))}</b><span>${valHtml(t(a.text))}</span><em class="achievement-exp">+${format(a.exp)}${a.exp2 ? ` / +${format(a.exp2)}` : ""} EXP</em></div>`)
+        .join("")}</div></section>`;
+    })
+    .join("");
+}
 function catalogModal({ filter: startFilter = "tower", focus = null } = {}) {
   showModal(
-    `${modalHeader(t("All cards"))}<input class="catalog-search" id="catalog-search" placeholder="${t("Name or original ID …")}" aria-label="${t("Search the catalog")}"><div class="pills">${[["tower", "Towers"], ["send", "Creeps"], ["perk", "Perks"]].map(([f, n]) => `<button${f === startFilter ? ' class="active"' : ""} data-filter="${f}">${t(n)}</button>`).join("")}</div><div id="catalog-grid" class="catalog-grid"></div>`,
+    `${modalHeader(t("All cards"))}<input class="catalog-search" id="catalog-search" placeholder="${t("Name or original ID …")}" aria-label="${t("Search the catalog")}"><div class="pills">${[["tower", "Towers"], ["send", "Creeps"], ["perk", "Perks"], ["achievement", "Achievements"]].map(([f, n]) => `<button${f === startFilter ? ' class="active"' : ""} data-filter="${f}">${t(n)}</button>`).join("")}</div><div id="catalog-grid" class="catalog-grid"></div>`,
   );
   let filter = startFilter;
   const draw = () => {
     const q = $("catalog-search").value.toLowerCase();
+    if (filter === "achievement") {
+      // v0.21z: achievements submenu
+      $("catalog-grid").classList.add("techtree");
+      $("catalog-grid").innerHTML = achievementBook(q) || `<p class="book-empty">${t("Nothing found.")}</p>`;
+      return;
+    }
     if (filter === "perk") {
       // v0.17b: perks, active abilities, powerups, quests and elements (display only)
       $("catalog-grid").classList.add("techtree");
       $("catalog-grid").innerHTML = perkBook(q) || `<p class="book-empty">${t("Nothing found.")}</p>`;
+      // v0.21y: a perk opens its submenu with the factors behind its values
+      $("catalog-grid")
+        .querySelectorAll("[data-perk]")
+        .forEach((b) => {
+          b.onclick = () => perkLab(b.dataset.perk, draw);
+          b.onkeydown = (e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), perkLab(b.dataset.perk, draw));
+        });
       return;
     }
     // v0.15: without a search the card book is a tech tree; a search lists the matching cards
@@ -4592,7 +4760,7 @@ function catalogModal({ filter: startFilter = "tower", focus = null } = {}) {
       $("catalog-grid").innerHTML = techTree(filter);
       $("catalog-grid")
         .querySelectorAll("[data-card]")
-        .forEach((b) => (b.onclick = () => itemDetail(b.dataset.card)));
+        .forEach((b) => (b.onclick = () => itemDetail(b.dataset.card, undefined, own, () => catalogModal({ filter, focus: b.dataset.card }))));
       return;
     }
     $("catalog-grid").classList.remove("techtree");
@@ -4605,7 +4773,7 @@ function catalogModal({ filter: startFilter = "tower", focus = null } = {}) {
       .forEach((el) => el.classList.remove("unaffordable"));
     $("catalog-grid")
       .querySelectorAll("[data-card]")
-      .forEach((b) => (b.onclick = () => itemDetail(b.dataset.card)));
+      .forEach((b) => (b.onclick = () => itemDetail(b.dataset.card, undefined, own, () => catalogModal({ filter, focus: b.dataset.card }))));
   };
   $("catalog-search").oninput = draw;
   // v0.18b: opened from a tower's info: jump to that tower in the tech tree and mark it
@@ -4644,7 +4812,7 @@ const RULES_DE = [
 ];
 function rulesModal() {
   showModal(
-    `${modalHeader(t("The rulebook"))}<div class="rules-credits"><b>${t("Created by Stevito and Felito in October 2026")}</b><span>${t("In loving memory of our friend Kos, who was terrible at Line Tower Wars but excelled at being a good-hearted and patient version of himself.")}</span><div class="credits-team"><b>${t("Team")}</b><span>Uschi · ${t("Head of In-Game AI Development")}</span><span>Aldi · ${t("Audio Design and Makeup")}</span><span>Heini · Heini</span></div></div>${RULES_DE.filter(([h]) => h !== "Neutral waves" || !game || game.waves).map(([h, text]) => `<div class="rule-row"><strong>${t(h)}</strong>${t(text)}</div>`).join("")}<button class="primary-button" data-close>${t("Back to the arena")}</button>`,
+    `${modalHeader(t("The rulebook"))}<div class="rules-credits"><b>${t("Created by Stevito and Felito in October 2026")}</b><div class="credits-team"><b>${t("Team")}</b><span>Uschi · ${t("Head of In-Game AI Development")}</span><span>Aldi · ${t("Diversity, Equity and Inclusion Manager and Makeup")}</span><span>Clarence · ${t("Human Resources")}</span><span>Jette · ${t("Animal Welfare Officer")}</span><span>Daddy Trash · ${t("Head of Audio Design and Vice Animal Welfare Officer")}</span><span>Heini · Heini</span></div><div class="credits-team"><b>${t("Obituary")}</b><span style="font-style:italic">${t("In loving memory of our friend Kos, who was terrible at Line Tower Wars but excelled at being a good-hearted and patient version of himself.")}</span></div></div>${RULES_DE.filter(([h]) => h !== "Neutral waves" || !game || game.waves).map(([h, text]) => `<div class="rule-row"><strong>${t(h)}</strong>${t(text)}</div>`).join("")}<button class="primary-button" data-close>${t("Back to the arena")}</button>`,
   );
 }
 /** Shared settings, used by the in-game menu and the main-menu options. */
@@ -4869,9 +5037,10 @@ function menu() {
 /** Options from the main menu; closing returns to the main menu. */
 function optionsModal() {
   showModal(
-    `${modalHeader(t("Options"))}${settingsButtons()}<button class="secondary-button" id="menu-rules">${t("Rules & development status")}</button>`,
+    `${modalHeader(t("Options"))}${settingsButtons()}<button class="secondary-button" id="menu-catalog">${t("Card book")}</button><button class="secondary-button" id="menu-rules">${t("Rules & development status")}</button>`,
   );
   wireSettings(optionsModal);
+  $("menu-catalog").onclick = () => catalogModal(); // v0.21z: the card book from the main menu too
 }
 function installHelp() {
   if (installPrompt) {
@@ -6020,6 +6189,7 @@ function tick(dt) {
       if (e.type === "monsun" && e.player === view) tone("monsun");
       if (e.type === "lightning" && e.player === view) tone("thunder");
       if ((e.type === "golem" || e.type === "golemPortal") && e.player === view) tone("golem");
+      if (e.type === "skill" && e.kind === "enrage" && e.player === view) tone("growl"); // v0.21z: Meat Golem
       // v0.17q: a perk summons towers: first show the own field, the towers arrive 0.3 s later
       if (e.type === "summonStart" && e.player === own && view !== own) showMaze(own, true);
       if (e.type === "summon" && e.player === own) {

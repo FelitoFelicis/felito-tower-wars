@@ -57,8 +57,8 @@ export const RULES = {
 const SHOPS = ["H049", "H04A", "H04E", "H04B", "H04K", "H02K"];
 /** Researches a player can hold (elements, their upgrades, level rewards). */
 const PLAYER_RESEARCH = ["R00K", "R00M", "R00N", "R00O", "R00P", "R00Q", "R00R", "R00U", "R00V", "R00W", "R00X", "R001", "R002", "R005", "R006", "R00C", "R00D", "R00J"]; // v0.17b: Forged Arrows (R000) and Improved Construction (R013) removed
-const NO_INCOME = new Set(["n00Y", "n01H", "n01D", "n01R", "n01T", "n02P", "n02Q", "n02R"]);
-const NO_DECIMAL = new Set(["n00Y", "n01D", "n01R", "n02N", "n01T", "n02P", "n02Q", "n02R"]);
+const NO_INCOME = new Set(["n00Y", "n01H", "n01R", "n01T", "n02P", "n02Q", "n02R"]); // v0.21p: Ghoul (n01D) earns income now
+const NO_DECIMAL = new Set(["n00Y", "n01R", "n02N", "n01T", "n02P", "n02Q", "n02R"]);
 const TRIPLES = new Set(["n00P", "n00U", "n01L", "n01S", "n017"]);
 const BASE_TOWER_HP = { hhou: 500, hgtw: 500, hctw: 500, hatw: 500 };
 const BOSS_TIERS = { n00T: 2, n015: 3, n01H: 4, n01T: 5, n02R: 6 };
@@ -376,6 +376,8 @@ export function configureContent(data) {
     byId[GOLEM_ID] = golem;
     allUnits.push(golem);
   }
+  // v0.21y: drop placeholder requirements ("Coming soon…", e.g. Rhla on the Fire Elemental) so only the element is needed
+  for (const u of allUnits) u.requires = (u.requires || []).filter((r) => r.id !== "Rhla");
   // Wisp "pages" are the builder's research-menu scrollers, not towers.
   for (const u of allUnits) {
     if (/^Wisp\b/.test(u.name)) u.playable = false;
@@ -531,6 +533,10 @@ export const CUSTOM_ABILITIES = [
   { id: "XA05", baseId: "AIcf", custom: true, fields: { anam: { 0: "Phoenix Fire" }, aare: { 1: 192 }, aub1: { 1: "Deals 350 damage per second\nRange 192\nTargets Ground & Air" } } },
   // v0.18b: Earth Laser: Focus Fire. While the tower keeps hitting the same creep, its damage rises by 10 % every 0.25 s, up to 500 %.
   // v0.18e: Orc: buying one restocks one Goblin at once (display only; the restock runs in simulation.js)
+  // v0.21z: display only: Treant EXP and Wisp, Meat Golem Enrage (the effects run in simulation.js)
+  { id: "XA09", baseId: "Xinf", custom: true, fields: { anam: { 0: "EXP Bonus" }, aub1: { 1: "Gives you EXP when killed" } } },
+  { id: "XA10", baseId: "Xinf", custom: true, fields: { anam: { 0: "Spawn Wisp" }, aub1: { 1: "Spawns a Wisp on death" } } },
+  { id: "XA11", baseId: "Xinf", custom: true, fields: { anam: { 0: "Enrage" }, aub1: { 1: "Denies its first death and rises enraged" } } },
   { id: "XA06", baseId: "Xfoc", custom: true, step: 0.1, interval: 0.25, max: 5, fields: { anam: { 0: "Focus Fire" }, aub1: { 1: "Damage +10% every 0.25 s while attacking the same target, up to 500%" } } },
 ];
 /**
@@ -584,7 +590,7 @@ const UNIT_ABILITY_SWAP = {
   h03Z: { A0BG: "XA06" },
 };
 /** Per unit: abilities added in front. */
-const UNIT_ABILITY_ADD = { n02P: ["XA08"], n01R: ["XA08"] }; // v0.21k: Slow Resistance for Warden and Eredar Warlock
+const UNIT_ABILITY_ADD = { n02P: ["XA08"], n01R: ["XA08"], n00Y: ["XA10", "XA09"], n01H: ["XA11"] }; // v0.21z: Treant EXP Bonus and Spawn Wisp, Meat Golem Enrage // v0.21k: Slow Resistance for Warden and Eredar Warlock
 /**
  * v0.18a: tower damage buffs in percent of the average damage, rounded up to the next whole number.
  * The difference is added to the flat damage part, so the dice spread stays the same.
@@ -605,17 +611,26 @@ function applyTowerDamageBuff(byId) {
   }
 }
 export const CREEP_TUNING = {
+  n01D: { income: 60 }, // v0.21p: Ghoul earns income now (1500 gold: 4 %, like Demon Hound)
+  // v0.21p: Naga Siren's death spawns +50 % hit points (they look like little Naga Sirens, art.js / arena.js)
+  n02Z: { hp: 3750 }, // Mutant 2500 → 3750
+  n034: { hp: 3000 }, // Scout 2000 → 3000
+  n02Y: { hp: 3000 }, // Thief 2000 → 3000
+  n036: { hp: 4500 }, // Warrior 3000 → 4500
+  n037: { hp: 2250 }, // Wizard 1500 → 2250
   n02P: { hp: 90000 }, // Warden: +50 % hit points, 60000 → 90000 (v0.21k)
   n01R: { hp: 30000 }, // Eredar Warlock: +50 % hit points, 20000 → 30000 (v0.21k)
   n00E: { income: 1, cost: 5, stockMax: 18 }, // Goblin: income 1.17 → 1 (v0.07g), cost 6 → 5 (v0.07h); peon companion removed (v0.07i); stock 16 → 18 (v0.08b)
   n007: { cost: 10, income: 1.9 }, // Horse: cost 12 → 10, income 2 → 1.9 (v0.08b)
   n00K: { income: 3.5 }, // Gnoll: income 3 → 3.5 (v0.08d)
-  n00M: { hp: 300, speed: 180, count: 1, bountyBase: 11, name: "[06] Orc", shortName: "Orc", abilities: ["A01A", "XA02"] }, // Grunt → Orc (v0.17b): hit points +30 %, 120 → 156 (v0.09s); Siege Resistance 33 % (v0.17b); v0.18e: one Orc per purchase (heavy), hit points 156 → 312, bounty 5+1d1 → 11+1d1 (12 per purchase as before), restocks 1 Goblin; v0.21m: hit points 312 → 300, speed 190 → 180 (−5 %)
+  n00M: { hp: 280, speed: 180, stockRegen: 7, count: 1, bountyBase: 11, name: "[06] Orc", shortName: "Orc", abilities: ["A01A", "XA02"] }, // Grunt → Orc (v0.17b): hit points +30 %, 120 → 156 (v0.09s); Siege Resistance 33 % (v0.17b); v0.18e: one Orc per purchase (heavy), hit points 156 → 312, bounty 5+1d1 → 11+1d1 (12 per purchase as before), restocks 1 Goblin; v0.21m: hit points 312 → 300, speed 190 → 180 (−5 %); v0.21p: 280 hit points, restock 6 → 7 s
   n00R: { abilities: ["A01A", "XA01"] }, // Skeleton: Arrow Resistance now 33 % less damage from Archer-line towers (v0.17b, was: ignores 1 ranged damage)
-  n00N: { hp: 180, abilities: ["A01A", "XA03"] }, // Necromancer: hit points 170 → 180 (v0.17f); Unholy Aura removed, Deathrattle shown (v0.17g)
+  n00N: { hp: 185, abilities: ["A01A", "XA03"] }, // Necromancer: hit points 170 → 180 (v0.17f), 185 (v0.21p); Unholy Aura removed, Deathrattle shown (v0.17g)
   n00P: { hp: 85, speed: 138.56, stockRegen: 11 }, // Flying Sheep: hit points 80 → 85, speed 1.06 → 1.08 fields/s (v0.17b); restock 10 → 11 s (v0.17o)
   n00L: { speed: 375 }, // Wolf: 25 % faster, 300 → 375 (v0.08d)
   n00S: { speed: 420, stockRegen: 13, income: 8 }, // Raider: 25 % faster (v0.07b); restock 12 → 13 s (v0.17o); income 9 → 8 (v0.17q)
+  n01H: { hp: 46200 }, // Meat Golem: hit points +10 %, 42000 → 46200 (v0.21y); v0.21z: no death spawns, denies its first death and rises enraged (simulation.js ENRAGED_GOLEM)
+  n03A: { income: 45 }, // v0.21z: Naga Siren earns a low income (1800 gold: 2.5 %)
   n010: { hp: 1300 }, // Forest Troll: hit points −10 %, 1450 → 1300 (v0.16i: broke through 5–8× as often as other tier-2 creeps in self-play)
 };
 function applyCreepTuning(byId) {

@@ -472,6 +472,12 @@ function lineIds(roots) {
 }
 const LINE_SETS = new Map();
 /** v0.17b: cached set of all tower ids in the line that starts at `root`. */
+/** v0.21u: Gunpowder perk, extra outer splash radius of the Bombard line in game units. */
+export const GUNPOWDER = [0, 0.25, 0.45, 0.6, 0.72, 0.82, 0.9, 0.96, 1, 1.03, 1.05]; // tiles per perk level
+export const gunpowderTiles = (lv) => GUNPOWDER[Math.max(0, Math.min(GUNPOWDER.length - 1, lv | 0))];
+function gunpowderBonus(game, p) {
+  return p?.perks ? gunpowderTiles(perkLevel(p, "gunpowder")) * game.grid.cellUnits : 0;
+}
 function lineSet(root) {
   if (!LINE_SETS.has(root)) LINE_SETS.set(root, new Set(lineIds([root])));
   return LINE_SETS.get(root);
@@ -792,10 +798,10 @@ function statsFor(game, player, item) {
   }
   return stats;
 }
-const INCOME_EXCLUDED = new Set(["n00Y", "n01H", "n01D", "n01R", "n01T", "n02P", "n02Q", "n02R"]);
+const INCOME_EXCLUDED = new Set(["n00Y", "n01H", "n01R", "n01T", "n02P", "n02Q", "n02R"]); // v0.21p: Ghoul has income now
 /** Income one purchase of a creep adds: whole part and hundredths (research R006, Feudality). */
-/** v0.10w: Treant: dies for 20 − (treants bought) EXP; after 20 purchases it burns (+10 % speed, income). */
-export const TREANT = { exp: 20, burnAfter: 20, income: 20, speed: 0.1 };
+/** v0.10w: Treant: dies for 30 − (treants bought) EXP (v0.21z: 20 → 30); after 20 purchases it burns (+10 % speed, income). */
+export const TREANT = { exp: 30, burnAfter: 20, income: 20, speed: 0.1 };
 export const burningTreant = (p) => (p?.treantCount || 0) >= TREANT.burnAfter;
 function sendIncomeParts(p, item) {
   const base = item.id === "n00Y" && burningTreant(p) ? TREANT.income : INCOME_EXCLUDED.has(item.id) ? 0 : item.pointValue;
@@ -813,8 +819,8 @@ function sendIncomeParts(p, item) {
   // v0.10p: Wings of War: +10 % income per level for flying creeps
   const wings = item.flying ? perkLevel(p, "wings") : 0;
   if (wings) decimal += Math.round((base * 100 + (item.incomeHundredths || 0)) * WINGS.income * wings);
-  // v0.10r: Red Boots: +1 % income per level for ground creeps
-  const boots = item.flying ? 0 : perkLevel(p, "boots");
+  // v0.10r: Red Boots: +1.5 % income per level for ground creeps (v0.22, was 1 %)
+  const boots = item.flying ? 0 : Math.min(BOOTS.slow.length, perkLevel(p, "boots"));
   if (boots) decimal += Math.round((base * 100 + (item.incomeHundredths || 0)) * BOOTS.income * boots);
   return { base, decimal };
 }
@@ -827,6 +833,11 @@ export function sendIncome(game, playerIndex, id) {
 }
 export function getStats(game, playerIndex, id) {
   return statsFor(game, game.players[playerIndex], obj(id));
+}
+/** v0.21x: the same stats without perks, upgrades or growth (tooltips show "base → current"). */
+export function baseStats(game, playerIndex, id) {
+  const p = game.players[playerIndex];
+  return statsFor(game, { id: p?.id ?? playerIndex, team: p?.team, tier: p?.tier || 1, perks: {}, research: {}, growth: {}, towers: [], creeps: [], contracts: [] }, obj(id));
 }
 function newTower(game, p, id, gx, gy) {
   const item = obj(id),
@@ -863,6 +874,7 @@ export const PERKS = Object.freeze({
   // v0.09q: perk rework (availability in PERK_AVAILABILITY)
   recruit: { name: "Recruitment", max: 10, text: "Creeps recruit {recruit} faster" }, // v0.19h1: tooltip // v0.10i (artifact line), merged in v0.11c
   feudal: { name: "Feudality", max: 10, text: "Creep income +{feudal}" }, // v0.18b: 2 / 3.5 / 5 / 6 / 7 %
+  gunpowder: { name: "Gunpowder", max: 10, text: "Bombard-line splash +{gunpowder} tiles" }, // v0.21u: outer splash radius +0.25/0.45/0.60/0.72/0.82/0.90/0.96/1.00/1.03/1.05 tiles
   archery: { name: "Archery", max: 10, text: "Archer-line +{archery} damage. Next Archer is free" }, // v0.19h1: 5 / 10 / 15 / 20 / 25 %; v0.20a: every pick makes the next archer free
   militia: { name: "Militia", max: 1, powerup: true, text: "Spawn 2 Footman on random fields" }, // v0.17h: once per player; v0.19e2: powerup
   evolution: { name: "Evolution", max: 1, powerup: true, text: "Upgrades a random level 1 or 2 tower and summons a copy to a random field" }, // v0.19g1: level 2 towers first, the copy sells for 10 %
@@ -874,9 +886,9 @@ export const PERKS = Object.freeze({
   burst: { name: "Arcane Burst", max: 5, element: "arcane", text: "Active ability: {burst} damage, split among the creeps in an area" }, // v0.10p
   treasure: { name: "Gold Treasure", max: 1, powerup: true, text: "Instantly +{treasure} gold and +{treasureInc} income" }, // v0.10r; v0.19e2: +20 % gold, +60 income (doubled when far behind)
   voltage: { name: "High Voltage", max: 20, element: "storm", unpopular: 0.5, text: "EXP generators are {voltage} more efficient" }, // v0.10r; v0.19j: tooltip
-  boots: { name: "Red Boots", max: 3, element: "fire", text: "Ground creeps {boots} less slowed, +{bootsInc} income" }, // v0.10r
+  boots: { name: "Red Boots", max: 5, element: "fire", text: "Ground creeps {boots} slow resistance and +{bootsInc} creep income" }, // v0.10r; v0.22: max level 5
   exhume: { name: "Exhumination", max: 3, element: "plague", text: "Undead creeps cost {exhume} less and recruit 10% faster" }, // v0.20c: 10 % faster instead of 20 % slower // v0.10r; v0.19j: tooltip (they still restock 20% slower)
-  fireblock: { name: "Fire Block", max: 3, element: "fire", text: "Every {fireBlockCd} s the first breach is pushed back 1 field and explodes at once: {fireBlock} damage 3 times" }, // v0.19j
+  fireblock: { name: "Fire Block", max: 3, element: "fire", text: "Every {fireBlockCd} s the first breach is pushed back {fireBlockBack} fields and explodes at once: {fireBlock} damage 3 times" }, // v0.19j
   airblock: { name: "Air Block", max: 3, element: "storm", text: "Every {airBlockCd} s the first flying breach is pushed back {airBlockBack} fields, struck by lightning for {airBlock} damage and stunned {airBlockStun} s. Speeds up Monsun by {airBlockMonsun} s" }, // v0.20c
   supergrowth: { name: "Supergrowth", max: 3, element: "earth", text: "Each purchase of a ground creep from the stronger half of its tier gives that creep type +{growth} HP, less for weaker ones" }, // v0.20f
   waterblock: { name: "Water Block", max: 3, element: "water", text: "Every {blockCd} s the first breach is pushed back {blockBack} fields and frozen" }, // v0.10r
@@ -969,6 +981,7 @@ export function towerPerkBuffs(game, index, id) {
   if (lv("frenzy") && item.isBuildable && item.attacks) out.push({ id: "frenzy", level: lv("frenzy"), text: `+${Math.round(FRENZY * 100 * lv("frenzy"))}% attack speed` });
   if (lv("firearrows") && item.isBuildable && item.attacks && isArrowUnit(item)) out.push({ id: "firearrows", level: lv("firearrows"), text: `+${Math.round(FIRE_ARROWS * 100 * lv("firearrows"))}% damage` });
   if (!p.perks) return out;
+  if (perkLevel(p, "gunpowder") && item.isBuildable && item.attacks && (isCannonTower(item) || lineSet("h02R").has(item.id))) out.push({ id: "gunpowder", level: perkLevel(p, "gunpowder"), text: `+${gunpowderTiles(perkLevel(p, "gunpowder"))} tiles splash` });
   if (perkLevel(p, "archery") && archerLine().has(item.id)) out.push({ id: "archery", level: perkLevel(p, "archery"), text: `+${5 * perkLevel(p, "archery")}% damage` });
   if (perkLevel(p, "lone") && item.isBuildable && item.attacks && loneCount(p) <= LONE.towers + 1e-6) out.push({ id: "lone", level: 1, text: `+${Math.round(LONE.speed * 100)}% attack speed` });
   if (item.isBuildable && item.attacks && p.backupOn && perkLevel(p, "backup") && !isMeleeTower(item)) out.push({ id: "backup", level: 1, text: `+${Math.round(BACKUP.damage * 100)}% damage` }); // v0.18h
@@ -996,8 +1009,9 @@ export const BREEDING = { chance: [0.33, 0.6, 0.75], hp: 0.1 };
 export const PILLAR = { cooldown: 75, radius: 2.2, core: 0.75, delay: 0.5, duration: 1.5, interval: 0.3, scorch: 15, air: 0.5, budget: 1.5 };
 // v0.19b1: grows steeply with the send tier (like creep hit points) and +5 % per player level
 export const PILLAR_TIER = [1, 4, 10, 25, 60, 120];
+export const PILLAR_DAMAGE_TIER = [1, 5, 12.5, 31, 75, 150]; // v0.22: Pillar of Fire +25 % from tier 2 (Fire Block and Air Block keep PILLAR_TIER)
 export const pillarDamage = (p, level = perkLevel(p, "pillar")) =>
-  Math.round((12 + 10 * level) * PILLAR_TIER[Math.max(1, Math.min(PILLAR_TIER.length, p?.tier || 1)) - 1] * (1 + 0.05 * (p?.level || 1)));
+  Math.round((12 + 10 * level) * PILLAR_DAMAGE_TIER[Math.max(1, Math.min(PILLAR_TIER.length, p?.tier || 1)) - 1] * (1 + 0.05 * (p?.level || 1)));
 /** Arcane Golem (Arcane): cooldown, knock-back in fields and hit point loss per collision by level. */
 export const AGOLEM = { cooldown: 50, knock: [1, 1.25, 1.5, 1.75, 2], loss: [0.01, 0.009, 0.008, 0.0075, 0.007], heavy: 3, damage: 10, reach: 0.45 };
 export const golemHp = (p, level = perkLevel(p, "agolem")) => Math.round(level * (p?.tier || 1) * (400 * ((p?.level || 1) * 0.2) + 1));
@@ -1008,7 +1022,7 @@ export const monsunForce = (p, level = perkLevel(p, "monsun")) => 0.48 + level *
 export const monsunDamage = (p, level = perkLevel(p, "monsun")) => 30 + 20 * level * (p?.tier || 1);
 /** Perks that skip the next level once taken. */
 /** v0.20c: perks that sit out more than one level after a pick (Supergrowth: two). */
-const PERK_SKIP_LEVELS = { supergrowth: 2 };
+const PERK_SKIP_LEVELS = { supergrowth: 2, hellfire: 2 }; // v0.21x: Lava Floor skips 2
 const PERK_SKIP = new Set(["pillar", "agolem", "monsun", "slave", "guardian", "mind", "tailwind", "carmor", "owl"]); // v0.19a1: Mind Control, Tailwind, Creep Armor, Watcher Owl
 /**
  * v0.19a1: reworked level-up upgrades (research perks). Their effects live here instead of the map
@@ -1112,7 +1126,6 @@ const DEATH_PLANS = {
     ["n02X", 0.5],
   ],
   n01F: [["n004", 0]],
-  n01H: [["n008", 0, 0.9]],
   n02E: [
     ["n038", 0],
     ["n038", 0.3],
@@ -1126,11 +1139,15 @@ export function hasDeathrattle(id) {
 }
 /** Heavy creeps: one creep per purchase, no boss, no death spawn. */
 const HEAVY = new Map();
+/** v0.21x: heavy despite a death spawn (Cairne Bloodhoof). */
+const HEAVY_ALWAYS = new Set(["n01F"]);
 export function isHeavy(item) {
   if (!item?.isSend) return false;
-  if (!HEAVY.has(item.id)) HEAVY.set(item.id, !item.bossTier && (item.spawnIds?.length || 0) === 1 && !hasDeathrattle(item.id));
+  if (!HEAVY.has(item.id)) HEAVY.set(item.id, HEAVY_ALWAYS.has(item.id) || (!item.bossTier && (item.spawnIds?.length || 0) === 1 && !hasDeathrattle(item.id)));
   return HEAVY.get(item.id);
 }
+/** v0.21v: towers spare heavy creeps only above this share of the field (self-play: the Orc broke through 44 % of the time). */
+export const HEAVY_SHY = 0.5;
 const heavyCreep = (c) => c.heavy || isHeavy(obj(c.typeId)) || !!obj(c.typeId)?.bossTier || !!c.waveBoss;
 /** The 4th creep of a tier (Creep Manufacture). */
 const fourthOf = (item) => !!item?.isSend && !item.bossTier && tierSends(item.tier)[3]?.id === item.id;
@@ -1522,14 +1539,15 @@ export const GOLEM = { discount: 0.25, hp: 0.1 };
 export const WINGS = { hp: 0.06, speed: 0.03, income: 0.1 };
 /** v0.10p: Hellfire (Fire): burning row (0-based, v0.10q: 6th row from the top) and damage per second. */
 // v0.16g: buffed and scaled with the owner's send tier (creep hit points grow steeply per tier)
-export const HELLFIRE = { row: 5, perLevel: 10, base: 5, tierScale: [1, 4, 10, 25, 60, 120], perPlayerLevel: 0.06 };
+export const HELLFIRE = { row: 5, perLevel: 10, base: 5, tierScale: [1, 3, 7, 16, 35, 70], perPlayerLevel: 0.06 }; // v0.22: less from the send tier (was 1 / 4 / 10 / 25 / 60 / 120)
 // v0.19b1: Lava Floor (was Hellfire): also +6 % damage per player level
 /** v0.21n: Lava Floor is a little weaker early on: 70 % in round 0, +1.5 % per round, full from round 20. */
 export const hellfireRound = (round) => Math.min(1, 0.7 + 0.015 * Math.max(0, round || 0));
 export const hellfireDps = (p, level = perkLevel(p, "hellfire")) =>
   level ? (HELLFIRE.perLevel * level + HELLFIRE.base) * HELLFIRE.tierScale[Math.max(0, Math.min(HELLFIRE.tierScale.length, p?.tier || 1) - 1)] * (1 + HELLFIRE.perPlayerLevel * (p?.level || 1)) : 0;
 /** v0.10p: Arcane Burst (Arcane): cooldown, radius in fields (base + per level), damage per level and tier. */
-export const BURST = { cooldown: 40, radius: 1.15, radiusPerLevel: 0.1, damage: 200 };
+export const BURST = { cooldown: 40, radius: 1.15, radiusPerLevel: 0.1, damage: 450, tier: [1, 4, 10, 25, 60] }; // v0.22: 200 → 450, tier factor 1/2/3/4/5 → 1/4/10/25/60
+export const burstDamage = (p, level = perkLevel(p, "burst")) => level * BURST.damage * BURST.tier[Math.max(1, Math.min(BURST.tier.length, p?.tier || 1)) - 1];
 export const burstRadius = (level) => BURST.radius + BURST.radiusPerLevel * level;
 /** v0.10q: Giant's Pocks (Plague), per perk level: share of remaining hp, poison seconds (×3 + 2), slow, dps × tier × 2. */
 export const POCKS = { interval: 4, hpShare: 0.05, slow: 0.03 };
@@ -1569,7 +1587,7 @@ function launchBurst(game, p, x, y) {
     r = burstRadius(level) * game.grid.cellUnits,
     centre = { x, y },
     inside = p.creeps.filter((c) => !c.dead && c.hp > 0 && !divineShield(game, c) && dist(game, c, centre) <= r), // v0.17n: shielded creeps are immune
-    total = level * BURST.damage * (p.tier || 1),
+    total = burstDamage(p, level),
     share = inside.length ? total / inside.length : 0;
   for (const c of inside) {
     c.hp -= guardCut(game, c, share, true);
@@ -1594,14 +1612,16 @@ function bossDiscount(p, item, gold) {
 export const UNDEAD_SENDS = new Set(["n00R", "n011", "n016", "n019", "n01B", "n01H", "n013", "n01D", "n02N", "n02E"]);
 export const EXHUME = { discount: [0.2, 0.35, 0.5], restock: 1 / 1.1 }; // v0.20c: recruit 10 % faster // v0.10s
 /** v0.10r: Red Boots (per level), High Voltage (per level), Water Block (per level 1-3), Gold Treasure. */
-export const BOOTS = { slow: [0.25, 0.33, 0.4], income: 0.01 }; // v0.10s: slow resistance by level
+export const BOOTS = { slow: [0.25, 0.35, 0.45, 0.525, 0.6], income: 0.015 }; // v0.10s: slow resistance by level; v0.22: 5 levels, +1.5 % income per level
 export const VOLTAGE = { bonus: 0.5 };
 /**
  * v0.19j: Fire Block (Fire, levels 1-3): every 12 / 9 / 6 s the first breach sets off a small pillar of fire
  * on the path just before the exit: 3 pulses in 0.9 s, radius 1.5 fields, up to +75 % in the centre, flyers half.
  * Damage per pulse = (8 + 6 × perk level) × send-tier factor (1 / 4 / 10 / 25 / 60 / 120) × (1 + 5 % per player level).
  */
-export const FIREBLOCK = { cooldown: [12, 9, 6], radius: 1.5, pulses: 3, base: 8, perLevel: 6, scorch: 6, back: 1 }; // v0.21m: push back 1 field
+export const FIREBLOCK = { cooldown: [12, 9, 6], radius: 1.5, pulses: 3, base: 8, perLevel: 6, scorch: 6, back: 1, backPerLevel: 0.25, radiusPerLevel: 0.12 }; // v0.21m: push back 1 field; v0.21y: +0.25 fields push and +0.12 fields radius per level
+export const fireBlockBack = (level) => FIREBLOCK.back + FIREBLOCK.backPerLevel * level;
+export const fireBlockRadius = (level) => FIREBLOCK.radius + FIREBLOCK.radiusPerLevel * level;
 export const fireBlockDamage = (p, level = Math.min(3, perkLevel(p, "fireblock"))) =>
   Math.round((FIREBLOCK.base + FIREBLOCK.perLevel * level) * PILLAR_TIER[Math.max(1, Math.min(PILLAR_TIER.length, p?.tier || 1)) - 1] * (1 + 0.05 * (p?.level || 1)));
 function fireBlock(game, p, c) {
@@ -1615,12 +1635,12 @@ function fireBlock(game, p, c) {
     c.path = [pos(game, column, -1), pos(game, column, game.grid.rows)];
     c.pathIndex = 1;
   } else if (c.path?.length) c.pathIndex = c.path.length;
-  knockBack(game, c, FIREBLOCK.back * game.grid.cellUnits, p);
+  knockBack(game, c, fireBlockBack(level) * game.grid.cellUnits, p);
   (game.pillars ||= []).push({
     player: p.id,
     x: spot.x,
     y: spot.y,
-    radius: FIREBLOCK.radius,
+    radius: fireBlockRadius(level),
     damage: fireBlockDamage(p, level),
     small: true,
     start: game.time,
@@ -1668,7 +1688,7 @@ function airBlock(game, p, c) {
 }
 /** Water Block: true when the breach was denied (creep frozen and pushed back up its path). */
 function bootsResist(p) {
-  const level = Math.min(3, perkLevel(p, "boots"));
+  const level = Math.min(BOOTS.slow.length, perkLevel(p, "boots"));
   return level ? 1 - BOOTS.slow[level - 1] : 1;
 }
 function waterBlock(game, p, c) {
@@ -1707,7 +1727,7 @@ function footmanLine() {
  * v0.17g: attack facts for tooltips: splash radius (in game units, 0 = none), arrows per shot
  * (Multi Shot, Fire Archer) and bounce targets (Glaive). Mirrors the attack code below.
  */
-export function attackInfo(game, id) {
+export function attackInfo(game, id, p) {
   const item = obj(id);
   if (!item?.attacks) return { splash: 0, multi: 0, bounce: 0 };
   const skills = unitAbilities({ typeId: id }).map((a) => skillOf(a, Math.min(fval(a, "alev", 0, 1), Math.max(1, item.level || 1)))).filter(Boolean),
@@ -1716,9 +1736,9 @@ export function attackInfo(game, id) {
     bounce = item.weapon === "mbounce" ? num(item.fields?.utc1, 1) : 0;
   let splash = 0;
   if (item.weapon !== "mbounce") {
-    if (isCannonTower(item)) splash = Math.max(item.splashSmall, item.splashMedium, CANNON_RING * game.grid.cellUnits) * BOMBARD_RADIUS;
+    if (isCannonTower(item)) splash = Math.max(item.splashSmall, item.splashMedium, CANNON_RING * game.grid.cellUnits) * BOMBARD_RADIUS + gunpowderBonus(game, p);
     else if (item.splashFull > 0 || item.splashMedium > 0 || item.splashSmall > 0)
-      splash = Math.max(item.splashFull, item.splashMedium, item.splashSmall) * (lineSet("h02R").has(id) ? BOMBARD_RADIUS : 1);
+      splash = lineSet("h02R").has(id) ? Math.max(item.splashFull, item.splashMedium, item.splashSmall) * BOMBARD_RADIUS + gunpowderBonus(game, p) : Math.max(item.splashFull, item.splashMedium, item.splashSmall);
   }
   return { splash, multi: multi > 1 ? multi : 0, bounce: bounce > 1 ? bounce : 0 };
 }
@@ -1785,6 +1805,7 @@ function gainExp(game, p, amount) {
     p.level++;
     p.expNext = expNeeded(p.level);
     if (game) {
+      (p.levelRound ||= {})[p.level] = game.round || 0; // v0.22: Gold perk counts the round this level was reached
       const kind = ELEMENT_LEVELS.includes(p.level) && FACTIONS.some((f) => !p.research[f.unlock]) ? "element" : "upgrade";
       p.picks.push(makePick(game, p, kind));
       emit(game, "levelUp", { player: p.id, level: p.level, kind });
@@ -1804,6 +1825,7 @@ export function grantExp(game, playerIndex, amount) {
  */
 export const PERK_AVAILABILITY = {
   // perks
+  gunpowder: "2-5", // v0.21u
   recruit: "2-5",
   feudal: "2-5",
   archery: "2-5",
@@ -1879,6 +1901,7 @@ export function parseAvailability(spec) {
 }
 /** v0.10i: extra levels on which a perk appears once the player owns it (at least level 1). */
 export const PERK_AVAILABILITY_OWNED = {
+  gunpowder: "5+", // v0.21u: like Archery
   recruit: "5+",
   feudal: "5+", // v0.20b: max level 10, offered again from level 5 once owned (like Recruitment)
   archery: "5+", // v0.20b
@@ -2019,7 +2042,7 @@ function applyOption(game, p, option, level) {
     if (option.id === "evolution") evolveTower(game, p);
     if (option.id === "scholar") scholarUpgrade(game, p); // v0.20d
     if (option.id === "gold") {
-      const gold = perkGold(pick.level);
+      const gold = perkGold(pick.level, p, game);
       p.gold += gold;
       p.stats.goldEarned += gold;
     }
@@ -2249,7 +2272,8 @@ function questCostShare(p, item) {
   return share;
 }
 /** Gold perk: 40 + 20 × the level of the dialog it was offered in. */
-export const perkGold = (level) => 40 + 20 * level;
+/** v0.22: Gold perk: round × 5 + 20, with the round in which the player reached that level. */
+export const perkGold = (level, p = null, game = null) => (p?.levelRound?.[level] ?? game?.round ?? 0) * 5 + 20;
 /** Militia: footmen that stand at once on random free fields (never blocking the path). */
 function placeMilitia(game, p, count) {
   for (let k = 0; k < count; k++) {
@@ -3372,8 +3396,10 @@ function towerSkillsRaw(player, tower) {
 const CREEP_SKILLS = new Map();
 function creepSkills(c) {
   if (c.wave) return [];
-  if (!CREEP_SKILLS.has(c.typeId)) CREEP_SKILLS.set(c.typeId, unitAbilities(c).map((a) => skillOf(a, 1)).filter(Boolean));
-  return CREEP_SKILLS.get(c.typeId);
+  const key = c.enraged ? c.typeId + ":enraged" : c.typeId; // v0.21z: the Enraged Meat Golem has its own skills
+  if (!CREEP_SKILLS.has(key))
+    CREEP_SKILLS.set(key, (c.enraged ? ENRAGED_GOLEM.abilities.map((id) => getCatalog().abilities[id]).filter(Boolean) : unitAbilities(c)).map((a) => skillOf(a, 1)).filter(Boolean));
+  return CREEP_SKILLS.get(key);
 }
 function nerfClass(c) {
   if (c.waveBoss) return "boss";
@@ -3754,7 +3780,7 @@ function attack(game, p, tower, dt, known = null) {
   const canHit = (c) => (c.flying ? item.targets.includes("air") : item.targets.includes("ground")) && (!c.invisible || detected(game, p, c));
   const melee = isMeleeTower(item) && towerSize(tower) === 1,
     inReach = (c) => (melee ? inMeleeReach(game, tower, c) : dist(game, tower, c) <= stats.range);
-  const targets = p.creeps.filter((c) => !c.dead && c.hp > 0 && inReach(c) && canHit(c));
+  const targets = p.creeps.filter((c) => !c.dead && c.hp > 0 && !divineShield(game, c) && inReach(c) && canHit(c)); // v0.21x: no shots at invulnerable creeps
   if (!targets.length) {
     tower.cooldown = 0;
     tower.focusId = null; // v0.18b: Focus Fire ends without a target
@@ -3763,11 +3789,14 @@ function attack(game, p, tower, dt, known = null) {
   }
   // v0.18b: towers take the weaker creeps they can more likely kill first (no bosses, no heavy
   // creeps while others are in reach), then the one furthest along the path
-  targets.sort((a, b) => heavyCreep(a) - heavyCreep(b) || b.progress - a.progress || a.id.localeCompare(b.id));
+  // v0.21v: heavy creeps and bosses come last only in the upper half of the field; from halfway on they count like any creep
+  const shy = (c) => (c.progress < HEAVY_SHY && heavyCreep(c) ? 1 : 0);
+  targets.sort((a, b) => shy(a) - shy(b) || b.progress - a.progress || a.id.localeCompare(b.id));
   const skills = towerSkills(p, tower),
     focus = skills.find((sk) => sk.type === "focus");
   // v0.18b: Focus Fire keeps its target while it stays in reach
   const target = (focus && tower.focusId && targets.find((c) => c.id === tower.focusId)) || targets[0];
+  tower.aimId = target.id; // v0.21y: the selected tower shows its splash around this creep
   let damage =
     (diceRoll(game, item.damageBase, item.dice, item.sides) + stats.damageBonus) * stats.damageMultiplier * aura.damage;
   if (focus) {
@@ -3833,7 +3862,7 @@ function attack(game, p, tower, dt, known = null) {
   } else if (isCannonTower(item)) {
     // Cannon: full damage in a tiny core around the impact, 25 % in the wider ring.
     const core = Math.max(item.splashFull, CANNON_CORE * game.grid.cellUnits),
-      ring = Math.max(item.splashSmall, item.splashMedium, CANNON_RING * game.grid.cellUnits) * BOMBARD_RADIUS;
+      ring = Math.max(item.splashSmall, item.splashMedium, CANNON_RING * game.grid.cellUnits) * BOMBARD_RADIUS + gunpowderBonus(game, p);
     for (const other of p.creeps) {
       if (other === target || other.dead || other.hp <= 0 || !canHit(other)) continue;
       const d = dist(game, target, other),
@@ -3843,7 +3872,9 @@ function attack(game, p, tower, dt, known = null) {
     emit(game, "skill", { player: p.id, kind: "splash", x: target.x, y: target.y, radius: ring, core });
   } else if (item.splashFull > 0 || item.splashMedium > 0 || item.splashSmall > 0) {
     // v0.17b: Bombard line (Disease Launcher, Treant Tower): outer radius 10 % smaller
-    const maxR = lineSet("h02R").has(tower.typeId) ? Math.max(item.splashFull, item.splashMedium, item.splashSmall) * BOMBARD_RADIUS : Infinity;
+    const bombard = lineSet("h02R").has(tower.typeId),
+      gp = bombard ? gunpowderBonus(game, p) : 0, // v0.21u: Gunpowder widens the outermost ring
+      maxR = bombard ? Math.max(item.splashFull, item.splashMedium, item.splashSmall) * BOMBARD_RADIUS + gp : Infinity;
     for (const other of p.creeps) {
       if (other === target || other.dead || other.hp <= 0) continue;
       const d = dist(game, target, other);
@@ -3853,7 +3884,7 @@ function attack(game, p, tower, dt, known = null) {
           ? 1
           : d <= item.splashMedium
             ? item.splashMediumFactor
-            : d <= item.splashSmall
+            : d <= item.splashSmall + gp
               ? item.splashSmallFactor
               : 0;
       if (rate) strike(game, p, tower, other, damage * rate, item.attackType);
@@ -3898,7 +3929,7 @@ function secondWeapon(game, p, tower, item, stats, aura, dt, cursed) {
   tower.cooldown2 = (tower.cooldown2 || 0) - dt;
   if (tower.cooldown2 > 0) return;
   const target = p.creeps
-    .filter((c) => !c.dead && c.hp > 0 && c.flying && w.targets.includes("air") && dist(game, tower, c) <= rangedReach(game, w.range) && (!c.invisible || detected(game, p, c)))
+    .filter((c) => !c.dead && c.hp > 0 && !divineShield(game, c) && c.flying && w.targets.includes("air") && dist(game, tower, c) <= rangedReach(game, w.range) && (!c.invisible || detected(game, p, c)))
     .sort((a, b) => b.progress - a.progress || a.id.localeCompare(b.id))[0];
   if (!target) {
     tower.cooldown2 = 0;
@@ -3939,10 +3970,32 @@ function crowdControl(game, p) {
     p.incomeDecimal %= 100;
   }
 }
+/**
+ * v0.21z: the Meat Golem denies its first death. It stops, growls and rises as the Enraged Meat
+ * Golem with that form's stats (the former dummy creep n008): 42,000 hit points, speed 261,
+ * armor 7, Scale Armor 10, Magic Resistance 50 %, Nerf Resistance 75 %. Perk and wave scaling of
+ * the hit points carries over.
+ */
+export const ENRAGED_GOLEM = { id: "n01H", hp: 42000, speed: 261, armor: 7, pause: 1.2, abilities: ["A01A", "A0AW", "A03H", "A02U", "A043", "A0CD"] };
+function enrageGolem(game, p, c) {
+  const item = obj(c.typeId),
+    hpScale = c.maxHp / (item.hp || c.maxHp),
+    pace = ENRAGED_GOLEM.speed / (item.speed || ENRAGED_GOLEM.speed);
+  c.enraged = true;
+  c.maxHp = Math.round(ENRAGED_GOLEM.hp * hpScale);
+  c.hp = c.maxHp;
+  c.speed *= pace;
+  c.baseSpeed = (c.baseSpeed || c.speed) * pace;
+  c.armor += ENRAGED_GOLEM.armor - (item.armor || 0);
+  c.statuses = c.statuses.filter((st) => !(st.dps > 0) && !st.stun); // damage over time and stuns end with the old form
+  c.enrageUntil = game.time + ENRAGED_GOLEM.pause;
+  emit(game, "skill", { player: p.id, kind: "enrage", creepId: c.id, x: c.x, y: c.y });
+}
 function killCreep(game, p, c) {
   if (c.dead) return;
+  if (c.typeId === ENRAGED_GOLEM.id && !c.enraged) return enrageGolem(game, p, c);
   c.dead = true;
-  // v0.10w: a killed treant gives its sender 20 − (treants bought this game) EXP
+  // v0.10w: a killed treant gives its sender 30 − (treants bought this game) EXP (v0.21z: was 20)
   if (c.typeId === "n00Y" && !c.wave && c.owner >= 0) {
     const sender = game.players[c.owner];
     if (sender && !sender.out) gainExp(game, sender, Math.max(0, TREANT.exp - (sender.treantCount || 0)));
@@ -4083,6 +4136,7 @@ function moveCreep(game, p, c, dt) {
     killCreep(game, p, c);
     return;
   }
+  if (c.enrageUntil > game.time) return; // v0.21z: the Meat Golem stops for a moment and growls
   const slow = statusSlow(c.statuses),
     stunned = c.statuses.some((s) => s.stun),
     aura = auraAt(game, c, game.players[c.owner], auraSources(game, p)); // v0.21l
@@ -4370,6 +4424,8 @@ const AI_STYLE = {
   hard: {
     strict: 1,
     noise: 0,
+    fixed: { smartPerks: 2 }, // v0.21v: data-based perk and element picks (see PERK_EDGE)
+    vsHuman: { waveTiming: 8, saveMore: 2 }, // v0.21v: against a human: pushes wait for the neutral wave, more saved-up waves
     ranges: {
       greed: [1.7, 2.3],
       splash: [1.4, 2.0],
@@ -4435,6 +4491,7 @@ function aiPersonality(game, p) {
   p.aiPersona = Object.fromEntries(Object.entries(ranges).map(([k, range]) => [k, roll(range)]));
   p.aiPersona.elementOrder = FACTIONS.map((f) => f.id).sort(() => random(game) - 0.5);
   for (const [k, f] of Object.entries(AI_STYLE[aiLevel(game, p)]?.persona || {})) p.aiPersona[k] *= f;
+  Object.assign(p.aiPersona, AI_STYLE[aiLevel(game, p)]?.fixed || {}); // v0.21v: fixed traits, no dice roll
   if (p.rules?.persona) Object.assign(p.aiPersona, p.rules.persona); // v0.17: mission personality
   return p.aiPersona;
 }
@@ -4549,9 +4606,22 @@ function observeEnemy(game, p) {
   }
   return seen;
 }
+/**
+ * v0.21v: perk and element edges from 155 hard-vs-hard games (18.10.): win rate when the bot took a
+ * perk minus when it skipped the same offer, shrunk against noise (−1 … +1). The hard bot weighs its
+ * picks with them twice over (persona.smartPerks = 2): 73 % wins against the old hard bot in 128 games.
+ */
+const PERK_EDGE = {"agolem": 0.39, "heavy": 0.16, "tailwind": 0.3, "pillar": 0.23, "permafrost": 0.18, "supergrowth": 0.08, "guardian": 0.15, "burst": 0.22, "nobility": 0.23, "mind": 0.15, "waterblock": 0.16, "crowd": 0.13, "hellfire": 0.18, "evolution": 0.14, "pillage": 0.14, "leadership": 0.08, "owl": 0.06, "volley": 0.11, "novice": 0.09, "feudal": 0.08, "monsun": 0.02, "fireblock": 0.02, "golem": -0.04, "exhume": -0.08, "bank": -0.1, "recruit": -0.18, "militia": -0.09, "treasure": -0.13, "boots": -0.13, "firearrows": -0.03, "slave": -0.16, "pocks": -0.15, "forge": -0.25, "breeding": -0.18, "wolves": -0.19, "archery": -0.4, "airblock": -0.3, "summon": -0.03, "synthesizer": -0.3, "voltage": -0.26, "frenzy": -0.29, "gold": -0.2};
+const ELEMENT_EDGE = {"arcane": 0.35, "earth": 0.21, "fire": 0.81, "plague": 0.0, "storm": -0.36, "water": 0.6};
 function aiPick(game, p, persona) {
   const pick = p.picks[0],
     score = (o) => {
+      const base = scoreRaw(o),
+        edge = o.type === "element" ? ELEMENT_EDGE[o.id] : o.type === "perk" ? PERK_EDGE[o.id] : undefined;
+      if (!(persona.smartPerks > 0) || edge === undefined) return base;
+      return o.type === "element" ? base + persona.smartPerks * edge * 4 : base * Math.max(0.15, 1 + persona.smartPerks * edge);
+    },
+    scoreRaw = (o) => {
       // Self-play: storm and arcane win most often for the bot; the order still varies per match.
       if (o.type === "element") return 10 - persona.elementOrder.indexOf(o.id) + (persona.smartElements ? ((persona.newElements ?? 1) ? ELEMENT_BONUS_NEW : ELEMENT_BONUS)[o.id] || 0 : 0);
       if (o.type === "income") return (game.round < 30 ? 6 : 2) * o.amount + random(game);
@@ -4573,6 +4643,15 @@ function aiPick(game, p, persona) {
     for (let i = 0; i < pick.options.length; i++) if ((roll -= weight(pick.options[i])) < 0) return i;
     return pick.options.length - 1;
   };
+  // v0.21v: the start element is random, preferring one no other player started with
+  const els = pick.options.map((o, i) => [o, i]).filter(([o]) => o.type === "element");
+  if (!p.faction && els.length && !p.rules?.persona?.elementOrder) { // missions keep their fixed element order
+    const taken = new Set(game.players.filter((q) => q !== p && q.faction).map((q) => q.faction)),
+      free = els.filter(([o]) => !taken.has(o.id)),
+      pool = free.length ? free : els;
+    command(game, { type: "pick", player: p.id, index: pool[Math.floor(random(game) * pool.length)][1] });
+    return;
+  }
   const best =
     aiLevel(game, p) === "veryEasy"
       ? lucky()
@@ -5027,8 +5106,9 @@ function think(game, p) {
     style = AI_STYLE[level] || AI_STYLE.normal;
   p.nextAiTick = game.tick + interval;
   if (p.rules?.sleep && game.time < p.rules.sleep) return; // v0.17: a sleepy mission enemy
-  const persona = aiPersonality(game, p),
+  const rolled = aiPersonality(game, p),
     enemy = targetOf(game, p.id), // the player this bot sends to
+    persona = enemy && !enemy.ai && style.vsHuman ? { ...rolled, ...style.vsHuman } : rolled, // v0.21v
     attackers = attackersOf(game, p.id), // the players sending into this bot's lane
     seen = observeEnemy(game, p);
   for (let guard = 12; p.picks.length && guard > 0; guard--) aiPick(game, p, persona); // v0.15: never loop on a refused choice

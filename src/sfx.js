@@ -157,12 +157,20 @@ export function createSfx() {
       for (let i = 0; i < 4; i++) tone({ type: "triangle", from: 3100 - i * 260, to: 2700 - i * 260, dur: 0.05, gain: 0.018, delay: 0.16 + i * 0.07 });
       hiss({ dur: 0.25, gain: 0.02, freq: 4200, q: 2, delay: 0.16, sweep: 0.7 });
     },
+    // v0.21z: the Meat Golem rises enraged — a deep, rough growl swelling and fading
+    growl: () => {
+      tone({ type: "sawtooth", from: 62, to: 48, dur: 1.1, gain: 0.09, attack: 0.18 });
+      tone({ type: "sawtooth", from: 66, to: 50, dur: 1.0, gain: 0.07, delay: 0.04, attack: 0.2 });
+      tone({ type: "square", from: 124, to: 92, dur: 0.9, gain: 0.025, delay: 0.08, attack: 0.25 });
+      hiss({ dur: 1.0, gain: 0.06, freq: 260, q: 1.6, delay: 0.05, sweep: 0.6 });
+      tone({ type: "sine", from: 80, to: 36, dur: 0.6, gain: 0.14, delay: 0.85 });
+    },
     error: () => tone({ type: "square", from: 180, to: 140, dur: 0.12, gain: 0.03 }),
     tier: () => [523, 659, 784, 1046].forEach((f, i) => tone({ type: "triangle", from: f, dur: 0.16, gain: 0.04, delay: i * 0.08 })),
     victory: () => [523, 659, 784, 1046, 1318].forEach((f, i) => tone({ type: "triangle", from: f, dur: 0.3, gain: 0.05, delay: i * 0.11 })),
     defeat: () => [392, 330, 262, 196].forEach((f, i) => tone({ type: "sine", from: f, dur: 0.35, gain: 0.05, delay: i * 0.16 })),
   };
-  const minGap = { unlock: 0.2, thunder: 0.22, pillar: 1, monsun: 1, golem: 0.5, volley: 0.5, kill: 0.07, tap: 0.03, built: 0.08, income: 0.3, leak: 0.12, bell: 1 };
+  const minGap = { growl: 0.8, unlock: 0.2, thunder: 0.22, pillar: 1, monsun: 1, golem: 0.5, volley: 0.5, kill: 0.07, tap: 0.03, built: 0.08, income: 0.3, leak: 0.12, bell: 1 };
   return {
     play(name) {
       if (!enabled || !sounds[name]) return;

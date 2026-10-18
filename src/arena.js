@@ -1,4 +1,4 @@
-import { getStats, divineShield, isHeavy, isMagicTower, isMeleeTower, towerAt, towerSize, footprintOf, STRIP, HELLFIRE, LONE, loneCount, zoneOf, hpBarScale, tierSends } from "./simulation.js";
+import { getStats, attackInfo, divineShield, isHeavy, isMagicTower, isMeleeTower, towerAt, towerSize, footprintOf, STRIP, HELLFIRE, LONE, loneCount, zoneOf, hpBarScale, tierSends } from "./simulation.js";
 /** v0.19j: is this send one of the 4 most expensive non-boss creeps of its tier? (heavy HP-bar frame) */
 const TOP_FOUR = new Map();
 function topFour(def) {
@@ -73,7 +73,7 @@ function creepSize(catalog, id) {
 }
 const tierGrowth = (tier) => 1 + 0.01 * Math.max(0, (tier || 1) - 1);
 /** Creeps drawn larger than their rank alone would make them. */
-const SIZE_BOOST = { n00S: 1.3, nAGO: 1.45 }; // tier 1 Raiders, v0.12: Arcane Golem
+const SIZE_BOOST = { n00S: 1.3, nAGO: 1.45, n02Z: 0.65, n034: 0.65, n02Y: 0.65, n036: 0.65, n037: 0.65 }; // tier 1 Raiders, v0.12: Arcane Golem; v0.21p: little Naga Sirens
 /** v0.17d: mobile layout B is switched on by a class on <html> (set by the app). */
 const layoutB = () => typeof document !== "undefined" && document.documentElement.classList.contains("layout-b");
 /** Mobile Max: the board fills the whole screen width and runs under the HUD and the buttons. */
@@ -1029,6 +1029,12 @@ export function mountArena({
           } else if (e.kind === "golemHit") {
             this.burst(q.x, q.y - cell * 0.2, 0xd8a8ff, 8, 90, 2.4, 0.4, 0, true);
             this.ring(q.x, q.y, cell * 0.1, cell * 0.5, 0xc07aff, 0.4, 3);
+          } else if (e.kind === "enrage") {
+            // v0.21z: the Meat Golem denies its death and rises enraged
+            this.floatText(q.x, q.y - cell * 0.95, t("ENRAGED"), "#ff5a4a", 16, 40, 1.4);
+            this.ring(q.x, q.y + cell * 0.1, cell * 0.3, cell * 1.4, 0xff3a2a, 0.9, 5);
+            this.burst(q.x, q.y - cell * 0.4, 0xff6a4a, 16, 110, 3, 0.6, 0, true);
+            this.stage.shake(220, 0.002);
           } else if (e.kind === "crowd") this.floatText(q.x, q.y - cell * 0.55, t("CULLED"), "#ff9a5a", 12, 30, 0.9);
           else if (e.kind === "miss") this.floatText(q.x, q.y - cell * 0.5, t("DODGED"), "#c9d4dc", 11, 26, 0.7);
           else if (e.kind === "ultimate") {
@@ -1293,6 +1299,17 @@ export function mountArena({
           const q = this.point(t.x, t.y),
             r = (getStats(game, view, t.typeId).range / game.grid.cellUnits) * z.cw;
           this.drawReach(g, catalog.byId[t.typeId], q, r, z.cw, towerSize(t));
+          // v0.21y: splash radius, like the reach: around the creep it is shooting at, else around the tower
+          const splash = attackInfo(game, t.typeId, game.players[view]).splash;
+          if (splash > 0) {
+            const aim = t.aimId && player.creeps.find((c) => c.id === t.aimId && !c.dead && c.hp > 0),
+              sq = aim ? this.point(aim.x, aim.y) : q,
+              sr = (splash / game.grid.cellUnits) * z.cw;
+            g.fillStyle(0xffb35a, 0.14);
+            g.fillCircle(sq.x, sq.y, sr);
+            g.lineStyle(2, 0xffc47a, 0.75);
+            g.strokeCircle(sq.x, sq.y, sr);
+          }
           const pulse = 0.5 + 0.5 * Math.sin(time * 0.008);
           const sc = cell * towerSize(t);
           g.lineStyle(3, 0xffe47a, 0.55 + pulse * 0.4);
@@ -1574,7 +1591,7 @@ export function mountArena({
           poisoned = statuses.some((st) => st.poison || st.dps > 0);
         if (walk) {
           // Walk cycle runs with the creep's pace; stunned or rooted creeps freeze mid-step.
-          const stuck = statuses.some((st) => st.stun || st.abilityId === "entangle"),
+          const stuck = statuses.some((st) => st.stun || st.abilityId === "entangle") || c.enrageUntil > game.time, // v0.21z: growling Meat Golem
             rate = stuck ? 0 : clamp((c.speed || 270) / 270, 0.45, 2.2) * (slowed ? 0.6 : 1),
             last = sprite.getData("wt") ?? time,
             clock = (sprite.getData("wc") ?? phase0 * 97) + Math.min(100, time - last) * rate;
@@ -1590,15 +1607,19 @@ export function mountArena({
           else if (slowed) sprite.setTint(statuses.some((st) => st.abilityId === "frost") ? 0xd2efff : 0x9fd8ff); // v0.16: frost gets the sheen instead
           else if (poisoned) sprite.setTint(0xc4f59a);
           else if (c.immune) sprite.setTint(0xe2d2ff);
+          else if (c.enraged) sprite.setTint(0xff8f80); // v0.21z: Enraged Meat Golem
           else if (c.burning) sprite.setTint(0xffa060); // v0.10w: Burning Treant
           else if (c.spiritWolf) sprite.setTint(0xe8d0ff); // v0.19a1: Spirit Wolves
           else sprite.clearTint();
         }
-        const flap = flying ? 1 + Math.sin(time * 0.03 + phase0) * 0.05 : 1;
+        const flap = flying ? 1 + Math.sin(time * 0.03 + phase0) * 0.05 : 1,
+          // v0.21z: Enraged Meat Golem: 10 % larger; while it growls it swells once, smoothly
+          growl = c.enrageUntil > game.time ? Math.sin(Math.PI * clamp(1 - (c.enrageUntil - game.time) / 1.2, 0, 1)) : 0,
+          rage = c.enraged ? 1.1 + 0.1 * growl : 1;
         sprite
           .setOrigin(walk ? (m.w / 2 + walk.ox) / walk.fw : 0.5, walk ? (m.footY + walk.oy) / walk.fh : m.footY / m.h)
           .setPosition(q.x, q.y + cell * 0.18 - lift)
-          .setScale(s * (sprite.getData("face") === -1 ? -1 : 1) * (c.buff === "fat" ? 1.42 : 1) * (c.spiritWolf ? 1.08 : 1), s * flap * (c.buff === "fat" ? 1.06 : 1) * (c.spiritWolf ? 1.08 : 1)) // v0.15: fat quest creeps; v0.19a1: Spirit Wolves a little larger
+          .setScale(s * rage * (sprite.getData("face") === -1 ? -1 : 1) * (c.buff === "fat" ? 1.42 : 1) * (c.spiritWolf ? 1.08 : 1), s * rage * flap * (c.buff === "fat" ? 1.06 : 1) * (c.spiritWolf ? 1.08 : 1)) // v0.15: fat quest creeps; v0.19a1: Spirit Wolves a little larger
           .setRotation(flying || walk ? 0 : Math.sin(step) * 0.07)
           .setDepth(3000 + Math.floor(q.y) + (flying ? 1200 : 0)); // creeps always draw in front of towers
         g.fillStyle(0x06120e, flying ? 0.22 : 0.32);
@@ -1685,6 +1706,11 @@ export function mountArena({
         if (divineShield(game, c)) {
           glow.fillStyle(0xffe680, 0.18 + 0.08 * Math.sin(time * 0.01));
           glow.fillCircle(q.x, q.y - height * 0.45, height * 0.6);
+        }
+        if (c.enraged) {
+          // v0.21z: Enraged Meat Golem: a calm red glow, brighter while it growls
+          glow.fillStyle(0xff3a24, 0.13 + 0.04 * Math.sin(time * 0.004 + phase0) + 0.2 * growl);
+          glow.fillCircle(q.x, q.y + cell * 0.18 - height * 0.5, height * (0.6 + 0.12 * growl));
         }
         if (c.burning) {
           // v0.10w: Burning Treant: flickering flames on its crown
