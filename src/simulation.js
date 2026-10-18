@@ -873,7 +873,7 @@ export const PERKS = Object.freeze({
   hellfire: { name: "Lava Floor", max: 5, element: "fire", text: "Creeps in your 6th row burn for {hellfire} damage per second" }, // v0.10p, v0.16g
   burst: { name: "Arcane Burst", max: 5, element: "arcane", text: "Active ability: {burst} damage, split among the creeps in an area" }, // v0.10p
   treasure: { name: "Gold Treasure", max: 1, powerup: true, text: "Instantly +{treasure} gold and +{treasureInc} income" }, // v0.10r; v0.19e2: +20 % gold, +60 income (doubled when far behind)
-  voltage: { name: "High Voltage", max: 20, element: "storm", text: "EXP generators are {voltage} more efficient" }, // v0.10r; v0.19j: tooltip
+  voltage: { name: "High Voltage", max: 20, element: "storm", unpopular: 0.5, text: "EXP generators are {voltage} more efficient" }, // v0.10r; v0.19j: tooltip
   boots: { name: "Red Boots", max: 3, element: "fire", text: "Ground creeps {boots} less slowed, +{bootsInc} income" }, // v0.10r
   exhume: { name: "Exhumination", max: 3, element: "plague", text: "Undead creeps cost {exhume} less and recruit 10% faster" }, // v0.20c: 10 % faster instead of 20 % slower // v0.10r; v0.19j: tooltip (they still restock 20% slower)
   fireblock: { name: "Fire Block", max: 3, element: "fire", text: "Every {fireBlockCd} s the first breach explodes: {fireBlock} damage 3 times" }, // v0.19j
@@ -918,10 +918,13 @@ export const PERKS = Object.freeze({
   bank: { name: "Magic Bank", max: 10, element: "arcane", text: "{bank} interest on your gold at the start of each round" },
   frenzy: { name: "Unholy Frenzy", max: 10, element: "plague", text: "All towers attack speed +{frenzy}" },
   wolves: { name: "Spirit Wolves", max: 10, look: "arcane", text: "{wolves} Spirit Wolves per round, they give income" },
-  firearrows: { name: "Fire Arrows", max: 20, element: "fire", text: "Arrow towers +{firearrows} damage" },
+  firearrows: { name: "Fire Arrows", max: 20, element: "fire", text: "Arrow-line +{firearrows} damage" }, // v0.21c: tooltip
+  forge: { name: "Creep Forge", max: 3, element: "fire", text: "6th creep of every tier {forge} cheaper, recruits 12% faster" }, // v0.21c
 });
 /** v0.09q: Arrow Volley: cooldown, area radius in fields, arrows per perk level, extra base damage. */
-export const VOLLEY = { cooldown: 20, radius: 1.5, perLevel: 3, bonus: 3, spread: 0.9, archer: 1.5, perRound: 0.005, perTower: 2, perTowerLevel: 0.15 }; // v0.19g1: archer-tower arrows +50 %, all arrows +0.5 % per round
+export const VOLLEY = { cooldown: 20, cdStep: 1, radius: 1.5, perLevel: 3, bonus: 3, spread: 0.9, archer: 1.5, perRound: 0.005, perTower: 2, perTowerLevel: 0.15 }; // v0.19g1: archer-tower arrows +50 %, all arrows +0.5 % per round
+/** v0.21c: Arrow Volley cooldown by perk level: 20 s at level 1, 1 s less per further level. */
+export const volleyCd = (level) => VOLLEY.cooldown - VOLLEY.cdStep * Math.max(0, (level | 0) - 1);
 /** v0.19g1: Novice: EXP gain per perk level (1–5). */
 export const NOVICE = [0, 0.2, 0.35, 0.5, 0.6, 0.7];
 /** v0.19h1: Pillage: share of the breached player's gold per level. */
@@ -981,6 +984,8 @@ export const owlRange = (level) => OWL.range.slice(0, Math.max(0, Math.min(OWL.r
 export const MANUFACTURE = { discount: [0.15, 0.25, 0.33], restock: 1.15 }; // v0.20d: 8th creep, recruits 15 % faster
 /** v0.20d: Creep Synthesizer (Water): the 4th creep of every tier. */
 export const SYNTHESIZER = { discount: [0.12, 0.2, 0.26], restock: 1.12 };
+/** v0.21c: Creep Forge (Fire): the 6th creep of every tier. */
+export const FORGE = { discount: [0.12, 0.2, 0.26], restock: 1.12 };
 /** v0.20d: Scholar (Arcane): EXP gain per level. */
 export const SCHOLAR = { exp: 0.1, upgrades: 2 };
 /** Heavy Nobility (Earth): discount by level, hit points per level, restock bonus. */
@@ -1127,6 +1132,7 @@ export function isHeavy(item) {
 const heavyCreep = (c) => c.heavy || isHeavy(obj(c.typeId)) || !!obj(c.typeId)?.bossTier || !!c.waveBoss;
 /** The 4th creep of a tier (Creep Manufacture). */
 const fourthOf = (item) => !!item?.isSend && !item.bossTier && tierSends(item.tier)[3]?.id === item.id;
+const sixthOf = (item) => !!item?.isSend && !item.bossTier && tierSends(item.tier)[5]?.id === item.id; // v0.21c: Creep Forge
 const eighthOf = (item) => !!item?.isSend && !item.bossTier && tierSends(item.tier)[7]?.id === item.id; // v0.20d: Creep Manufacture
 /** Budget creeps: the first three of a tier and what they bring along (Pillar of Fire). */
 let BUDGET = null;
@@ -1575,6 +1581,7 @@ function bossDiscount(p, item, gold) {
   if (UNDEAD_SENDS.has(item.id) && perkLevel(p, "exhume")) share *= 1 - EXHUME.discount[Math.min(3, perkLevel(p, "exhume")) - 1]; // v0.10r/s
   if (perkLevel(p, "manufacture") && eighthOf(item)) share *= 1 - MANUFACTURE.discount[Math.min(3, perkLevel(p, "manufacture")) - 1]; // v0.12; v0.20d: 8th creep
   if (perkLevel(p, "synthesizer") && fourthOf(item)) share *= 1 - SYNTHESIZER.discount[Math.min(3, perkLevel(p, "synthesizer")) - 1]; // v0.20d
+  if (perkLevel(p, "forge") && sixthOf(item)) share *= 1 - FORGE.discount[Math.min(3, perkLevel(p, "forge")) - 1]; // v0.21c
   if (perkLevel(p, "nobility") && isHeavy(item)) share *= 1 - NOBILITY.discount[Math.min(3, perkLevel(p, "nobility")) - 1]; // v0.12
   if (p?.questLog) share *= questCostShare(p, item) * (1 - contractShare(p, item, "discount")); // v0.15: banter rewards and penalties; v0.19a1: contracts
   return share === 1 ? gold : Math.round(gold * share);
@@ -1724,7 +1731,7 @@ export function stockRegenOf(p, s) {
   const level = perkLevel(p, "recruit");
   const slave = perkLevel(p, "slave") && firstOfTier(s) ? 1 + slaveSpeed(perkLevel(p, "slave")) : 1; // v0.14
   const slower = UNDEAD_SENDS.has(s.id) && perkLevel(p, "exhume") ? EXHUME.restock : 1; // v0.10s: Exhumination (v0.20c: faster)
-  const faster = (perkLevel(p, "manufacture") && eighthOf(s) ? MANUFACTURE.restock : 1) * (perkLevel(p, "synthesizer") && fourthOf(s) ? SYNTHESIZER.restock : 1) * (perkLevel(p, "nobility") && isHeavy(s) ? NOBILITY.restock : 1); // v0.12
+  const faster = (perkLevel(p, "manufacture") && eighthOf(s) ? MANUFACTURE.restock : 1) * (perkLevel(p, "synthesizer") && fourthOf(s) ? SYNTHESIZER.restock : 1) * (perkLevel(p, "forge") && sixthOf(s) ? FORGE.restock : 1) * (perkLevel(p, "nobility") && isHeavy(s) ? NOBILITY.restock : 1); // v0.12
   const contract = 1 + contractShare(p, s, "restock"); // v0.19d2: Blood Contract
   return ((s.stockRegen || 0) / (level && !s.bossTier ? 1 + 0.1 * level : 1)) * slower / faster / slave / contract;
 }
@@ -1811,6 +1818,7 @@ export const PERK_AVAILABILITY = {
   lone: "2-3",
   manufacture: "2+",
   synthesizer: "2+", // v0.20d: like Creep Manufacture
+  forge: "2+", // v0.21c: Creep Forge
   scholar: "6+", // v0.20d
   summon: "2",
   nobility: "2+",
@@ -1821,7 +1829,7 @@ export const PERK_AVAILABILITY = {
   monsun: "5+",
   slave: "2+", // v0.14
   guardian: "6+", // v0.14
-  quarry: "2-4", // v0.18h
+  quarry: "2-3", // v0.18h; v0.21c: levels 2 and 3
   backup: "2-4",
   tides: "2-4",
   sanction: "2+",
@@ -1837,7 +1845,7 @@ export const PERK_AVAILABILITY = {
   bank: "2+", // Magic Bank, was Magic Library (v0.19a1)
   frenzy: "2+", // Unholy Frenzy (v0.19a1)
   wolves: "2+", // Spirit Wolves (v0.19a1)
-  firearrows: "1+", // Fire Arrows
+  firearrows: "2+", // Fire Arrows (v0.21c: from level 2)
 };
 const availabilityCache = new Map();
 /** Parses "1-3", "2,6,9-12" or "15+" into a test for a level. */
@@ -2331,7 +2339,7 @@ function launchVolley(game, p, x, y) {
   }
   const n = arrows.length;
   arrows.forEach((a, i) => (game.volleys ||= []).push({ player: p.id, x, y, time: game.time + (VOLLEY.spread * i) / Math.max(1, n), ...a }));
-  p.volleyReady = game.time + abilityCd(p, VOLLEY.cooldown);
+  p.volleyReady = game.time + abilityCd(p, volleyCd(perkLevel(p, "volley"))); // v0.21c: 1 s less per level
   emit(game, "volleyStart", { player: p.id, x, y, arrows: n });
 }
 function tickVolleys(game) {
