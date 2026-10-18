@@ -450,7 +450,7 @@ export function configureContent(data) {
     for (const u of allUnits) u.researchAffected = u.researchAffected.filter((x) => x !== id);
     triggerResearch.add(id);
   }
-  for (const [id, max] of Object.entries({ R002: 20, R00V: 20, R00D: 10, R00C: 10, R001: 10, R006: 10, R00X: 10, R00W: 10, R00U: 10, R00K: 5 })) if (byId[id]) byId[id].maxLevel = max;
+  for (const [id, max] of Object.entries({ R002: 20, R00V: 20, R00D: 10, R00C: 10, R001: 20, R006: 10, R00X: 10, R00W: 10, R00U: 10, R00K: 5 })) if (byId[id]) byId[id].maxLevel = max;
   if (byId.R00K) byId.R00K.description = "Archer-line towers: +0.5 / +0.33 / +0.25 / +0.2 / +0.17 fields range per level";
   // v0.09d: the empty fire-tree steps and the "[Elemental] X" pages were removed from the data.
   for (const r of allResearch) {

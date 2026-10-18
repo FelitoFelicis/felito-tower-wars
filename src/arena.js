@@ -1006,6 +1006,11 @@ export function mountArena({
           } else if (e.kind === "waterblock") {
             this.floatText(q.x, q.y - cell * 0.6, t("BLOCKED"), "#9ee0ff", 13, 34, 1.1);
             this.ring(q.x, q.y, cell * 0.2, cell * 1.1, 0x7fd0ff, 0.8, 4);
+          } else if (e.kind === "airblock") {
+            // v0.20c: Air Block: a gust ring and a short text where the flyer was turned back
+            this.floatText(q.x, q.y - cell * 0.7, t("AIR BLOCK"), "#c8f6ff", 13, 34, 1.1);
+            this.ring(q.x, q.y, cell * 0.2, cell * 1.3, 0xbff0f4, 0.85, 5);
+            this.burst(q.x, q.y - cell * 0.2, 0xe8fbff, 14, 120, 2.6, 0.45, -20, true);
           } else if (e.kind === "guardOn") {
             this.floatText(q.x, q.y - cell * 0.7, t("RIVER GUARDIAN"), "#9ee0ff", 12, 30, 1.1);
             this.ring(q.x, q.y - cell * 0.2, cell * 0.6, cell * 0.25, 0x7fd0ff, 0.5, 3);
@@ -1624,6 +1629,26 @@ export function mountArena({
             hb.fillEllipse(fx2 + face * height * 0.02, foot - height * 0.012, height * 0.16, height * 0.07);
             hb.fillStyle(0xfff3a0, 1);
             hb.fillCircle(fx2 + face * height * 0.04, foot - height * 0.02, Math.max(1, height * 0.015));
+          }
+        }
+        const growth = c.owner >= 0 ? game.players[c.owner]?.growth?.[c.typeId] || 0 : 0;
+        if (growth > 0) {
+          // v0.20f: Supergrowth: a soft green glow at the feet and a few leaves drifting slowly upwards
+          const foot = q.y + cell * 0.2 - lift,
+            strength = clamp(growth, 0, 1);
+          glow.fillStyle(0x6fe03a, 0.12 + 0.14 * strength);
+          glow.fillEllipse(q.x, foot, height * 0.75, height * 0.22);
+          for (let k = 0; k < 3; k++) {
+            const life = ((time * 0.00042 + phase0 * 0.31 + k / 3) % 1),
+              a = phase0 + k * 2.1 + life * 2.4,
+              lx = q.x + Math.cos(a) * height * 0.32,
+              ly = foot - life * height * 0.7,
+              alpha = Math.sin(life * Math.PI) * 0.8,
+              r = Math.max(2, height * 0.075);
+            glow.fillStyle(0x5ed62a, alpha);
+            glow.fillEllipse(lx, ly, r * 2.2, r * 1.2);
+            glow.fillStyle(0xeaffa8, alpha * 0.95);
+            glow.fillEllipse(lx - r * 0.3, ly - r * 0.15, r * 1.1, r * 0.55);
           }
         }
         if (c.guard) {

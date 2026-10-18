@@ -7103,3 +7103,70 @@ p.room-opts { text-align: center; }
 .qm-lobby.teams .qm-player .bot-level { padding: 2px 5px; font-size: 9px; }
 .qm-player.team-drag, .qm-player.team-drag img { user-select: none; -webkit-user-drag: none; }
 .qm-lobby.many { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .qm-lobby.many .qm-player { min-width: 0; }
+
+/* ---- v0.20c ------------------------------------------------------------------------------------ */
+/* team games: one shared window per team, the members' portraits in a row */
+.enemy-cell.team-cell {
+  grid-template-columns: 1fr auto;
+  grid-template-rows: auto auto auto;
+  align-content: center;
+}
+.team-cell .tc-faces {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: center;
+  gap: 3px;
+  min-width: 0;
+}
+.team-cell .tc-face {
+  position: relative;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.team-cell .tc-face .portrait {
+  --fc: var(--pc, #888);
+  width: 21px;
+  height: 21px;
+}
+.team-cell .tc-face.out .portrait {
+  filter: grayscale(1) brightness(0.7);
+}
+.team-cell .tc-face.out .plate-skull {
+  display: block;
+}
+.team-cell .tc-face.target .ec-target {
+  display: block;
+}
+.team-cell .tc-face.viewing .portrait {
+  box-shadow: 0 0 0 2px #ffe27a !important;
+}
+.team-cell .ec-lives {
+  grid-column: 2;
+  grid-row: 2 / 4;
+  align-self: center;
+  justify-self: end;
+  padding-right: 2px;
+}
+.team-cell .ec-gold {
+  grid-column: 1;
+  grid-row: 2;
+  justify-self: start;
+  padding-left: 2px;
+}
+.team-cell .ec-inc {
+  grid-column: 1;
+  grid-row: 3;
+  justify-self: start;
+  padding-left: 3px;
+}
+/* lobby: player icons framed like the in-game portraits (rounded square in the player's colour) */
+.qm-player .qm-icon.portrait {
+  --fc: var(--pc, #888);
+  border-radius: 9px;
+  border: 2px solid transparent !important;
+  background:
+    radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--fc) 45%, #2f3f4a), #0f1a22) padding-box,
+    linear-gradient(135deg, color-mix(in srgb, var(--fc) 45%, #fff) 0%, var(--fc) 28%, color-mix(in srgb, var(--fc) 55%, #000) 52%, color-mix(in srgb, var(--fc) 70%, #fff) 74%, color-mix(in srgb, var(--fc) 60%, #000) 100%) border-box !important;
+  box-shadow: 0 0 0 1px #0009, 0 1px 2px #0008;
+}
