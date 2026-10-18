@@ -86,6 +86,26 @@ export function configureContent(data) {
     const a = rawAbilities.get(id);
     if (a) rawAbilities.set(id, { ...a, ...(patch.props || {}), fields: { ...a.fields, ...(patch.fields || {}) } });
   }
+  // v0.22a: melee towers lose the "Splash Attack" ability; its share and radius become the
+  // tower's own splash spec (shown and drawn like the Bombard splash)
+  for (const [id, raw] of rawUnits) {
+    const f = raw.fields,
+      range = Number(f.ua1r) || 0;
+    if (!/^h/.test(id) || !(range > 0 && range <= 200)) continue;
+    const ids = splitIds(f.uabi),
+      cleave = ids.find((x) => rawAbilities.get(x)?.baseId === "ANca");
+    if (!cleave) continue;
+    const a = rawAbilities.get(cleave).fields,
+      lvl = Math.min(Number(Object.values(a.alev || { 0: 1 })[0]) || 1, Number(String(f.unam || "").replace(/\|c\w{8}|\|r/g, "").match(/\[Level (\d+)\]/)?.[1]) || 1),
+      at = (fld, fb) => {
+        const v = fld || {};
+        return Number(v[lvl] ?? v[String(lvl)] ?? v[1] ?? v["1"] ?? fb);
+      };
+    rawUnits.set(id, {
+      ...raw,
+      fields: { ...f, uabi: ids.filter((x) => x !== cleave).join(","), ua1f: 0, ua1h: at(a.aare, 180), uhd1: Math.round(at(a.nca1, 0.3) * 100) / 100, ua1q: 0, uqd1: 0 },
+    });
+  }
   for (const [id, raw] of rawUnits) {
     const list = splitIds(raw.fields.uabi),
       next = list.flatMap((x) => (UNIT_ABILITY_SWAP[id]?.[x] !== undefined ? [UNIT_ABILITY_SWAP[id][x]].filter(Boolean) : REMOVED_ABILITIES.has(x) ? [] : [x]));

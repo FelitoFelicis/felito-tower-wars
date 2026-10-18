@@ -1,6 +1,7 @@
 import { loadContent, getCatalog, WALL_ID, RULES } from "./content.js";
 import {
   gunpowderTiles,
+  setCommandHook,
   createGame,
   step,
   command,
@@ -142,7 +143,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.22",
+const APP_VERSION = "0.22e",
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "18.10.2026";
 // v0.18: the version also stands in the page title (browser tab and the artifact window in chats)
@@ -221,7 +222,14 @@ const minimapRow = () =>
 // v0.14: mixed difficulty (toggle beside the levels): AIs of different levels up to the chosen one
 const AI_MIXED_PREF = "felito.ai.mixed";
 let aiMixed = pref(AI_MIXED_PREF, "false") === "true";
-let aiChoice = ["veryEasy", "easy", "normal", "hard"].includes(pref(AI_PREF, "easy")) ? pref(AI_PREF, "easy") : "easy";
+// v0.22b/d: Hardo is an experimental secret, only in Training: hidden until the sequence
+// Mixed on, Mixed off, Mixed on, Hard, Normal, Hard. Then the other levels fall out of the menu and
+// Hardo slams in. It lasts until the page reloads; tapping Hardo again brings the levels back.
+const HARDO_CODE = ["mixOn", "mixOff", "mixOn", "hard", "normal", "hard"];
+let hardoUnlocked = false,
+  hardoInput = [];
+let aiChoice = ["veryEasy", "easy", "normal", "hard", "insane"].includes(pref(AI_PREF, "easy")) ? pref(AI_PREF, "easy") : "easy";
+if (aiChoice === "insane" && !hardoUnlocked) aiChoice = "hard";
 let buildPreview = pref(PREVIEW_PREF, "false") === "true";
 // v0.15: Predator view (Gameplay): while sending and watching your target, the view rolls to a new target
 const PREDATOR_PREF = "felito.predator";
@@ -287,7 +295,7 @@ let warnedWave = 0;
 const sfx = createSfx();
 sfx.setEnabled(soundEnabled);
 sfx.setVolume?.(((muted ? 0 : volume.master) / 100) * (volume.effects / 100));
-const AI_NAMES = { veryEasy: "Very easy", easy: "Easy", normal: "Normal", hard: "Hard" };
+const AI_NAMES = { veryEasy: "Very easy", easy: "Easy", normal: "Normal", hard: "Hard", insane: "Hardo" }; // v0.22b: Hardo (secret experimental Training level, id "insane")
 // Player colour: chosen in the main menu; the other side is red, or blue when you play red.
 // v0.13: player name (main menu), shown on your plate and sent to online opponents
 const NAME_PREF = "felito.playerName";
@@ -305,7 +313,8 @@ const randomColor = (taken = []) => {
 };
 /** At the start of a match: the picked colour, or a random free one. */
 function rollColor() {
-  colorChoice = colorPick === "random" ? randomColor() : colorPick;
+  colorChoice = colorPick === "random" ? randomColor(hardoGame() ? ["purple"] : []) : colorPick;
+  if (hardoGame() && colorChoice === "purple") colorChoice = randomColor(["purple"]); // purple belongs to Hardo
 }
 const colorLabel = () => (colorPick === "random" ? t("Random") : t(TEAM_COLORS[colorPick].name));
 /**
@@ -335,7 +344,10 @@ function assignColors(picks) {
   });
   return out;
 }
-const rivalColor = () => (colorChoice === "red" ? "blue" : "red");
+const rivalColor = () => (hardoGame() ? "purple" : colorChoice === "red" ? "blue" : "red"); // v0.22e: Hardo always wears purple
+/** v0.22e: a Training match against Hardo (the secret "insane" level). */
+const hardoGame = () => !!game?.players?.some((q) => q.ai && (q.aiLevel || game.aiLevel) === "insane");
+const HARDO_ICON = "assets/art/icon-hardo.webp?v=022e";
 // v0.08b: four players. Seats get distinct colours; the rival plate shows whoever you send to.
 const FFA_COLORS = ["red", "green", "yellow", "purple", "teal", "orange", "pink", "blue"];
 const isFfa = () => (game?.players?.length || 2) > 2;
@@ -353,21 +365,23 @@ function seatColors() {
 /** The player you send to (1v1: the other side). */
 const rivalIndex = () => (isFfa() ? targetOf(game, own).id : 1 - own);
 const seatName = (i) =>
-  i === own ? myName() : game?.players[i]?.missionName ? t(game.players[i].missionName) : ((!game?.players[i]?.ai || game.players[i].aiTakeover || game.players[i].netLeft) && onlineName(game?.players[i])) || t(TEAM_COLORS[seatColors()[i]]?.name || "AI"); // v0.14: human opponents by name
+  i === own ? myName() : game?.players[i]?.ai && (game.players[i].aiLevel || game.aiLevel) === "insane" ? "Hardo" : game?.players[i]?.missionName ? t(game.players[i].missionName) : ((!game?.players[i]?.ai || game.players[i].aiTakeover || game.players[i].netLeft) && onlineName(game?.players[i])) || t(TEAM_COLORS[seatColors()[i]]?.name || "AI"); // v0.14: human opponents by name
 /** v0.13: the name an online opponent typed in, if any. */
 const onlineName = (q) => cleanName(q?.name && !/^(You|Player \d)$/.test(q.name) ? q.name : "");
 /**
  * v0.09b: an AI shows its difficulty in its portrait — very easy keeps the goblin, easy the
  * skeleton, normal the grunt, hard the alchemist. Human players keep the goblin portrait.
  */
-const AI_PORTRAIT = { easy: "n00R", normal: "n00M", hard: "n021" };
+const AI_PORTRAIT = { easy: "n00R", normal: "n00M", hard: "n021", insane: "n02Q" };
 /**
  * v0.19c1: player icons (PvP menu): the classic player portrait plus creep heads the AI never wears
  * (not the goblin, skeleton, orc or alchemist). Shown in the lobby, on the plates and in tooltips.
  */
 // v0.19e2: row 1 towers (the classic archer, Footman, Bombard, Magic Tower, Footman level 4), row 2 creeps,
 // row 3 the tier golems, each unlocked by a campaign mission (5 / 10 / 15 / 20 / 30)
-const PLAYER_ICONS = ["player", "guard2", "h02R", "h03V", "guard4", "n00Q", "n00P", "n010", "n016", "n02M", "n00T", "n015", "n01H", "n01T", "n02R"];
+const PLAYER_ICONS = ["player", "guard2", "h02R", "h03V", "guard4", "n00Q", "n00P", "n010", "n016", "n02M", "n00T", "n015", "n01H", "n01T", "n02R", "hardo"];
+const HARDO_ICON_PREF = "felito.icon.hardo"; // v0.22e: Hardo's goblin, earned by beating Hardo once
+const hardoIconEarned = () => pref(HARDO_ICON_PREF, "false") === "true";
 const ICON_ART = { guard2: "tower-guard-l2", guard4: "tower-guard-elite" }; // v0.19g1: Footman level 2 instead of level 1
 const ICON_UNLOCK = { n00T: 5, n015: 10, n01H: 15, n01T: 20, n02R: 30 };
 const iconLocked = (id) => !!ICON_UNLOCK[id] && !campaignDone().has(ICON_UNLOCK[id]);
@@ -375,6 +389,7 @@ const ICON_PREF = "felito.playerIcon";
 const savedIcon = pref(ICON_PREF, "player") === "h000" ? "guard2" : pref(ICON_PREF, "player"); // v0.19g1: the old Footman icon becomes Footman level 2
 let iconChoice = PLAYER_ICONS.includes(savedIcon) ? savedIcon : "player";
 function iconSrc(icon) {
+  if (icon === "hardo") return HARDO_ICON;
   if (!icon || icon === "player" || !PLAYER_ICONS.includes(icon)) return "assets/art/portrait-player.webp";
   if (ICON_ART[icon]) return headCrop(artUrl(ICON_ART[icon]));
   const item = catalog?.byId[icon];
@@ -385,6 +400,7 @@ const ownPortrait = () => iconSrc(game?.players?.[own]?.icon || iconChoice);
 function portraitFor(q) {
   if (q?.missionArt) return headCrop(artUrl(q.missionArt)); // v0.17: campaign enemies
   if (q && !q.ai && PLAYER_ICONS.includes(q.icon) && q.icon !== "player") return iconSrc(q.icon); // v0.19c1
+  if (q?.ai && (q.aiLevel || game.aiLevel) === "insane") return HARDO_ICON; // v0.22e: the goblin with purple eyes
   const id = q?.ai ? AI_PORTRAIT[q.aiLevel || game.aiLevel] : null,
     item = id && catalog?.byId[id];
   return item ? headCrop(artUrl(artFor(item))) : "assets/art/portrait-enemy.webp";
@@ -1129,16 +1145,146 @@ function towerArtUrl(key, quiet = false) {
 const music = createSoundtrack();
 music.setEnabled(musicEnabled);
 music.setVolume?.(((muted ? 0 : volume.master) / 100) * (volume.music / 100));
+/**
+ * v0.22e: Hardo's menu music: the main theme's melody (taken from the menu track by pitch analysis,
+ * moved to C minor) played slow on a synthesized pipe organ over a pedal bass, looped.
+ */
+const hardoOrgan = (() => {
+  let ctx = null,
+    master = null,
+    timer = null,
+    playing = false,
+    level = 0.6,
+    next = 0;
+  const BEAT = 0.62,
+    // [midi, beats] – rests as null
+    MELODY = [[67, 1], [72, 1], [75, 2], [67, 2], [null, 1], [60, 0.5], [63, 0.5], [67, 0.5], [68, 1], [72, 0.5], [75, 0.5], [74, 1.5], [null, 0.5], [72, 1], [75, 0.5], [74, 1], [67, 0.5], [71, 1], [72, 3], [null, 2]],
+    // bass chords per 4 beats: C minor, A flat, G, C minor (+ one bar of rest)
+    CHORDS = [[36, 48, 55, 63], [32, 44, 51, 60], [31, 43, 50, 59], [36, 48, 55, 63], [36, 43, 48, 51], [null]];
+  function ensure() {
+    if (ctx) return ctx;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    ctx = new AC();
+    return ctx;
+  }
+  function pipe(midi, at, dur, gain) {
+    const f = 440 * 2 ** ((midi - 69) / 12),
+      v = ctx.createGain();
+    v.gain.setValueAtTime(0.0001, at);
+    v.gain.linearRampToValueAtTime(gain, at + 0.07);
+    v.gain.setValueAtTime(gain, at + Math.max(0.08, dur - 0.12));
+    v.gain.exponentialRampToValueAtTime(0.0001, at + dur + 0.25);
+    v.connect(master);
+    // drawbars: 16', 8', 4', 2 2/3', 2'
+    [[0.5, 0.45, "sine"], [1, 1, "sine"], [2, 0.55, "sine"], [3, 0.3, "sine"], [4, 0.16, "triangle"]].forEach(([k, g, type]) => {
+      const o = ctx.createOscillator(),
+        og = ctx.createGain();
+      o.type = type;
+      o.frequency.setValueAtTime(f * k, at);
+      o.detune.setValueAtTime((k - 1) * 1.5, at);
+      og.gain.value = g;
+      o.connect(og).connect(v);
+      o.start(at);
+      o.stop(at + dur + 0.3);
+    });
+  }
+  /** Schedules one pass of the theme from time t; returns its length in seconds. */
+  function pass(t) {
+    let b = 0;
+    for (const [m, beats] of MELODY) {
+      if (m) {
+        pipe(m, t + b * BEAT, beats * BEAT * 0.94, 0.05);
+        pipe(m - 12, t + b * BEAT, beats * BEAT * 0.94, 0.025);
+      }
+      b += beats;
+    }
+    CHORDS.forEach((ch, i) => ch.forEach((m) => m && pipe(m, t + i * 4 * BEAT, 4 * BEAT * 0.97, m < 40 ? 0.05 : 0.022)));
+    return Math.max(b, CHORDS.length * 4) * BEAT;
+  }
+  function loop() {
+    if (!playing) return;
+    while (next < ctx.currentTime + 3) next += pass(next);
+    timer = setTimeout(loop, 1000);
+  }
+  return {
+    start(delay = 1) {
+      if (playing || !ensure()) return;
+      if (ctx.state === "suspended") ctx.resume().catch(() => {});
+      playing = true;
+      master = ctx.createGain();
+      master.gain.value = level;
+      // a little room: a short feedback delay as reverb
+      const d = ctx.createDelay(1),
+        fb = ctx.createGain(),
+        wet = ctx.createGain();
+      d.delayTime.value = 0.23;
+      fb.gain.value = 0.35;
+      wet.gain.value = 0.35;
+      master.connect(ctx.destination);
+      master.connect(d);
+      d.connect(fb).connect(d);
+      d.connect(wet).connect(ctx.destination);
+      next = ctx.currentTime + delay;
+      clearTimeout(timer);
+      timer = setTimeout(loop, Math.max(0, delay - 2.5) * 1000);
+    },
+    stop() {
+      if (!playing) return;
+      playing = false;
+      clearTimeout(timer);
+      const m = master;
+      try {
+        m.gain.cancelScheduledValues(ctx.currentTime);
+        m.gain.setValueAtTime(m.gain.value, ctx.currentTime);
+        m.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + 1.2);
+      } catch {}
+      setTimeout(() => {
+        try {
+          m.disconnect();
+        } catch {}
+      }, 1500);
+    },
+    setLevel(v) {
+      level = Math.max(0, Math.min(1, v)) * 0.6;
+      if (master && playing) master.gain.setTargetAtTime(level, ctx.currentTime, 0.1);
+    },
+  };
+})();
+{
+  // the organ follows the music volume and the music switch
+  const setVolume = music.setVolume?.bind(music),
+    setEnabled = music.setEnabled.bind(music);
+  if (setVolume)
+    music.setVolume = (v) => {
+      setVolume(v);
+      hardoOrgan.setLevel(v);
+    };
+  music.setEnabled = (v) => {
+    setEnabled(v);
+    if (!v) hardoOrgan.stop();
+    musicPlayback = null; // re-evaluate the track
+  };
+  hardoOrgan.setLevel(((muted ? 0 : volume.master) / 100) * (volume.music / 100));
+}
+let hardoMusicDelay = null;
 // The menu theme (1.3 MB) loads after the game is up, not in competition with it.
 let musicPlayback = null;
 function syncMusic() {
   // The battle theme keeps running through pause menus; only a finished or
-  // abandoned duel returns to the menu theme.
+  // abandoned duel returns to the menu theme. v0.22e: in Hardo mode the menu plays his organ theme.
   const battle = Boolean(begun && !shownResult && game?.winner == null);
-  const track = battle ? "battle" : "menu";
+  const track = battle ? "battle" : hardoUnlocked ? "hardo" : "menu";
   if (track !== musicPlayback) {
     musicPlayback = track;
-    music.play(track);
+    if (track === "hardo") {
+      music.stop();
+      if (musicEnabled) hardoOrgan.start(hardoMusicDelay ?? 1.2);
+      hardoMusicDelay = null;
+    } else {
+      hardoOrgan.stop();
+      music.play(track);
+    }
   }
   music.setDucked(Boolean(battle && game?.paused));
 }
@@ -1621,6 +1767,7 @@ function statTip(item, action, towerId = null, who = own, bare = false) {
     rows.push([t("Damage/second"), s.cooldown > 0 ? changed(b.cooldown > 0 ? b.damage / b.cooldown : NaN, s.damage / s.cooldown) : "–"]); // v0.16e, v0.17g: right below Damage
     rows.push([t("Range"), isMeleeTower(item) ? t("Melee") : changed(b.range / cu, s.range / cu)]); // v0.17m: numbers only
     if (ai.splash) rows.push([t("Splash Radius"), changed(attackInfo(game, item.id, null).splash / cu, ai.splash / cu)]); // v0.17g, v0.17m: numbers only
+    if (ai.splash && isMeleeTower(item) && item.splashMediumFactor > 0 && !(item.splashFull > 0)) rows.push([t("Splash Damage"), Math.round(item.splashMediumFactor * 100) + "%"]); // v0.22a
     if (ai.multi) rows.push([t("Multi Targets"), String(ai.multi)]);
     if (ai.bounce) rows.push([t("Bouncing Targets"), String(ai.bounce)]);
     rows.push([t("Attacks every"), `${changed(b.cooldown, s.cooldown)} s`]);
@@ -2150,9 +2297,9 @@ const iconColor = () => TEAM_COLORS[colorPick]?.css || "#8a96a3";
 /** v0.19c1: a 5 × 3 grid of player icons. */
 function iconModal() {
   const grid = () =>
-    PLAYER_ICONS.map((id) => {
+    PLAYER_ICONS.filter((id) => id !== "hardo" || hardoIconEarned()).map((id) => {
       const locked = iconLocked(id),
-        name = id === "player" ? t("Archer") : ICON_ART[id] ? t("Footman") : itemName(catalog.byId[id]);
+        name = id === "player" ? t("Archer") : id === "hardo" ? "Hardo" : ICON_ART[id] ? t("Footman") : itemName(catalog.byId[id]);
       // v0.19g1: locked golems keep their hover / tap tooltip (a disabled button gets no pointer events)
       return `<button type="button" class="icon-cell${id === iconChoice ? " active" : ""}${locked ? " locked" : ""}" data-icon="${id}" style="--pc:${iconColor()}" aria-label="${esc(name)}"${locked ? ` aria-disabled="true" data-tip="${esc(name)}" data-tip-text="${esc(t("Finish campaign mission {n} to unlock", { n: ICON_UNLOCK[id] }))}" data-tip-level=""` : ""}><img src="${iconSrc(id)}" alt=""></button>`;
     }).join("");
@@ -2188,7 +2335,7 @@ function welcome() {
   }
   const saved = unusableSave ? null : localStorage.getItem(SAVE);
   showModal(
-    `<div class="welcome-eyes" aria-hidden="true"></div><div class="welcome-mood mood-easy" aria-hidden="true"></div><div class="welcome-mood mood-hard" aria-hidden="true"></div><div class="welcome-mood mood-hard-glow" aria-hidden="true"></div><div class="welcome-art" aria-hidden="true"></div><button class="welcome-options" id="welcome-options" type="button" aria-label="${t("Options")}"><img src="${iconUrl("gear")}" alt=""></button><button class="welcome-options welcome-mute" id="welcome-mute" type="button" aria-pressed="${muted}" aria-label="${t(muted ? "Sound off" : "Sound on")}">${speakerSvg(muted)}</button><span class="app-version">v${APP_VERSION} · ${APP_DATE}${APP_NOTE ? `<small class="app-version-note">${esc(APP_NOTE)}</small>` : ""}</span><img class="welcome-logo" src="assets/art/ui-logo.webp" alt="Felito Tower Wars"><div class="welcome-panel" id="welcome-panel" data-view="home"><div class="welcome-home"><span class="modal-label">${t("Your color")}: <b id="color-name">${colorLabel()}</b></span><div class="color-picker" role="radiogroup" aria-label="${t("Your color")}">${Object.entries(TEAM_COLORS).map(([id, c]) => `<button role="radio" data-color="${id}" aria-checked="${id === colorPick}" aria-label="${t(c.name)}" title="${t(c.name)}" class="${id === colorPick ? "active" : ""}" style="--c:${c.css}"></button>`).join("")}</div><div class="welcome-modes"><button class="primary-button big welcome-mode" data-open="ai">${t("Training")}</button><button class="primary-button big welcome-mode alt" data-open="player"><span class="keep-case">${t("PvP")}</span></button></div></div><section class="welcome-group" data-sub="ai" aria-label="${t("Training")}"><h3 class="welcome-group-title"><button class="welcome-back" type="button" data-back aria-label="${t("Back")}">${t("Back")}</button>${t("Training")}</h3><div class="segmented ai-levels" role="radiogroup" aria-label="${t("Difficulty")}">${Object.entries(AI_NAMES).map(([id, name]) => `<button role="radio" data-ai="${id}" aria-checked="${id === aiChoice}" class="${id === aiChoice ? "active" : ""}">${t(name)}</button>`).join("")}<button type="button" class="ai-mixed${aiMixed ? " active" : ""}" id="ai-mixed" aria-pressed="${aiMixed}" title="${t("Shuffles AI enemies of different difficulties into the match, up to the chosen one")}">${t("Mixed")}</button></div><div class="welcome-inline"><span class="modal-label">${t("Neutral waves")}</span><div class="segmented" role="radiogroup" aria-label="${t("Neutral waves")}">${[["on", "On"], ["off", "Off"]].map(([id, name]) => `<button role="radio" data-waves="${id}" aria-checked="${(id === "on") === wavesOn}" class="${(id === "on") === wavesOn ? "active" : ""}">${t(name)}</button>`).join("")}</div></div><span class="modal-label">${t("Number of AI enemies")}</span><div class="segmented ai-count" role="radiogroup" aria-label="${t("Number of AI enemies")}">${AI_COUNTS.map((n) => `<button role="radio" data-aicount="${n}" aria-checked="${n === aiCount}" class="${n === aiCount ? "active" : ""}">${n}</button>`).join("")}</div><button class="primary-button big" id="start-training">${t("Start")}</button><button class="secondary-button big campaign-open" id="start-campaign">${t("Campaign")} · ${campaignDone().size}/${MISSIONS.length}</button></section><section class="welcome-group" data-sub="player" aria-label="${t("PvP")}"><h3 class="welcome-group-title"><button class="welcome-back" type="button" data-back aria-label="${t("Back")}">${t("Back")}</button><span class="keep-case">${t("PvP")}</span></h3><label class="modal-label name-label pvp-name" for="player-name">${t("Player name")}</label><div class="name-row"><input id="player-name" class="name-input" maxlength="16" autocomplete="nickname" spellcheck="false" placeholder="${t("Your name")}" value="${esc(playerNameChoice)}"><button type="button" class="icon-pick" id="icon-pick" aria-label="${t("Choose your player icon")}" style="--pc:${iconColor()}"><img src="${iconSrc(iconChoice)}" alt=""></button></div><div class="welcome-row pvp-row"><button class="primary-button" id="start-quick">${t("Quick Match")}</button><button class="secondary-button" id="start-online">${t("Play a friend")}</button><button class="secondary-button" id="start-ranked" disabled aria-disabled="true" title="${t("Ranked matches are coming soon.")}">${t("Ranked match")}</button></div></section></div>`,
+    `<div class="welcome-eyes" aria-hidden="true"></div><div class="welcome-mood mood-easy" aria-hidden="true"></div><div class="welcome-mood mood-hard" aria-hidden="true"></div><div class="welcome-mood mood-hard-glow" aria-hidden="true"></div><div class="welcome-art" aria-hidden="true"></div><button class="welcome-options" id="welcome-options" type="button" aria-label="${t("Options")}"><img src="${iconUrl("gear")}" alt=""></button><button class="welcome-options welcome-mute" id="welcome-mute" type="button" aria-pressed="${muted}" aria-label="${t(muted ? "Sound off" : "Sound on")}">${speakerSvg(muted)}</button><span class="app-version">v${APP_VERSION} · ${APP_DATE}${APP_NOTE ? `<small class="app-version-note">${esc(APP_NOTE)}</small>` : ""}</span><img class="welcome-logo" src="assets/art/ui-logo.webp" alt="Felito Tower Wars"><div class="welcome-panel" id="welcome-panel" data-view="home"><div class="welcome-home"><span class="modal-label">${t("Your color")}: <b id="color-name">${colorLabel()}</b></span><div class="color-picker" role="radiogroup" aria-label="${t("Your color")}">${Object.entries(TEAM_COLORS).map(([id, c]) => `<button role="radio" data-color="${id}" aria-checked="${id === colorPick}" aria-label="${t(c.name)}" title="${t(c.name)}" class="${id === colorPick ? "active" : ""}" style="--c:${c.css}"></button>`).join("")}</div><div class="welcome-modes"><button class="primary-button big welcome-mode" data-open="ai">${t("Training")}</button><button class="primary-button big welcome-mode alt" data-open="player"><span class="keep-case">${t("PvP")}</span></button></div></div><section class="welcome-group" data-sub="ai" aria-label="${t("Training")}"><h3 class="welcome-group-title"><button class="welcome-back" type="button" data-back aria-label="${t("Back")}">${t("Back")}</button>${t("Training")}</h3><div class="segmented ai-levels${hardoUnlocked ? " hardo-mode" : ""}" role="radiogroup" aria-label="${t("Difficulty")}">${Object.entries(AI_NAMES).map(([id, name]) => `<button role="radio" data-ai="${id}" aria-checked="${id === aiChoice}" class="${id === aiChoice ? "active" : ""}${id === "insane" ? " hardo-level" : hardoUnlocked ? " hardo-gone" : ""}"${id === "insane" && !hardoUnlocked ? " hidden" : ""}${id !== "insane" && hardoUnlocked ? " disabled" : ""}>${t(name)}</button>`).join("")}<button type="button" class="ai-mixed${aiMixed ? " active" : ""}${hardoUnlocked ? " hardo-gone" : ""}" id="ai-mixed" aria-pressed="${aiMixed}"${hardoUnlocked ? " disabled" : ""} title="${t("Shuffles AI enemies of different difficulties into the match, up to the chosen one")}">${t("Mixed")}</button></div>${hardoUnlocked ? hardoNoteHtml() : ""}<div class="welcome-inline"><span class="modal-label">${t("Neutral waves")}</span><div class="segmented" role="radiogroup" aria-label="${t("Neutral waves")}">${[["on", "On"], ["off", "Off"]].map(([id, name]) => `<button role="radio" data-waves="${id}" aria-checked="${(id === "on") === wavesOn}" class="${(id === "on") === wavesOn ? "active" : ""}">${t(name)}</button>`).join("")}</div></div><span class="modal-label">${t("Number of AI enemies")}</span><div class="segmented ai-count" role="radiogroup" aria-label="${t("Number of AI enemies")}">${hardoUnlocked ? hardoJustHtml() : AI_COUNTS.map((n) => `<button role="radio" data-aicount="${n}" aria-checked="${n === aiCount}" class="${n === aiCount ? "active" : ""}">${n}</button>`).join("")}</div><button class="primary-button big" id="start-training">${t("Start")}</button><button class="secondary-button big campaign-open" id="start-campaign">${t("Campaign")} · ${campaignDone().size}/${MISSIONS.length}</button></section><section class="welcome-group" data-sub="player" aria-label="${t("PvP")}"><h3 class="welcome-group-title"><button class="welcome-back" type="button" data-back aria-label="${t("Back")}">${t("Back")}</button><span class="keep-case">${t("PvP")}</span></h3><label class="modal-label name-label pvp-name" for="player-name">${t("Player name")}</label><div class="name-row"><input id="player-name" class="name-input" maxlength="16" autocomplete="nickname" spellcheck="false" placeholder="${t("Your name")}" value="${esc(playerNameChoice)}"><button type="button" class="icon-pick" id="icon-pick" aria-label="${t("Choose your player icon")}" style="--pc:${iconColor()}"><img src="${iconSrc(iconChoice)}" alt=""></button></div><div class="welcome-row pvp-row"><button class="primary-button" id="start-quick">${t("Quick Match")}</button><button class="secondary-button" id="start-online">${t("Play a friend")}</button><button class="secondary-button" id="start-ranked" disabled aria-disabled="true" title="${t("Ranked matches are coming soon.")}">${t("Ranked match")}</button></div></section></div>`,
     { pauseGame: false, welcome: true },
   );
   $("modal-body")
@@ -2212,16 +2359,10 @@ function welcome() {
     .forEach(
       (b) =>
         (b.onclick = () => {
-          aiChoice = b.dataset.ai;
-          savePref(AI_PREF, aiChoice);
-          wolfEyes();
-          $("modal-body")
-            .querySelectorAll("[data-ai]")
-            .forEach((x) => {
-              x.classList.toggle("active", x === b);
-              x.setAttribute("aria-checked", String(x === b));
-            });
+          if (b.dataset.ai === "insane" && hardoUnlocked && aiChoice === "insane") return hardoLeave(); // v0.22d: tap Hardo again: the levels come back
+          pickAiLevel(b.dataset.ai);
           tone("tap");
+          hardoCode(b.dataset.ai);
         }),
     );
   $("modal-body")
@@ -2263,22 +2404,7 @@ function welcome() {
           tone("tap");
         }),
     );
-  $("modal-body")
-    .querySelectorAll("[data-aicount]")
-    .forEach(
-      (b) =>
-        (b.onclick = () => {
-          aiCount = Number(b.dataset.aicount);
-          savePref(AI_COUNT_PREF, aiCount);
-          $("modal-body")
-            .querySelectorAll("[data-aicount]")
-            .forEach((x) => {
-              x.classList.toggle("active", x === b);
-              x.setAttribute("aria-checked", String(x === b));
-            });
-          tone("tap");
-        }),
-    );
+  wireAiCount();
   $("ai-mixed").onclick = () => {
     aiMixed = !aiMixed;
     savePref(AI_MIXED_PREF, aiMixed);
@@ -2286,6 +2412,7 @@ function welcome() {
     $("ai-mixed").setAttribute("aria-pressed", String(aiMixed));
     wolfEyes();
     tone("tap");
+    hardoCode(aiMixed ? "mixOn" : "mixOff");
   };
   $("icon-pick").onclick = () => iconModal(); // v0.19c1
   for (const id of PLAYER_ICONS) iconSrc(id); // crops the heads in the background
@@ -2312,7 +2439,7 @@ function welcome() {
     tone("tap");
   };
   $("modal-body").querySelectorAll("[data-open]").forEach((b) => (b.onclick = () => welcomeView(b.dataset.open)));
-  $("modal-body").querySelectorAll("[data-back]").forEach((b) => (b.onclick = () => welcomeView("home")));
+  $("modal-body").querySelectorAll("[data-back]").forEach((b) => (b.onclick = () => (hardoUnlocked ? hardoReset() : welcomeView("home")))); // v0.22e: Back ends Hardo mode
   // Ranked matches (v0.09z): button is in place, matchmaking follows later.
   $("start-ranked").onclick = () => {
     tone("tap");
@@ -2548,13 +2675,17 @@ function playAgainOnline() {
  * a seat with only 10 % chance (normal and hard share the rest).
  */
 function mixedLevels(seats, top) {
-  const order = ["veryEasy", "easy", "normal", "hard"],
+  const order = ["veryEasy", "easy", "normal", "hard", "insane"],
     allowed = order.slice(0, order.indexOf(top) + 1),
     roll = () => crypto.getRandomValues(new Uint32Array(1))[0] / 2 ** 32,
     pick = () => {
       if (top === "hard") {
         const r = roll();
         return r < 0.1 ? "easy" : r < 0.55 ? "normal" : "hard";
+      }
+      if (top === "insane") {
+        const r = roll();
+        return r < 0.3 ? "normal" : r < 0.75 ? "hard" : "insane";
       }
       return allowed[Math.floor(roll() * allowed.length)];
     },
@@ -2563,12 +2694,139 @@ function mixedLevels(seats, top) {
   if (seats > 1 && !out.includes(top)) out[1 + Math.floor(roll() * (seats - 1))] = top;
   return out;
 }
+/** Selects a Training difficulty in the open menu (buttons, saved choice, the picture's mood). */
+function pickAiLevel(id) {
+  aiChoice = id;
+  savePref(AI_PREF, aiChoice);
+  wolfEyes();
+  document.querySelectorAll("#modal-body [data-ai]").forEach((x) => {
+    x.classList.toggle("active", x.dataset.ai === id);
+    x.setAttribute("aria-checked", String(x.dataset.ai === id));
+  });
+}
+/** Number of AI enemies buttons in the Training menu. */
+function wireAiCount() {
+  $("modal-body")
+    .querySelectorAll("[data-aicount]")
+    .forEach(
+      (b) =>
+        (b.onclick = () => {
+          aiCount = Number(b.dataset.aicount);
+          savePref(AI_COUNT_PREF, aiCount);
+          $("modal-body")
+            .querySelectorAll("[data-aicount]")
+            .forEach((x) => {
+              x.classList.toggle("active", x === b);
+              x.setAttribute("aria-checked", String(x === b));
+            });
+          tone("tap");
+        }),
+    );
+}
+const hardoNoteHtml = () => `<p class="hardo-note">${t("You found Felito's secret sparring partner, Hardo never cheats but plays cunning and adaptive, good luck!")}</p>`;
+const hardoJustHtml = () => `<div class="hardo-just"><b>1</b><span>${t("it's just you and Hardo")}</span></div>`;
+let hardoPrevCount = null;
+/** v0.22e: Back from the Training menu: everything returns to normal (levels, count, music). */
+function hardoReset() {
+  hardoUnlocked = false;
+  hardoInput = [];
+  if (hardoPrevCount != null) aiCount = hardoPrevCount;
+  hardoPrevCount = null;
+  aiChoice = "hard";
+  savePref(AI_PREF, aiChoice);
+  welcome();
+  syncMusic();
+}
+/** v0.22b/d: the secret sequence: a sinister organ, purple eyes, the other levels fall out of the menu and Hardo slams in. */
+function hardoCode(step) {
+  if (hardoUnlocked) return;
+  hardoInput = [...hardoInput, step].slice(-HARDO_CODE.length);
+  if (hardoInput.join() !== HARDO_CODE.join()) return;
+  hardoUnlocked = true;
+  hardoInput = [];
+  hardoPrevCount = aiCount;
+  aiCount = 1; // v0.22e: Hardo is a 1v1 sparring partner
+  document.querySelectorAll("#modal-body [data-aicount]").forEach((b) => {
+    b.disabled = true;
+    b.classList.toggle("active", b.dataset.aicount === "1");
+  });
+  tone("hardo");
+  hardoMusicDelay = 5.2; // the organ theme starts after the signal and a moment of silence
+  if (aiMixed) {
+    aiMixed = false;
+    savePref(AI_MIXED_PREF, aiMixed);
+  }
+  const row = document.querySelector("#modal-body .ai-levels"),
+    others = [...(row?.querySelectorAll('[data-ai]:not([data-ai="insane"]), #ai-mixed') || [])],
+    hardo = row?.querySelector('[data-ai="insane"]');
+  pickAiLevel("insane");
+  row?.classList.add("hardo-falling");
+  others.forEach((b, i) => {
+    b.disabled = true;
+    b.classList.remove("active");
+    b.style.setProperty("--d", (i * 0.09).toFixed(2) + "s");
+    b.style.setProperty("--r", (i % 2 ? -1 : 1) * (18 + i * 7) + "deg");
+    b.classList.add("hardo-fall");
+  });
+  setTimeout(() => {
+    if (!row || !hardoUnlocked) return;
+    others.forEach((b) => b.classList.replace("hardo-fall", "hardo-gone"));
+    row.classList.remove("hardo-falling");
+    row.classList.add("hardo-mode");
+    if (hardo) {
+      hardo.hidden = false;
+      hardo.classList.add("hardo-impact");
+      hardo.addEventListener("animationend", () => hardo.classList.remove("hardo-impact"), { once: true });
+    }
+    const panel = $("welcome-panel");
+    panel?.classList.add("hardo-shake");
+    setTimeout(() => panel?.classList.remove("hardo-shake"), 700);
+    // v0.22e: the note appears and the AI count fades into "[1] it's just you and Hardo"
+    if (!row.parentElement.querySelector(".hardo-note")) row.insertAdjacentHTML("afterend", hardoNoteHtml());
+    const count = document.querySelector("#modal-body .ai-count");
+    if (count) {
+      count.classList.add("hardo-count-out");
+      setTimeout(() => {
+        if (!hardoUnlocked) return;
+        count.innerHTML = hardoJustHtml();
+        count.classList.replace("hardo-count-out", "hardo-count-in");
+      }, 450);
+    }
+  }, 1300);
+}
+/** v0.22d: leave Hardo (tap it again): it vanishes, the other levels rise back in, Hard is selected. */
+function hardoLeave() {
+  if (hardoPrevCount != null) aiCount = hardoPrevCount;
+  hardoPrevCount = null;
+  const count = document.querySelector("#modal-body .ai-count");
+  if (count) {
+    count.classList.remove("hardo-count-in", "hardo-count-out");
+    count.innerHTML = AI_COUNTS.map((n) => `<button role="radio" data-aicount="${n}" aria-checked="${n === aiCount}" class="${n === aiCount ? "active" : ""}">${n}</button>`).join("");
+    wireAiCount();
+  }
+  document.querySelector("#modal-body .hardo-note")?.remove();
+  setTimeout(syncMusic, 0);
+  hardoUnlocked = false;
+  const row = document.querySelector("#modal-body .ai-levels");
+  row?.classList.remove("hardo-mode");
+  const hardo = row?.querySelector('[data-ai="insane"]');
+  if (hardo) hardo.hidden = true;
+  row?.querySelectorAll(".hardo-gone, .hardo-fall").forEach((b) => {
+    b.disabled = false;
+    b.classList.remove("hardo-gone", "hardo-fall");
+    b.classList.add("hardo-rise");
+    b.addEventListener("animationend", () => b.classList.remove("hardo-rise"), { once: true });
+  });
+  pickAiLevel("hard");
+  tone("tap");
+}
 /** v0.14: the wolf in the main-menu picture lets its eyes glow while Hard is picked for Vs AI (v0.21z: all evil creeps, skull on the moon; Very Easy: everyone asleep). */
 function wolfEyes() {
   const panel = $("welcome-panel");
   const dialog = document.querySelector("dialog.welcome-modal"),
     training = !!panel && panel.dataset.view === "ai";
   dialog?.classList.toggle("hard-eyes", training && aiChoice === "hard");
+  dialog?.classList.toggle("insane-eyes", training && aiChoice === "insane"); // v0.22b: Hardo: every creep's eyes glow purple
   dialog?.classList.toggle("easy-eyes", training && aiChoice === "veryEasy"); // v0.21z: Very Easy: eyes closed, smileys on the banners
 }
 // ---- v0.17: single-player campaign ---------------------------------------------------------
@@ -2659,6 +2917,173 @@ function campaignResult(won) {
   };
   again.after(menu);
 }
+// ---- v0.22e: Hardo talks (0–2 times a match, only when something significant happens) ------
+const hardoTalkState = new WeakMap();
+const HARDO_LINES = {
+  threat: ["Now THAT is a wave. My towers are sweating.", "You saved all that just to hurt me? Rude."],
+  desperate: ["Only true elites come to my lair and defeat me like this. I am proud of you."],
+  income: ["Income is key, you seem to have understood this."],
+  nomatch: ["You are no match for me, get me Felito back you fool!"],
+  tier: ["Felito would be in Tier {n} by now."],
+};
+function hardoTalk() {
+  if (!game?.running || shownResult || isFfa() || !hardoGame()) return;
+  const h = game.players.find((q) => q.ai && (q.aiLevel || game.aiLevel) === "insane"),
+    me = game.players[own];
+  if (!h || !me || h.out) return;
+  let st = hardoTalkState.get(game);
+  if (!st) hardoTalkState.set(game, (st = { said: 0, used: new Set(), last: -999, rich: 0, round: game.round }));
+  if (game.round !== st.round) {
+    st.round = game.round;
+    st.rich = me.income >= h.income * 1.35 && me.income - h.income >= 40 ? st.rich + 1 : 0;
+  }
+  if (st.said >= 2 || game.time - st.last < 45 || game.round < 5) return;
+  const boss = tierSends(me.tier).find((x) => x.bossTier),
+    rush = h.creeps.filter((c) => !c.dead && c.hp > 0 && c.owner !== h.id && c.progress > 0.4),
+    rushHp = rush.reduce((sum, c) => sum + c.hp, 0),
+    checks = [
+      ["desperate", h.lives <= 6 && me.lives > h.lives * 2],
+      ["threat", rush.length >= Math.max(4, h.lives * 0.3) && rushHp > (h.aiDebug?.capG || 0) * 1.2],
+      ["income", st.rich >= 3],
+      ["nomatch", me.lives <= 10 && h.lives >= me.lives * 2],
+      ["tier", !!boss && game.round >= 15 && me.income >= boss.cost * 0.75 && me.tier < 5],
+    ];
+  for (const [key, hit] of checks) {
+    if (!hit || st.used.has(key)) continue;
+    st.used.add(key);
+    st.said++;
+    st.last = game.time;
+    const pool = HARDO_LINES[key];
+    hardoSay(pool[Math.floor(Math.random() * pool.length)].replace("{n}", me.tier + 1));
+    return;
+  }
+}
+/** A small speech bubble from Hardo's portrait (the enemy plate at the top). */
+function hardoSay(text) {
+  const plate = document.querySelector(".player-plate.rival");
+  if (!plate) return;
+  plate.querySelector(".hardo-bubble")?.remove();
+  const b = document.createElement("div");
+  b.className = "hardo-bubble";
+  b.setAttribute("role", "status");
+  b.textContent = text;
+  plate.appendChild(b);
+  tone("select");
+  setTimeout(() => b.classList.add("out"), 6500);
+  setTimeout(() => b.remove(), 7200);
+}
+// ---- v0.22b: match recorder for Insane training matches ------------------------------------
+// Every command of the human player (with its tick) plus a snapshot of all players each round go
+// into the artifact's database (matches/<id>, chunks per round). The simulation is deterministic,
+// so seed + commands replay the whole match headless for tuning the AI between games.
+let rec = null,
+  recDbPromise = null,
+  hardoTalkTime = 0;
+function recDb() {
+  if (!recDbPromise)
+    recDbPromise = (async () => {
+      try {
+        return (await window.claude?.use?.("db")) || null;
+      } catch {
+        return null;
+      }
+    })();
+  return recDbPromise;
+}
+function recWrite(path, data) {
+  if (!rec) return;
+  const r = rec;
+  r.queue = r.queue.then(async () => {
+    const db = await recDb();
+    if (!db) return;
+    try {
+      await db.doc(path).set(JSON.parse(JSON.stringify(data)));
+    } catch (e) {
+      r.errors = (r.errors || 0) + 1;
+    }
+  });
+}
+function recSnap() {
+  return {
+    round: game.round,
+    tick: game.tick,
+    time: Math.round(game.time * 10) / 10,
+    players: game.players.map((q) => ({
+      lives: q.lives,
+      gold: Math.round(q.gold),
+      income: Math.round(q.income * 10) / 10,
+      level: q.level,
+      tier: q.tier,
+      faction: q.faction || null,
+      perks: q.perks || {},
+      towers: q.towers.length,
+      towerGold: Math.round(q.towers.reduce((sum, t) => sum + (t.totalSpent || catalog.byId[t.typeId]?.cost || 0), 0)),
+      creeps: q.creeps.length,
+      sent: q.stats?.sent || 0,
+      leaks: q.stats?.leaks || 0,
+      kills: q.stats?.kills || 0,
+      style: q.aiStyle || null,
+      read: q.aiRead ? Object.fromEntries(Object.entries(q.aiRead).map(([k, v]) => [k, Math.round(v * 100) / 100])) : null,
+      dbg: q.aiDebug || null,
+      push: q.aiPush ? { id: q.aiPush.id, left: q.aiPush.left } : null,
+    })),
+  };
+}
+function recStart() {
+  rec = null;
+  if (!game || !game.players.some((q) => q.ai && (q.aiLevel || game.aiLevel) === "insane")) return;
+  const id = "m" + Date.now().toString(36) + Math.floor(Math.random() * 1296).toString(36);
+  rec = { id, game, cmds: [], snaps: [], chunk: 0, round: game.round, queue: Promise.resolve(), done: false, started: Date.now() };
+  rec.meta = {
+    id,
+    version: APP_VERSION,
+    startedAt: new Date().toISOString(),
+    seed: game.seed,
+    options: { mode: game.mode, faction: chosenFaction, aiLevel: game.aiLevel, aiLevels: game.players.map((q) => (q.ai ? q.aiLevel || game.aiLevel : null)), waves: game.waves, seats: game.players.length, training: !!game.training },
+    status: "running",
+    chunks: 0,
+  };
+  recWrite("matches/" + id, rec.meta);
+}
+function recFlush(final = false) {
+  if (!rec || (!rec.cmds.length && !rec.snaps.length && !final)) return;
+  recWrite("matches/" + rec.id + "/chunks/c" + String(rec.chunk).padStart(4, "0"), { n: rec.chunk, cmds: rec.cmds, snaps: rec.snaps });
+  rec.chunk++;
+  rec.cmds = [];
+  rec.snaps = [];
+  rec.meta.chunks = rec.chunk;
+  rec.meta.lastRound = game.round;
+  if (final) {
+    rec.meta.status = "ended";
+    rec.meta.result = { winner: game.winner, time: Math.round(game.time), round: game.round, lives: game.players.map((q) => q.lives), endTick: game.tick };
+  }
+  recWrite("matches/" + rec.id, rec.meta);
+}
+function recTick() {
+  if (!rec || rec.done) return;
+  if (rec.game !== game) {
+    rec.meta.status = "abandoned";
+    recFlush(true);
+    rec.done = true;
+    rec = null;
+    return;
+  }
+  if (game.round !== rec.round) {
+    rec.round = game.round;
+    rec.snaps.push(recSnap());
+    if (game.round % 2 === 0) recFlush();
+  }
+  if (!game.running) {
+    rec.snaps.push(recSnap());
+    rec.done = true;
+    recFlush(true);
+  }
+}
+setCommandHook((g, input, result) => {
+  if (!rec || rec.done || g !== rec.game || input.type === "pause" || input.auto) return; // auto-sends come from the simulation itself
+  if (g.players[input.player ?? 0]?.ai) return;
+  rec.cmds.push([g.tick, JSON.parse(JSON.stringify(input)), result?.ok ? 1 : 0]);
+});
 function startLocal({ hotseat = false, ffa = false, seats = 4, mission = null } = {}) {
   disconnectRoom();
   uiPauses.clear();
@@ -2675,7 +3100,7 @@ function startLocal({ hotseat = false, ffa = false, seats = 4, mission = null } 
     faction: chosenFaction,
     ai: !hotseat,
     aiLevel: mission?.level || aiChoice,
-    aiLevels: !hotseat && aiMixed && !mission ? mixedLevels(ffa ? Math.min(8, Math.max(3, seats)) : 2, aiChoice) : null,
+    aiLevels: !hotseat && aiMixed && !mission && aiChoice !== "insane" ? mixedLevels(ffa ? Math.min(8, Math.max(3, seats)) : 2, aiChoice) : null,
     waves: mission ? !!mission.waves : wavesOn,
     seats: ffa ? Math.min(8, Math.max(3, seats)) : 2,
     mission, // v0.17: campaign
@@ -2698,6 +3123,7 @@ function startLocal({ hotseat = false, ffa = false, seats = 4, mission = null } 
   setPage("build");
   tone("select");
   coach("start");
+  recStart(); // v0.22b
 }
 function dispatch(input, { quiet = false, fromQueue = false } = {}) {
   if (!begun) return;
@@ -5583,7 +6009,7 @@ function lobbyStartTimer() {
 }
 const lobbyHumans = () => (lobby?.entries || []).filter((e) => e.peer != null).length;
 let botSeq = 0;
-const BOT_LEVELS = Object.keys(AI_NAMES); // veryEasy, easy, normal, hard
+const botLevels = () => Object.keys(AI_NAMES).filter((id) => id !== "insane"); // veryEasy … hard (Hardo is Training only)
 /** v0.19c1, host: a bot takes a free seat of the friend room (difficulty Normal). */
 function lobbyAddBot() {
   if (!lobby || lobby.done || lobby.entries.length >= LOBBY_MAX) return;
@@ -5597,7 +6023,8 @@ function lobbyAddBot() {
 function lobbyBotLevel(i) {
   const e = lobby?.entries[i];
   if (!e?.bot || lobby.done) return;
-  e.level = BOT_LEVELS[(BOT_LEVELS.indexOf(e.level) + 1) % BOT_LEVELS.length];
+  const levels = botLevels();
+  e.level = levels[(levels.indexOf(e.level) + 1) % levels.length];
   lobbyColors();
   lobbyBroadcast();
   tone("tap");
@@ -6164,6 +6591,12 @@ function tick(dt) {
   // v0.16: online games run on the wall clock (netPulse), so a slow or hidden tab never stalls the duel
   if (room) netPulse(performance.now());
   else if (begun) step(game, dt * gameSpeed);
+  if (rec) recTick(); // v0.22b
+  hardoTalkTime += dt;
+  if (hardoTalkTime >= 1) {
+    hardoTalkTime = 0;
+    hardoTalk(); // v0.22e
+  }
   uiTime += dt;
   queueTime += dt;
   if (queueTime >= 0.25) {
@@ -6296,6 +6729,7 @@ function tick(dt) {
     shownResult = true;
     if (!room) localStorage.removeItem(SAVE);
     const won = game.teams ? game.players[own].team === game.winnerTeam : game.winner === own, // v0.20: team games
+      beatHardo = won && sessionMode === "training" && hardoGame(),
       me = game.players[own],
       tip =
         won || !["training", "ffa"].includes(sessionMode)
@@ -6309,7 +6743,7 @@ function tick(dt) {
     const summary = matchSummary(me, isFfa() ? (won ? 1 : me.place || 2) : 0);
     if (sessionMode !== "online") presenceState("idle");
     showModal(
-      `<div class="result-banner ${won ? "win" : "lose"}">${t(won ? "Victory" : "Defeat")}</div><img class="modal-hero result-hero" src="${artUrl(won ? "tower-archer" : "creep-golem")}" alt=""><h2 class="welcome-title">${won ? t("Your line.<br><span>Your victory.</span>") : t("Well fought.<br><span>Another round?</span>")}</h2>${summary.html}<p class="modal-copy" style="text-align:center">${t("Match time")} ${$("match-clock").textContent}${sessionMode === "training" ? ` · ${t("AI")} ${t(AI_NAMES[game.aiLevel] || "Normal")}` : ""}</p>${tip ? `<p class="modal-note result-tip">${tip}</p>` : ""}<div class="result-pair"><button class="secondary-button" id="play-again">${t("Play again")}</button>${sessionMode === "training" && game.aiLevel !== "hard" && won ? `<button class="secondary-button" id="play-harder">${t("Harder AI")}</button>` : ""}</div><button class="primary-button" id="to-menu">${t("Main menu")}</button>`,
+      `<div class="result-banner ${won ? "win" : "lose"}">${t(won ? "Victory" : "Defeat")}</div><img class="modal-hero result-hero" src="${artUrl(won ? "tower-archer" : "creep-golem")}" alt=""><h2 class="welcome-title">${won ? t("Your line.<br><span>Your victory.</span>") : t("Well fought.<br><span>Another round?</span>")}</h2>${summary.html}<p class="modal-copy" style="text-align:center">${t("Match time")} ${$("match-clock").textContent}${sessionMode === "training" ? ` · ${t("AI")} ${t(AI_NAMES[game.aiLevel] || "Normal")}` : ""}</p>${tip ? `<p class="modal-note result-tip">${tip}</p>` : ""}<div class="result-pair"><button class="secondary-button" id="play-again">${t("Play again")}</button>${sessionMode === "training" && game.aiLevel !== (hardoUnlocked ? "insane" : "hard") && won ? `<button class="secondary-button" id="play-harder">${t("Harder AI")}</button>` : ""}</div><button class="primary-button" id="to-menu">${t("Main menu")}</button>`,
       { pauseGame: false },
     );
     summary.wire();
@@ -6319,9 +6753,19 @@ function tick(dt) {
       startLocal({ hotseat: sessionMode === "hotseat", ffa: sessionMode === "ffa", seats: game.players.length });
     };
     if (sessionMode === "campaign") campaignResult(won); // v0.17
+    // v0.22e: beating Hardo once gives you his goblin as your player icon (until you pick another)
+    if (beatHardo) {
+      const first = !hardoIconEarned();
+      savePref(HARDO_ICON_PREF, true);
+      if (first || iconChoice !== "hardo") {
+        iconChoice = "hardo";
+        savePref(ICON_PREF, iconChoice);
+        toast(t("You beat Hardo! His goblin is now your player icon."), "level", true);
+      }
+    }
     if ($("play-harder"))
       $("play-harder").onclick = () => {
-        aiChoice = { veryEasy: "easy", easy: "normal", normal: "hard" }[game.aiLevel] || "hard";
+        aiChoice = { veryEasy: "easy", easy: "normal", normal: "hard", hard: hardoUnlocked ? "insane" : "hard" }[game.aiLevel] || "hard";
         savePref(AI_PREF, aiChoice);
         shownResult = false;
         startLocal();
@@ -6667,6 +7111,8 @@ async function init() {
           command: (input) => command(game, input),
           step: (dt) => step(game, dt),
           grantExp: (n, who = own) => grantExp(game, who, n),
+          hardoTalk: () => hardoTalk(),
+          hardoSay: (text) => hardoSay(text),
           get player() {
             return own;
           },

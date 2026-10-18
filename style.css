@@ -7256,3 +7256,70 @@ p.room-opts { text-align: center; }
 dialog.welcome-modal.easy-eyes .mood-easy,
 dialog.welcome-modal.hard-eyes .mood-hard { opacity: 1; }
 dialog.welcome-modal.hard-eyes .mood-hard-glow { opacity: 0.8; } /* v0.22: only the wolf's eyes pulse; the others glow steadily */
+
+/* v0.22b/d: Hardo – secret experimental Training level: hidden until the code, purple eyes,
+   the other levels fall out of the menu and Hardo slams in */
+.segmented.ai-levels [data-ai="insane"][hidden] { display: none !important; }
+.segmented.ai-levels .hardo-level { position: relative; color: #e3c8ff; text-shadow: 0 0 6px #a45cff; white-space: nowrap; }
+.segmented.ai-levels .hardo-level.active { background: linear-gradient(#b67bff, #6a24c9); color: #fff; box-shadow: inset 0 1px 0 #fff8, 0 0 12px #a45cffaa; }
+.segmented.ai-levels.hardo-mode { grid-template-columns: 1fr; }
+.segmented.ai-levels.hardo-mode .hardo-level { font-size: 18px; letter-spacing: 0.08em; }
+.segmented.ai-levels .hardo-gone { display: none !important; }
+.segmented.ai-levels.hardo-falling { position: relative; z-index: 30; }
+.segmented.ai-levels .hardo-fall { pointer-events: none; position: relative; z-index: 5; animation: hardo-fall 0.95s cubic-bezier(0.55, 0, 0.9, 0.55) var(--d, 0s) forwards; }
+@keyframes hardo-fall {
+  0% { transform: none; }
+  18% { transform: translateY(-8px) rotate(calc(var(--r, 20deg) * -0.15)); }
+  100% { transform: translateY(520px) rotate(var(--r, 20deg)); opacity: 0; }
+}
+.segmented.ai-levels .hardo-impact { z-index: 6; animation: hardo-impact 0.75s cubic-bezier(0.3, 0, 0.5, 1) both; }
+.segmented.ai-levels .hardo-impact::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: 12px;
+  border: 3px solid #c58bff;
+  pointer-events: none;
+  animation: hardo-ring 0.8s ease-out 0.38s both;
+}
+@keyframes hardo-impact {
+  0% { transform: translateY(-340px) scale(2.6); opacity: 0; filter: brightness(2.5); }
+  50% { transform: translateY(0) scale(1.18); opacity: 1; filter: brightness(2); }
+  62% { transform: scale(1.12, 0.82); }
+  78% { transform: scale(0.97, 1.05); filter: brightness(1.3); }
+  100% { transform: none; filter: none; }
+}
+@keyframes hardo-ring {
+  0% { opacity: 0.95; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.35, 2.2); }
+}
+.welcome-panel.hardo-shake { animation: hardo-shake 0.45s cubic-bezier(0.3, 0, 0.4, 1) 0.36s; }
+@keyframes hardo-shake {
+  0%, 100% { transform: none; }
+  20% { transform: translate(-7px, 5px); }
+  40% { transform: translate(6px, -4px); }
+  60% { transform: translate(-4px, 3px); }
+  80% { transform: translate(2px, -1px); }
+}
+.segmented.ai-levels .hardo-rise { animation: hardo-rise 0.5s ease-out both; }
+@keyframes hardo-rise { 0% { transform: translateY(30px); opacity: 0; } 100% { transform: none; opacity: 1; } }
+dialog.welcome-modal.insane-eyes .mood-hard { opacity: 1; filter: hue-rotate(-85deg) saturate(1.5) brightness(1.1); }
+dialog.welcome-modal.insane-eyes .mood-hard-glow { opacity: 1; filter: hue-rotate(-85deg) saturate(1.6) brightness(1.2); } /* steady like Hard: only the wolf pulses */
+dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) saturate(1.6); animation: wolf-eyes 1.6s ease-in-out infinite; }
+
+/* v0.22e: Hardo menu: note, "just you and Hardo", count fade; speech bubble in matches */
+.hardo-note { margin: 6px 4px 2px; color: #e3c8ff; font: 600 12.5px/1.35 var(--font-body, system-ui); text-align: center; text-shadow: 0 0 6px #7a2fd0aa; animation: hardo-rise 0.6s ease-out both; }
+.segmented.ai-count .hardo-just { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 0 8px; color: #f0e2ff; font: 800 15px var(--font-display); letter-spacing: 0.03em; }
+.segmented.ai-count .hardo-just b { display: grid; place-items: center; width: 38px; height: 34px; border-radius: 9px; background: linear-gradient(#b67bff, #6a24c9); color: #fff; box-shadow: inset 0 1px 0 #fff8, 0 0 10px #a45cff88; }
+.segmented.ai-count.hardo-count-out { transition: opacity 0.42s ease; opacity: 0; }
+.segmented.ai-count.hardo-count-in { animation: hardo-rise 0.6s ease-out both; }
+.hardo-bubble {
+  position: absolute; top: calc(100% + 10px); right: 4px; z-index: 60; max-width: min(240px, 70vw);
+  padding: 7px 10px; border-radius: 12px; background: #1d0b38f2; border: 2px solid #b06bff; color: #f4eaff;
+  font: 600 12.5px/1.3 var(--font-body, system-ui); text-align: left; box-shadow: 0 4px 14px #000a, 0 0 12px #9b4dff66;
+  pointer-events: none; animation: hardo-talk-in 0.35s ease-out both;
+}
+.hardo-bubble::before { content: ""; position: absolute; top: -9px; right: 22px; border: 8px solid transparent; border-top: 0; border-bottom-color: #b06bff; }
+.hardo-bubble::after { content: ""; position: absolute; top: -6px; right: 24px; border: 6px solid transparent; border-top: 0; border-bottom-color: #1d0b38; }
+.hardo-bubble.out { transition: opacity 0.6s ease, transform 0.6s ease; opacity: 0; transform: translateY(-4px); }
+@keyframes hardo-talk-in { 0% { opacity: 0; transform: translateY(-6px) scale(0.92); } 100% { opacity: 1; transform: none; } }

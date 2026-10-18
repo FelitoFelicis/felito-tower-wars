@@ -2566,8 +2566,14 @@ function pay(p, cost) {
 }
 
 /** All human and AI actions use this same validated command entry point. */
+/** v0.22b: match recorder hook (the app logs human commands of Insane training matches for replays). */
+let commandHook = null;
+export function setCommandHook(fn) {
+  commandHook = typeof fn === "function" ? fn : null;
+}
 export function command(game, input) {
   const result = runCommand(game, input);
+  if (commandHook) try { commandHook(game, input, result); } catch {}
   if (game.teams) teamSync(game); // v0.20
   return result;
 }
@@ -3875,8 +3881,9 @@ function attack(game, p, tower, dt, known = null) {
     const bombard = lineSet("h02R").has(tower.typeId),
       gp = bombard ? gunpowderBonus(game, p) : 0, // v0.21u: Gunpowder widens the outermost ring
       maxR = bombard ? Math.max(item.splashFull, item.splashMedium, item.splashSmall) * BOMBARD_RADIUS + gp : Infinity;
+    const melee = isMeleeTower(item); // v0.22a: melee splash (former Splash Attack) only hits the ground
     for (const other of p.creeps) {
-      if (other === target || other.dead || other.hp <= 0) continue;
+      if (other === target || other.dead || other.hp <= 0 || (melee && other.flying)) continue;
       const d = dist(game, target, other);
       if (d > maxR) continue;
       let rate =
@@ -4354,6 +4361,7 @@ export const AI_LEVELS = Object.freeze({
   }),
   normal: Object.freeze({ interval: 20 }),
   hard: Object.freeze({ interval: 10, minTowers: 4, towerGrowth: 0.34, upgradeEager: true }),
+  insane: Object.freeze({ interval: 5, minTowers: 4, towerGrowth: 0.34, upgradeEager: true }), // v0.22b: adaptive, reads the opponent's style
 });
 function aiLevel(game, p) {
   const level = p?.aiLevel || game.aiLevel;
@@ -4364,7 +4372,7 @@ function aiLevel(game, p) {
  * tower DPS times the time a creep needs to cross the lane, with a margin for
  * overkill and spread. Positive gap = build or upgrade before sending.
  */
-const AI_WAVE_SAFETY = { veryEasy: 0.9, easy: 0.6, normal: 1, hard: 1.35 };
+const AI_WAVE_SAFETY = { veryEasy: 0.9, easy: 0.6, normal: 1, hard: 1.35, insane: 1.35 };
 function waveDefense(game, p) {
   if (!game.waves) return { gap: 0, flying: false, airTowers: true };
   const level = aiLevel(game, p),
@@ -4409,7 +4417,7 @@ function waveDefense(game, p) {
 // and otherwise invests in income sends. It saves for pushes now and then, prefers flyers
 // when the opponent has little anti-air, and plays every match a little differently: each
 // AI player rolls a personality from the game seed. Everything goes through `command`.
-const AI_SAFETY = { veryEasy: 0.6, easy: 0.85, normal: 1.2, hard: 1.45 }; // v0.16k: very easy 1.45 → 0.6
+const AI_SAFETY = { veryEasy: 0.6, easy: 0.85, normal: 1.2, hard: 1.45, insane: 1.45 }; // v0.16k: very easy 1.45 → 0.6
 // How the difficulty plays: share of decisions that follow the maze plan, how noisy tower
 // placement is, and persona multipliers. Very easy turtles: it overbuilds, sends little and late.
 const AI_STYLE = {
@@ -4447,6 +4455,8 @@ const AI_STYLE = {
     },
   },
 };
+// v0.22b: Insane plays like Hard and adapts its persona to the opponent's style every few seconds (see adaptPersona)
+AI_STYLE.insane = { ...AI_STYLE.hard, fixed: { ...AI_STYLE.hard.fixed, adaptive: 1, speedAware: 1, bossRush: 0 } };
 // Ranges found by self-play (v0.07f: about 1,500 bot-vs-bot games). Income wins: the bot keeps
 // sending, saves only for short pushes that should break through, buys its tier boss early,
 // and every match still rolls its own values inside these ranges.
@@ -4580,15 +4590,18 @@ function laneCapacity(game, p, path = p.path, routes = null) {
  * recent burst, because towers work through a group one creep at a time.
  */
 function observeEnemy(game, p) {
-  const seen = (p.aiSeen ||= { hp: 0, air: 0, rate: 0, airRate: 0, burst: 0, airBurst: 0, roundStart: game.tick });
+  const seen = (p.aiSeen ||= { hp: 0, air: 0, rate: 0, airRate: 0, burst: 0, airBurst: 0, roundStart: game.tick }),
+    // v0.22b: Felito Hardo counts fast creeps heavier: towers get less time for them (Raider pushes broke it in game 1)
+    fast = p.aiPersona?.speedAware ? 240 * movementMultiplier(game) : 0;
   let fresh = 0,
     freshAir = 0;
   for (const c of p.creeps)
     if (c.owner >= 0 && c.owner !== p.id && !c.aiSeen) {
       c.aiSeen = true;
       if (c.laps) continue;
-      seen.hp += c.maxHp;
-      fresh += c.flying ? 0 : c.maxHp;
+      const hp = fast && !c.flying ? c.maxHp * clamp((c.baseSpeed || c.speed || fast) / fast, 1, 2.5) : c.maxHp;
+      seen.hp += hp;
+      fresh += c.flying ? 0 : hp;
       if (c.flying) {
         seen.air += c.maxHp;
         freshAir += c.maxHp;
@@ -5099,16 +5112,74 @@ function typedSteps(game, p, maze, wantAir) {
   else if (upgradeSteps.length) steps.push(upgradeSteps[0]);
   return { steps, goals };
 }
+/**
+ * v0.22b: the Insane bot reads its opponent every two seconds, only from what a player can see too
+ * (their board, gold, income and the creeps they send), and shifts its persona to counter that style:
+ * - thin defence against what it can send (greedy economy): saved-up pushes and finishing blows
+ * - a strong defence: out-earn them, no pushes
+ * - banked gold (a push is coming): hold more of it in the lane
+ * - many flyers: more anti-air ahead of time
+ */
+const towerGold = (q) => q.towers.reduce((s, t) => s + (t.totalSpent || obj(t.typeId)?.cost || 0), 0);
+function adaptPersona(game, p, enemy, persona) {
+  if (!persona.adaptive || !enemy || enemy.out) return persona;
+  if (!p.aiRead || game.tick - p.aiRead.tick >= 40) {
+    const seen = p.aiSeen || { rate: 0, airRate: 0 },
+      read = (p.aiRead ||= { thin: 1, bank: 0, air: 0, eco: 1 }),
+      ema = (old, v, k = 0.35) => old * (1 - k) + v * k;
+    read.tick = game.tick;
+    // how cheap a push that breaks through their lane is, against one round of our income (bigger = thinner defence)
+    const plan = game.round >= 3 ? breakthroughPlan(game, p, enemy, { ...persona, pushSize: 2, armorAware: 0 }) : null,
+      send = plan && tierSends(p.tier).find((s) => s.id === plan.id),
+      price = send ? Math.max(1, plan.left * (send.cost - send.income * 2)) : Infinity;
+    read.thin = ema(read.thin, Math.min(6, p.income / price));
+    read.bank = ema(read.bank, enemy.gold / Math.max(10, enemy.income));
+    read.air = ema(read.air, seen.airRate / Math.max(1, seen.rate));
+    read.eco = ema(read.eco, enemy.income / Math.max(10, p.income));
+    read.def = towerGold(enemy) / Math.max(50, towerGold(p));
+  }
+  const r = p.aiRead,
+    k = AI_ADAPT,
+    out = { ...persona },
+    tags = [];
+  if (game.round >= 4 && r.thin > k.thin) {
+    tags.push("punish");
+    out.push = Math.max(out.push ?? 0, k.punishPush);
+    out.pushSize = Math.min(out.pushSize ?? 2, 2);
+    out.saveMore = (out.saveMore ?? 1) * 2;
+    out.killShot = Math.max(out.killShot ?? 0, k.killShot);
+  } else if (r.thin < k.strong) {
+    tags.push("outeco");
+    out.greed = (out.greed ?? 1) * k.ecoGreed;
+    out.push = 0;
+    out.saveMore = (out.saveMore ?? 1) * 0.5;
+  }
+  if (r.eco > 1.2 && r.thin >= k.strong) out.greed = (out.greed ?? 1) * 1.15; // they out-earn us: keep up
+  if (r.bank > k.bank) {
+    tags.push("bank");
+    out.bankWatch = Math.max(out.bankWatch ?? 0, k.bankWatch);
+    out.bankFast = k.bankFast; // a saved-up push is often fast creeps (Raiders)
+  }
+  if (r.air > k.air) {
+    tags.push("air");
+    out.airCaution = k.airCaution;
+  }
+  p.aiStyle = tags.join("+") || "base";
+  return out;
+}
+/** Thresholds of the Insane bot's reading (tuned in self-play against bots that play like humans). */
+export const AI_ADAPT = { thin: 2.5, strong: -1, punishPush: 0.5, killShot: 15, ecoGreed: 1.25, bank: 1.2, bankWatch: 1.0, bankFast: 1.5, air: 0.25, airCaution: 1.4, earlyRounds: 10, earlyCaution: 0.75, airMargin: 2, tierIncome: 0.5, tierSave: 0 };
 function think(game, p) {
   if (game.tick < p.nextAiTick) return;
   const level = aiLevel(game, p),
-    interval = { veryEasy: 80, easy: 40, normal: 20, hard: 10 }[level] || 20,
+    interval = { veryEasy: 80, easy: 40, normal: 20, hard: 10, insane: 5 }[level] || 20,
     style = AI_STYLE[level] || AI_STYLE.normal;
   p.nextAiTick = game.tick + interval;
   if (p.rules?.sleep && game.time < p.rules.sleep) return; // v0.17: a sleepy mission enemy
   const rolled = aiPersonality(game, p),
     enemy = targetOf(game, p.id), // the player this bot sends to
-    persona = enemy && !enemy.ai && style.vsHuman ? { ...rolled, ...style.vsHuman } : rolled, // v0.21v
+    humanFoe = enemy && (!enemy.ai || enemy.simHuman), // simHuman: test bots that stand in for a human
+    persona = adaptPersona(game, p, enemy, humanFoe && style.vsHuman ? { ...rolled, ...style.vsHuman } : rolled), // v0.21v, v0.22b
     attackers = attackersOf(game, p.id), // the players sending into this bot's lane
     seen = observeEnemy(game, p);
   for (let guard = 12; p.picks.length && guard > 0; guard--) aiPick(game, p, persona); // v0.15: never loop on a refused choice
@@ -5155,15 +5226,17 @@ function think(game, p) {
   // ---- how much defence is needed right now
   // Need: the biggest group the opponent sends (towers chew through a group creep by creep),
   // a share of their whole round, the next neutral wave when it is close, and fresh leaks.
-  const safety = (AI_SAFETY[level] || 1.2) * (persona.caution ?? 1),
+  const early = persona.adaptive && game.round < AI_ADAPT.earlyRounds, // v0.22e: Hardo opens greedy (game 3: 13 towers vs 9 by round 10, far less income)
+    safety = (AI_SAFETY[level] || 1.2) * (persona.caution ?? 1) * (early ? AI_ADAPT.earlyCaution : 1),
     wave = waveDefense(game, p),
     waveSoon = game.waves && wave.total && wave.seconds < 25,
     prior = game.round < 4 ? attackers.reduce((sum, a) => sum + a.income * hpPerGold(a.tier), 0) * 0.35 : 0,
     // v0.07l: gold the opponent banks is a push in the making (a human watches that number)
-    bank = (persona.bankWatch ?? 0) > 0 && !game.warmup ? attackers.reduce((sum, a) => sum + a.gold * hpPerGold(a.tier), 0) * persona.bankWatch : 0,
+    // v0.22d: Hardo holds more of the gold banked by an opponent a tier ahead (game 2: tier-2 Troll pushes broke it)
+    bank = (persona.bankWatch ?? 0) > 0 && !game.warmup && !early ? attackers.reduce((sum, a) => sum + a.gold * hpPerGold(a.tier) * (persona.adaptive && a.tier > p.tier ? 1.4 : 1), 0) * persona.bankWatch * (persona.bankFast ?? 1) : 0,
     groundNeed =
       Math.max(seen.burst, (seen.rate - seen.airRate) * (persona.rateShare ?? 0.33), prior, bank, waveSoon ? wave.total * (1 - wave.flyingShare) * (persona.waveShare ?? 0.62) : 0) * safety,
-    airNeed = Math.max(seen.airBurst, seen.airRate * (persona.rateShare ?? 0.33), waveSoon ? wave.total * wave.flyingShare * (persona.waveShare ?? 0.62) : 0) * safety,
+    airNeed = Math.max(seen.airBurst, seen.airRate * (persona.rateShare ?? 0.33) * (persona.airCaution ?? 1), waveSoon ? wave.total * wave.flyingShare * (persona.waveShare ?? 0.62) : 0) * safety,
     planNow = mazePlan(game, p, level),
     routesNow = planNow.template ? spawnRoutes(game, p) : null,
     cap = { ...laneCapacity(game, p, p.path, routesNow), routes: routesNow },
@@ -5222,10 +5295,22 @@ function think(game, p) {
     } else return; // saving
   }
   const boss = sends.find((s) => s.bossTier);
-  if (boss && game.round >= persona.bossRound * p.tier && p.gold >= boss.cost + p.income) {
+  if (boss && game.round >= persona.bossRound * p.tier && p.gold >= boss.cost + (persona.bossRush && ((enemy && enemy.tier > p.tier) || p.gold > p.income * 1.5) ? Math.min(p.income, boss.cost) * 0.15 : p.income)) {
     command(game, { type: "send", player: p.id, id: boss.id });
     return;
   }
+  // v0.22e: Hardo tiers up by income, like a strong human (tier 2 at about 500 income): from income ≥ half the
+  // boss price it buys the boss as soon as the gold is there (saving up for it with tierSave lost in self-play)
+  if (persona.adaptive && boss && game.round >= 6 && p.income >= boss.cost * AI_ADAPT.tierIncome) {
+    if (p.gold >= boss.cost + Math.min(p.income, boss.cost) * 0.1) {
+      command(game, { type: "send", player: p.id, id: boss.id });
+      return;
+    }
+    if (AI_ADAPT.tierSave && !p.aiPush) return;
+  }
+  // v0.22d: once the opponent is a tier ahead or its gold lies idle (sold-out stock), Hardo needs only a small cushion above the boss price (game 2: it
+  // stayed in tier 1 for 44 rounds because "boss cost + one round of income" grew faster than its savings).
+  // Buying it early or saving up for it lost in self-play.
   if (game.round >= 8 && !p.towers.some((t) => obj(t.typeId)?.support === "lumber") && random(game) < persona.expGen * 0.1) {
     const gen = obj("h01F"),
       maze = mazePlan(game, p, aiLevel(game, p));
@@ -5273,7 +5358,7 @@ function think(game, p) {
       return;
     }
   }
-  if (!p.aiPush && game.round >= (persona.smartPush ? 4 : 6) && random(game) < persona.push * 0.12) {
+  if (!p.aiPush && game.round >= (persona.smartPush ? 4 : 6) && random(game) < persona.push * 0.12 * (interval / 10) ** (persona.adaptive ? 1 : 0) && !(persona.adaptive && p.tier === 1 && p.aiStyle !== "punish" && !p.aiStyle?.startsWith("punish"))) {
     const plan = persona.smartPush ? breakthroughPlan(game, p, enemy, persona) : legacyPushPlan(game, p, enemy, persona);
     if (plan) {
       p.aiPush = plan;
@@ -5405,8 +5490,10 @@ function breakthroughPlan(game, p, enemy, persona, onlyId = null) {
     const stock = p.stock[s.id];
     if (!stock) continue;
     const hp = hpOf(s),
-      cap = persona.armorAware ? capacityVs(game, p, enemy, s) : s.flying ? theirs.air : theirs.ground,
-      n = Math.max(2, Math.ceil((cap * (persona.pushMargin ?? 1.35) + 1) / Math.max(1, hp))),
+      unit = obj(s.spawnIds[0]),
+      quick = persona.speedAware && !s.flying ? clamp(AI_SAVE.refSpeed / Math.max(60, unit?.speed || AI_SAVE.refSpeed), 0.4, 1) : 1, // v0.22b: fast creeps need fewer
+      cap = (persona.armorAware ? capacityVs(game, p, enemy, s) : s.flying ? theirs.air : theirs.ground) * quick,
+      n = Math.max(2, Math.ceil((cap * (persona.pushMargin ?? 1.35) * (persona.adaptive && s.flying ? AI_ADAPT.airMargin : 1) + 1) / Math.max(1, hp))),
       reachable = Math.min(stockMaxOf(p, s), stock.count + Math.floor((rounds * game.incomeInterval) / Math.max(0.5, s.stockRegen || 1)));
     if (n > reachable || n * s.cost > budget) continue;
     const price = n * (s.cost - s.income * 2);

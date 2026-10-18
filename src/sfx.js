@@ -165,12 +165,29 @@ export function createSfx() {
       hiss({ dur: 1.0, gain: 0.06, freq: 260, q: 1.6, delay: 0.05, sweep: 0.6 });
       tone({ type: "sine", from: 80, to: 36, dur: 0.6, gain: 0.14, delay: 0.85 });
     },
+    // v0.22d: Hardo unlocked — a sinister pipe-organ phrase in D minor (mordent, then a falling run onto a low chord)
+    hardo: () => {
+      const organ = (midi, at, dur, gain = 0.03) => {
+        const f = 440 * 2 ** ((midi - 69) / 12);
+        // drawbars: fundamental, octave, twelfth, sub-octave
+        [[1, 1, "sine"], [2, 0.6, "sine"], [3, 0.35, "sine"], [0.5, 0.5, "triangle"], [4, 0.18, "square"]].forEach(([k, g, type]) =>
+          tone({ type, from: f * k, to: f * k * 0.999, dur, gain: gain * g, delay: at, attack: 0.03 }),
+        );
+      };
+      const line = [[81, 0, 0.12], [79, 0.12, 0.12], [81, 0.24, 0.7], [79, 1.05, 0.11], [77, 1.16, 0.11], [76, 1.27, 0.11], [74, 1.38, 0.11], [73, 1.49, 0.35], [74, 1.9, 1.4]];
+      line.forEach(([m, at, d]) => {
+        organ(m, at, d + 0.08);
+        organ(m - 12, at, d + 0.08, 0.022);
+      });
+      [50, 53, 57, 38].forEach((m) => organ(m, 1.9, 1.9, 0.03)); // low D minor chord
+      hiss({ dur: 1.6, gain: 0.025, freq: 160, q: 0.6, delay: 1.9, sweep: 0.7 });
+    },
     error: () => tone({ type: "square", from: 180, to: 140, dur: 0.12, gain: 0.03 }),
     tier: () => [523, 659, 784, 1046].forEach((f, i) => tone({ type: "triangle", from: f, dur: 0.16, gain: 0.04, delay: i * 0.08 })),
     victory: () => [523, 659, 784, 1046, 1318].forEach((f, i) => tone({ type: "triangle", from: f, dur: 0.3, gain: 0.05, delay: i * 0.11 })),
     defeat: () => [392, 330, 262, 196].forEach((f, i) => tone({ type: "sine", from: f, dur: 0.35, gain: 0.05, delay: i * 0.16 })),
   };
-  const minGap = { growl: 0.8, unlock: 0.2, thunder: 0.22, pillar: 1, monsun: 1, golem: 0.5, volley: 0.5, kill: 0.07, tap: 0.03, built: 0.08, income: 0.3, leak: 0.12, bell: 1 };
+  const minGap = { hardo: 3, growl: 0.8, unlock: 0.2, thunder: 0.22, pillar: 1, monsun: 1, golem: 0.5, volley: 0.5, kill: 0.07, tap: 0.03, built: 0.08, income: 0.3, leak: 0.12, bell: 1 };
   return {
     play(name) {
       if (!enabled || !sounds[name]) return;
