@@ -1976,6 +1976,7 @@ function resolvePick(game, p, index) {
 }
 /** v0.15: the effect of one reward option (from the dialog, or granted by a quest). */
 function applyOption(game, p, option, level) {
+  skillEpoch++; // v0.21l: perks or research may change: tower skills are read anew
   const pick = { level };
   if (option.type === "quest") return acceptQuest(game, p, option.id);
   if (option.type === "element") {
@@ -2033,6 +2034,7 @@ function scholarTargets(p) {
     .map((id) => ({ type: "perk", id }));
 }
 function scholarUpgrade(game, p) {
+  skillEpoch++; // v0.21l: perks or research may change: tower skills are read anew
   const list = scholarTargets(p),
     done = [];
   for (let k = 0; k < SCHOLAR.upgrades && list.length; k++) {
@@ -2534,6 +2536,7 @@ export function command(game, input) {
   return result;
 }
 function runCommand(game, input) {
+  skillEpoch++; // v0.21l: perks or research may change: tower skills are read anew
   const type = input.type,
     playerIndex = input.player ?? 0,
     p = game.players[playerIndex];
@@ -2700,6 +2703,7 @@ function runCommand(game, input) {
 }
 
 function finishResearch(game, p, id) {
+  skillEpoch++; // v0.21l: perks or research may change: tower skills are read anew
   p.research[id] = (p.research[id] || 0) + 1;
   const element = FACTIONS.find((f) => f.research === id);
   if (element) {
@@ -2766,10 +2770,18 @@ function supergrowth(p, item) {
   if (!level || place < 1) return;
   (p.growth ||= {})[item.id] = Math.round(((p.growth[item.id] || 0) + SUPERGROWTH[level] / place) * 1e6) / 1e6;
 }
+// v0.21l: the sends of a tier, sorted once per catalog (asked for many times per tick); frozen, never changed by a caller
+const TIER_SENDS = new Map();
+let tierSendsCatalog = null;
 export function tierSends(tier) {
-  return getCatalog()
-    .sends.filter((s) => s.playable && s.tier === tier)
-    .sort((a, b) => Number(!!a.bossTier) - Number(!!b.bossTier) || a.cost - b.cost);
+  const catalog = getCatalog();
+  if (tierSendsCatalog !== catalog) {
+    TIER_SENDS.clear();
+    tierSendsCatalog = catalog;
+  }
+  if (!TIER_SENDS.has(tier))
+    TIER_SENDS.set(tier, Object.freeze(catalog.sends.filter((s) => s.playable && s.tier === tier).sort((a, b) => Number(!!a.bossTier) - Number(!!b.bossTier) || a.cost - b.cost)));
+  return TIER_SENDS.get(tier);
 }
 /**
  * Opening stock of a tier: the first three sends are ready at once and half full; in tiers 2-5 the
@@ -3140,6 +3152,21 @@ function aurasOf(unit) {
   }
   return list;
 }
+// v0.21l: the units of a lane that carry an aura at all (54 of 190 types), gathered once per tick.
+// Kept in a WeakMap so it never ends up in a saved or sent game state. auraAt() takes max/min
+// over its sources, so their order does not matter.
+const AURA_SOURCES = new WeakMap();
+function auraSources(game, p) {
+  const key = game.tick + ":" + p.creeps.length + ":" + p.towers.length;
+  let hit = AURA_SOURCES.get(p);
+  if (!hit || hit.key !== key) {
+    const list = [];
+    for (const u of p.towers) if (aurasOf(u).length) list.push(u);
+    for (const u of p.creeps) if (aurasOf(u).length) list.push(u);
+    AURA_SOURCES.set(p, (hit = { key, list }));
+  }
+  return hit.list;
+}
 function auraAt(game, target, owner, units) {
   let speedUp = 0,
     speedDown = 0,
@@ -3314,7 +3341,18 @@ function skillOf(a, level = 1) {
 /** Abilities whose effect the port now covers (shown as implemented in the card details). */
 const COVERED_BASES = new Set(["ANre", "Xfoc", "Xhwl", "Xlrs", "Xslr", "Xinf", "AHfa", "Avul", "Aslo", "ANca", "Aroc", "Afra", "AIcf", "Afbt", "AHbh", "AHab", "Adtg", "Abof", "Amgl", "ACat", "AUau", "ACes", "Ansk", "AIsr", "Apiv", "Arsk", "Aspt", "Asal", "Aimp"]);
 const VISUAL_ONLY = (a) => (a.baseId === "Aasl" && fval(a, "Slo1", 1) === 0) || ["Aroa", "Aeth"].includes(a.baseId) || a.id === "A06Z";
+// v0.21l: a tower's skills are asked for up to three times per tick: kept for that tick (WeakMap, never saved)
+const TOWER_SKILLS = new WeakMap();
+// bumped at every tick and every command, so a perk or research change is seen at once
+let skillEpoch = 0;
 function towerSkills(player, tower) {
+  const hit = TOWER_SKILLS.get(tower);
+  if (hit && hit.epoch === skillEpoch && hit.typeId === tower.typeId && hit.player === player) return hit.list;
+  const list = towerSkillsRaw(player, tower);
+  TOWER_SKILLS.set(tower, { epoch: skillEpoch, typeId: tower.typeId, player, list });
+  return list;
+}
+function towerSkillsRaw(player, tower) {
   return unitAbilities(tower)
     .map((a) => skillOf(a, abilityLevel(player, tower, a)))
     .filter((sk) => sk && sk.type !== "passive" && (!sk.requires?.length || meetRequirements(player, sk.requires.map((id) => ({ id, level: 1 }))).ok));
@@ -3688,12 +3726,15 @@ function applyOnHit(game, player, tower, target) {
     }
   }
 }
-function attack(game, p, tower, dt) {
+function attack(game, p, tower, dt, known = null) {
   const item = obj(tower.typeId);
   if (!item.attacks) return;
-  const stats = statsFor(game, p, item),
-    aura = auraAt(game, tower, p, p.towers.concat(p.creeps));
-  tower.trueshot = aura.trueshot; // v0.17p: drawn as a small crosshair
+  // v0.21l: stats come from the tower loop (computed there anyway); the aura only when the tower
+  // can shoot this tick or has a second weapon, plus every 10th tick for the Trueshot crosshair
+  const stats = known || statsFor(game, p, item),
+    needAura = item.weapon2 || tower.cooldown - dt <= 0 || game.tick % 10 === 0,
+    aura = needAura ? auraAt(game, tower, p, auraSources(game, p)) : null; // v0.21l
+  if (aura) tower.trueshot = aura.trueshot; // v0.17p: drawn as a small crosshair
   const cursed = tower.curse && tower.curse.until > game.time ? tower.curse.amount : 0;
   if (item.weapon2) secondWeapon(game, p, tower, item, stats, aura, dt, cursed);
   tower.cooldown -= dt;
@@ -3744,7 +3785,7 @@ function attack(game, p, tower, dt) {
     emit(game, "skill", { player: p.id, kind: "empower", x: target.x, y: target.y, towerId: tower.id });
   }
   const feedback = skills.find((sk) => sk.type === "feedback");
-  const victimAura = auraAt(game, target, game.players[target.owner], p.creeps.concat(p.towers));
+  const victimAura = auraAt(game, target, game.players[target.owner], auraSources(game, p)); // v0.21l
   // Corrosive auras (AHad) lower armor; strike() adds the creep's own shred and statuses.
   const dealt = strike(game, p, tower, target, damage + (feedback && target.summoned ? feedback.bonus : 0), item.attackType, false, victimAura.armor);
   applyOnHit(game, p, tower, target);
@@ -4032,7 +4073,7 @@ function moveCreep(game, p, c, dt) {
   }
   const slow = statusSlow(c.statuses),
     stunned = c.statuses.some((s) => s.stun),
-    aura = auraAt(game, c, game.players[c.owner], p.creeps.concat(p.towers));
+    aura = auraAt(game, c, game.players[c.owner], auraSources(game, p)); // v0.21l
   c.hp = Math.min(c.maxHp, c.hp + (c.regen + (aura.regen || 0)) * dt);
   c.auraArmor = aura.armor; // v0.17p: armor auras (Corrosive, Napalm, Creep Armor) count for every hit, not only the main target
   const curse = creepSkills(c).find((sk) => sk.type === "curse");
@@ -5493,6 +5534,7 @@ function fixedTick(game) {
   if (game.teams) teamSync(game); // v0.20: what this tick changed, for the whole team
 }
 function fixedTickInner(game) {
+  skillEpoch++; // v0.21l
   game.tick++;
   game.time = game.tick * TICK;
   game.incomeRemaining -= TICK;
@@ -5572,7 +5614,7 @@ function fixedTickInner(game) {
       const regen = isMagicTower(item) ? stats.mana / MAGIC_CHARGE_SECONDS : item.manaRegen,
         regenRate = 1 + Math.max(0, ...regenAuras.filter((m) => dist(game, m.t, t) <= m.sk.radius).map((m) => m.sk.rate)); // v0.17p
       t.mana = Math.min(stats.mana, t.mana + (regen + manaBonus) * regenRate * TICK);
-      attack(game, p, t, TICK);
+      attack(game, p, t, TICK, stats); // v0.21l: the stats just computed
       const tSkills = towerSkills(p, t);
       tickAreaDamage(game, p, t, tSkills);
       tickHowl(game, p, t, tSkills); // v0.17p

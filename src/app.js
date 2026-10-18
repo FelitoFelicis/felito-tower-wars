@@ -129,7 +129,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.21k",
+const APP_VERSION = "0.21l",
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "18.10.2026";
 // v0.18: the version also stands in the page title (browser tab and the artifact window in chats)
@@ -3675,29 +3675,43 @@ function markTopIncome(p, enemy) {
 }
 const matchClock = () =>
   game ? `${String(Math.floor(game.time / 60)).padStart(2, "0")}:${String(Math.floor(game.time % 60)).padStart(2, "0")}` : "00:00";
+// v0.21l: write to the page only what changed (refreshUI runs every 150 ms)
+let uiRefreshCount = 0;
+function setText(el, value) {
+  const v = String(value);
+  if (el && el.textContent !== v) el.textContent = v;
+}
+function setProp(el, name, value) {
+  const v = String(value);
+  if (el && el.getAttribute(name) !== v) el.setAttribute(name, v);
+}
+function setStyle(el, name, value) {
+  if (el && el.style[name] !== value) el.style[name] = value;
+}
 function refreshUI() {
   if (!game) return;
+  uiRefreshCount++;
   const p = game.players[own],
     enemy = game.players[rivalIndex()];
   if (enemy.id !== shownRival) {
     shownRival = enemy.id;
     applyColors();
   }
-  $("gold").textContent = resourceNumber(Math.floor(p.gold));
-  $("gold").title = format(Math.floor(p.gold)) + " Gold";
-  $("income").textContent = "+" + resourceNumber(p.income + (p.incomeDecimal || 0) / 100);
-  $("income").title = t("+{n} income", { n: format(p.income + (p.incomeDecimal || 0) / 100) });
+  setText($("gold"), resourceNumber(Math.floor(p.gold)));
+  setProp($("gold"), "title", format(Math.floor(p.gold)) + " Gold");
+  setText($("income"), "+" + resourceNumber(p.income + (p.incomeDecimal || 0) / 100));
+  setProp($("income"), "title", t("+{n} income", { n: format(p.income + (p.incomeDecimal || 0) / 100) }));
   bumpNumber("own-lives", p.lives);
   // whole numbers only (v0.07j); v0.20: in team games what the player gets each round from the shared team income
   const incomeOf = (pl) => "+" + resourceNumber(Math.floor(!game.teams ? pl.income : game.teams.gold === "shared" ? teamIncome(game, pl) : teamIncome(game, pl) / Math.max(1, teamMates(game, pl).length)));
-  $("gold-income").textContent = incomeOf(p);
-  $("own-gold").textContent = resourceNumber(Math.floor(p.gold));
-  $("own-income").textContent = incomeOf(p);
-  $("rival-gold").textContent = resourceNumber(Math.floor(enemy.gold));
-  $("rival-income").textContent = incomeOf(enemy);
+  setText($("gold-income"), incomeOf(p));
+  setText($("own-gold"), resourceNumber(Math.floor(p.gold)));
+  setText($("own-income"), incomeOf(p));
+  setText($("rival-gold"), resourceNumber(Math.floor(enemy.gold)));
+  setText($("rival-income"), incomeOf(enemy));
   for (const [prefix, pl] of [["own", p], ["rival", enemy]]) {
-    $(prefix + "-exp").style.width = `${Math.min(100, (100 * pl.exp) / Math.max(1, pl.expNext))}%`;
-    $(prefix + "-level").textContent = pl.level;
+    setStyle($(prefix + "-exp"), "width", `${Math.min(100, (100 * pl.exp) / Math.max(1, pl.expNext))}%`); // v0.21l: only on change
+    setText($(prefix + "-level"), pl.level);
   }
   refreshLevelButton(p);
   refreshVolley(p);
@@ -3723,16 +3737,16 @@ function refreshUI() {
   updateNudge(p);
   const secs = Math.max(0, Math.ceil(game.incomeRemaining));
   const manualPause = uiPauses.has("manual") && game.paused; // v0.18h
-  $("income-time").textContent = manualPause ? "II" : secs;
+  setText($("income-time"), manualPause ? "II" : secs);
   $("income-time").classList.toggle("soon", secs <= 3 && !game.paused && game.running);
   document.querySelector(".round-plate")?.classList.toggle("manual-pause", manualPause);
-  if ($("menu-clock")) $("menu-clock").textContent = matchClock();
-  $("income-ring").style.strokeDashoffset = 106.82 * (1 - Math.min(1, game.incomeRemaining / (game.warmup ? 12 : 15)));
-  $("match-clock").textContent = matchClock();
-  $("speed-label").textContent = game.paused ? "PAUSE" : game.warmup ? t("WARM UP") : "LIVE";
+  if ($("menu-clock")) setText($("menu-clock"), matchClock());
+  setStyle($("income-ring"), "strokeDashoffset", String(106.82 * (1 - Math.min(1, game.incomeRemaining / (game.warmup ? 12 : 15)))));
+  setText($("match-clock"), matchClock());
+  setText($("speed-label"), game.paused ? "PAUSE" : game.warmup ? t("WARM UP") : "LIVE");
   $("speed-button").hidden = !!room || !begun;
   if (room || !begun) gameSpeed = 1;
-  $("speed-button").textContent = gameSpeed + "×";
+  setText($("speed-button"), gameSpeed + "×");
   $("speed-button").classList.toggle("fast", gameSpeed > 1);
   const ownPlate = document.querySelector(".player-plate.own .plate-name");
   if (ownPlate && ownPlate.textContent !== myName()) ownPlate.textContent = myName();
@@ -3746,18 +3760,18 @@ function refreshUI() {
         : sessionMode === "online"
           ? onlineName(enemy) || seatName(enemy.id) || t("Enemy")
           : t(own === 0 ? "Player 2" : "Player 1");
-  $("rival-sub").textContent = t(sessionMode === "training" || sessionMode === "ffa" ? "AI" : sessionMode === "hotseat" ? "Local" : connected ? "Connected" : "Connecting …");
-  $("arena-label").textContent = view === own ? t("Your arena") : isFfa() || sessionMode === "online" ? seatName(view) : t("Enemy"); // v0.14
-  $("view-button").textContent = t(tab !== "build" ? "Back" : view === own ? "Enemy" : "Back");
+  setText($("rival-sub"), t(sessionMode === "training" || sessionMode === "ffa" ? "AI" : sessionMode === "hotseat" ? "Local" : connected ? "Connected" : "Connecting …"));
+  setText($("arena-label"), view === own ? t("Your arena") : isFfa() || sessionMode === "online" ? seatName(view) : t("Enemy")); // v0.14
+  setText($("view-button"), t(tab !== "build" ? "Back" : view === own ? "Enemy" : "Back"));
   $("view-button").classList.toggle("active", view !== own);
   const goal = game.mission?.goal; // v0.17: survive N rounds / win by round N
-  $("round-label").textContent = game.warmup
+  setText($("round-label"), game.warmup
     ? t("Warm up")
     : goal?.survive
       ? t("Round {n}/{m}", { n: game.round, m: goal.survive })
       : goal?.deadline
         ? t("Round {n}/{m}", { n: game.round, m: goal.deadline })
-        : t("Round {n}", { n: game.round });
+        : t("Round {n}", { n: game.round }));
   refreshWaveChip(p);
   $("arena-hint").textContent =
     tab !== "build" || view !== own
@@ -3774,7 +3788,7 @@ function refreshUI() {
       label = priceLabel(item);
     b.classList.toggle("unaffordable", !a.ok);
     b.classList.toggle("poor", isPoor(a));
-    b.querySelector(".price").textContent = label;
+    setText(b.querySelector(".price"), label); // v0.21l: DOM writes only on change
     b.querySelector(".price").classList.toggle("free", isFreeLabel(label));
     const note = item.kind === "send" ? b.querySelector(".card-note") : null;
     if (note) {
@@ -3783,11 +3797,16 @@ function refreshUI() {
       if (note.textContent !== text) note.textContent = text;
       note.classList.toggle("buffed", inc > item.income + 0.004);
     }
-    b.querySelector(".card-status").textContent = cardStatus(item);
+    setText(b.querySelector(".card-status"), cardStatus(item));
     if (item.kind === "send" && !game.players[own].out) cardLock(b, Math.max(game.warmup ? 1 : 0, lockRoundsLeft(game, game.players[own].stock[item.id]))); // v0.15/v0.17
     const stock = b.querySelector(".card-stock");
-    if (stock) stock.textContent = stockCount(item);
-    b.setAttribute("aria-label", `${itemName(item)}, ${label}, ${cardHint(item)}${a.ok ? "" : ", " + t(a.reason)}`);
+    if (stock) setText(stock, stockCount(item));
+    // v0.21l: the spoken label needs the card text, which is costly: rebuilt when price or state change, else every 4th refresh
+    const ariaKey = label + "|" + a.ok + "|" + (a.reason || "");
+    if (b.dataset.ariaKey !== ariaKey || uiRefreshCount % 4 === 0) {
+      b.dataset.ariaKey = ariaKey;
+      setProp(b, "aria-label", `${itemName(item)}, ${label}, ${cardHint(item)}${a.ok ? "" : ", " + t(a.reason)}`);
+    }
   });
   refreshAutoSend();
 }
