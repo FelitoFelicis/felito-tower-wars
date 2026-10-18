@@ -1805,7 +1805,7 @@ export const PERK_AVAILABILITY = {
   golem: "3+",
   permafrost: "3+",
   wings: "3+",
-  hellfire: "2-4", // v0.19b1: Lava Floor
+  hellfire: "2-8", // v0.19b1: Lava Floor; v0.21j: levels 2–8
   burst: "3+",
   pocks: "3+",
   treasure: "6,9", // v0.19k→l: also on level 6
@@ -2668,11 +2668,7 @@ function runCommand(game, input) {
     p.incomeDecimal += decimal;
     p.income += Math.trunc(p.incomeDecimal / 100);
     p.incomeDecimal %= 100;
-    // v0.18e: an Orc restocks one Goblin at once (up to the Goblin's stock limit, not while locked)
-    if (id === "n00M") {
-      const g = p.stock.n00E;
-      if (g && !(g.lockRound > game.round) && g.count < stockMaxOf(p, obj("n00E"))) g.count++;
-    }
+    // v0.21j: Call the Peons (an Orc restocked one Goblin, v0.18e) removed
     supergrowth(p, item); // v0.20c
     if (id === "n00Y") p.treantCount++; // v0.10w: EXP now on the treant's death, burning from purchase 21
     if (id === "n01D") {

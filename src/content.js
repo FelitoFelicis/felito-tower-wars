@@ -530,7 +530,6 @@ export const CUSTOM_ABILITIES = [
   { id: "XA05", baseId: "AIcf", custom: true, fields: { anam: { 0: "Phoenix Fire" }, aare: { 1: 192 }, aub1: { 1: "Deals 350 damage per second\nRange 192\nTargets Ground & Air" } } },
   // v0.18b: Earth Laser: Focus Fire. While the tower keeps hitting the same creep, its damage rises by 10 % every 0.25 s, up to 500 %.
   // v0.18e: Orc: buying one restocks one Goblin at once (display only; the restock runs in simulation.js)
-  { id: "XA07", baseId: "Xinf", custom: true, fields: { anam: { 0: "Call the Peons" }, aub1: { 1: "When bought: restocks 1 Goblin" } } },
   { id: "XA06", baseId: "Xfoc", custom: true, step: 0.1, interval: 0.25, max: 5, fields: { anam: { 0: "Focus Fire" }, aub1: { 1: "Damage +10% every 0.25 s while attacking the same target, up to 500%" } } },
 ];
 /**
@@ -552,7 +551,9 @@ const ABILITY_PATCH = {
   A03M: speedAura(0.2), // Demon Hunter, Lord Garithos
 };
 /** Removed everywhere: Critical Shot (Bird Hunter, v0.18a), Blitz Weapon + its lightning (Bash Tower), Poison Weapon (Death Knight), the air halves of Endurance Aura, every Unholy Aura. */
-const REMOVED_ABILITIES = new Set(["A05Q", "A00P", "A01W", "A02S", "A06K", "A08E", "A08G", "A08I", "A09R", "A0D3", "A06X", "A09O"]);
+const REMOVED_ABILITIES = new Set(["A05Q", "A00P", "A01W", "A02S", "A06K", "A08E", "A08G", "A08I", "A09R", "A0D3", "A06X", "A09O",
+  // v0.21j: Detector removed from every tower, and with it invisibility (Eredar Warlock A0B2, Warden Apiv)
+  "A025", "A04N", "A05C", "A06I", "A007", "A0BB", "A0BI", "A0B2", "Apiv"]);
 /** v0.18b: towers taken out of the game (Archangel); no tower upgrades into them any more. */
 const REMOVED_UNITS = new Set(["h022"]);
 const upgradeIds = (s) => splitIds(s).filter((id) => !REMOVED_UNITS.has(id));
@@ -592,7 +593,7 @@ export const CREEP_TUNING = {
   n00E: { income: 1, cost: 5, stockMax: 18 }, // Goblin: income 1.17 → 1 (v0.07g), cost 6 → 5 (v0.07h); peon companion removed (v0.07i); stock 16 → 18 (v0.08b)
   n007: { cost: 10, income: 1.9 }, // Horse: cost 12 → 10, income 2 → 1.9 (v0.08b)
   n00K: { income: 3.5 }, // Gnoll: income 3 → 3.5 (v0.08d)
-  n00M: { hp: 312, count: 1, bountyBase: 11, name: "[06] Orc", shortName: "Orc", abilities: ["A01A", "XA02", "XA07"] }, // Grunt → Orc (v0.17b): hit points +30 %, 120 → 156 (v0.09s); Siege Resistance 33 % (v0.17b); v0.18e: one Orc per purchase (heavy), hit points 156 → 312, bounty 5+1d1 → 11+1d1 (12 per purchase as before), restocks 1 Goblin
+  n00M: { hp: 312, count: 1, bountyBase: 11, name: "[06] Orc", shortName: "Orc", abilities: ["A01A", "XA02"] }, // Grunt → Orc (v0.17b): hit points +30 %, 120 → 156 (v0.09s); Siege Resistance 33 % (v0.17b); v0.18e: one Orc per purchase (heavy), hit points 156 → 312, bounty 5+1d1 → 11+1d1 (12 per purchase as before), restocks 1 Goblin
   n00R: { abilities: ["A01A", "XA01"] }, // Skeleton: Arrow Resistance now 33 % less damage from Archer-line towers (v0.17b, was: ignores 1 ranged damage)
   n00N: { hp: 180, abilities: ["A01A", "XA03"] }, // Necromancer: hit points 170 → 180 (v0.17f); Unholy Aura removed, Deathrattle shown (v0.17g)
   n00P: { hp: 85, speed: 138.56, stockRegen: 11 }, // Flying Sheep: hit points 80 → 85, speed 1.06 → 1.08 fields/s (v0.17b); restock 10 → 11 s (v0.17o)
