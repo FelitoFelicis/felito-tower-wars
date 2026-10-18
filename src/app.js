@@ -129,7 +129,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.21j",
+const APP_VERSION = "0.21k",
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "18.10.2026";
 // v0.18: the version also stands in the page title (browser tab and the artifact window in chats)
@@ -1196,7 +1196,7 @@ const researchCopy = {
   R002: ["Melee Protocol", "Attackspeed for melee."],
   R006: ["Magic Bank", "Interest on Gold. Paid out start of each round."],
   R00C: ["Unholy Frenzy", "Attackspeed for all towers."],
-  R00D: ["Spirit Wolves", "Wolves every round. Wolves give income."],
+  R00D: ["Spirit Wolves", "1 Spirit Wolf per round, stronger every level. It gives income."],
 };
 /** v0.19a1: the short tooltips of the reworked perks, with the value of the given level. */
 const pctOf = (x) => format(Math.round(x * 1000) / 10) + "%";
@@ -1204,7 +1204,7 @@ const REWORK_HINT = {
   R005: (lv) => t("Footman and Bombard-line +{v} damage", { v: pctOf(HEAVY_WEAPONS * lv) }), // v0.19j
   R002: (lv) => t("Melee attack speed +{v}", { v: pctOf(MELEE_PROTOCOL * lv) }), // v0.19l: shorter
   R00V: (lv) => t("Creeps +{v} HP", { v: pctOf(LEADERSHIP * lv) }),
-  R00D: (lv) => t("{n} Spirit Wolves per round, they give income", { n: lv }),
+  R00D: () => t("1 Spirit Wolf per round, stronger every level. It gives income"), // v0.21k
   R00C: (lv) => t("All towers attack speed +{v}", { v: pctOf(FRENZY * lv) }),
   R001: (lv) => t("Creep HP +{a}, creep income +{b}", { a: pctOf(HEALING.hp * lv), b: pctOf(HEALING.income * lv) }), // v0.20c
   R006: (lv) => t("{v} interest on your gold at the start of each round", { v: pctOf(BANK.rate * lv) }),
@@ -1225,10 +1225,13 @@ function itemName(item) {
 function cardAction(item) {
   return item.kind === "send" ? "send" : item.kind === "research" ? "research" : item.isRoot ? "build" : "upgrade";
 }
+/** v0.21k: a former upgrade's level is its perk's level now (the research level is gone since v0.21). */
+const researchLevel = (q, id) => (RESEARCH_PERKS[id] ? q?.perks?.[RESEARCH_PERKS[id]] || 0 : q?.research?.[id] || 0);
+const researchCap = (item) => (RESEARCH_PERKS[item.id] ? PERKS[RESEARCH_PERKS[item.id]]?.max || 1 : researchMax(item));
 function cardHint(item, current = false) {
   // v0.19a1: reworked perks show the value of the next level (owned tiles: the current one)
-  const have = game?.players[own]?.research?.[item.id] || 0,
-    lvNow = Math.max(1, Math.min(researchMax(item), current ? have : have + 1));
+  const have = researchLevel(game?.players[own], item.id),
+    lvNow = Math.max(1, Math.min(researchCap(item), current ? have : have + 1));
   if (REWORK_HINT[item.id]) return REWORK_HINT[item.id](lvNow);
   if (item.id === "R00K") {
     // v0.16g: the value of the next level instead of a list of all levels
@@ -1312,7 +1315,7 @@ function cardStatus(item) {
     if (lockRoundsLeft(game, stock) > 0) return ""; // v0.15: the lock shows the rounds
     if (stock && stock.count < 1) return `${Math.max(1, Math.ceil(stock.next - game.time))}s`;
   }
-  const level = p.research[item.id] || 0;
+  const level = researchLevel(p, item.id); // v0.21k
   return item.kind === "research" && level ? t("Level {n}", { n: level }) : "";
 }
 function setUiPause(reason, value) {
@@ -4366,7 +4369,7 @@ function showTower(towerOrId) {
 }
 function researchDetail(id) {
   const item = catalog.byId[id],
-    owned = (game.players[own].research?.[id] || 0) > 0;
+    owned = researchLevel(game.players[own], id) > 0; // v0.21k
   showModal(
     `${modalHeader(itemName(item))}<img class="modal-hero" src="${researchArt(item)}" alt=""><p class="modal-copy">${valHtml(cardHint(item))}</p><div class="rule-row"><strong>${t(owned ? "Already unlocked" : "Level reward")}</strong>${t(owned ? "Active in this match." : "Upgrades come with level-ups: collect EXP from breakthroughs, creeps and EXP generators.")}</div><details class="info-disclosure"><summary>${t("Exact values")}</summary><p class="modal-copy">${esc(item.description).replace(/\n/g, "<br>")}</p></details><button class="primary-button" data-close>${t("Back")}</button>`,
   );

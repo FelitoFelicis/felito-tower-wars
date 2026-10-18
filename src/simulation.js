@@ -917,7 +917,7 @@ export const PERKS = Object.freeze({
   heavy: { name: "Heavy Weapons", max: 20, element: "earth", text: "Footman and Bombard-line +{heavy} damage" },
   bank: { name: "Magic Bank", max: 10, element: "arcane", text: "{bank} interest on your gold at the start of each round" },
   frenzy: { name: "Unholy Frenzy", max: 20, element: "plague", text: "All towers attack speed +{frenzy}" },
-  wolves: { name: "Spirit Wolves", max: 10, element: "arcane", text: "{wolves} Spirit Wolves per round, they give income" },
+  wolves: { name: "Spirit Wolves", max: 10, element: "arcane", text: "1 Spirit Wolf per round, stronger every level. It gives income" }, // v0.21k: one wolf per round
   firearrows: { name: "Fire Arrows", max: 20, element: "fire", text: "Arrow-line +{firearrows} damage" }, // v0.21c: tooltip
   forge: { name: "Creep Forge", max: 3, element: "fire", text: "6th creep of every tier {forge} cheaper, recruits 12% faster" }, // v0.21c
 });
@@ -3294,6 +3294,10 @@ function skillOf(a, level = 1) {
       sk = { type: "spawnOnDeath", id, count: fval(a, "Sod1", level, 1) };
       break;
     }
+    case "Xslr":
+      // v0.21k: own ability: the creep is slowed less (Warden, Eredar Warlock)
+      sk = { type: "slowResist", value: a.resist || 0 };
+      break;
     case "Xlrs":
       // v0.17b: own ability (content.js CUSTOM_ABILITIES): less damage from one tower line
       sk = { type: "lineResist", root: a.line, reduce: a.reduce || 0 };
@@ -3308,7 +3312,7 @@ function skillOf(a, level = 1) {
   return sk;
 }
 /** Abilities whose effect the port now covers (shown as implemented in the card details). */
-const COVERED_BASES = new Set(["ANre", "Xfoc", "Xhwl", "Xlrs", "Xinf", "AHfa", "Avul", "Aslo", "ANca", "Aroc", "Afra", "AIcf", "Afbt", "AHbh", "AHab", "Adtg", "Abof", "Amgl", "ACat", "AUau", "ACes", "Ansk", "AIsr", "Apiv", "Arsk", "Aspt", "Asal", "Aimp"]);
+const COVERED_BASES = new Set(["ANre", "Xfoc", "Xhwl", "Xlrs", "Xslr", "Xinf", "AHfa", "Avul", "Aslo", "ANca", "Aroc", "Afra", "AIcf", "Afbt", "AHbh", "AHab", "Adtg", "Abof", "Amgl", "ACat", "AUau", "ACes", "Ansk", "AIsr", "Apiv", "Arsk", "Aspt", "Asal", "Aimp"]);
 const VISUAL_ONLY = (a) => (a.baseId === "Aasl" && fval(a, "Slo1", 1) === 0) || ["Aroa", "Aeth"].includes(a.baseId) || a.id === "A06Z";
 function towerSkills(player, tower) {
   return unitAbilities(tower)
@@ -3532,7 +3536,7 @@ function chargedSpecial(game, p, tower, target) {
       const pool = p.creeps.filter((c) => !c.dead && c.hp > 0 && dist(game, tower, c) <= 896);
       for (let i = 0; i < 5 && pool.length; i++) {
         const c = pool.splice(Math.floor(random(game) * pool.length), 1)[0];
-        c.speed *= 0.85;
+        if ((c.shrink || 0) < 3) c.speed *= 0.85; // v0.21k: at most 3 shrinks slow the creep (was: every cast, without limit)
         c.shrink = Math.min(3, (c.shrink || 0) + 1);
       }
       break;
@@ -4062,7 +4066,7 @@ function moveCreep(game, p, c, dt) {
   // This equals clamp(original speed with modifiers,24,1000)*modeMultiplier.
   const mobility = movementMultiplier(game);
   // v0.10r: Red Boots of the sender: ground creeps 25 % less slowed per level
-  const boots = c.flying || c.owner < 0 ? 1 : bootsResist(game.players[c.owner]);
+  const boots = (c.flying || c.owner < 0 ? 1 : bootsResist(game.players[c.owner])) * (1 - (creepSkills(c).find((sk) => sk.type === "slowResist")?.value || 0)); // v0.21k: Slow Resistance
   const frozen = c.flying ? 1 : 1 - 0.04 * perkLevel(p, "permafrost") * boots; // v0.10o: Permafrost of the defender
   const auraSpeed = aura.speed < 1 ? 1 - (1 - aura.speed) * boots : aura.speed; // v0.17n: Red Boots also soften aura slows
   // v0.18h: Backup Line mist / Low Tides water of the defender (Red Boots soften the slow part)
@@ -4109,7 +4113,7 @@ function moveCreep(game, p, c, dt) {
   }
 }
 
-/** v0.19a1: Spirit Wolves: one wolf per perk level and round; each one adds its income for good. */
+/** v0.19a1: Spirit Wolves: one wolf per round (v0.21k; was one per perk level); each one adds its income for good. */
 function spawnSpiritWolves(game, p, level) {
   const id = WOLVES.ids[Math.max(1, Math.min(WOLVES.ids.length, p.tier || 1)) - 1],
     item = obj(id);
@@ -4120,7 +4124,7 @@ function spawnSpiritWolves(game, p, level) {
     hpFlat = WOLVES.hpPerTier * ((p.tier || 1) - 1) * roundHp,
     speedMul = 1 + WOLVES.speed * (level - 1) + WOLVES.speedPerLevel * (p.level || 1) + WOLVES.speedPerTier * ((p.tier || 1) - 1),
     share = game.round <= WOLVES.early ? WOLVES.earlyIncome : 1;
-  for (let i = 0; i < level; i++) {
+  for (let i = 0; i < 1; i++) { // v0.21k: one wolf per round at every level (was one per perk level)
     const wolf = spawnCreep(game, p.id, id);
     if (!wolf) break;
     Object.assign(wolf, { summoned: true, spiritWolf: true, magicVuln: WOLVES.magic, hpMul: hpMul * roundHp, speedMul });

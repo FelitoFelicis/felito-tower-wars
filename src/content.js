@@ -523,6 +523,7 @@ export function configureContent(data) {
 export const CUSTOM_ABILITIES = [
   { id: "XA01", baseId: "Xlrs", custom: true, line: "h003", reduce: 0.33, fields: { anam: { 0: "Arrow Resistance" }, aub1: { 1: "Takes 33% less damage from Archer-line towers" } } },
   { id: "XA02", baseId: "Xlrs", custom: true, line: "h02R", reduce: 0.33, fields: { anam: { 0: "Siege Resistance" }, aub1: { 1: "Takes 33% less damage from Bombard-line towers" } } },
+  { id: "XA08", baseId: "Xslr", custom: true, resist: 0.4, fields: { anam: { 0: "Slow Resistance" }, aub1: { 1: "40% less slowed" } } }, // v0.21k: Warden, Eredar Warlock
   { id: "XA03", baseId: "Xinf", custom: true, fields: { anam: { 0: "Deathrattle" }, aub1: { 1: "Summons 3 Skeletons on death" } } }, // v0.17g: display only (the spawn runs through DEATH_PLANS)
   // v0.17p: Pit Lord tower: Howl. When creeps come near it howls: creeps within 1.5 fields are slowed and take more tower damage for 12 s.
   { id: "XA04", baseId: "Xhwl", custom: true, radius: 192, slow: 0.25, amp: 0.2, duration: 12, cooldown: 20, fields: { anam: { 0: "Howl" }, aub1: { 1: "Creeps within 1.5 fields: 25% slower, +20% tower damage for 12 s" } } },
@@ -549,6 +550,10 @@ const ABILITY_PATCH = {
   A03P: speedAura(0.15), // Grom Hellscream
   A01U: speedAura(0.18), // Cairne Bloodhoof
   A03M: speedAura(0.2), // Demon Hunter, Lord Garithos
+  // v0.21k: Fire Archer Multi Shot one arrow per tower level (level 3: 3 without the ability, 4 / 5 / 6 here; was 3 / 4 / 5)
+  A02E: { fields: { aub1: { 1: "Shoots |c00FFFF004|r arrows simultaneously" } } },
+  A03G: { fields: { aub1: { 1: "Shoots |c00FFFF005|r arrows simultaneously" } } },
+  A05G: { fields: { aub1: { 1: "Shoots |c00FFFF006|r arrows simultaneously" } } },
 };
 /** Removed everywhere: Critical Shot (Bird Hunter, v0.18a), Blitz Weapon + its lightning (Bash Tower), Poison Weapon (Death Knight), the air halves of Endurance Aura, every Unholy Aura. */
 const REMOVED_ABILITIES = new Set(["A05Q", "A00P", "A01W", "A02S", "A06K", "A08E", "A08G", "A08I", "A09R", "A0D3", "A06X", "A09O",
@@ -569,7 +574,7 @@ const UNIT_ABILITY_SWAP = {
   h03Z: { A0BG: "XA06" },
 };
 /** Per unit: abilities added in front. */
-const UNIT_ABILITY_ADD = {};
+const UNIT_ABILITY_ADD = { n02P: ["XA08"], n01R: ["XA08"] }; // v0.21k: Slow Resistance for Warden and Eredar Warlock
 /**
  * v0.18a: tower damage buffs in percent of the average damage, rounded up to the next whole number.
  * The difference is added to the flat damage part, so the dice spread stays the same.
@@ -590,6 +595,8 @@ function applyTowerDamageBuff(byId) {
   }
 }
 export const CREEP_TUNING = {
+  n02P: { hp: 90000 }, // Warden: +50 % hit points, 60000 → 90000 (v0.21k)
+  n01R: { hp: 30000 }, // Eredar Warlock: +50 % hit points, 20000 → 30000 (v0.21k)
   n00E: { income: 1, cost: 5, stockMax: 18 }, // Goblin: income 1.17 → 1 (v0.07g), cost 6 → 5 (v0.07h); peon companion removed (v0.07i); stock 16 → 18 (v0.08b)
   n007: { cost: 10, income: 1.9 }, // Horse: cost 12 → 10, income 2 → 1.9 (v0.08b)
   n00K: { income: 3.5 }, // Gnoll: income 3 → 3.5 (v0.08d)
