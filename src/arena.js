@@ -218,6 +218,8 @@ export function pipGeometry(z) {
  * Towers draw 5 % smaller than their field. Levels 1–3 stay nearly the same size; from level 4 a
  * figure grows slowly (v0.08a: level 5 now has the size level 3 had, level 7 that of level 5 …).
  */
+/** v0.21o: the shimmering tier aura round towers of level 4 and up (off on the user's request). */
+const TIER_AURA = false;
 const TOWER_SCALE = 0.95;
 const LEVEL_SCALE = [0.92, 0.92, 0.925, 0.93, 0.965, 1, 1.04, 1.08, 1.12, 1.16];
 const levelScale = (level) => LEVEL_SCALE[Math.max(1, Math.min(9, level | 0))];
@@ -1434,8 +1436,9 @@ export function mountArena({
           glow.strokeCircle(cx, cy - tc * 0.05, (burn / game.grid.cellUnits) * cell);
         }
         // tier aura: silver, gold, violet, prismatic for the top figures
+        // v0.21o: the tier aura (silver / gold / violet / prismatic from level 4) is switched off
         const tier = towerTier(def);
-        if (tier >= 4 && !building) {
+        if (TIER_AURA && tier >= 4 && !building) {
           const colors = { 4: 0xa8d8ff, 5: 0xffcf5a, 6: 0xc68cff },
             hue = (time * 0.00012 + phase * 0.05) % 1,
             color = tier >= 7 ? hsvToColor(hue, 0.55, 1) : colors[tier],
