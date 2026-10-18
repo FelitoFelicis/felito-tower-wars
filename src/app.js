@@ -129,7 +129,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.21f",
+const APP_VERSION = "0.21g",
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "18.10.2026";
 // v0.18: the version also stands in the page title (browser tab and the artifact window in chats)
@@ -1604,7 +1604,7 @@ function perkBuffRow(item, who) {
     .map((b) => {
       const name = b.research ? itemName(catalog.byId[b.id]) : t(PERKS[b.id].name), // v0.19a1: research perks too
         img = b.research ? researchArt(catalog.byId[b.id]) : PERK_ART[b.id]();
-      return `<span class="tip-icon" title="${esc(`${name}: ${t(b.text)}`)}"><img src="${img}" alt="${esc(name)}">${b.level > 1 ? `<b>${b.level}</b>` : ""}</span>`;
+      return `<span class="tip-icon" data-buff-name="${esc(name)}" data-buff-level="${b.level || 1}" data-buff-text="${esc(t(b.text))}"><img src="${img}" alt="${esc(name)}">${b.level > 1 ? `<b>${b.level}</b>` : ""}</span>`; // v0.21g: own hover tooltip
     })
     .join("")}</div>`;
 }
@@ -1727,34 +1727,69 @@ function hideTowerTip() {
   towerTipOn = false;
   clearTimeout(towerTipTimer);
   if (!helpFor) helpTip.hidden = true;
+  buffTip.hidden = true; // v0.21g
 }
 document.addEventListener("pointerdown", hideTowerTip, true);
 function hideHelp() {
   helpFor = null;
   helpTip.hidden = true;
+  buffTip.hidden = true; // v0.21g
   clearTimeout(helpTimer);
 }
+// ---- v0.21g: the perk icons in a tower tooltip get their own small tooltip on hover --------------
+// The main tooltip stays open while the pointer crosses the short gap to it and rests on its icons.
+const buffTip = Object.assign(document.createElement("div"), { className: "help-tip stats buff-tip", hidden: true });
+buffTip.setAttribute("role", "tooltip");
+document.body.append(buffTip);
+let tipGrace = 0;
+const graceHide = () => {
+  clearTimeout(tipGrace);
+  tipGrace = setTimeout(() => {
+    if (helpFor && !helpTip.matches(":hover") && !helpFor.matches?.(":hover")) hideHelp();
+  }, 300);
+};
+helpTip.addEventListener("pointerover", (e) => {
+  const icon = e.target.closest?.(".tip-buffs .tip-icon");
+  clearTimeout(tipGrace);
+  if (!icon) return;
+  buffTip.innerHTML =
+    `<div class="tip-head"><b>${icon.dataset.buffName}</b><span class="tip-level">${esc(t("Level {n}", { n: icon.dataset.buffLevel }))}</span></div>` +
+    `<div class="tip-text">${valHtml(icon.dataset.buffText)}</div>`;
+  buffTip.hidden = false;
+  const r = icon.getBoundingClientRect(),
+    w = buffTip.offsetWidth,
+    h = buffTip.offsetHeight;
+  buffTip.style.left = Math.max(6, Math.min(innerWidth - w - 6, r.left + r.width / 2 - w / 2)) + "px";
+  buffTip.style.top = (r.top - h - 6 >= 6 ? r.top - h - 6 : r.bottom + 6) + "px";
+});
+helpTip.addEventListener("pointerout", (e) => {
+  if (e.target.closest?.(".tip-buffs .tip-icon") && !e.target.closest(".tip-icon").contains(e.relatedTarget)) buffTip.hidden = true;
+  if (!helpTip.contains(e.relatedTarget) && !(helpFor && helpFor.contains(e.relatedTarget))) graceHide();
+});
 const helpTarget = (e) => (e.target.closest?.("dialog") ? null : e.target.closest?.("[data-help], button, [role=button], [data-card], [data-upgrade]"));
 // v0.15: in the PC version, resting the mouse on a card shows its values without help mode
 let pcTipTimer = 0;
 document.addEventListener("pointerover", (e) => {
   if (e.pointerType === "touch") return;
+  if (helpTip.contains(e.target) || buffTip.contains(e.target)) return; // v0.21g: resting on the tooltip's own icons
   if (!helpMode) {
     if (controlMode !== "pc") return;
     let card = e.target.closest?.("dialog") ? null : e.target.closest?.("[data-card], [data-upgrade], .enemy-cell, .player-plate.rival:not(.multi), .player-plate.own, #auto-slot"); // v0.18b: enemy info windows too; v0.19k: own window and the auto-spawn slot
     // v0.17g: creep cards show their tooltip only with tooltips switched on (the ? button)
     if (card?.dataset.card && catalog?.byId[card.dataset.card]?.kind === "send") card = null;
     clearTimeout(pcTipTimer);
-    if (!card) return helpFor && hideHelp();
+    if (!card) return helpFor && graceHide(); // v0.21g: a short grace period to reach the tooltip's icons
+    clearTimeout(tipGrace);
     if (card !== helpFor) pcTipTimer = setTimeout(() => card.isConnected && card.matches(":hover") && showHelp(card), 320);
     return;
   }
   const el = helpTarget(e);
+  clearTimeout(tipGrace);
   if (el && el !== helpFor) showHelp(el);
-  else if (!el) hideHelp();
+  else if (!el) graceHide();
 });
 document.addEventListener("pointerout", (e) => {
-  if ((helpMode || controlMode === "pc") && helpFor && !helpFor.contains(e.relatedTarget)) hideHelp();
+  if ((helpMode || controlMode === "pc") && helpFor && !helpFor.contains(e.relatedTarget) && !helpTip.contains(e.relatedTarget)) graceHide(); // v0.21g
 });
 // Touch has no hover: in help mode a tap also shows the tip for a moment.
 document.addEventListener("pointerdown", (e) => {
@@ -4123,10 +4158,10 @@ function firstBlood(e) {
   const mine = e.player === own;
   if (mine) hudPop("#own-level", `+${e.exp ?? 50} EXP`, "exp");
   const pop = document.createElement("div");
-  pop.className = "first-blood" + (e.kind ? " " + e.kind : "");
+  pop.className = "first-blood ach-splat" + (e.kind ? " " + e.kind : "");
   pop.innerHTML = `<svg viewBox="0 0 200 120" aria-hidden="true"><path d="M100 8c14 0 18 14 30 10s22-6 26 6-8 18 4 24 30 4 28 18-20 10-26 18 6 22-8 26-20-8-30-2-10 12-24 10-14-12-26-14-24 10-34 0 4-18-6-26-28-6-30-20 16-14 20-22-10-18 2-26 22 4 30-2S86 8 100 8Z" fill="#9e0b0b"/><circle cx="18" cy="30" r="5" fill="#9e0b0b"/><circle cx="186" cy="92" r="6" fill="#9e0b0b"/><circle cx="168" cy="14" r="3.5" fill="#9e0b0b"/><circle cx="34" cy="104" r="4" fill="#9e0b0b"/><path d="M60 100q2 14 0 18M128 104q3 10 1 14" stroke="#9e0b0b" stroke-width="5" stroke-linecap="round"/></svg><b>${t(e.name ? e.name + "!" : "First Blood!")}</b><small><span class="fb-name" style="--fb:${TEAM_COLORS[seatColors()[e.player]]?.css || "#ffd2c4"}">${esc(playerName(game.players[e.player]))}</span><span class="fb-exp">+${e.exp ?? 50} EXP</span></small>`; // v0.17: name larger, in the player's colour
   $("app")?.appendChild(pop) || document.body.appendChild(pop);
-  setTimeout(() => pop.remove(), 1900); // v0.17g: splats fade out after 1.5 s
+  setTimeout(() => pop.remove(), 2100); // v0.17g: splats fade out after 1.5 s; v0.21g: achievement splats 0.2 s longer
   sfx.play("firstBlood");
   haptic([60, 40, 90]);
 }
@@ -4156,11 +4191,11 @@ function towerSplat(e) {
   if (e.player === own) hudPop("#own-level", `+${e.exp} EXP`, "exp");
   const color = TEAM_COLORS[seatColors()[e.player]]?.css || "#ffd2c4",
     pop = document.createElement("div");
-  pop.className = `tower-splat ts-${e.frame || "bronze"}`;
+  pop.className = `tower-splat ach-splat ts-${e.frame || "bronze"}`;
   // v0.19k: a drawn pictogram of a medieval tower (taller and grander from Constructor to Tycoon), not a unit picture
   pop.innerHTML = `<span class="ts-frame">${towerPictogram(e.frame)}</span><b>${esc(t(e.name))}!</b><small><span class="fb-name" style="--fb:${color}">${esc(playerName(game.players[e.player]))}</span><span class="fb-exp">+${e.exp} EXP</span></small>`;
   $("app")?.appendChild(pop) || document.body.appendChild(pop);
-  setTimeout(() => pop.remove(), 1900);
+  setTimeout(() => pop.remove(), 2100); // v0.21g
   sfx.play(e.frame === "gold" ? "victory" : "tier");
 }
 /**

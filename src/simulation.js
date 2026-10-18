@@ -906,18 +906,18 @@ export const PERKS = Object.freeze({
   sanction: { name: "Sanction Policy", max: 1, element: "arcane", text: "Every 2nd creep locked for 30 rounds, other creeps +15% income. Abilities cooldown 15% faster permanently" }, // v0.19h1: no gold, cooldown 15 % (the tier boss is still locked)
   monsun: { name: "Monsun", max: 5, element: "storm", text: "Active ability: Push creeps back for {monsun} s, lightning strikes flyers" },
   // v0.21: the former level-up upgrades (Warcraft researches) are ordinary perks now. "element" = needs that
-  // element (as before); "look" = only the element frame and card-book section, no requirement (as before).
+  // element. v0.21g: every one of them needs its element now (before, six only wore the element's frame).
   owl: { name: "Watcher Owl", max: 5, element: "storm", text: "Archer-line +{owl} range" },
-  carmor: { name: "Creep Armor", max: 20, look: "earth", text: "Creep HP +{carmorHp}, income +{carmorInc}" },
-  leadership: { name: "Leadership", max: 20, look: "fire", text: "Creeps +{leadership} HP" },
-  tailwind: { name: "Tailwind", max: 10, look: "storm", text: "Creep Speed +{tailwind}" },
-  mind: { name: "Mind Control", max: 10, look: "plague", text: "Creep HP +{mindHp}, speed +{mindSpeed}" },
-  medicine: { name: "Creep Medicine", max: 20, look: "water", text: "Creep HP +{medHp}, creep income +{medInc}" },
+  carmor: { name: "Creep Armor", max: 20, element: "earth", text: "Creep HP +{carmorHp}, income +{carmorInc}" },
+  leadership: { name: "Leadership", max: 20, element: "fire", text: "Creeps +{leadership} HP" },
+  tailwind: { name: "Tailwind", max: 10, element: "storm", text: "Creep Speed +{tailwind}" },
+  mind: { name: "Mind Control", max: 10, element: "plague", text: "Creep HP +{mindHp}, speed +{mindSpeed}" },
+  medicine: { name: "Creep Medicine", max: 20, element: "water", text: "Creep HP +{medHp}, creep income +{medInc}" },
   melee: { name: "Melee Protocol", max: 20, element: "water", text: "Melee attack speed +{melee}" },
   heavy: { name: "Heavy Weapons", max: 20, element: "earth", text: "Footman and Bombard-line +{heavy} damage" },
   bank: { name: "Magic Bank", max: 10, element: "arcane", text: "{bank} interest on your gold at the start of each round" },
   frenzy: { name: "Unholy Frenzy", max: 20, element: "plague", text: "All towers attack speed +{frenzy}" },
-  wolves: { name: "Spirit Wolves", max: 10, look: "arcane", text: "{wolves} Spirit Wolves per round, they give income" },
+  wolves: { name: "Spirit Wolves", max: 10, element: "arcane", text: "{wolves} Spirit Wolves per round, they give income" },
   firearrows: { name: "Fire Arrows", max: 20, element: "fire", text: "Arrow-line +{firearrows} damage" }, // v0.21c: tooltip
   forge: { name: "Creep Forge", max: 3, element: "fire", text: "6th creep of every tier {forge} cheaper, recruits 12% faster" }, // v0.21c
 });

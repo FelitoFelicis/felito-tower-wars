@@ -7195,3 +7195,18 @@ p.room-opts { text-align: center; }
 }
 /* v0.21f: card book, Perks tab: the "Neutral" heading in white */
 .perk-book.book-neutral h3 { color: #fff; }
+/* v0.21g: the perk icons in a tower tooltip can be hovered for their own small tooltip */
+.help-tip .tip-buffs .tip-icon { pointer-events: auto; cursor: help; }
+.help-tip.buff-tip { z-index: 9100; max-width: min(200px, calc(100vw - 12px)); }
+/* v0.21g: achievement splats (First Blood, Bloodthirst, Bloodrage, Constructor …): 0.2 s longer, 2 % less see-through */
+.first-blood.ach-splat,
+.tower-splat.ach-splat { animation: ach-splat 2.1s ease-out forwards; }
+@keyframes ach-splat {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(2.2) rotate(-8deg); }
+  11.4% { opacity: 0.72; transform: translate(-50%, -50%) scale(0.92) rotate(2deg); }
+  16.2% { transform: translate(-52%, -50%) scale(1.04) rotate(-2deg); }
+  20.5% { transform: translate(-48%, -50%) scale(1) rotate(1deg); }
+  25.2% { transform: translate(-50%, -50%) scale(1) rotate(0); }
+  81% { opacity: 0.72; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -46%) scale(1.06); }
+}
