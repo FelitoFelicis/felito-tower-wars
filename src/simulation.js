@@ -869,8 +869,8 @@ export const PERKS = Object.freeze({
   gold: { name: "Gold", max: 1, powerup: true, text: "Instantly +{gold} gold" }, // v0.10u: powerup = instant reward, no tile once taken
   novice: { name: "Novice", max: 5, text: "Increases EXP gain +{novice}. Next EXP generator is free" }, // v0.19g1: 20 / 35 / 50 / 60 / 70 %, every level one free level 1 EXP generator
   volley: { name: "Arrow Volley", max: 5, text: "Arrows rain on an area dealing {volleyDmg} damage each" }, // v0.20e: shorter tooltip
-  wings: { name: "Wings of War", max: 5, element: "storm", text: "Flying creeps +{wingsHp} HP, +{wingsSpeed} speed, +{wingsInc} income" }, // v0.10p
-  hellfire: { name: "Lava Floor", max: 5, element: "fire", text: "Creeps in your 6th row burn for {hellfire} damage per second" }, // v0.10p, v0.16g
+  wings: { name: "Wings of War", max: 10, element: "storm", text: "Flying creeps +{wingsHp} HP, +{wingsSpeed} speed, +{wingsInc} income" }, // v0.10p
+  hellfire: { name: "Lava Floor", max: 10, element: "fire", text: "Creeps in your 6th row burn for {hellfire} damage per second" }, // v0.10p, v0.16g
   burst: { name: "Arcane Burst", max: 5, element: "arcane", text: "Active ability: {burst} damage, split among the creeps in an area" }, // v0.10p
   treasure: { name: "Gold Treasure", max: 1, powerup: true, text: "Instantly +{treasure} gold and +{treasureInc} income" }, // v0.10r; v0.19e2: +20 % gold, +60 income (doubled when far behind)
   voltage: { name: "High Voltage", max: 20, element: "storm", unpopular: 0.5, text: "EXP generators are {voltage} more efficient" }, // v0.10r; v0.19j: tooltip
@@ -889,7 +889,7 @@ export const PERKS = Object.freeze({
   lone: { name: "Last Guardians", max: 1, text: "All towers attack 125% faster while you own 5 towers or fewer" }, // v0.20c: no bracket note; v0.16h: back to the v0.13 effect; v0.19g1: was Lone Guardians
   manufacture: { name: "Creep Manufacture", max: 3, element: "earth", text: "8th creep of every tier {manufacture} cheaper, recruits 15% faster" }, // v0.20d: Earth, 8th creep
   synthesizer: { name: "Creep Synthesizer", max: 3, element: "water", text: "4th creep of every tier {synthesizer} cheaper, recruits 12% faster" }, // v0.20d
-  scholar: { name: "Scholar", max: 3, element: "arcane", text: "Upgrades 2 of your non-Arcane perks. EXP gain +{scholar}" }, // v0.20d
+  scholar: { name: "Scholar", max: 10, element: "arcane", text: "Upgrades 2 of your non-Arcane perks. EXP gain +{scholar}" }, // v0.20d
   summon: { name: "Summon Tower", max: 1, element: "arcane", powerup: true, text: "Summons a random level 1-3 tower on a free field" }, // v0.20c: no bracket note
   nobility: { name: "Heavy Nobility", max: 3, element: "earth", text: "Heavy creeps {nobility} cheaper, +{nobilityHp} HP, restock 10% faster" },
   breeding: { name: "Breeding Pools", max: 3, element: "plague", text: "Deathrattles have {breeding} chance to spawn an extra creep. Summoned creeps +{breedingHp} HP" }, // v0.19j: tooltip
@@ -898,7 +898,7 @@ export const PERKS = Object.freeze({
   agolem: { name: "Arcane Golem", max: 5, element: "arcane", text: "Active ability: a golem walks up your path, knocks creeps back, then runs on to the next lane" },
   // v0.14: two new perks
   slave: { name: "Slave Labour", max: 3, element: "plague", text: "1st creep of every tier: +{slaveStock} max stock, recruits {slaveSpeed} faster" },
-  guardian: { name: "River Guardian", max: 5, element: "water", text: "Every {guardCd} s your strongest new creep gets a water shield of {guardShield} HP, magic damage −{guardMagic} while it holds" },
+  guardian: { name: "River Guardian", max: 10, element: "water", text: "Every {guardCd} s your strongest new creep gets a water shield of {guardShield} HP, magic damage −{guardMagic} while it holds" },
   // v0.18h: four new perks; "unpopular" = the share by which the offer chance drops after each refusal
   quarry: { name: "Quarry", max: 1, element: "earth", powerup: true, unpopular: 0.5, text: "Instantly +100 gold and 8 stones on your field. Clear them all for a random Earth perk" },
   backup: { name: "Backup Line", max: 1, element: "storm", unpopular: 0.5, text: "Ranged towers +30% damage while your top 3 rows hold no tower" },
@@ -916,7 +916,7 @@ export const PERKS = Object.freeze({
   melee: { name: "Melee Protocol", max: 20, element: "water", text: "Melee attack speed +{melee}" },
   heavy: { name: "Heavy Weapons", max: 20, element: "earth", text: "Footman and Bombard-line +{heavy} damage" },
   bank: { name: "Magic Bank", max: 10, element: "arcane", text: "{bank} interest on your gold at the start of each round" },
-  frenzy: { name: "Unholy Frenzy", max: 10, element: "plague", text: "All towers attack speed +{frenzy}" },
+  frenzy: { name: "Unholy Frenzy", max: 20, element: "plague", text: "All towers attack speed +{frenzy}" },
   wolves: { name: "Spirit Wolves", max: 10, look: "arcane", text: "{wolves} Spirit Wolves per round, they give income" },
   firearrows: { name: "Fire Arrows", max: 20, element: "fire", text: "Arrow-line +{firearrows} damage" }, // v0.21c: tooltip
   forge: { name: "Creep Forge", max: 3, element: "fire", text: "6th creep of every tier {forge} cheaper, recruits 12% faster" }, // v0.21c
@@ -1061,7 +1061,7 @@ export const GUARDIAN = { cooldown: 15, window: 1.2, shield: 0.12, shieldPerLeve
 export const guardShare = (level) => GUARDIAN.shield + GUARDIAN.shieldPerLevel * level; // (before v0.20c)
 /** v0.20c: River Guardian shield HP from perk level, the player's tier and the round (no longer from the creep's HP). */
 export const GUARD_TIER = [100, 600, 2400, 6000, 12000, 24000];
-export const guardShieldHp = (p, game, level = Math.min(5, perkLevel(p, "guardian"))) =>
+export const guardShieldHp = (p, game, level = Math.min(10, perkLevel(p, "guardian"))) => // v0.21e: up to level 10
   Math.round(GUARD_TIER[Math.max(1, Math.min(GUARD_TIER.length, p?.tier || 1)) - 1] * (1 + 0.5 * (Math.max(1, level) - 1)) * (1 + 0.005 * Math.max(0, game?.round || 0))); // v0.20d: +0.5 % per round
 export const guardMagic = (level) => GUARDIAN.magic + GUARDIAN.magicPerLevel * level;
 function guardianSend(game, p) {
@@ -1077,7 +1077,7 @@ function tickGuardian(game, p) {
     for (const c of q.creeps)
       if (c.owner === p.id && !c.dead && c.hp > 0 && !c.wave && !c.guard && c.bornTick >= w.fromTick && (!best || c.maxHp > best.maxHp)) best = c;
   if (!best) return; // nothing left to buff: the next send opens a new window
-  const level = Math.min(5, perkLevel(p, "guardian")),
+  const level = Math.min(10, perkLevel(p, "guardian")), // v0.21e
     hp = guardShieldHp(p, game, level); // v0.20c
   best.guard = { hp, max: hp, magic: guardMagic(level) };
   p.guardReady = game.time + GUARDIAN.cooldown;
@@ -1763,7 +1763,7 @@ export function expNeeded(level) {
 }
 function gainExp(game, p, amount) {
   if (!(amount > 0)) return;
-  amount *= 1 + NOVICE[Math.min(5, perkLevel(p, "novice"))] + SCHOLAR.exp * Math.min(3, perkLevel(p, "scholar")); // v0.19g1: Novice 20 / 35 / 50 / 60 / 70 %; v0.20d: Scholar +10 % per level
+  amount *= 1 + NOVICE[Math.min(5, perkLevel(p, "novice"))] + SCHOLAR.exp * Math.min(10, perkLevel(p, "scholar")); // v0.21e: up to level 10 // v0.19g1: Novice 20 / 35 / 50 / 60 / 70 %; v0.20d: Scholar +10 % per level
   p.exp += amount;
   p.stats.expEarned += amount;
   while (p.level < MAX_LEVEL && p.exp >= p.expNext) {
