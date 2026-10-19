@@ -1096,6 +1096,12 @@ dialog[open] {
   object-fit: contain;
   filter: drop-shadow(0 6px 6px #000a);
 }
+/* v0.22n2: required elements on the info dialog's picture, upper left */
+.modal-hero-wrap { position: relative; width: fit-content; max-width: 70%; margin: 2px auto; }
+.modal-hero-wrap .modal-hero { max-width: 100%; margin: 0 auto; }
+.hero-elements { position: absolute; top: 0; left: -4px; display: flex; flex-direction: column; gap: 4px; }
+.hero-el { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: radial-gradient(color-mix(in srgb, var(--el) 35%, #0b1822) 60%, #0b1822); box-shadow: 0 0 0 1.5px var(--el), 0 2px 4px #000a; }
+.hero-el img { width: 20px; height: 20px; object-fit: contain; }
 .modal-kicker {
   font: 800 13px var(--font-display);
   letter-spacing: 0.14em;
@@ -5278,7 +5284,7 @@ dialog.welcome-modal.hard-eyes .welcome-eyes {
   opacity: 0.55;
   min-height: 0;
 }
-.tt-node.tt-ref img {
+.tt-node.tt-ref > img { /* v0.22n2: only the picture, not the gold icon in the price */
   width: 26px;
   height: 26px;
 }
@@ -5657,6 +5663,11 @@ dialog.welcome-modal.hard-eyes .welcome-eyes {
   background-clip: text;
   color: transparent;
   -webkit-text-stroke-color: #2a0400;
+}
+/* v0.22g1: tower line names ("Archer-Line") in white */
+.line-name {
+  color: #fff;
+  font-weight: 700;
 }
 /* v0.16k: values inside tooltips and perk texts in gold */
 b.val {
@@ -7195,6 +7206,9 @@ p.room-opts { text-align: center; }
 }
 /* v0.21f: card book, Perks tab: the "Neutral" heading in white */
 .perk-book.book-neutral h3 { color: #fff; }
+/* v0.22h1: card book, Perks tab: headings 5 % larger, elements as an icon before their heading */
+.perk-book > h3 { font-size: 14.7px; display: flex; align-items: center; gap: 6px; }
+.perk-book > h3 .book-el-icon { width: 1.6em; height: 1.6em; object-fit: contain; flex: none; filter: drop-shadow(0 1px 1px #0008); }
 /* v0.21g: the perk icons in a tower tooltip can be hovered for their own small tooltip */
 .help-tip .tip-buffs .tip-icon { pointer-events: auto; cursor: help; }
 .help-tip.buff-tip { z-index: 9100; max-width: min(200px, calc(100vw - 12px)); }
@@ -7310,7 +7324,10 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
 /* v0.22e: Hardo menu: note, "just you and Hardo", count fade; speech bubble in matches */
 .hardo-note { margin: 6px 4px 2px; color: #e3c8ff; font: 600 12.5px/1.35 var(--font-body, system-ui); text-align: center; text-shadow: 0 0 6px #7a2fd0aa; animation: hardo-rise 0.6s ease-out both; }
 .segmented.ai-count .hardo-just { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 0 8px; color: #f0e2ff; font: 800 15px var(--font-display); letter-spacing: 0.03em; }
-.segmented.ai-count .hardo-just b { display: grid; place-items: center; width: 38px; height: 34px; border-radius: 9px; background: linear-gradient(#b67bff, #6a24c9); color: #fff; box-shadow: inset 0 1px 0 #fff8, 0 0 10px #a45cff88; }
+.segmented.ai-count .hardo-just button { flex: none; width: 44px; min-height: 36px; padding: 0; }
+/* v0.22g: disabled count buttons (Hardo mode) keep their colour but are greyed out like other disabled buttons */
+#modal-body.hardo-still { overflow: hidden; } /* v0.22m2: no scroll bar while Hardo's buttons fall and slam */
+.segmented.ai-count button:disabled { filter: grayscale(1) brightness(0.6); opacity: 0.55; cursor: not-allowed; pointer-events: none; }
 .segmented.ai-count.hardo-count-out { transition: opacity 0.42s ease; opacity: 0; }
 .segmented.ai-count.hardo-count-in { animation: hardo-rise 0.6s ease-out both; }
 .hardo-bubble {
@@ -7323,3 +7340,36 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
 .hardo-bubble::after { content: ""; position: absolute; top: -6px; right: 24px; border: 6px solid transparent; border-top: 0; border-bottom-color: #1d0b38; }
 .hardo-bubble.out { transition: opacity 0.6s ease, transform 0.6s ease; opacity: 0; transform: translateY(-4px); }
 @keyframes hardo-talk-in { 0% { opacity: 0; transform: translateY(-6px) scale(0.92); } 100% { opacity: 1; transform: none; } }
+
+/* v0.22n2: two creeps fewer per tier: 5 cards per row, a little larger, a few px free left and right */
+.game-shell[data-page="send"] .cards.five {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  column-gap: 5px;
+  padding-left: 7px;
+  padding-right: 7px;
+}
+
+/* v0.22u2: tier next to the level in the player windows */
+.plate-exp .plate-tier {
+  font-style: normal;
+  margin-left: 5px;
+  color: #ffd57a;
+}
+.plate-exp .plate-tier b {
+  color: #ffe9b0;
+}
+.ec-level .ec-tier {
+  margin-left: 4px;
+  font: 800 9px/1 var(--font-display);
+  letter-spacing: 0.04em;
+  color: #ffd57a;
+  text-shadow: 0 1px 0 #000;
+}
+.ec-level .ec-tier b {
+  color: #ffe9b0;
+}
+.enemy-stack[data-count="5"] .ec-tier,
+.enemy-stack[data-count="6"] .ec-tier,
+.enemy-stack[data-count="7"] .ec-tier {
+  display: none;
+}

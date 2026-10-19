@@ -15,10 +15,10 @@ const C = {
 };
 // tower lines (their roots; every upgrade of a root belongs to its line)
 const T = { archer: "h003", footman: "h000", cannon: "h02R", magic: "h03V", halls: "h05L", exp: "h01F" };
-const FLYERS = [C.sheep, C.machine, C.zeppelin, C.shade, C.batRider, C.voidWalker, C.frostWyrm, C.gryphon, C.blackDragon];
-const UNDEAD = [C.skeleton, C.necro, C.skelGrunt, C.zombie, C.skelMage, C.ghoul, C.acolyte, C.abomination, C.frostWyrm];
-const FAST = [C.wolf, C.raider, C.satyr, C.centaur, C.troll, C.felRaider, C.hound, C.dryad];
-const DEMONS = [C.imp, C.grunt, C.felRaider, C.hound, C.voidWalker, C.warlock, C.demonHunter, C.pitLord, C.satyr, C.marauder];
+const FLYERS = [C.sheep, C.machine, C.zeppelin, C.shade, C.voidWalker, C.frostWyrm, C.gryphon, C.blackDragon];
+const UNDEAD = [C.skeleton, C.necro, C.skelGrunt, C.zombie, C.ghoul, C.acolyte, C.abomination, C.frostWyrm];
+const FAST = [C.wolf, C.raider, C.centaur, C.troll, C.felRaider, C.hound, C.dryad];
+const DEMONS = [C.imp, C.grunt, C.felRaider, C.hound, C.voidWalker, C.demonHunter, C.pitLord, C.marauder];
 const elements = (a, b) => [a, b, ...["water", "fire", "earth", "storm", "arcane", "plague"].filter((e) => e !== a && e !== b)];
 
 export const MISSIONS = [

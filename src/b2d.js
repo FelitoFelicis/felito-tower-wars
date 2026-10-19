@@ -799,6 +799,11 @@ export class Text2D extends Image2D {
   setAlign(a) {
     return this._restyle("align", a);
   }
+  /** v0.22j1: outline colour and thickness (Bounty Bonus pop-ups get a thicker one). */
+  setStroke(color, thickness) {
+    this._restyle("stroke", color);
+    return this._restyle("strokeThickness", thickness);
+  }
   setBackgroundColor(c) {
     return this._restyle("backgroundColor", c);
   }

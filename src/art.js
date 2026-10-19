@@ -282,6 +282,7 @@ const CREEP_PATTERNS = [
   [/marauder/i, "creep-marauder", "creep-darkknight"],
   [/demon hunter|warden/i, "creep-demon-slayer", "creep-darkknight"],
   [/siren/i, "creep-siren", "creep-shaman"],
+  [/shieldbearer/i, "creep-spellbreaker", "creep-darkknight"], // v0.22o2: the former Spiritwalker carries a shield
   [/cairne|spiritwalker/i, "creep-minotaur", "creep-orc"],
   [/demon hound/i, "creep-hellhound", "creep-wolf"],
   [/sasquatch|wendigo|druid/i, "creep-yeti", "creep-wolf"],

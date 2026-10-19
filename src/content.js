@@ -57,6 +57,7 @@ export const RULES = {
 const SHOPS = ["H049", "H04A", "H04E", "H04B", "H04K", "H02K"];
 /** Researches a player can hold (elements, their upgrades, level rewards). */
 const PLAYER_RESEARCH = ["R00K", "R00M", "R00N", "R00O", "R00P", "R00Q", "R00R", "R00U", "R00V", "R00W", "R00X", "R001", "R002", "R005", "R006", "R00C", "R00D", "R00J"]; // v0.17b: Forged Arrows (R000) and Improved Construction (R013) removed
+export const REMOVED_SENDS = new Set(["n00Q", "n021", "n00Y", "n002", "n039", "n01R", "n02J", "n02P", "n01E", "n01B"]); // v0.22n2; v0.22o2: Bat Rider, Skeleton Mage
 const NO_INCOME = new Set(["n00Y", "n01H", "n01R", "n01T", "n02P", "n02Q", "n02R"]); // v0.21p: Ghoul (n01D) earns income now
 const NO_DECIMAL = new Set(["n00Y", "n01R", "n02N", "n01T", "n02P", "n02Q", "n02R"]);
 const TRIPLES = new Set(["n00P", "n00U", "n01L", "n01S", "n017"]);
@@ -259,6 +260,11 @@ export function configureContent(data) {
     unit.playable = (isTower || isSend) && unit.cost !== null && unit.hp !== null;
     if (!unit.playable && (isTower || isSend))
       unit.unavailableReason = "Warcraft base values for price or life are missing.";
+    // v0.22n2: taken out of the send tiers (2 per tier): Satyr, Alchemist, Treant, Rouge Wizard, Sasquatch, Eredar Warlock, Wendigo, Warden
+    if (isSend && REMOVED_SENDS.has(raw.id)) {
+      unit.playable = false;
+      unit.unavailableReason = "Removed from the game.";
+    }
     // The only sapper send (Witch Doctor) curses towers through its Slow ability; the port runs that curse.
     if (isSend && (f.utyp || "").includes("sapper") && !abilities.some((id) => rawAbilities.get(id)?.baseId === "Aslo")) {
       unit.playable = false;
@@ -460,7 +466,7 @@ export function configureContent(data) {
   if (byId.R00K) {
     byId.R00K.maxLevel = 3;
     byId.R00K.effects = [];
-    byId.R00K.description = "Archer-line towers: +0.5 / +0.33 / +0.25 fields range per level";
+    byId.R00K.description = "Archer-Line towers: +0.5 / +0.33 / +0.25 fields range per level";
     for (const u of allUnits) u.researchAffected = u.researchAffected.filter((id) => id !== "R00K");
     triggerResearch.add("R00K");
   }
@@ -473,7 +479,7 @@ export function configureContent(data) {
     triggerResearch.add(id);
   }
   for (const [id, max] of Object.entries({ R002: 20, R00V: 20, R00D: 10, R00C: 10, R001: 20, R006: 10, R00X: 10, R00W: 10, R00U: 10, R00K: 5 })) if (byId[id]) byId[id].maxLevel = max;
-  if (byId.R00K) byId.R00K.description = "Archer-line towers: +0.5 / +0.33 / +0.25 / +0.2 / +0.17 fields range per level";
+  if (byId.R00K) byId.R00K.description = "Archer-Line towers: +0.5 / +0.33 / +0.25 / +0.2 / +0.17 fields range per level";
   // v0.09d: the empty fire-tree steps and the "[Elemental] X" pages were removed from the data.
   for (const r of allResearch) {
     r.affectedUnits = allUnits.filter((u) => u.researchAffected.includes(r.id)).map((u) => u.id);
@@ -506,7 +512,7 @@ export function configureContent(data) {
     version: 1,
     factions: FACTIONS,
     towers: allUnits.filter((u) => u.isBuildable),
-    sends: allUnits.filter((u) => u.isSend).sort((a, b) => a.tier - b.tier || a.cost - b.cost),
+    sends: allUnits.filter((u) => u.isSend && !REMOVED_SENDS.has(u.id)).sort((a, b) => a.tier - b.tier || a.cost - b.cost),
     research: allResearch.filter((r) => r.playerResearch && !r.hidden),
     allResearch,
     allUnits,
@@ -543,8 +549,8 @@ export function configureContent(data) {
  * line's root tower: h003 Archer, h02R Bombard). simulation.js reads `line` and `reduce`.
  */
 export const CUSTOM_ABILITIES = [
-  { id: "XA01", baseId: "Xlrs", custom: true, line: "h003", reduce: 0.33, fields: { anam: { 0: "Arrow Resistance" }, aub1: { 1: "Takes 33% less damage from Archer-line towers" } } },
-  { id: "XA02", baseId: "Xlrs", custom: true, line: "h02R", reduce: 0.33, fields: { anam: { 0: "Siege Resistance" }, aub1: { 1: "Takes 33% less damage from Bombard-line towers" } } },
+  { id: "XA01", baseId: "Xlrs", custom: true, line: "h003", reduce: 0.33, fields: { anam: { 0: "Arrow Resistance" }, aub1: { 1: "Takes 33% less damage from Archer-Line towers" } } },
+  { id: "XA02", baseId: "Xlrs", custom: true, line: "h02R", reduce: 0.33, fields: { anam: { 0: "Siege Resistance" }, aub1: { 1: "Takes 33% less damage from Bombard-Line towers" } } },
   { id: "XA08", baseId: "Xslr", custom: true, resist: 0.4, fields: { anam: { 0: "Slow Resistance" }, aub1: { 1: "40% less slowed" } } }, // v0.21k: Warden, Eredar Warlock
   { id: "XA03", baseId: "Xinf", custom: true, fields: { anam: { 0: "Deathrattle" }, aub1: { 1: "Summons 3 Skeletons on death" } } }, // v0.17g: display only (the spawn runs through DEATH_PLANS)
   // v0.17p: Pit Lord tower: Howl. When creeps come near it howls: creeps within 1.5 fields are slowed and take more tower damage for 12 s.
@@ -557,7 +563,10 @@ export const CUSTOM_ABILITIES = [
   { id: "XA09", baseId: "Xinf", custom: true, fields: { anam: { 0: "EXP Bonus" }, aub1: { 1: "Gives you EXP when killed" } } },
   { id: "XA10", baseId: "Xinf", custom: true, fields: { anam: { 0: "Spawn Wisp" }, aub1: { 1: "Spawns a Wisp on death" } } },
   { id: "XA11", baseId: "Xinf", custom: true, fields: { anam: { 0: "Enrage" }, aub1: { 1: "Denies its first death and rises enraged" } } },
-  { id: "XA06", baseId: "Xfoc", custom: true, step: 0.1, interval: 0.25, max: 5, fields: { anam: { 0: "Focus Fire" }, aub1: { 1: "Damage +10% every 0.25 s while attacking the same target, up to 500%" } } },
+  // v0.22n2: Tier Boss (every tier boss golem) replaces Scale Armor, Nerf Resistance and Magic Resistance: debuffs last
+  // 50 % shorter, every tower attack does 1 / 5 / 10 / 20 / 30 less damage (never below 1; simulation.js TIER_BOSS)
+  { id: "XA12", baseId: "Xtbs", custom: true, fields: { anam: { 0: "Tier Boss" }, aub1: { 1: "Reduced damage from attacks, Debuffs last shorter" } } },
+  { id: "XA06", baseId: "Xfoc", custom: true, step: 0.09, interval: 0.25, max: 5, fields: { anam: { 0: "Focus Fire" }, aub1: { 1: "Damage +9% every 0.25 s while attacking the same target, up to 500%" } } },
 ];
 /**
  * v0.17p: ability fixes.
@@ -608,9 +617,15 @@ const UNIT_ABILITY_SWAP = {
   h03X: { A0BG: "XA06" },
   h03Y: { A0BG: "XA06" },
   h03Z: { A0BG: "XA06" },
+  // v0.22n2: the tier bosses lose Scale Armor, Nerf Resistance and Magic Resistance (Tier Boss instead)
+  n00T: { A0CG: "", A05F: "", A01S: "" }, // Rock Golem
+  n015: { A05E: "", A05F: "", A01S: "" }, // Siege Golem
+  n01H: { A0D1: "", A05F: "", A01S: "" }, // Meat Golem
+  n01T: { A09P: "", A05F: "", A01S: "" }, // Infernal Golem
+  n02R: { A0D5: "", A05F: "" }, // Mountain Golem
 };
 /** Per unit: abilities added in front. */
-const UNIT_ABILITY_ADD = { n02P: ["XA08"], n01R: ["XA08"], n00Y: ["XA10", "XA09"], n01H: ["XA11"] }; // v0.21z: Treant EXP Bonus and Spawn Wisp, Meat Golem Enrage // v0.21k: Slow Resistance for Warden and Eredar Warlock
+const UNIT_ABILITY_ADD = { n02P: ["XA08"], n01R: ["XA08"], n00Y: ["XA10", "XA09"], n01H: ["XA11", "XA12"], n00T: ["XA12"], n015: ["XA12"], n01T: ["XA12"], n02R: ["XA12"] }; // v0.22n2: Tier Boss // v0.21z: Treant EXP Bonus and Spawn Wisp, Meat Golem Enrage // v0.21k: Slow Resistance for Warden and Eredar Warlock
 /**
  * v0.18a: tower damage buffs in percent of the average damage, rounded up to the next whole number.
  * The difference is added to the flat damage part, so the dice spread stays the same.
@@ -640,13 +655,17 @@ export const CREEP_TUNING = {
   n037: { hp: 2250 }, // Wizard 1500 → 2250
   n02P: { hp: 90000 }, // Warden: +50 % hit points, 60000 → 90000 (v0.21k)
   n01R: { hp: 30000 }, // Eredar Warlock: +50 % hit points, 20000 → 30000 (v0.21k)
-  n00E: { income: 1, cost: 5, stockMax: 18 }, // Goblin: income 1.17 → 1 (v0.07g), cost 6 → 5 (v0.07h); peon companion removed (v0.07i); stock 16 → 18 (v0.08b)
-  n007: { cost: 10, income: 1.9 }, // Horse: cost 12 → 10, income 2 → 1.9 (v0.08b)
-  n00K: { income: 3.5 }, // Gnoll: income 3 → 3.5 (v0.08d)
+  n00E: { income: 1, cost: 5, stockMax: 18, bountyBase: 0.85, bountyDice: 0 }, // v0.22h1: bounty 0.85 per Goblin (+70 % over the tier 1 average); // Goblin: income 1.17 → 1 (v0.07g), cost 6 → 5 (v0.07h); peon companion removed (v0.07i); stock 16 → 18 (v0.08b)
+  n007: { cost: 10, income: 1.9, bountyBase: 1.5, bountyDice: 0 }, // v0.22h1: bounty 1.5 per Horse (+50 %); // Horse: cost 12 → 10, income 2 → 1.9 (v0.08b)
+  n00K: { income: 3.5, bountyBase: 2.6, bountyDice: 0 }, // v0.22h1: bounty 2.6 per Gnoll (+30 %, was 0–5 at random); // Gnoll: income 3 → 3.5 (v0.08d)
   n00M: { hp: 280, speed: 180, stockRegen: 7, count: 1, bountyBase: 11, name: "[06] Orc", shortName: "Orc", abilities: ["A01A", "XA02"] }, // Grunt → Orc (v0.17b): hit points +30 %, 120 → 156 (v0.09s); Siege Resistance 33 % (v0.17b); v0.18e: one Orc per purchase (heavy), hit points 156 → 312, bounty 5+1d1 → 11+1d1 (12 per purchase as before), restocks 1 Goblin; v0.21m: hit points 312 → 300, speed 190 → 180 (−5 %); v0.21p: 280 hit points, restock 6 → 7 s
-  n00R: { abilities: ["A01A", "XA01"] }, // Skeleton: Arrow Resistance now 33 % less damage from Archer-line towers (v0.17b, was: ignores 1 ranged damage)
+  n00R: { abilities: ["A01A", "XA01"] }, // Skeleton: Arrow Resistance now 33 % less damage from Archer-Line towers (v0.17b, was: ignores 1 ranged damage)
   n00N: { hp: 185, abilities: ["A01A", "XA03"] }, // Necromancer: hit points 170 → 180 (v0.17f), 185 (v0.21p); Unholy Aura removed, Deathrattle shown (v0.17g)
   n00P: { hp: 85, speed: 138.56, stockRegen: 11 }, // Flying Sheep: hit points 80 → 85, speed 1.06 → 1.08 fields/s (v0.17b); restock 10 → 11 s (v0.17o)
+  n00U: { speed: 182.04 }, // v0.22n2: Imp 0.70 → 0.64 fields/s (game units before the arena's 45 %)
+  n00X: { speed: 284.44 }, // v0.22n2: Centaur Warrior 1.01 → 1.00 fields/s
+  n019: { cost: 2000, hp: 2100, income: 40 }, // v0.22o2: Shade 1200 → 2000 gold, hit points with it 1250 → 2100; v0.22p2: income 24 → 40
+  n01G: { name: "[34] Shieldbearer", shortName: "Shieldbearer" }, // v0.22o2: Spiritwalker → Shieldbearer (Divine Shield), art.js: shield knight
   n00L: { speed: 375 }, // Wolf: 25 % faster, 300 → 375 (v0.08d)
   n00S: { speed: 420, stockRegen: 13, income: 8 }, // Raider: 25 % faster (v0.07b); restock 12 → 13 s (v0.17o); income 9 → 8 (v0.17q)
   n01H: { hp: 46200 }, // Meat Golem: hit points +10 %, 42000 → 46200 (v0.21y); v0.21z: no death spawns, denies its first death and rises enraged (simulation.js ENRAGED_GOLEM)

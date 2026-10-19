@@ -1,4 +1,4 @@
-import { getStats, attackInfo, divineShield, isHeavy, isMagicTower, isMeleeTower, towerAt, towerSize, footprintOf, STRIP, HELLFIRE, LONE, loneCount, zoneOf, hpBarScale, tierSends } from "./simulation.js";
+import { getStats, attackInfo, divineShield, isHeavy, isMagicTower, isMeleeTower, towerAt, towerSize, footprintOf, STRIP, HELLFIRE, loneActive, zoneOf, hpBarScale, tierSends } from "./simulation.js";
 /** v0.19j: is this send one of the 4 most expensive non-boss creeps of its tier? (heavy HP-bar frame) */
 const TOP_FOUR = new Map();
 function topFour(def) {
@@ -10,6 +10,11 @@ function topFour(def) {
   return TOP_FOUR.get(def.id);
 }
 import { ART_MANIFEST, ANIM_MANIFEST, animUrl, artFor, artUrl, towerTier, TOWER_ART, CREEP_ART, TEAM_COLORS, CLOTH_COLORS, recolorTeam } from "./art.js";
+/** v0.22n2: mix a colour towards another (0 = black, 0xffffff = white) by k. */
+const metalTint = (hex, to, k) => {
+  const ch = (c, sh) => ((c >> sh) & 255) * (1 - k) + ((to >> sh) & 255) * k;
+  return (Math.round(ch(hex, 16)) << 16) | (Math.round(ch(hex, 8)) << 8) | Math.round(ch(hex, 0));
+};
 import { t } from "./i18n.js";
 import { Stage, BLEND, TINT, hsvToColor } from "./b2d.js";
 
@@ -427,6 +432,7 @@ export function mountArena({
       this.frameG = this.stage.graphics().setDepth(1);
       this.grout = this.stage.graphics().setDepth(4);
       this.pathLayer = this.stage.graphics().setDepth(5);
+      this.terrainFx = this.stage.graphics().setDepth(3.7); // v0.22h1: Frozen Ground ice and Hill Paths mud over the path tiles
       this.overlay = this.stage.graphics().setDepth(20);
       this.shadeG = this.stage.graphics().setDepth(4400);
       this.glow = this.stage.graphics().setDepth(4600).setBlendMode(BLEND.ADD);
@@ -860,8 +866,9 @@ export function mountArena({
     }
     drawPathTiles(player, z) {
       const path = player.path || [],
-        frozen = (player.perks?.permafrost || 0) > 0, // v0.10o: Permafrost turns the path to frozen ground
-        key = path.map((p) => p.gridX + "," + p.gridY).join(";") + "|" + this.terrainKey + (frozen ? "|ice" : "");
+        frozen = (player.perks?.permafrost || 0) > 0, // v0.10o: Frozen Ground (was Permafrost) turns the path to ice
+        hills = (player.perks?.hills || 0) > 0, // v0.22h1: Hill Paths: the upward steps become muddy hill trails
+        key = path.map((p) => p.gridX + "," + p.gridY).join(";") + "|" + this.terrainKey + (frozen ? "|ice" : "") + (hills ? "|hill" : "");
       if (key === this.pathKey) return;
       this.pathKey = key;
       const cell = z.cw;
@@ -878,7 +885,7 @@ export function mountArena({
           .setPosition(z.left + (p.gridX + 0.5) * cell, z.top + (p.gridY + 0.5) * cell)
           .setDisplaySize(cell + 0.6, cell + 0.6)
           .setAngle(Math.floor(hash(p.gridX, p.gridY, 7) * 4) * 90)
-          .setTint(frozen ? [0x8fc4f0, 0x9acbf2, 0x86bdea, 0x94c8f0][Math.floor(hash(p.gridX, p.gridY, 9) * 4)] : 0xffffff);
+          .setTint(frozen ? [0x5fa9e6, 0x6ab3ec, 0x58a2e0, 0x72b8ee][Math.floor(hash(p.gridX, p.gridY, 9) * 4)] : 0xffffff); // v0.22h1: deeper water blue
         // v0.10o: Permafrost: a pale ice sheen over the same tile
         let ice = this.iceTiles?.[i];
         if (frozen && !ice) {
@@ -890,15 +897,83 @@ export function mountArena({
             .setPosition(z.left + (p.gridX + 0.5) * cell, z.top + (p.gridY + 0.5) * cell)
             .setDisplaySize(cell + 0.6, cell + 0.6)
             .setAngle(Math.floor(hash(p.gridX, p.gridY, 7) * 4) * 90)
-            .setTint(0xc8ecff)
-            .setAlpha(0.26 + 0.1 * hash(p.gridX, p.gridY, 11));
+            .setTint(0xb4e4ff)
+            .setAlpha(0.34 + 0.1 * hash(p.gridX, p.gridY, 11));
         i++;
       }
       for (let k = i; k < (this.iceTiles?.length || 0); k++) this.iceTiles[k]?.setVisible(false);
+      this.drawTerrainFx(path, z, frozen, hills);
       for (; i < this.pathTiles.length; i++) this.pathTiles[i].setVisible(false);
     }
+    /**
+     * v0.22h1: path dressing. Frozen Ground: a glossy sheet of ice (water-blue wash, cracks, light streaks).
+     * Hill Paths: every tile of an upward step turns into a muddy hill trail with boulders along its sides.
+     */
+    drawTerrainFx(path, z, frozen, hills) {
+      const g = this.terrainFx,
+        cell = z.cw;
+      g.clear();
+      if (!frozen && !hills) return;
+      const inside = (p) => p.gridY >= 0 && p.gridY < z.logicalRows,
+        up = new Set();
+      if (hills)
+        for (let k = 1; k < path.length; k++)
+          if (path[k].gridY < path[k - 1].gridY) {
+            up.add(path[k - 1].gridX + "," + path[k - 1].gridY);
+            up.add(path[k].gridX + "," + path[k].gridY);
+          }
+      for (let k = 0; k < path.length; k++) {
+        const p = path[k];
+        if (!inside(p)) continue;
+        const x0 = z.left + p.gridX * cell,
+          y0 = z.top + p.gridY * cell,
+          h = (n) => hash(p.gridX, p.gridY, n);
+        if (up.has(p.gridX + "," + p.gridY)) {
+          // the trail runs up and down here: boulders sit left and right, otherwise above and below
+          const prev = path[k - 1],
+            next = path[k + 1],
+            vertical = (prev && prev.gridX === p.gridX) || (next && next.gridX === p.gridX);
+          g.fillStyle(0x6b4423, 0.42);
+          g.fillRect(x0, y0, cell, cell);
+          g.fillStyle(0x4a2c14, 0.45);
+          for (let m = 0; m < 4; m++) g.fillEllipse(x0 + cell * (0.22 + 0.56 * h(20 + m)), y0 + cell * (0.2 + 0.6 * h(30 + m)), cell * (0.14 + 0.1 * h(40 + m)), cell * (0.08 + 0.05 * h(50 + m)));
+          // faint steps cut into the slope
+          g.lineStyle(Math.max(1, cell * 0.035), 0x3a2210, 0.35);
+          for (let m = 1; m < 4; m++) {
+            if (vertical) g.lineBetween(x0 + cell * 0.28, y0 + (cell * m) / 4, x0 + cell * 0.72, y0 + (cell * m) / 4);
+            else g.lineBetween(x0 + (cell * m) / 4, y0 + cell * 0.28, x0 + (cell * m) / 4, y0 + cell * 0.72);
+          }
+          for (let m = 0; m < 4; m++) {
+            const side = m % 2 ? 1 : 0,
+              along = 0.15 + 0.7 * h(60 + m),
+              across = side ? 0.9 - 0.06 * h(70 + m) : 0.1 + 0.06 * h(70 + m),
+              bx = x0 + cell * (vertical ? across : along),
+              by = y0 + cell * (vertical ? along : across),
+              r = cell * (0.06 + 0.05 * h(80 + m));
+            g.fillStyle(0x2a1a0e, 0.5);
+            g.fillEllipse(bx + r * 0.2, by + r * 0.35, r * 2.1, r * 1.3);
+            g.fillStyle([0x8d8478, 0x9b9184, 0x7c7468][Math.floor(h(90 + m) * 3)], 1);
+            g.fillEllipse(bx, by, r * 2, r * 1.6);
+            g.fillStyle(0xe2dcd0, 0.55);
+            g.fillEllipse(bx - r * 0.35, by - r * 0.3, r * 0.7, r * 0.45);
+          }
+        } else if (frozen) {
+          // glossy ice: a water-blue wash, a hairline crack and two light streaks
+          g.fillStyle(0x3f9be8, 0.16);
+          g.fillRect(x0, y0, cell, cell);
+          g.lineStyle(Math.max(1, cell * 0.02), 0xeaf8ff, 0.45);
+          const cx = x0 + cell * (0.3 + 0.4 * h(21)),
+            cy = y0 + cell * (0.3 + 0.4 * h(22));
+          g.lineBetween(cx, cy, cx + cell * (0.18 - 0.36 * h(23)), cy + cell * 0.22);
+          g.lineBetween(cx, cy, cx - cell * 0.2, cy - cell * (0.1 + 0.12 * h(24)));
+          g.lineStyle(Math.max(1.5, cell * 0.05), 0xffffff, 0.22);
+          g.lineBetween(x0 + cell * 0.15, y0 + cell * 0.55, x0 + cell * 0.45, y0 + cell * 0.25);
+          g.lineBetween(x0 + cell * 0.5, y0 + cell * 0.8, x0 + cell * 0.72, y0 + cell * 0.58);
+        }
+      }
+    }
     // ---- pooled floating text -----------------------------------------------------
-    floatText(x, y, text, color = "#ffe27a", size = 15, rise = 34, life = 0.9) {
+    floatText(x, y, text, color = "#ffe27a", size = 15, rise = 34, life = 0.9, bonus = false) {
       // v0.13: Options › Graphic can hide the numbers (+gold, hearts, damage) and the word pop-ups
       const numeric = /\d/.test(text);
       if (numeric ? !popups.numbers : !popups.notes) return;
@@ -906,8 +981,8 @@ export function mountArena({
       const t =
         this.textPool.pop() ||
         this.stage.text(0, 0, "", { fontFamily: FONT, stroke: "#14231e", strokeThickness: 5, resolution: DPR }).setOrigin(0.5, 1).setDepth(6000);
-      t.setText(text).setColor(color).setFontSize(size).setPosition(x, y).setAlpha(1).setScale(0.6).setVisible(true);
-      this.floaters.push({ t, x, y, rise, life, max: life });
+      t.setText(text).setColor(color).setFontSize(size).setStroke(bonus ? "#3a2200" : "#14231e", bonus ? 9 : 5).setPosition(x, y).setAlpha(1).setScale(0.6).setVisible(true);
+      this.floaters.push({ t, x, y, rise, life, max: life, bonus, size, seed: Math.random() * 6.28 });
     }
     recycle(f) {
       f.t.setVisible(false);
@@ -1050,9 +1125,12 @@ export function mountArena({
           }
         } else if (e.type === "volley" && e.player === view) {
           // an arrow from the sky: falls steeply onto its creep (or the ground)
+          // v0.22q2: every arrow from a slightly different angle (left, steep or a bit from the right) and height
           const to = this.point(e.x, e.y),
-            drift = (hash(seq, 3) - 0.5) * cell * 0.6;
-          this.projectiles.push({ x0: to.x + drift - cell * 0.5, y0: to.y - cell * 2.6, targetId: e.targetId, tx: to.x + drift * 0.2, ty: to.y - cell * 0.15, t: 0, dur: 0.26, color: 0xffe28a, size: 3.6, splash: false, glow: false, arc: 0, arrow: true });
+            drift = (hash(seq, 3) - 0.5) * cell * 0.6,
+            slant = (hash(seq, 7) - 0.65) * cell * 1.3,
+            high = cell * (2.3 + hash(seq, 11) * 0.7);
+          this.projectiles.push({ x0: to.x + drift + slant, y0: to.y - high, targetId: e.targetId, tx: to.x + drift * 0.2, ty: to.y - cell * 0.15, t: 0, dur: 0.26, color: 0xffe28a, size: 3.6, splash: false, glow: false, arc: 0, arrow: true });
         } else if (e.type === "burst" && e.player === view) {
           // v0.10p: Arcane Burst: violet shock ring over the whole area
           const q = this.point(e.x, e.y);
@@ -1102,7 +1180,8 @@ export function mountArena({
           this.burst(q.x, q.y - cell * 0.2, 0xf7f1dd, big ? 18 : 9, big ? 120 : 75, big ? 3.6 : 2.6, big ? 0.7 : 0.45);
           this.burst(q.x, q.y - cell * 0.2, 0xb48cff, big ? 10 : 5, 55, 2.4, 0.55, -30, true);
           this.ring(q.x, q.y, cell * 0.1, cell * (big ? 0.9 : 0.45), 0xfff6d5, big ? 0.5 : 0.3, big ? 4 : 2);
-          if (e.bounty > 0) this.floatText(q.x, q.y - cell * 0.45, `+${Math.round(e.bounty)}`, "#ffe27a", big ? 20 : 15);
+          // v0.22j1: bounty without decimals; a Bounty Bonus kill gets a thicker outline and a calm golden glitter
+          if (e.bounty > 0) this.floatText(q.x, q.y - cell * 0.45, `+${Math.max(1, Math.round(e.bounty))}`, e.bonus ? "#fff1a0" : "#ffe27a", (big ? 20 : 15) + (e.bonus ? 2 : 0), 34, e.bonus ? 1.05 : 0.9, !!e.bonus);
           if (big) this.stage.shake(180, 0.006);
         } else if (e.type === "leak" && (e.player === own || e.owner === own)) {
           // Life pop-ups always count the player's own lives, whichever maze is on screen:
@@ -1220,29 +1299,79 @@ export function mountArena({
         glow.fillStyle(0xf4ffc8, a);
         glow.fillCircle(x, y, 1.4);
       }
-      // ---- v0.10p: Hellfire (v0.10q: 6th row): free fields of the burning row glow like magma
+      // ---- v0.10p: Lava Floor (v0.10q: 6th row). v0.22i1: looks like its perk tile (dark basalt plates on
+      // glowing lava, bright cracks and bubbles) and lies under every field of the row, towers included
       if ((player.perks?.hellfire || 0) > 0) {
         const y = HELLFIRE.row;
         for (let col = 0; col < z.logicalCols; col++) {
-          if (towerAt(player, col, y)) continue;
           const x0 = z.left + col * cell,
             y0 = z.top + y * cell,
-            flick = 0.5 + 0.5 * Math.sin(time * 0.004 + col * 1.7);
-          pl.fillStyle(0x2a0802, 0.7);
-          pl.fillRect(x0 + 1, y0 + 1, cell - 2, cell - 2);
-          pl.fillStyle(0xff4a0a, 0.55 + 0.2 * flick);
-          pl.fillRoundedRect(x0 + cell * 0.12, y0 + cell * 0.12, cell * 0.76, cell * 0.76, cell * 0.22);
-          pl.fillStyle(0xffd24a, 0.6 + 0.3 * flick);
-          for (let k = 0; k < 3; k++) {
-            const bx = x0 + cell * (0.22 + 0.56 * hash(col, y, 20 + k)),
-              by = y0 + cell * (0.22 + 0.56 * hash(y, col, 30 + k)),
-              br = cell * (0.05 + 0.05 * hash(k, col, 40)) * (0.7 + 0.5 * Math.sin(time * 0.006 + k * 2 + col));
+            flick = 0.5 + 0.5 * Math.sin(time * 0.003 + col * 1.7),
+            h = (n) => hash(col, y, n);
+          pl.fillStyle(0x3a0e06, 0.92);
+          pl.fillRect(x0, y0, cell, cell);
+          pl.fillStyle(0xff5a0a, 0.82 + 0.12 * flick);
+          pl.fillRect(x0 + cell * 0.03, y0 + cell * 0.03, cell * 0.94, cell * 0.94);
+          pl.fillStyle(0xffb02a, 0.25 + 0.2 * flick);
+          pl.fillRect(x0 + cell * 0.12, y0 + cell * 0.12, cell * 0.76, cell * 0.76);
+          // a 3×3 lattice of jittered points; each of the four quads becomes a basalt plate, shrunk so lava shows between
+          // edge points slide along their edge, the middle point moves freely, so the plates come out irregular
+          const pt = (i, k) => [
+            x0 + cell * (0.04 + 0.46 * i + (i === 1 ? (h(10 + i * 3 + k) - 0.5) * 0.34 : 0)),
+            y0 + cell * (0.04 + 0.46 * k + (k === 1 ? (h(20 + i * 3 + k) - 0.5) * 0.34 : 0)),
+          ];
+          for (let qi = 0; qi < 2; qi++)
+            for (let qk = 0; qk < 2; qk++) {
+              const quad = [pt(qi, qk), pt(qi + 1, qk), pt(qi + 1, qk + 1), pt(qi, qk + 1)],
+                mx = quad.reduce((a, v) => a + v[0], 0) / 4,
+                my = quad.reduce((a, v) => a + v[1], 0) / 4,
+                shrink = (f, dx = 0, dy = 0) => quad.map(([px, py]) => [mx + (px - mx) * f + dx, my + (py - my) * f + dy]),
+                fan = (pts) => {
+                  pl.fillTriangle(pts[0][0], pts[0][1], pts[1][0], pts[1][1], pts[2][0], pts[2][1]);
+                  pl.fillTriangle(pts[0][0], pts[0][1], pts[2][0], pts[2][1], pts[3][0], pts[3][1]);
+                };
+              // cut one corner off each plate (a different one per plate) so they read as broken basalt, not squares
+              const cut = Math.floor(h(50 + qi * 2 + qk) * 4),
+                five = (pts) => {
+                  const a = pts[cut],
+                    prev = pts[(cut + 3) % 4],
+                    next = pts[(cut + 1) % 4],
+                    c1 = [a[0] + (prev[0] - a[0]) * 0.32, a[1] + (prev[1] - a[1]) * 0.32],
+                    c2 = [a[0] + (next[0] - a[0]) * 0.32, a[1] + (next[1] - a[1]) * 0.32],
+                    out = [];
+                  for (let n = 0; n < 4; n++) {
+                    if (n === cut) out.push(c1, c2);
+                    else out.push(pts[n]);
+                  }
+                  // c1 sits on the edge to the previous corner, c2 on the edge to the next: keep the ring in order
+                  return out;
+                },
+                poly = (pts) => {
+                  for (let n = 1; n < pts.length - 1; n++) pl.fillTriangle(pts[0][0], pts[0][1], pts[n][0], pts[n][1], pts[n + 1][0], pts[n + 1][1]);
+                };
+              pl.fillStyle(0x1a1214, 1);
+              poly(five(shrink(0.86)));
+              pl.fillStyle(0x34313a, 1);
+              poly(five(shrink(0.76)));
+              pl.fillStyle(0x4f4b56, 0.9);
+              poly(five(shrink(0.5, -cell * 0.03, -cell * 0.03)));
+              pl.fillStyle(0xffffff, 0.16);
+              poly(five(shrink(0.22, -cell * 0.06, -cell * 0.06)));
+            }
+          // bright cracks and a few bubbles in the lava
+          const mid = pt(1, 1);
+          pl.lineStyle(Math.max(1, cell * 0.022), 0xffe28a, 0.4 + 0.35 * flick);
+          for (const [i, k] of [[1, 0], [2, 1], [1, 2], [0, 1]]) {
+            const e = pt(i, k);
+            pl.lineBetween(mid[0], mid[1], e[0], e[1]);
+          }
+          for (let k = 0; k < 2; k++) {
+            const bx = x0 + cell * (0.2 + 0.6 * h(30 + k)),
+              by = y0 + cell * (k ? 0.5 : 0.08 + 0.84 * h(40)),
+              br = cell * 0.045 * (0.7 + 0.5 * Math.sin(time * 0.005 + k * 2 + col));
+            pl.fillStyle(0xfff2a0, 0.9);
             pl.fillCircle(bx, by, Math.max(1, br));
           }
-          pl.lineStyle(2, 0xffe08a, 0.35 + 0.3 * flick);
-          pl.lineBetween(x0 + cell * 0.2, y0 + cell * 0.35, x0 + cell * 0.5, y0 + cell * 0.55);
-          pl.lineBetween(x0 + cell * 0.5, y0 + cell * 0.55, x0 + cell * 0.78, y0 + cell * 0.42);
-          pl.lineBetween(x0 + cell * 0.5, y0 + cell * 0.55, x0 + cell * 0.46, y0 + cell * 0.82);
         }
       }
       // ---- v0.18h: Low Tides water (bottom rows) and Backup Line mist (top rows)
@@ -1420,7 +1549,7 @@ export function mountArena({
         glow.fillStyle(team, 0.16);
         glow.fillEllipse(cx, cy + tc * 0.06, tc * 1.0, tc * 0.5);
         // v0.13: Lone Guardians active: a white aura with beams turning outwards
-        if (!building && def.attacks && player.perks?.lone && loneCount(player) <= LONE.towers + 1e-6) {
+        if (!building && def.attacks && loneActive(player)) { // v0.22g1: limit by perk level
           const pulse = 0.5 + 0.5 * Math.sin(time * 0.005 + phase),
             ay = cy - tc * 0.12;
           glow.fillStyle(0xffffff, 0.1 + 0.07 * pulse);
@@ -1692,6 +1821,23 @@ export function mountArena({
             glow.fillCircle(q.x + Math.cos(a) * rr, cy + Math.sin(a) * rr * 0.45, Math.max(2, height * 0.05));
           }
         }
+        if (statuses.some((st) => st.abilityId === "frost" && st.ice)) {
+          // v0.22h1: Water Block: the creep's feet are frozen into a ring of icicles
+          const fy = q.y + cell * 0.18 - lift,
+            w = height * 0.62;
+          g.fillStyle(0x9fdcff, 0.55);
+          g.fillEllipse(q.x, fy, w * 1.25, w * 0.42);
+          for (let k = 0; k < 6; k++) {
+            const ix = q.x + (k / 5 - 0.5) * w * 1.05,
+              ih = height * (0.2 + 0.12 * ((k * 37 + Math.round(phase0 * 10)) % 3) / 2),
+              iw = height * 0.075;
+            g.fillStyle(k % 2 ? 0xbfe9ff : 0xe6f8ff, 0.92);
+            g.fillTriangle(ix - iw, fy + w * 0.08, ix + iw, fy + w * 0.08, ix, fy - ih);
+            g.lineStyle(1, 0x4f9fd6, 0.8);
+            g.lineBetween(ix - iw, fy + w * 0.08, ix, fy - ih);
+            g.lineBetween(ix, fy - ih, ix + iw, fy + w * 0.08);
+          }
+        }
         if (statuses.some((st) => st.abilityId === "frost")) {
           // v0.16: frost: a light blue, see-through sheen over the creep and a few ice glints
           const cy = q.y + cell * 0.18 - lift - height * 0.45;
@@ -1752,25 +1898,36 @@ export function mountArena({
             barH = boss ? 6 : 4,
             barY = q.y + cell * 0.18 - lift - height - 6;
           // v0.17q: heavy creeps carry an iron frame, bosses a gold frame
-          const frame = boss ? "gold" : c.heavy || isHeavy(def) ? "iron" : null;
+          // v0.22n2: a sent boss's frame is metal in its owner's colour (neutral wave bosses stay gold)
+          const frame = boss ? "gold" : c.heavy || isHeavy(def) ? "iron" : null,
+            see = 0.9; // v0.22n2: every health bar 10 % transparent
           if (frame) {
             // v0.19j: heavy creeps outside the 4 strongest of their tier get a slimmer, plainer iron frame
             const light = frame === "iron" && !topFour(def),
-              [outer, inner, rivet] = frame === "gold" ? [0x6a4206, 0xffcc3a, 0xfff2a8] : light ? [0x2c3238, 0x737d87, 0xb8c0c8] : [0x23282e, 0x9aa4ae, 0xe2e8ee],
+              team = frame === "gold" && c.owner >= 0 ? TEAM_COLORS[colorOf(c.owner)]?.hex : null,
+              [outer, inner, rivet] =
+                team != null ? [metalTint(team, 0, 0.55), team, metalTint(team, 0xffffff, 0.6)] : frame === "gold" ? [0x6a4206, 0xffcc3a, 0xfff2a8] : light ? [0x2c3238, 0x737d87, 0xb8c0c8] : [0x23282e, 0x9aa4ae, 0xe2e8ee],
               fw = frame === "gold" ? 4 : light ? 2 : 3.5,
-              alpha = light ? 0.8 : 1;
+              alpha = (light ? 0.8 : 1) * see;
             hb.fillStyle(outer, alpha);
             hb.fillRoundedRect(q.x - bar / 2 - fw - 1.5, barY - fw - 1.5, bar + fw * 2 + 3, barH + fw * 2 + 3, 4);
             hb.fillStyle(inner, alpha);
             hb.fillRoundedRect(q.x - bar / 2 - fw, barY - fw, bar + fw * 2, barH + fw * 2, 3);
+            if (team != null) {
+              // metallic sheen: a bright band on the upper half, a darker one below
+              hb.fillStyle(metalTint(team, 0xffffff, 0.45), 0.75 * see);
+              hb.fillRoundedRect(q.x - bar / 2 - fw + 1, barY - fw + 0.5, bar + fw * 2 - 2, Math.max(1, (barH + fw * 2) * 0.32), 2);
+              hb.fillStyle(metalTint(team, 0, 0.3), 0.6 * see);
+              hb.fillRoundedRect(q.x - bar / 2 - fw + 1, barY + barH + fw * 0.35, bar + fw * 2 - 2, Math.max(1, fw * 0.5), 1.5);
+            }
             if (!light) {
-              hb.fillStyle(rivet, 1);
+              hb.fillStyle(rivet, see);
               for (const sx of [-1, 1]) hb.fillCircle(q.x + sx * (bar / 2 + 1.5 + (fw - 1.5) / 2), barY + barH / 2, Math.max(0.8, (fw - 1.5) * 0.38));
             }
           }
-          hb.fillStyle(0x0b1512, 0.9);
+          hb.fillStyle(0x0b1512, 0.9 * see);
           hb.fillRoundedRect(q.x - bar / 2 - 1.5, barY - 1.5, bar + 3, barH + 3, 3);
-          hb.fillStyle(ratio > 0.5 ? 0x8ff05a : ratio > 0.25 ? 0xffc75a : 0xff5f52);
+          hb.fillStyle(ratio > 0.5 ? 0x8ff05a : ratio > 0.25 ? 0xffc75a : 0xff5f52, see);
           hb.fillRoundedRect(q.x - bar / 2, barY, Math.max(1, bar * ratio), barH, 2);
         }
       }
@@ -2196,6 +2353,28 @@ export function mountArena({
           continue;
         }
         const k = 1 - fl.life / fl.max;
+        if (fl.bonus) {
+          // like the highest-income shine: a slow sweep from gold to pale gold, two soft four-point glints
+          const sweep = 0.5 + 0.5 * Math.sin(k * Math.PI * 2 + fl.seed);
+          const step = Math.round(sweep * 6) / 6, // a few steps only, so the text is not redrawn every frame
+            mix = (c0, c1) => Math.round(c0 + (c1 - c0) * step).toString(16).padStart(2, "0");
+          fl.t.setColor("#" + mix(0xff, 0xff) + mix(0xe2, 0xfb) + mix(0x7a, 0xe6));
+          const yy = fl.y - fl.rise * (1 - Math.pow(1 - k, 2)) - fl.size * 0.55,
+            fade = k > 0.7 ? 1 - (k - 0.7) / 0.3 : 1;
+          for (let n = 0; n < 2; n++) {
+            const ph = Math.sin(k * Math.PI * 2.2 + n * 2.4 + fl.seed),
+              a = Math.max(0, ph) * 0.95 * fade,
+              gx = fl.x + (n ? 1 : -1) * fl.size * (0.75 + 0.15 * n),
+              gy = yy + (n ? -fl.size * 0.25 : fl.size * 0.1),
+              r = fl.size * (0.22 + 0.12 * Math.max(0, ph));
+            if (a <= 0.02) continue;
+            fa.lineStyle(Math.max(1, fl.size * 0.09), 0xfffbe0, a);
+            fa.lineBetween(gx - r, gy, gx + r, gy);
+            fa.lineBetween(gx, gy - r, gx, gy + r);
+            fa.fillStyle(0xffffff, a);
+            fa.fillCircle(gx, gy, Math.max(1, fl.size * 0.08));
+          }
+        }
         fl.t
           .setPosition(fl.x, fl.y - fl.rise * (1 - Math.pow(1 - k, 2)))
           .setScale(k < 0.15 ? 0.6 + (k / 0.15) * 0.5 : 1.1 - Math.min(0.1, (k - 0.15) * 0.4))

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Felito Tower Wars · v0.22e</title>
+<title>Felito Tower Wars · v0.22v</title>
 <script>
   // Start diagnostics: show script errors on the loading screen instead of hanging silently.
   (function () {
@@ -34,8 +34,8 @@
   <link rel="icon" href="assets/app-icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="assets/app-icon-192.png">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="style.css?v=v022e">
-  <script type="importmap">{"imports":{"./src/music.js":"./src/music.js?v=v022e","./src/art.js":"./src/art.js?v=v022e","./src/soundtrack.js":"./src/soundtrack.js?v=v022e","./src/sfx.js":"./src/sfx.js?v=v022e","./src/app.js":"./src/app.js?v=v022e","./src/arena.js":"./src/arena.js?v=v022e","./src/content.js":"./src/content.js?v=v022e","./src/simulation.js":"./src/simulation.js?v=v022e","./src/multiplayer.js":"./src/multiplayer.js?v=v022e","./src/i18n.js":"./src/i18n.js?v=v022e","./src/b2d.js":"./src/b2d.js?v=v022e","./src/campaign.js":"./src/campaign.js?v=v022e"}}</script>
+  <link rel="stylesheet" href="style.css?v=v022v">
+  <script type="importmap">{"imports":{"./src/music.js":"./src/music.js?v=v022v","./src/art.js":"./src/art.js?v=v022v","./src/soundtrack.js":"./src/soundtrack.js?v=v022v","./src/sfx.js":"./src/sfx.js?v=v022v","./src/app.js":"./src/app.js?v=v022v","./src/arena.js":"./src/arena.js?v=v022v","./src/content.js":"./src/content.js?v=v022v","./src/simulation.js":"./src/simulation.js?v=v022v","./src/multiplayer.js":"./src/multiplayer.js?v=v022v","./src/i18n.js":"./src/i18n.js?v=v022v","./src/b2d.js":"./src/b2d.js?v=v022v","./src/campaign.js":"./src/campaign.js?v=v022v"}}</script>
 </head>
 <body>
 <div id="boot-screen" class="boot-screen" aria-live="polite"><img src="assets/art/ui-logo.webp" alt="Felito Tower Wars"><span id="boot-msg">Loading …</span></div>
@@ -45,7 +45,7 @@
         <div class="player-plate own" role="button" tabindex="0" data-ta="Show your board" aria-label="Show your board" data-help="Your gold, income per round, lives and EXP. Tap to show your board.">
           <div class="plate-face"><img class="portrait" src="assets/art/portrait-player.webp" alt=""><i class="plate-skull" aria-hidden="true"></i><span class="plate-lives"><img src="assets/art/icon-heart.webp" alt=""><strong id="own-lives">30</strong></span></div>
           <div class="plate-body"><span class="plate-name" data-t="You">You</span><span class="plate-gold"><img src="assets/art/icon-coin.webp" alt="Gold"><b id="own-gold">0</b></span><em class="plate-inc" id="own-income">+0</em></div>
-          <div class="plate-exp" data-tt="Experience" title="Experience"><i id="own-exp"></i><span>Lv <b id="own-level">1</b></span></div>
+          <div class="plate-exp" data-tt="Experience" title="Experience"><i id="own-exp"></i><span>Lv <b id="own-level">1</b><em class="plate-tier">T<b id="own-tier">1</b></em></span></div>
           <div class="enemy-stack ally-stack" id="ally-stack" hidden></div>
         </div>
         <div class="round-plate" data-ta="Next income" aria-label="Next income" data-help="Round, countdown to your next income, and match time.">
@@ -57,7 +57,7 @@
         <div class="player-plate rival" role="button" tabindex="0" data-ta="Show the enemy board" aria-label="Show the enemy board" data-help="Your enemy's gold, income, lives and level. Tap to show their board.">
           <div class="plate-body"><span class="plate-name" id="rival-name">Enemy</span><small id="rival-sub" class="sr-only">Training</small><span class="plate-gold"><b id="rival-gold">0</b><img src="assets/art/icon-coin.webp" alt="Gold"></span><em class="plate-inc" id="rival-income">+0</em></div>
           <div class="plate-face"><img class="portrait" src="assets/art/portrait-enemy.webp" alt=""><i class="plate-skull" aria-hidden="true"></i><span class="plate-lives"><strong id="rival-lives">30</strong><img src="assets/art/icon-heart.webp" alt=""></span></div>
-          <div class="plate-exp" data-tt="Experience" title="Experience"><i id="rival-exp"></i><span>Lv <b id="rival-level">1</b></span></div>
+          <div class="plate-exp" data-tt="Experience" title="Experience"><i id="rival-exp"></i><span>Lv <b id="rival-level">1</b><em class="plate-tier">T<b id="rival-tier">1</b></em></span></div>
           <div class="enemy-stack" id="enemy-stack" hidden></div>
         </div>
       </header>
@@ -77,7 +77,7 @@
         <div id="game-loader" data-t="Preparing the arena …">Preparing the arena …</div>
         <span id="arena-label" class="sr-only">Your arena</span>
         <div id="arena-hint" class="sr-only"></div>
-        <div id="side-dock" class="side-dock" hidden><span class="side-label" id="auto-kicker">Auto</span><button id="auto-slot" class="auto-slot" type="button" aria-label="Auto-Spawn" data-help="Drag creep to activate. Double click to switch mode"><span class="auto-slot-empty auto-slot-label">Auto Spawn</span></button><span id="tier-badge" class="tier-badge" data-help="Your send tier. Buying the boss unlocks the next tier.">T1</span></div>
+        <div id="side-dock" class="side-dock" hidden><span class="side-label" id="auto-kicker">Auto</span><button id="auto-slot" class="auto-slot" type="button" aria-label="Auto-Spawn" data-help="Drag creep to activate. Click to switch mode"><span class="auto-slot-empty auto-slot-label">Auto Spawn</span></button><span id="tier-badge" class="tier-badge" data-help="Your send tier. Buying the boss unlocks the next tier.">T1</span></div>
         <button id="level-button" class="level-button" type="button" data-ta="Choose a level reward" aria-label="Choose a level reward" data-help="Your level. It fills up with experience. With every level-up you pick one of three rewards here; when it glows, a reward is waiting." hidden><s class="level-fill" aria-hidden="true"></s><span>Lv</span><b id="level-number">1</b><i id="level-pending" hidden>1</i></button>
         <button id="volley-button" class="volley-button" type="button" aria-label="Arrow Volley" data-help="Arrow Volley: tap it, then tap your field. Arrows rain on that area (cooldown 20 s)." hidden></button>
         <button id="burst-button" class="volley-button burst-button" type="button" aria-label="Arcane Burst" data-help="Arcane Burst: tap it, then tap your field. The damage is split among all creeps in the area (cooldown 40 s)." hidden></button>
@@ -113,7 +113,7 @@
     <section id="tower-panel" class="tower-panel" hidden></section>
   </main>
   <dialog id="modal"><div id="modal-body"></div></dialog>
-  <script src="vendor/babylon-felito.js?v=v022e"></script>
-  <script type="module" src="src/app.js?v=v022e"></script>
+  <script src="vendor/babylon-felito.js?v=v022v"></script>
+  <script type="module" src="src/app.js?v=v022v"></script>
 </body>
 </html>
