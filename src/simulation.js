@@ -875,54 +875,55 @@ function newTower(game, p, id, gx, gy) {
 // ---- Level perks (v0.08b): extra rewards with five levels each; every level-up dialog may
 // offer them, and the dialogs up to level 3 always hold at least one ----------------------
 export const PERKS = Object.freeze({
+  // v0.22za2: "text" is the short tooltip everywhere, "detail" the longer text of the card book's detail view
   // v0.09q: perk rework (availability in PERK_AVAILABILITY)
   recruit: { name: "Recruitment", max: 10, text: "Creeps recruit {recruit} faster" }, // v0.19h1: tooltip // v0.10i (artifact line), merged in v0.11c
   feudal: { name: "Feudality", max: 10, text: "Creep income +{feudal}" }, // v0.18b: 2 / 3.5 / 5 / 6 / 7 %
   gunpowder: { name: "Gunpowder", max: 10, text: "Bombard-Line outer splash +{gunpowder} tiles" }, // v0.22g1: only the low-damage outer ring // v0.21u: outer splash radius +0.25/0.45/0.60/0.72/0.82/0.90/0.96/1.00/1.03/1.05 tiles
-  archery: { name: "Archery", max: 10, text: "Archer-Line +{archery} damage. Next Archer is free" }, // v0.19h1: 5 / 10 / 15 / 20 / 25 %; v0.20a: every pick makes the next archer free
-  militia: { name: "Militia", max: 1, powerup: true, text: "Spawn 2 Footman on random fields. Footman-Line +1 damage" }, // v0.22g1: +1 damage // v0.17h: once per player; v0.19e2: powerup
-  evolution: { name: "Upgrade Tower", max: 1, powerup: true, text: "Upgrades a random level 1 or 2 tower and summons a copy to a random field" }, // v0.22o2: renamed from Evolution; v0.19g1: level 2 towers first, the copy sells for 10 %
+  archery: { name: "Archery", max: 10, text: "Archer-Line +{archery} damage. Next Archer free", detail: "Archer-Line +{archery} damage. Next Archer is free" }, // v0.19h1: 5 / 10 / 15 / 20 / 25 %; v0.20a: every pick makes the next archer free
+  militia: { name: "Militia", max: 1, powerup: true, text: "2 free Footman. Footman-Line +1 damage", detail: "Spawn 2 Footman on random fields. Footman-Line +1 damage" }, // v0.22g1: +1 damage // v0.17h: once per player; v0.19e2: powerup
+  evolution: { name: "Upgrade Tower", max: 1, powerup: true, text: "Upgrades a random level 1–2 tower and copies it", detail: "Upgrades a random level 1 or 2 tower and summons a copy to a random field" }, // v0.22o2: renamed from Evolution; v0.19g1: level 2 towers first, the copy sells for 10 %
   gold: { name: "Gold", max: 1, powerup: true, text: "Instantly +{gold} gold" }, // v0.10u: powerup = instant reward, no tile once taken
-  novice: { name: "Novice", max: 5, text: "Increases EXP gain +{novice}. Next EXP generator is free" }, // v0.22m2: 15 / 30 / 45 / 60 / 75 %, every level one free level 1 EXP generator
+  novice: { name: "Novice", max: 5, text: "EXP +{novice}. Next EXP generator free", detail: "Increases EXP gain +{novice}. Next EXP generator is free" }, // v0.22m2: 15 / 30 / 45 / 60 / 75 %, every level one free level 1 EXP generator
   volley: { name: "Arrow Volley", max: 5, text: "Arrows rain on an area dealing {volleyDmg} damage each" }, // v0.20e: shorter tooltip
-  wings: { name: "Wings of War", max: 10, element: "storm", text: "Flying creeps +{wingsHp} HP, +{wingsSpeed} speed, +{wingsInc} income" }, // v0.10p
-  hellfire: { name: "Lava Floor", max: 10, element: "fire", text: "Ground creeps in your 6th row burn for {hellfire} damage per second" }, // v0.10p, v0.16g
-  burst: { name: "Arcane Burst", max: 5, element: "arcane", text: "Active ability: {burst} damage, split among the creeps in an area" }, // v0.10p
-  treasure: { name: "Gold Treasure", max: 1, powerup: true, text: "Instantly +{treasure} gold and +{treasureInc} income" }, // v0.10r; v0.19e2: +20 % gold, +60 income (doubled when far behind)
+  wings: { name: "Wings of War", max: 10, element: "storm", text: "Flyers +{wingsHp} HP, +{wingsSpeed} speed, +{wingsInc} income", detail: "Flying creeps +{wingsHp} HP, +{wingsSpeed} speed, +{wingsInc} income" }, // v0.10p
+  hellfire: { name: "Lava Floor", max: 10, element: "fire", text: "Ground creeps in row 6 burn for {hellfire} damage/s", detail: "Ground creeps in your 6th row burn for {hellfire} damage per second" }, // v0.10p, v0.16g
+  burst: { name: "Arcane Burst", max: 5, element: "arcane", text: "Active: {burst} damage split in an area", detail: "Active ability: {burst} damage, split among the creeps in an area" }, // v0.10p
+  treasure: { name: "Gold Treasure", max: 1, powerup: true, text: "Now +{treasure} gold and +{treasureInc} income", detail: "Instantly +{treasure} gold and +{treasureInc} income" }, // v0.10r; v0.19e2: +20 % gold, +60 income (doubled when far behind)
   voltage: { name: "High Voltage", max: 20, element: "storm", unpopular: 0.5, text: "EXP generators are {voltage} more efficient" }, // v0.10r; v0.19j: tooltip
   boots: { name: "Red Boots", max: 5, element: "fire", text: "Ground creeps {boots} slow resistance and +{bootsInc} creep income" }, // v0.10r; v0.22: max level 5
   exhume: { name: "Exhumination", max: 3, element: "plague", text: "Undead creeps cost {exhume} less and recruit 10% faster" }, // v0.20c: 10 % faster instead of 20 % slower // v0.10r; v0.19j: tooltip (they still restock 20% slower)
-  fireblock: { name: "Fire Block", max: 3, element: "fire", text: "Every {fireBlockCd} s the first breach is pushed back {fireBlockBack} fields and explodes at once: {fireBlock} damage 3 times" }, // v0.19j
-  airblock: { name: "Air Block", max: 3, element: "storm", text: "Every {airBlockCd} s the first flying breach is pushed back {airBlockBack} fields, struck by lightning for {airBlock} damage and stunned {airBlockStun} s. Speeds up Monsun by {airBlockMonsun} s" }, // v0.20c
-  supergrowth: { name: "Supergrowth", max: 3, element: "earth", text: "Each purchase of a ground creep from the stronger half of its tier gives that creep type +{growth} HP, less for weaker ones" }, // v0.20f
-  waterblock: { name: "Water Block", max: 3, element: "water", text: "Every {blockCd} s the first breach is pushed back {blockBack} fields (flyers {blockBackAir}) and frozen {blockSlow} slower" }, // v0.10r
-  pocks: { name: "Giant's Pocks", max: 5, element: "plague", text: "Every 4 s the strongest creep in your field loses {pocks} HP and is poisoned" }, // v0.10q
-  permafrost: { name: "Frozen Ground", max: 10, element: "water", text: "Ground creeps in your field {permafrost} slower" }, // v0.10o; v0.22h1: was Permafrost, 5 % per level
-  hills: { name: "Hill Paths", max: 5, element: "earth", text: "Ground creeps walking upwards in your field {hills} slower" }, // v0.22h1
+  fireblock: { name: "Fire Block", max: 3, element: "fire", text: "Every {fireBlockCd} s first breach is pushed back {fireBlockBack} fields and explodes 3× for {fireBlock}", detail: "Every {fireBlockCd} s the first breach is pushed back {fireBlockBack} fields and explodes at once: {fireBlock} damage 3 times" }, // v0.19j
+  airblock: { name: "Air Block", max: 3, element: "storm", text: "Every {airBlockCd} s first flying breach is pushed back {airBlockBack} fields, struck for {airBlock} and stunned {airBlockStun} s", detail: "Every {airBlockCd} s the first flying breach is pushed back {airBlockBack} fields, struck by lightning for {airBlock} damage and stunned {airBlockStun} s. Speeds up Monsun by {airBlockMonsun} s" }, // v0.20c
+  supergrowth: { name: "Supergrowth", max: 3, element: "earth", text: "Buying strong ground creeps gives their type up to +{growth} HP", detail: "Each purchase of a ground creep from the stronger half of its tier gives that creep type +{growth} HP, less for weaker ones" }, // v0.20f
+  waterblock: { name: "Water Block", max: 3, element: "water", text: "Every {blockCd} s first breach is pushed back {blockBack} fields and frozen {blockSlow} slower", detail: "Every {blockCd} s the first breach is pushed back {blockBack} fields (flyers {blockBackAir}) and frozen {blockSlow} slower" }, // v0.10r
+  pocks: { name: "Giant's Pocks", max: 5, element: "plague", text: "Every 4 s the strongest creep loses {pocks} HP and is poisoned", detail: "Every 4 s the strongest creep in your field loses {pocks} HP and is poisoned" }, // v0.10q
+  permafrost: { name: "Frozen Ground", max: 10, element: "water", text: "Ground creeps {permafrost} slower", detail: "Ground creeps in your field {permafrost} slower" }, // v0.10o; v0.22h1: was Permafrost, 5 % per level
+  hills: { name: "Hill Paths", max: 5, element: "earth", text: "Uphill ground creeps {hills} slower", detail: "Ground creeps walking upwards in your field {hills} slower" }, // v0.22h1
   stormfeathers: { name: "Stormfeathers", max: 10, element: "storm", text: "Archer-Line attack speed +{stormfeathers}" }, // v0.22h1: +8 % per level
   golem: { name: "Golem Whisperer", max: 1, element: "earth", text: "Boss creeps 25% cheaper, +10% HP" }, // v0.10n
-  crowd: { name: "Crowd Control", max: 3, element: "plague", text: "When more than {crowdMax} creeps are in your field, the 3 weakest are culled. Triggers every 5 seconds" }, // v0.20d: Plague, fewer creeps per level, an undead creep goes back
+  crowd: { name: "Crowd Control", max: 3, element: "plague", text: "When {crowdMax}+ creeps in field, weakest 3 are culled. Triggers every 5 seconds.", detail: "When more than {crowdMax} creeps are in your field, the 3 weakest are culled. Triggers every 5 seconds. Each culled creep goes back to its owner as an undead creep of their tier, worth a little income" }, // v0.20d: Plague, fewer creeps per level, an undead creep goes back
   pillage: { name: "Pillage", max: 3, text: "Steal {pillage} gold on breakthrough" }, // v0.22m2: 14 / 24 / 30 % of the breached player's gold
   // v0.12: nine new perks
-  lone: { name: "Last Guardians", max: 4, text: "All towers attack {lone} faster while you own {loneTowers} towers or fewer" }, // v0.22g1: 4 levels // v0.20c: no bracket note; v0.16h: back to the v0.13 effect; v0.19g1: was Lone Guardians
-  manufacture: { name: "Creep Manufacture", max: 3, element: "earth", text: "8th creep of every tier {manufacture} cheaper, recruits 15% faster" }, // v0.20d: Earth, 8th creep
-  synthesizer: { name: "Creep Synthesizer", max: 3, element: "water", text: "4th creep of every tier {synthesizer} cheaper, recruits 12% faster" }, // v0.20d
-  scholar: { name: "Scholar", max: 10, element: "arcane", text: "Upgrades 2 of your non-Arcane perks. EXP gain +{scholar}" }, // v0.20d
-  summon: { name: "Summon Tower", max: 1, element: "arcane", powerup: true, text: "Summons a random level 1-3 tower on a free field" }, // v0.20c: no bracket note
-  nobility: { name: "Heavy Nobility", max: 3, element: "earth", text: "Heavy creeps {nobility} cheaper, +{nobilityHp} HP, restock 10% faster" },
-  breeding: { name: "Breeding Pools", max: 3, element: "plague", text: "Deathrattles have {breeding} chance to spawn an extra creep. Summoned creeps +{breedingHp} HP" }, // v0.19j: tooltip
-  pillar: { name: "Pillar of Fire", max: 5, element: "fire", text: "Active ability: a pillar of fire burns an area, {pillar} damage every 0.3 s" }, // v0.19j: shorter tooltip
-  fort: { name: "Fortifications", max: 1, text: "Unlocks the Wall: 5 gold, no attack. Double-tap sells it for 1 gold" },
-  agolem: { name: "Arcane Golem", max: 5, element: "arcane", text: "Active ability: a golem walks up your path, knocks creeps back, then runs on to the next lane" },
+  lone: { name: "Last Guardians", max: 4, text: "Towers attack {lone} faster with {loneTowers} towers or fewer", detail: "All towers attack {lone} faster while you own {loneTowers} towers or fewer" }, // v0.22g1: 4 levels // v0.20c: no bracket note; v0.16h: back to the v0.13 effect; v0.19g1: was Lone Guardians
+  manufacture: { name: "Creep Manufacture", max: 3, element: "earth", text: "8th creep {manufacture} cheaper, recruits 15% faster", detail: "8th creep of every tier {manufacture} cheaper, recruits 15% faster" }, // v0.20d: Earth, 8th creep
+  synthesizer: { name: "Creep Synthesizer", max: 3, element: "water", text: "4th creep {synthesizer} cheaper, recruits 12% faster", detail: "4th creep of every tier {synthesizer} cheaper, recruits 12% faster" }, // v0.20d
+  scholar: { name: "Scholar", max: 10, element: "arcane", text: "Upgrades 2 non-Arcane perks. EXP +{scholar}", detail: "Upgrades 2 of your non-Arcane perks. EXP gain +{scholar}" }, // v0.20d
+  summon: { name: "Summon Tower", max: 1, element: "arcane", powerup: true, text: "Summons a random level 1–3 tower", detail: "Summons a random level 1-3 tower on a free field" }, // v0.20c: no bracket note
+  nobility: { name: "Heavy Nobility", max: 3, element: "earth", text: "Heavy creeps {nobility} cheaper, +{nobilityHp} HP", detail: "Heavy creeps {nobility} cheaper, +{nobilityHp} HP, restock 10% faster" },
+  breeding: { name: "Breeding Pools", max: 3, element: "plague", text: "Deathrattles: {breeding} chance for an extra creep", detail: "Deathrattles have {breeding} chance to spawn an extra creep. Summoned creeps +{breedingHp} HP" }, // v0.19j: tooltip
+  pillar: { name: "Pillar of Fire", max: 5, element: "fire", text: "Active: fire pillar, {pillar} damage every 0.3 s", detail: "Active ability: a pillar of fire burns an area, {pillar} damage every 0.3 s" }, // v0.19j: shorter tooltip
+  fort: { name: "Fortifications", max: 1, text: "Unlocks the Wall: 5 gold, no attack", detail: "Unlocks the Wall: 5 gold, no attack. Double-tap sells it for 1 gold" },
+  agolem: { name: "Arcane Golem", max: 5, element: "arcane", text: "Active: a golem knocks creeps back up your path", detail: "Active ability: a golem walks up your path, knocks creeps back, then runs on to the next lane" },
   // v0.14: two new perks
-  slave: { name: "Slave Labour", max: 3, element: "plague", text: "1st creep of every tier: +{slaveStock} max stock, recruits {slaveSpeed} faster" },
-  guardian: { name: "River Guardian", max: 10, element: "water", text: "Every {guardCd} s your strongest new creep gets a water shield of {guardShield} HP, magic damage −{guardMagic} while it holds" },
+  slave: { name: "Slave Labour", max: 3, element: "plague", text: "1st creep: +{slaveStock} stock, recruits {slaveSpeed} faster", detail: "1st creep of every tier: +{slaveStock} max stock, recruits {slaveSpeed} faster" },
+  guardian: { name: "River Guardian", max: 10, element: "water", text: "Every {guardCd} s your strongest new creep gets a {guardShield} HP shield", detail: "Every {guardCd} s your strongest new creep gets a water shield of {guardShield} HP, magic damage −{guardMagic} while it holds" },
   // v0.18h: four new perks; "unpopular" = the share by which the offer chance drops after each refusal
-  quarry: { name: "Quarry", max: 1, element: "earth", powerup: true, unpopular: 0.5, text: "Instantly +100 gold and 8 stones on your field. Clear them all for a random Earth perk" },
-  backup: { name: "Backup Line", max: 1, element: "storm", unpopular: 0.5, text: "Ranged towers +30% damage while your top 3 rows hold no tower" },
-  tides: { name: "Low Tides", max: 1, element: "water", unpopular: 0.5, text: "Melee towers +50% damage while your bottom 4 rows hold no tower" },
-  sanction: { name: "Sanction Policy", max: 1, element: "arcane", text: "Every 2nd creep locked for 30 rounds, other creeps +15% income. Abilities cooldown 15% faster permanently" }, // v0.19h1: no gold, cooldown 15 % (the tier boss is still locked)
-  monsun: { name: "Monsun", max: 5, element: "storm", text: "Active ability: Push creeps back for {monsun} s, lightning strikes flyers" },
+  quarry: { name: "Quarry", max: 1, element: "earth", powerup: true, unpopular: 0.5, text: "+100 gold and 8 stones. Clear them for an Earth perk", detail: "Instantly +100 gold and 8 stones on your field. Clear them all for a random Earth perk" },
+  backup: { name: "Backup Line", max: 1, element: "storm", unpopular: 0.5, text: "Ranged towers +30% damage while top 3 rows are empty", detail: "Ranged towers +30% damage while your top 3 rows hold no tower" },
+  tides: { name: "Low Tides", max: 1, element: "water", unpopular: 0.5, text: "Melee towers +50% damage while bottom 4 rows are empty", detail: "Melee towers +50% damage while your bottom 4 rows hold no tower" },
+  sanction: { name: "Sanction Policy", max: 1, element: "arcane", text: "Every 2nd creep locked, others +15% income, cooldowns −15%", detail: "Every 2nd creep locked for 30 rounds, other creeps +15% income. Abilities cooldown 15% faster permanently" }, // v0.19h1: no gold, cooldown 15 % (the tier boss is still locked)
+  monsun: { name: "Monsun", max: 5, element: "storm", text: "Active: pushes creeps back for {monsun} s", detail: "Active ability: Push creeps back for {monsun} s, lightning strikes flyers" },
   // v0.21: the former level-up upgrades (Warcraft researches) are ordinary perks now. "element" = needs that
   // element. v0.21g: every one of them needs its element now (before, six only wore the element's frame).
   owl: { name: "Watcher Owl", max: 5, element: "storm", text: "Archer-Line +{owl} range" },
@@ -933,11 +934,11 @@ export const PERKS = Object.freeze({
   medicine: { name: "Creep Medicine", max: 20, element: "water", text: "Creep HP +{medHp}, creep income +{medInc}" },
   melee: { name: "Melee Protocol", max: 20, element: "water", text: "Melee attack speed +{melee}" },
   heavy: { name: "Heavy Weapons", max: 20, element: "earth", text: "Footman-Line and Bombard-Line +{heavy} damage" },
-  bank: { name: "Magic Bank", max: 10, element: "arcane", text: "{bank} interest on your gold at the start of each round" },
+  bank: { name: "Magic Bank", max: 10, element: "arcane", text: "{bank} interest per round", detail: "{bank} interest on your gold at the start of each round" },
   frenzy: { name: "Unholy Frenzy", max: 20, element: "plague", text: "All towers attack speed +{frenzy}" },
   wolves: { name: "Spirit Wolves", max: 10, element: "arcane", text: "1 Spirit Wolf per round, stronger every level. It gives income" }, // v0.21k: one wolf per round
   firearrows: { name: "Fire Arrows", max: 20, element: "fire", text: "Archer-Line +{firearrows} damage" }, // v0.21c: tooltip
-  forge: { name: "Creep Forge", max: 3, element: "fire", text: "6th creep of every tier {forge} cheaper, recruits 12% faster" }, // v0.21c
+  forge: { name: "Creep Forge", max: 3, element: "fire", text: "6th creep {forge} cheaper, recruits 12% faster", detail: "6th creep of every tier {forge} cheaper, recruits 12% faster" }, // v0.21c
   autoloader: { name: "Autoloader", max: 10, element: "earth", text: "Bombard-Line attack speed +{autoloader}" }, // v0.22g1: +7.5 % per level
 });
 /** v0.09q: Arrow Volley: cooldown, area radius in fields, arrows per perk level, extra base damage. */
@@ -3429,6 +3430,10 @@ function skillOf(a, level = 1) {
       // v0.21k: own ability: the creep is slowed less (Warden, Eredar Warlock)
       sk = { type: "slowResist", value: a.resist || 0 };
       break;
+    case "Xspr":
+      // v0.22za2: own ability: less damage from tower splash (Orc)
+      sk = { type: "splashResist", reduce: a.reduce || 0 };
+      break;
     case "Xlrs":
       // v0.17b: own ability (content.js CUSTOM_ABILITIES): less damage from one tower line
       sk = { type: "lineResist", root: a.line, reduce: a.reduce || 0 };
@@ -3443,7 +3448,7 @@ function skillOf(a, level = 1) {
   return sk;
 }
 /** Abilities whose effect the port now covers (shown as implemented in the card details). */
-const COVERED_BASES = new Set(["ANre", "Xfoc", "Xhwl", "Xlrs", "Xslr", "Xtbs", "Xinf", "AHfa", "Avul", "Aslo", "ANca", "Aroc", "Afra", "AIcf", "Afbt", "AHbh", "AHab", "Adtg", "Abof", "Amgl", "ACat", "AUau", "ACes", "Ansk", "AIsr", "Apiv", "Arsk", "Aspt", "Asal", "Aimp"]);
+const COVERED_BASES = new Set(["ANre", "Xfoc", "Xhwl", "Xlrs", "Xspr", "Xslr", "Xtbs", "Xinf", "AHfa", "Avul", "Aslo", "ANca", "Aroc", "Afra", "AIcf", "Afbt", "AHbh", "AHab", "Adtg", "Abof", "Amgl", "ACat", "AUau", "ACes", "Ansk", "AIsr", "Apiv", "Arsk", "Aspt", "Asal", "Aimp"]);
 const VISUAL_ONLY = (a) => (a.baseId === "Aasl" && fval(a, "Slo1", 1) === 0) || ["Aroa", "Aeth"].includes(a.baseId) || a.id === "A06Z";
 // v0.21l: a tower's skills are asked for up to three times per tick: kept for that tick (WeakMap, never saved)
 const TOWER_SKILLS = new WeakMap();
@@ -3492,6 +3497,16 @@ function detected(game, p, c) {
   return p.towers.some((t) => !(t.buildRemaining > 0) && towerSkills(p, t).some((sk) => sk.type === "detect" && dist(game, t, c) <= sk.radius));
 }
 /** One damage instance against a creep, with creep-side skills applied. */
+/** v0.22za2: true while a tower's splash lands (Splash Resistance); set around the splash strikes in attack(). */
+let splashHit = false;
+const splashStrike = (game, p, tower, c, damage, attackType) => {
+  splashHit = true;
+  try {
+    return strike(game, p, tower, c, damage, attackType);
+  } finally {
+    splashHit = false;
+  }
+};
 function strike(game, p, tower, c, damage, attackType, spell = false, extraArmor = c.auraArmor || 0) {
   if (c.dead || damage <= 0 || divineShield(game, c)) return 0;
   const cs = creepSkills(c);
@@ -3517,6 +3532,10 @@ function strike(game, p, tower, c, damage, attackType, spell = false, extraArmor
   }
   if (tower) {
     // v0.17b: Arrow / Siege Resistance – less damage from every tower of one line
+    if (splashHit) {
+      const sr = cs.find((sk) => sk.type === "splashResist"); // v0.22za2: Splash Resistance
+      if (sr) dealt *= 1 - sr.reduce;
+    }
     const lr = cs.find((sk) => sk.type === "lineResist");
     if (lr && lineSet(lr.root).has(tower.typeId)) dealt *= 1 - lr.reduce;
     // v0.17p: Howl: more damage from towers
@@ -3940,7 +3959,13 @@ function attack(game, p, tower, dt, known = null) {
   const feedback = skills.find((sk) => sk.type === "feedback");
   const victimAura = auraAt(game, target, game.players[target.owner], auraSources(game, p)); // v0.21l
   // Corrosive auras (AHad) lower armor; strike() adds the creep's own shred and statuses.
-  const dealt = strike(game, p, tower, target, damage + (feedback && target.summoned ? feedback.bonus : 0), item.attackType, false, victimAura.armor);
+  splashHit = isSplashTower(item) && !isMeleeTower(item); // v0.22za2: a splash tower's main hit is splash too
+  let dealt;
+  try {
+    dealt = strike(game, p, tower, target, damage + (feedback && target.summoned ? feedback.bonus : 0), item.attackType, false, victimAura.armor);
+  } finally {
+    splashHit = false;
+  }
   applyOnHit(game, p, tower, target);
   applySkills(game, p, tower, item, target, damage, skills);
   chargedSpecial(game, p, tower, target);
@@ -3979,7 +4004,7 @@ function attack(game, p, tower, dt, known = null) {
       if (other === target || other.dead || other.hp <= 0 || !canHit(other)) continue;
       const d = dist(game, target, other),
         rate = d <= core ? 1 : d <= ring ? CANNON_RING_FACTOR : 0;
-      if (rate) strike(game, p, tower, other, damage * rate, item.attackType);
+      if (rate) splashStrike(game, p, tower, other, damage * rate, item.attackType);
     }
     emit(game, "skill", { player: p.id, kind: "splash", x: target.x, y: target.y, radius: ring, core });
   } else if (item.splashFull > 0 || item.splashMedium > 0 || item.splashSmall > 0) {
@@ -4000,7 +4025,7 @@ function attack(game, p, tower, dt, known = null) {
             : d <= item.splashSmall + gp
               ? item.splashSmallFactor
               : 0;
-      if (rate) strike(game, p, tower, other, damage * rate, item.attackType);
+      if (rate) splashStrike(game, p, tower, other, damage * rate, item.attackType);
     }
   }
   // Cleaving / splash attack skill (Ogre, Pit Lord, Robogoblin).
@@ -4008,7 +4033,7 @@ function attack(game, p, tower, dt, known = null) {
   if (cleave)
     for (const other of p.creeps)
       if (other !== target && !other.dead && other.hp > 0 && !other.flying && dist(game, target, other) <= cleave.radius)
-        strike(game, p, tower, other, damage * cleave.fraction, item.attackType);
+        splashStrike(game, p, tower, other, damage * cleave.fraction, item.attackType);
   tower.cooldown += Math.max(0.08, stats.cooldown / aura.attack / Math.max(0.1, 1 - cursed));
   // v0.19b1: Focus Fire: after a kill the laser rests for 1 s and its weapon smokes
   const rest = focus && (target.dead || target.hp <= 0);
@@ -4550,7 +4575,7 @@ const AI_STYLE = {
     strict: 1,
     noise: 0,
     fixed: { smartPerks: 2, airEval: 1, airAura: 0.6, airLearn: 1, splashTop: 1 }, // v0.21v: data-based perk and element picks (see PERK_EDGE); v0.22g: air evaluation, aura escort, learns from air waves
-    vsHuman: { waveTiming: 8, saveMore: 2 }, // v0.21v: against a human: pushes wait for the neutral wave, more saved-up waves
+    vsHuman: { waveTiming: 8, saveMore: 2, adaptive: 1, speedAware: 1 }, // v0.21v: against a human: pushes wait for the neutral wave, more saved-up waves; v0.22z2: and Hard reads the human's style like Hardo
     ranges: {
       greed: [1.7, 2.3],
       splash: [1.4, 2.0],
@@ -4622,9 +4647,24 @@ function aiPersonality(game, p) {
   if (p.rules?.persona) Object.assign(p.aiPersona, p.rules.persona); // v0.17: mission personality
   return p.aiPersona;
 }
+/**
+ * v0.22zc2: gold a human keeps banking round after round (Magic Bank interest, saving for tiers) is economy, not a
+ * coming push: after 2 idle rounds Hardo trusts it 15 % less per round, down to 25 % (game 3 of 19.10.: 14k gold
+ * into towers against a banked pile that never came while its income stalled at 560–1,100).
+ */
+function bankTrust(game, p, a, persona) {
+  if (!persona?.adaptive || !persona.humanFoe) return 1;
+  const tr = ((p.aiBankTrack ||= {})[a.id] ||= { round: game.round, gold: a.gold, idle: 0 });
+  if (game.round !== tr.round) {
+    tr.idle = a.gold >= tr.gold * 0.7 ? tr.idle + 1 : 0;
+    tr.gold = a.gold;
+    tr.round = game.round;
+  }
+  return clamp(1 - 0.15 * Math.max(0, tr.idle - 2), 0.25, 1);
+}
 /** v0.22u2: gold an opponent banks right below its next boss is mostly the boss (one creep), not a push. */
 function bankedGold(a, persona) {
-  if (!persona?.adaptive || !AI_ADAPT.bossBank) return a.gold;
+  if (!persona?.adaptive || !persona.humanFoe || !AI_ADAPT.bossBank) return a.gold; // v0.22z2: humans only
   const boss = tierSends(a.tier).find((s) => s.bossTier && !a.bossBought?.[s.id] && a.tier < s.bossTier);
   if (!boss || a.income < boss.cost * 0.2 || a.gold < boss.cost * 0.6 || a.gold > boss.cost * 1.3) return a.gold;
   return Math.max(0, a.gold - boss.cost) + boss.cost * 0.25;
@@ -4729,12 +4769,12 @@ function laneCapacity(game, p, path = p.path, routes = null) {
  * Tracks what the opponent really sends: HP per income round (moving average) and the biggest
  * recent burst, because towers work through a group one creep at a time.
  */
-function observeEnemy(game, p) {
+function observeEnemy(game, p, persona = p.aiPersona) {
   const seen = (p.aiSeen ||= { hp: 0, air: 0, rate: 0, airRate: 0, burst: 0, airBurst: 0, roundStart: game.tick }),
     // v0.22b: Felito Hardo counts fast creeps heavier: towers get less time for them (Raider pushes broke it in game 1)
-    fast = p.aiPersona?.speedAware ? 240 * movementMultiplier(game) : 0,
+    fast = persona?.speedAware ? 240 * movementMultiplier(game) : 0,
     // v0.22l: every creep costs at least one shot: a swarm of 2-HP Goblins eats far more tower time than its HP
-    floor = p.aiPersona?.speedAware ? shotFloor(game, p) : 0;
+    floor = persona?.speedAware ? shotFloor(game, p) : 0;
   let fresh = 0,
     freshAir = 0;
   for (const c of p.creeps)
@@ -4768,9 +4808,11 @@ function observeEnemy(game, p) {
  * v0.21v: perk and element edges from 155 hard-vs-hard games (18.10.): win rate when the bot took a
  * perk minus when it skipped the same offer, shrunk against noise (−1 … +1). The hard bot weighs its
  * picks with them twice over (persona.smartPerks = 2): 73 % wins against the old hard bot in 128 games.
+ * v0.22zi1: recalibrated from 1,048 hard players (20.10., v0.22zh1): new perks rated, Arcane Burst, Water Block,
+ * Frozen Ground and Heavy Nobility toned down; elements from the start-element win rates. 57.5 % against the old table (80 games).
  */
-const PERK_EDGE = {"agolem": 0.39, "heavy": 0.16, "tailwind": 0.3, "pillar": 0.23, "permafrost": 0.18, "supergrowth": 0.08, "guardian": 0.15, "burst": 0.22, "nobility": 0.23, "mind": 0.15, "waterblock": 0.16, "crowd": 0.13, "hellfire": 0.18, "evolution": 0.14, "pillage": 0.14, "leadership": 0.08, "owl": 0.06, "volley": 0.11, "novice": 0.09, "feudal": 0.08, "monsun": 0.02, "fireblock": 0.02, "golem": -0.04, "exhume": -0.08, "bank": -0.1, "recruit": -0.18, "militia": -0.09, "treasure": -0.13, "boots": -0.13, "firearrows": -0.03, "slave": -0.16, "pocks": -0.15, "forge": -0.25, "breeding": -0.18, "wolves": -0.19, "archery": -0.4, "airblock": -0.3, "summon": -0.03, "synthesizer": -0.3, "voltage": -0.26, "frenzy": -0.29, "gold": -0.2};
-const ELEMENT_EDGE = {"arcane": 0.35, "earth": 0.21, "fire": 0.81, "plague": 0.0, "storm": -0.36, "water": 0.6};
+const PERK_EDGE = {"agolem": 0.39, "heavy": 0.16, "tailwind": 0.3, "pillar": 0.13, "permafrost": 0.08, "supergrowth": 0.05, "guardian": 0.06, "burst": -0.02, "nobility": 0.06, "mind": 0.03, "waterblock": 0, "crowd": 0.06, "hellfire": 0.1, "evolution": 0.11, "pillage": 0.14, "leadership": 0.04, "owl": 0.04, "volley": 0.05, "novice": 0.02, "feudal": 0.02, "monsun": 0.07, "fireblock": 0.04, "golem": -0.04, "exhume": 0.02, "bank": -0.04, "recruit": -0.12, "militia": -0.05, "treasure": -0.02, "boots": 0.01, "firearrows": -0.06, "slave": -0.09, "pocks": -0.08, "forge": -0.25, "breeding": -0.03, "wolves": -0.08, "archery": -0.4, "airblock": -0.3, "summon": 0.01, "synthesizer": -0.3, "voltage": -0.08, "frenzy": -0.12, "gold": -0.05, "scholar": 0.07, "gunpowder": 0.03, "carmor": 0, "wings": -0.01, "manufacture": -0.02, "stormfeathers": -0.03, "medicine": -0.04, "hills": -0.06, "melee": -0.08};
+const ELEMENT_EDGE = {"earth": -0.38, "storm": -0.57, "fire": 0.68, "plague": -0.09, "arcane": 0.8, "water": -0.24};
 function aiPick(game, p, persona) {
   const pick = p.picks[0],
     score = (o) => {
@@ -5370,11 +5412,11 @@ function think(game, p) {
   const rolled = aiPersonality(game, p),
     enemy = targetOf(game, p.id), // the player this bot sends to
     humanFoe = enemy && (!enemy.ai || enemy.simHuman), // simHuman: test bots that stand in for a human
-    persona = adaptPersona(game, p, enemy, humanFoe && style.vsHuman ? { ...rolled, ...style.vsHuman } : rolled), // v0.21v, v0.22b
+    persona = adaptPersona(game, p, enemy, { ...(humanFoe && style.vsHuman ? { ...rolled, ...style.vsHuman } : rolled), humanFoe: !!humanFoe }), // v0.21v, v0.22b; v0.22z2: knows whether it plays a human
     _splash = (splashView = rolled.splashTop || 0), // v0.22m2
     attackers = attackersOf(game, p.id), // the players sending into this bot's lane
-    seen = observeEnemy(game, p);
-  crowdView = persona.adaptive && game.round >= 10 ? clamp((seen.nRate ?? AI_ADAPT.crowdCount) / AI_ADAPT.crowdCount, 0.4, 1) : 1;
+    seen = observeEnemy(game, p, persona);
+  crowdView = persona.adaptive && persona.humanFoe && game.round >= 10 ? clamp((seen.nRate ?? AI_ADAPT.crowdCount) / AI_ADAPT.crowdCount, 0.4, 1) : 1;
   for (let guard = 12; p.picks.length && guard > 0; guard--) aiPick(game, p, persona); // v0.15: never loop on a refused choice
   // v0.09q: Arrow Volley where the most creeps stand, or on a creep about to break through
   if (perkLevel(p, "volley") && !(p.volleyReady > game.time) && p.creeps.length) {
@@ -5426,7 +5468,7 @@ function think(game, p) {
     prior = game.round < 4 ? attackers.reduce((sum, a) => sum + a.income * hpPerGold(a.tier), 0) * 0.35 : 0,
     // v0.07l: gold the opponent banks is a push in the making (a human watches that number)
     // v0.22d: Hardo holds more of the gold banked by an opponent a tier ahead (game 2: tier-2 Troll pushes broke it)
-    bank = (persona.bankWatch ?? 0) > 0 && !game.warmup && !early ? attackers.reduce((sum, a) => sum + bankedGold(a, persona) * hpPerGold(a.tier) * (persona.adaptive && a.tier > p.tier ? 1.4 : 1), 0) * persona.bankWatch * (persona.bankFast ?? 1) : 0,
+    bank = (persona.bankWatch ?? 0) > 0 && !game.warmup && !early ? attackers.reduce((sum, a) => sum + bankedGold(a, persona) * bankTrust(game, p, a, persona) * hpPerGold(a.tier) * (persona.adaptive && a.tier > p.tier ? 1.4 : 1), 0) * persona.bankWatch * (persona.bankFast ?? 1) : 0,
     // v0.22l: Hardo sizes a neutral wave by shots too (a wave of tiny creeps needs more towers than its HP suggests)
     waveGround = waveSoon ? Math.max(wave.total, persona.speedAware ? (wave.count || 0) * shotFloor(game, p) : 0) * (1 - wave.flyingShare) * (persona.waveShare ?? 0.62) * safety : 0,
     // v0.22l: early on Hardo holds only what the opponent can really send next round (gold + income, stock,
@@ -5446,17 +5488,27 @@ function think(game, p) {
   // made it pour 65k into towers, tier 2 only at 1,075 income, never tier 3)
   // (whether the boss is for sale, gold aside: available() also refuses while the gold is short)
   const tierBoss = persona.adaptive && !game.warmup ? tierSends(p.tier).find((s) => s.bossTier && !p.bossBought?.[s.id] && p.tier < s.bossTier && (p.stock[s.id]?.count ?? 0) >= 1 && !(lockRoundsLeft(game, p.stock[s.id]) > 0)) : null,
-    tierReady = !!tierBoss && game.round >= 6 && p.income >= tierBoss.cost * (AI_ADAPT.tierIncomes[p.tier - 1] ?? AI_ADAPT.tierIncome),
+    // v0.22z2: the human tier rule (and saving for the boss) only against humans; against bots the old rule won 80 %, the new one 52 %
+    tierReady = !!tierBoss && game.round >= 6 && p.income >= tierBoss.cost * (persona.humanFoe ? AI_ADAPT.tierIncomes[p.tier - 1] ?? AI_ADAPT.tierIncome : AI_ADAPT.tierIncome),
     realNeed = Math.max(Math.min(Math.max(seen.burst, (seen.rate - seen.airRate) * (persona.rateShare ?? 0.33), prior) * safety, threat), waveGround);
   const groundGap = groundNeed - cap.ground + (alarm ? pressure + 40 : 0),
     airGap = airNeed - cap.air,
-    calm = tierReady && !alarm && realNeed <= cap.ground && airGap <= 0,
+    // v0.22zc2: with the human at 5 lives or fewer Hardo keeps its gold for the finishing push (game 3: Felito sat on
+    // 2–5 lives for 12 rounds while Hardo's gold went into towers)
+    finishing = persona.adaptive && persona.humanFoe && !!enemy && !enemy.out && enemy.lives <= 5 && p.lives > 8 && !alarm,
+    calm = persona.humanFoe && (tierReady || finishing) && !alarm && realNeed <= cap.ground && airGap <= 0,
     // a turtling bot keeps spending on defence it does not need yet
     defend = !calm && (groundGap > 0 || airGap > 0 || random(game) < (style.turtle || 0));
   // v0.19d2: bots from easy up place their free archer at once, on the best spot of their maze plan
   if (level !== "veryEasy" && (p.freeArchers || 0) > 0 && available(game, p.id, "build", "h003").ok) {
     const free = defenceOptions(game, p, persona, level, style, cap, false, true, 0).find((o) => o.id === "h003");
     if (free?.run().ok) return;
+  }
+  // v0.22y2: Normal, Hard and Hardo keep their maze secret in the warm-up and build only in its last seconds
+  // (a random moment 1.5–4 s before round 1), so the opponent cannot read their plan; the free archer still goes down at once
+  if (["normal", "hard", "insane"].includes(level) && game.warmup) {
+    p.aiWarmBuild ??= 1.5 + random(game) * 2.5;
+    if (game.incomeRemaining > p.aiWarmBuild) return;
   }
   p.aiDebug = { round: game.round, rate: Math.round(seen.rate), burst: Math.round(seen.burst), airBurst: Math.round(seen.airBurst), wave: waveSoon ? Math.round(wave.total) : 0, capG: Math.round(cap.ground), capA: Math.round(cap.air), gapG: Math.round(groundGap), gapA: Math.round(airGap), alarm };
   if (defend) {
@@ -5531,7 +5583,7 @@ function think(game, p) {
     if (p.gold >= need) {
       if (command(game, { type: "send", player: p.id, id: tierBoss.id }).ok) return;
     }
-    if (!p.aiPush && p.gold + p.income * AI_ADAPT.tierSaveRounds >= need) return;
+    if (persona.humanFoe && !p.aiPush && p.gold + p.income * AI_ADAPT.tierSaveRounds >= need) return;
   }
   // v0.22d: once the opponent is a tier ahead or its gold lies idle (sold-out stock), Hardo needs only a small cushion above the boss price (game 2: it
   // stayed in tier 1 for 44 rounds because "boss cost + one round of income" grew faster than its savings).
@@ -5563,7 +5615,7 @@ function think(game, p) {
   }
   // v0.07l: a low opponent gets a finishing push as soon as one can break through
   if (!p.aiPush && (persona.killShot ?? 0) > 0 && enemy.lives <= persona.killShot && game.round >= 4) {
-    const plan = breakthroughPlan(game, p, enemy, persona);
+    const plan = breakthroughPlan(game, p, enemy, finishing ? { ...persona, pushSize: 1 } : persona); // v0.22zc2: finish now, not in 3 rounds
     if (plan) {
       p.aiPush = plan;
       return;

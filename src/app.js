@@ -150,9 +150,9 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.22v",
+const APP_VERSION = "0.22zj",
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
-  APP_DATE = "19.10.2026";
+  APP_DATE = "20.10.2026";
 // v0.18: the version also stands in the page title (browser tab and the artifact window in chats)
 try {
   document.title = `Felito Tower Wars · v${APP_VERSION}`;
@@ -302,6 +302,17 @@ let warnedWave = 0;
 const sfx = createSfx();
 sfx.setEnabled(soundEnabled);
 sfx.setVolume?.(((muted ? 0 : volume.master) / 100) * (volume.effects / 100));
+/** v0.22w2: fun facts shown after losing to Hardo (one at random). */
+const HARDO_FACTS = [
+  "Did you know: in 528 test matches against the Hard AI, Hardo won 78 %.",
+  "Did you know: Hardo took his first match off Felito on 19 October 2026.",
+  "Did you know: Hardo never cheats. He sees exactly what you see.",
+  "Did you know: Hardo watches your gold. A big pile of it makes him nervous.",
+  "Did you know: every push of Hardo's that fails makes him respect your defence more.",
+  "Did you know: Hardo buys his first tier boss at about 500 income, like a strong human player.",
+  "Did you know: Hardo starts building in the middle of his field.",
+  "Did you know: Hardo was born on 18 October 2026, in a best of 5 against Felito.",
+];
 const AI_NAMES = { veryEasy: "Very easy", easy: "Easy", normal: "Normal", hard: "Hard", insane: "Hardo" }; // v0.22b: Hardo (secret experimental Training level, id "insane")
 // Player colour: chosen in the main menu; the other side is red, or blue when you play red.
 // v0.13: player name (main menu), shown on your plate and sent to online opponents
@@ -1605,7 +1616,7 @@ const ABILITY_DESC = {
   "Explode on Death": "Explodes when destroyed",
   Dodge: "Has a chance to dodge attacks", // v0.22n2: was Evasion
   "Arrow Resistance": "Takes 33% less damage from Archer-Line towers",
-  "Siege Resistance": "Takes 33% less damage from Bombard-Line towers",
+  "Splash Resistance": "Takes 33% less splash damage from towers", // v0.22za2 (was Siege Resistance)
   Deathrattle: "Summons 3 Skeletons on death",
   "Spawn Wisp": "Spawns a Wisp on death", // v0.21z: Treant
   Armor: "Ignores some damage from every hit", // v0.22n2: was Scale Armor
@@ -2347,7 +2358,7 @@ const iconColor = () => TEAM_COLORS[colorPick]?.css || "#8a96a3";
 /** v0.19c1: a 5 × 3 grid of player icons. */
 function iconModal() {
   const grid = () =>
-    PLAYER_ICONS.filter((id) => id !== "hardo" || hardoIconEarned()).map((id) => {
+    PLAYER_ICONS.filter((id) => id !== "hardo").map((id) => { // v0.22za2: Hardo's goblin is never offered here; you wear it after beating him until you pick another
       const locked = iconLocked(id),
         name = id === "player" ? t("Archer") : id === "hardo" ? "Hardo" : ICON_ART[id] ? t("Footman") : itemName(catalog.byId[id]);
       // v0.19g1: locked golems keep their hover / tap tooltip (a disabled button gets no pointer events)
@@ -3096,7 +3107,8 @@ function recSnap() {
 }
 function recStart() {
   rec = null;
-  if (!game || !game.players.some((q) => q.ai && (q.aiLevel || game.aiLevel) === "insane")) return;
+  // v0.22zb2: Training against Normal and Hard is recorded too, not only Hardo
+  if (!game || !game.players.some((q) => q.ai && ["normal", "hard", "insane"].includes(q.aiLevel || game.aiLevel))) return;
   const id = "m" + Date.now().toString(36) + Math.floor(Math.random() * 1296).toString(36);
   rec = { id, game, cmds: [], snaps: [], chunk: 0, round: game.round, queue: Promise.resolve(), done: false, started: Date.now() };
   rec.meta = {
@@ -3170,7 +3182,7 @@ function startLocal({ hotseat = false, ffa = false, seats = 4, mission = null } 
     seats: ffa ? Math.min(8, Math.max(3, seats)) : 2,
     mission, // v0.17: campaign
   });
-  if (!hotseat) game.players[0].icon = iconChoice; // v0.19c1
+  if (!hotseat) game.players[0].icon = iconChoice === "hardo" && hardoGame() ? "player" : iconChoice; // v0.19c1; v0.22za2: never Hardo's own icon against Hardo
   game.training = !hotseat && !mission; // v0.19d2: smaller sell penalty against very easy / easy bots
   presenceState("pve");
   rollColor(); // v0.18a: picked colour or a random one
@@ -3705,7 +3717,10 @@ const PERK_SVG = {"arrowhead": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBo
 const svgUrl = (name) => "data:image/svg+xml," + encodeURIComponent(PERK_SVG[name]);
 /** v0.13: research with its own painted icon (Watcher Owl: an owl's eye). */
 const RESEARCH_SVG = { R00V: "leadership", R002: "meleeprotocol", R005: "heavyweapons", R00K: "owl", R00J: "firearrow", R00C: "frenzy", R001: "potion", R006: "vault", R00X: "brain", R00W: "wing", R00U: "breastplate" }; // v0.19a1: painted icons for the reworked perks (dev/art/perk-icons-v019.py)
-const researchArt = (item) => (RESEARCH_SVG[item.id] ? svgUrl(RESEARCH_SVG[item.id]) : artUrl(artFor(item)));
+const RESEARCH_PERK = { R00V: "leadership", R002: "melee", R005: "heavy", R00K: "owl", R00J: "firearrows", R00C: "frenzy", R001: "medicine", R006: "bank", R00X: "mind", R00W: "tailwind", R00U: "carmor", R00D: "wolves" }; // v0.22zd1
+const researchArt = (item) => (RESEARCH_PERK[item.id] ? elPerkArt(RESEARCH_PERK[item.id]) : RESEARCH_SVG[item.id] ? svgUrl(RESEARCH_SVG[item.id]) : artUrl(artFor(item)));
+/** v0.22zd1: painted icons for all 45 element perks (sheet in element order); v0.22zf1: re-cut with a matting model, larger; v0.22zh1: cleaner glow, smoke and interiors. */
+const elPerkArt = (id) => `assets/art/perks/${id}.webp?v=v022zh1`;
 const PERK_ART = {
   recruit: () => iconUrl("attack"),
   feudal: () => iconUrl("crown"),
@@ -3717,56 +3732,56 @@ const PERK_ART = {
   novice: () => "assets/art/perk-novice-v2.webp?v=v022p2", // v0.22p2: scroll, quill and candle (v0.21t: painted scroll and quill)
   volley: () => "assets/art/perk-volley.webp?v=v022q2", // v0.22q2: painted arrows (was an svg)
   pillage: (lv = 1) => `assets/art/perk-pillage-${Math.max(1, Math.min(3, lv || 1))}.webp?v=v022q2`, // v0.22q2: loot bag with dagger / two daggers / axe per level
-  crowd: () => svgUrl("crowd"),
-  golem: () => svgUrl("golem"),
-  permafrost: () => svgUrl("permafrost"),
-  wings: () => svgUrl("wings"),
-  hellfire: () => svgUrl("lavafloor"), // v0.19j: a lava tile
-  fireblock: () => svgUrl("fireblock"), // v0.19j
-  burst: () => svgUrl("burst"),
-  pocks: () => svgUrl("pocks"),
+  crowd: () => elPerkArt("crowd"),
+  golem: () => elPerkArt("golem"),
+  permafrost: () => elPerkArt("permafrost"),
+  wings: () => elPerkArt("wings"),
+  hellfire: () => elPerkArt("hellfire"),
+  fireblock: () => elPerkArt("fireblock"),
+  burst: () => elPerkArt("burst"),
+  pocks: () => elPerkArt("pocks"),
   treasure: () => "assets/art/perk-treasure.webp?v=v022q2", // v0.22q2: treasure chest
-  voltage: () => svgUrl("voltage"),
-  boots: () => svgUrl("boots"),
-  exhume: () => svgUrl("exhume"),
-  waterblock: () => svgUrl("waterblock"),
-  airblock: () => svgUrl("airblock"), // v0.20c
-  supergrowth: () => svgUrl("supergrowth"), // v0.20c
+  voltage: () => elPerkArt("voltage"),
+  boots: () => elPerkArt("boots"),
+  exhume: () => elPerkArt("exhume"),
+  waterblock: () => elPerkArt("waterblock"),
+  airblock: () => elPerkArt("airblock"),
+  supergrowth: () => elPerkArt("supergrowth"),
   // v0.12
   lone: () => "assets/art/perk-lone.webp?v=v022h1", // v0.21u: painted shield and sword; v0.22h1: zoomed in further, brighter glow
-  autoloader: () => svgUrl("autoloader"), // v0.22g1: cannon, feed chute and gear
-  hills: () => svgUrl("hills"), // v0.22h1: an uphill trail with mud and boulders
-  stormfeathers: () => svgUrl("stormfeathers"), // v0.22h1: three feathers and a lightning bolt
-  manufacture: () => svgUrl("manufacture"),
+  autoloader: () => elPerkArt("autoloader"),
+  hills: () => elPerkArt("hills"),
+  stormfeathers: () => elPerkArt("stormfeathers"),
+  manufacture: () => elPerkArt("manufacture"),
   // v0.21: the former level-up upgrades keep their painted icons
-  owl: () => svgUrl("owl"),
-  carmor: () => svgUrl("breastplate"),
-  leadership: () => svgUrl("leadership"),
-  tailwind: () => svgUrl("wing"),
-  mind: () => svgUrl("brain"),
-  medicine: () => svgUrl("potion"),
-  melee: () => svgUrl("meleeprotocol"),
-  heavy: () => svgUrl("heavyweapons"),
-  bank: () => svgUrl("vault"),
-  frenzy: () => svgUrl("frenzy"), // v0.21e: arrow head, sword and hand cannon in a green whirl
-  wolves: () => researchArt(catalog.byId.R00D || { id: "R00D" }),
-  firearrows: () => svgUrl("firearrow"),
-  synthesizer: () => svgUrl("synthesizer"), // v0.20d
-  forge: () => svgUrl("forge"), // v0.21c: Creep Forge
-  scholar: () => svgUrl("scholar"), // v0.20d
-  summon: () => svgUrl("summon"),
-  nobility: () => svgUrl("nobility"),
-  breeding: () => svgUrl("breeding"),
-  pillar: () => svgUrl("pillar"),
+  owl: () => elPerkArt("owl"),
+  carmor: () => elPerkArt("carmor"),
+  leadership: () => elPerkArt("leadership"),
+  tailwind: () => elPerkArt("tailwind"),
+  mind: () => elPerkArt("mind"),
+  medicine: () => elPerkArt("medicine"),
+  melee: () => elPerkArt("melee"),
+  heavy: () => elPerkArt("heavy"),
+  bank: () => elPerkArt("bank"),
+  frenzy: () => elPerkArt("frenzy"),
+  wolves: () => elPerkArt("wolves"),
+  firearrows: () => elPerkArt("firearrows"),
+  synthesizer: () => elPerkArt("synthesizer"),
+  forge: () => elPerkArt("forge"),
+  scholar: () => elPerkArt("scholar"),
+  summon: () => elPerkArt("summon"),
+  nobility: () => elPerkArt("nobility"),
+  breeding: () => elPerkArt("breeding"),
+  pillar: () => elPerkArt("pillar"),
   fort: () => "assets/art/perk-fort.webp?v=v022q2", // v0.22q2: wall of stone and stakes
-  agolem: () => svgUrl("agolem"),
-  monsun: () => svgUrl("monsun"),
-  slave: () => svgUrl("slave"), // v0.14
-  guardian: () => svgUrl("guardian"), // v0.14
-  quarry: () => svgUrl("quarry"), // v0.18h
-  backup: () => svgUrl("backup"),
-  tides: () => svgUrl("tides"),
-  sanction: () => svgUrl("sanction"),
+  agolem: () => elPerkArt("agolem"),
+  monsun: () => elPerkArt("monsun"),
+  slave: () => elPerkArt("slave"),
+  guardian: () => elPerkArt("guardian"),
+  quarry: () => elPerkArt("quarry"),
+  backup: () => elPerkArt("backup"),
+  tides: () => elPerkArt("tides"),
+  sanction: () => elPerkArt("sanction"),
 };
 // v0.22h1: the perk icons load a moment after a match starts, so a reward dialog never waits for them
 let perkArtLoaded = false;
@@ -3797,11 +3812,11 @@ setInterval(() => {
 }, 1000);
 /** Perk text with its numbers filled in (the gold perk shows the amount, not the formula). */
 /** v0.12: `q` is the player and `next` true when the perk is offered (its values at the next level). */
-const perkText = (id, level, q = game?.players[own], next = false) => {
+const perkText = (id, level, q = game?.players[own], next = false, detail = false) => {
   const pct = (x) => Math.round(x * 100) + "%",
     lv = Math.max(1, Math.min(PERKS[id]?.max || 1, (q?.perks?.[id] || 0) + (next ? 1 : 0))),
     l3 = Math.min(3, lv) - 1;
-  return t(PERKS[id].text, {
+  return t((detail && PERKS[id].detail) || PERKS[id].text, { // v0.22za2: short tooltip, longer text in the card book's detail view
     gold: format(perkGold(level, q, game)),
     treasure: format(treasureGold(game)),
     treasureInc: format(treasureIncome(game, q)), // v0.19e2
@@ -4013,8 +4028,9 @@ function optionName(o) {
 /** v0.08c: with no reward waiting, the level button shows what every player has chosen so far. */
 function playerName(q) {
   if (q.id === own) return myName();
+  if (q.ai && (q.aiLevel || game.aiLevel) === "insane") return "Hardo"; // v0.22w2: Hardo by name in every banner
   if (isFfa()) return seatName(q.id);
-  if (sessionMode === "training") return `${t("AI")} · ${t(AI_NAMES[q.aiLevel || game.aiLevel] || "Normal")}`;
+  if (sessionMode === "training" || (q.ai && !q.aiTakeover && sessionMode !== "online")) return `${t("AI")} · ${t(AI_NAMES[q.aiLevel || game.aiLevel] || "Normal")}`; // v0.22w2: AI never "Player 2"
   if (sessionMode === "online") return onlineName(q) || t("Enemy");
   return t(q.id === 0 ? "Player 1" : "Player 2");
 }
@@ -5160,7 +5176,7 @@ function perkSim(id, s) {
     stand = { round: s.round, time: s.round * 15, tick: 0, running: true, warmup: false, teams: null, grid: real?.grid || { cols: 6, rows: 14, cellUnits: 128 }, players: [q] };
   game = stand;
   try {
-    return { text: perkText(id, s.level, q, false), cd: perkCd(id, q) };
+    return { text: perkText(id, s.level, q, false, true), cd: perkCd(id, q) };
   } catch {
     return null;
   } finally {
@@ -6870,16 +6886,23 @@ function tick(dt) {
       tip =
         won || !["training", "ffa"].includes(sessionMode)
           ? ""
-          : me.stats.sent < 5
+          : sessionMode === "training" && hardoGame()
+            ? "" // v0.22x2: against Hardo a fun fact takes the picture's place instead
+            : me.stats.sent < 5
             ? t("Tip: send more creeps. Every group raises your income for good.")
             : me.towers.length < 8
               ? t("Tip: build towers in rows so the path gets longer.")
               : t("Tip: tap towers and upgrade them instead of only building new ones.");
     tone(won ? "victory" : "defeat");
-    const summary = matchSummary(me, isFfa() ? (won ? 1 : me.place || 2) : 0);
+    const summary = matchSummary(me, isFfa() ? (won ? 1 : me.place || 2) : 0),
+      // v0.22x2: against Hardo the picture and the quote give way to a fun fact about him
+      hardoFact = sessionMode === "training" && hardoGame() ? t(HARDO_FACTS[Math.floor(Math.random() * HARDO_FACTS.length)]).replace(/^Did you know:\s*/, "") : "",
+      hero = hardoFact
+        ? `<div class="hardo-fact"><small>${t("Did you know?")}</small><p>${esc(hardoFact.charAt(0).toUpperCase() + hardoFact.slice(1))}</p></div>`
+        : `<img class="modal-hero result-hero" src="${artUrl(won ? "tower-archer" : "creep-golem")}" alt=""><h2 class="welcome-title">${won ? t("Your line.<br><span>Your victory.</span>") : t("Well fought.<br><span>Another round?</span>")}</h2>`;
     if (sessionMode !== "online") presenceState("idle");
     showModal(
-      `<div class="result-banner ${won ? "win" : "lose"}">${t(won ? "Victory" : "Defeat")}</div><img class="modal-hero result-hero" src="${artUrl(won ? "tower-archer" : "creep-golem")}" alt=""><h2 class="welcome-title">${won ? t("Your line.<br><span>Your victory.</span>") : t("Well fought.<br><span>Another round?</span>")}</h2>${summary.html}<p class="modal-copy" style="text-align:center">${t("Match time")} ${$("match-clock").textContent}${sessionMode === "training" ? ` · ${t("AI")} ${t(AI_NAMES[game.aiLevel] || "Normal")}` : ""}</p>${tip ? `<p class="modal-note result-tip">${tip}</p>` : ""}<div class="result-pair"><button class="secondary-button" id="play-again">${t("Play again")}</button>${sessionMode === "training" && game.aiLevel !== (hardoUnlocked ? "insane" : "hard") && won ? `<button class="secondary-button" id="play-harder">${t("Harder AI")}</button>` : ""}</div><button class="primary-button" id="to-menu">${t("Main menu")}</button>`,
+      `<div class="result-banner ${won ? "win" : "lose"}">${t(won ? "Victory" : "Defeat")}</div>${hero}${summary.html}<p class="modal-copy" style="text-align:center">${t("Match time")} ${$("match-clock").textContent}${sessionMode === "training" ? ` · ${t("AI")} ${t(AI_NAMES[game.aiLevel] || "Normal")}` : ""}</p>${tip ? `<p class="modal-note result-tip">${tip}</p>` : ""}<div class="result-pair"><button class="secondary-button" id="play-again">${t("Play again")}</button>${sessionMode === "training" && game.aiLevel !== (hardoUnlocked ? "insane" : "hard") && won ? `<button class="secondary-button" id="play-harder">${t("Harder AI")}</button>` : ""}</div><button class="primary-button" id="to-menu">${t("Main menu")}</button>`,
       { pauseGame: false },
     );
     summary.wire();
@@ -7160,7 +7183,7 @@ async function init() {
     });
     $("volley-button").innerHTML = `<img src="${PERK_ART.volley()}" alt=""><i class="volley-cd" aria-hidden="true"></i><b id="volley-time"></b>`;
     $("volley-button").onclick = volleyPress;
-    $("burst-button").innerHTML = `<img src="${svgUrl("burst")}" alt=""><i class="volley-cd" aria-hidden="true"></i><b id="burst-time"></b>`;
+    $("burst-button").innerHTML = `<img src="${PERK_ART.burst()}" alt=""><i class="volley-cd" aria-hidden="true"></i><b id="burst-time"></b>`;
     $("burst-button").onclick = burstPress;
     ensureAbilityButtons(); // v0.12
     for (const id of ABILITY_IDS) bindAbilityButton(id); // v0.17k

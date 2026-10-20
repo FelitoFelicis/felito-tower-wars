@@ -193,7 +193,7 @@ export const ART_MANIFEST = Object.freeze({
 
 // v0.15: creep art repainted (cloth in team blue); the query makes browsers fetch the new pictures
 export const artUrl = (key) => `assets/art/${key}.webp${/^creep-/.test(key) ? "?v=016" : ""}`;
-export const iconUrl = (name) => `assets/art/icon-${name}.webp`;
+export const iconUrl = (name) => `assets/art/icon-${name}.webp${name === "coin" ? "?v=v022zg1" : ""}`; // v0.22zg1: new gold coin (portrait)
 
 /** Cut-out frame animations (rigged from the still art). attack = played on each shot from `start`, walk = looped. */
 export const ANIM_MANIFEST = Object.freeze({

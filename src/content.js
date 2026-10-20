@@ -550,7 +550,8 @@ export function configureContent(data) {
  */
 export const CUSTOM_ABILITIES = [
   { id: "XA01", baseId: "Xlrs", custom: true, line: "h003", reduce: 0.33, fields: { anam: { 0: "Arrow Resistance" }, aub1: { 1: "Takes 33% less damage from Archer-Line towers" } } },
-  { id: "XA02", baseId: "Xlrs", custom: true, line: "h02R", reduce: 0.33, fields: { anam: { 0: "Siege Resistance" }, aub1: { 1: "Takes 33% less damage from Bombard-Line towers" } } },
+  // v0.22za2: Orc: Splash Resistance replaces Siege Resistance: less damage from tower splash attacks (no spells)
+  { id: "XA02", baseId: "Xspr", custom: true, reduce: 0.33, fields: { anam: { 0: "Splash Resistance" }, aub1: { 1: "Takes 33% less splash damage from towers" } } },
   { id: "XA08", baseId: "Xslr", custom: true, resist: 0.4, fields: { anam: { 0: "Slow Resistance" }, aub1: { 1: "40% less slowed" } } }, // v0.21k: Warden, Eredar Warlock
   { id: "XA03", baseId: "Xinf", custom: true, fields: { anam: { 0: "Deathrattle" }, aub1: { 1: "Summons 3 Skeletons on death" } } }, // v0.17g: display only (the spawn runs through DEATH_PLANS)
   // v0.17p: Pit Lord tower: Howl. When creeps come near it howls: creeps within 1.5 fields are slowed and take more tower damage for 12 s.
@@ -658,7 +659,7 @@ export const CREEP_TUNING = {
   n00E: { income: 1, cost: 5, stockMax: 18, bountyBase: 0.85, bountyDice: 0 }, // v0.22h1: bounty 0.85 per Goblin (+70 % over the tier 1 average); // Goblin: income 1.17 → 1 (v0.07g), cost 6 → 5 (v0.07h); peon companion removed (v0.07i); stock 16 → 18 (v0.08b)
   n007: { cost: 10, income: 1.9, bountyBase: 1.5, bountyDice: 0 }, // v0.22h1: bounty 1.5 per Horse (+50 %); // Horse: cost 12 → 10, income 2 → 1.9 (v0.08b)
   n00K: { income: 3.5, bountyBase: 2.6, bountyDice: 0 }, // v0.22h1: bounty 2.6 per Gnoll (+30 %, was 0–5 at random); // Gnoll: income 3 → 3.5 (v0.08d)
-  n00M: { hp: 280, speed: 180, stockRegen: 7, count: 1, bountyBase: 11, name: "[06] Orc", shortName: "Orc", abilities: ["A01A", "XA02"] }, // Grunt → Orc (v0.17b): hit points +30 %, 120 → 156 (v0.09s); Siege Resistance 33 % (v0.17b); v0.18e: one Orc per purchase (heavy), hit points 156 → 312, bounty 5+1d1 → 11+1d1 (12 per purchase as before), restocks 1 Goblin; v0.21m: hit points 312 → 300, speed 190 → 180 (−5 %); v0.21p: 280 hit points, restock 6 → 7 s
+  n00M: { hp: 260, speed: 180, stockRegen: 7, count: 1, bountyBase: 11, name: "[06] Orc", shortName: "Orc", abilities: ["A01A", "XA02"] }, // Grunt → Orc (v0.17b): hit points +30 %, 120 → 156 (v0.09s); Siege Resistance 33 % (v0.17b), v0.22za2: Splash Resistance, 260 HP; v0.18e: one Orc per purchase (heavy), hit points 156 → 312, bounty 5+1d1 → 11+1d1 (12 per purchase as before), restocks 1 Goblin; v0.21m: hit points 312 → 300, speed 190 → 180 (−5 %); v0.21p: 280 hit points, restock 6 → 7 s
   n00R: { abilities: ["A01A", "XA01"] }, // Skeleton: Arrow Resistance now 33 % less damage from Archer-Line towers (v0.17b, was: ignores 1 ranged damage)
   n00N: { hp: 185, abilities: ["A01A", "XA03"] }, // Necromancer: hit points 170 → 180 (v0.17f), 185 (v0.21p); Unholy Aura removed, Deathrattle shown (v0.17g)
   n00P: { hp: 85, speed: 138.56, stockRegen: 11 }, // Flying Sheep: hit points 80 → 85, speed 1.06 → 1.08 fields/s (v0.17b); restock 10 → 11 s (v0.17o)
