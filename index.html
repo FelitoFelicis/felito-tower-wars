@@ -1,5 +1,5 @@
 <!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
-<title>Felito Tower Wars · v0.22zl</title>
+<title>Felito Tower Wars · v0.22zm</title>
 <script>
   // Start diagnostics: show script errors on the loading screen instead of hanging silently.
   (function () {
@@ -30,8 +30,8 @@
   <link rel="icon" href="assets/app-icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="assets/app-icon-192.png">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="style.css?v=v022zl">
-  <script type="importmap">{"imports":{"./src/music.js":"./src/music.js?v=v022zl","./src/art.js":"./src/art.js?v=v022zl","./src/soundtrack.js":"./src/soundtrack.js?v=v022zl","./src/sfx.js":"./src/sfx.js?v=v022zl","./src/app.js":"./src/app.js?v=v022zl","./src/arena.js":"./src/arena.js?v=v022zl","./src/content.js":"./src/content.js?v=v022zl","./src/simulation.js":"./src/simulation.js?v=v022zl","./src/multiplayer.js":"./src/multiplayer.js?v=v022zl","./src/i18n.js":"./src/i18n.js?v=v022zl","./src/b2d.js":"./src/b2d.js?v=v022zl","./src/campaign.js":"./src/campaign.js?v=v022zl"}}</script>
+  <link rel="stylesheet" href="style.css?v=v022zm">
+  <script type="importmap">{"imports":{"./src/music.js":"./src/music.js?v=v022zm","./src/art.js":"./src/art.js?v=v022zm","./src/soundtrack.js":"./src/soundtrack.js?v=v022zm","./src/sfx.js":"./src/sfx.js?v=v022zm","./src/app.js":"./src/app.js?v=v022zm","./src/arena.js":"./src/arena.js?v=v022zm","./src/content.js":"./src/content.js?v=v022zm","./src/simulation.js":"./src/simulation.js?v=v022zm","./src/multiplayer.js":"./src/multiplayer.js?v=v022zm","./src/i18n.js":"./src/i18n.js?v=v022zm","./src/b2d.js":"./src/b2d.js?v=v022zm","./src/campaign.js":"./src/campaign.js?v=v022zm"}}</script>
 </head>
 <body>
 <div id="boot-screen" class="boot-screen" aria-live="polite"><img src="assets/art/ui-logo.webp" alt="Felito Tower Wars"><span id="boot-msg">Loading …</span></div>
@@ -40,7 +40,7 @@
       <header class="game-header">
         <div class="player-plate own" role="button" tabindex="0" data-ta="Show your board" aria-label="Show your board" data-help="Your gold, income per round, lives and EXP. Tap to show your board.">
           <div class="plate-face"><img class="portrait" src="assets/art/portrait-player.webp" alt=""><i class="plate-skull" aria-hidden="true"></i><span class="plate-lives"><img src="assets/art/icon-heart.webp" alt=""><strong id="own-lives">30</strong></span></div>
-          <div class="plate-body"><span class="plate-name" data-t="You">You</span><span class="plate-gold"><img src="assets/art/icon-coin.webp?v=v022zl" alt="Gold"><b id="own-gold">0</b></span><em class="plate-inc" id="own-income">+0</em></div>
+          <div class="plate-body"><span class="plate-name" data-t="You">You</span><span class="plate-gold"><img src="assets/art/icon-coin.webp?v=v022zm" alt="Gold"><b id="own-gold">0</b></span><em class="plate-inc" id="own-income">+0</em></div>
           <div class="plate-exp" data-tt="Experience" title="Experience"><i id="own-exp"></i><span>Lv <b id="own-level">1</b><em class="plate-tier">T<b id="own-tier">1</b></em></span></div>
           <div class="enemy-stack ally-stack" id="ally-stack" hidden></div>
         </div>
@@ -51,14 +51,14 @@
           <span class="match-time sr-only"><span id="match-clock">00:00</span><span id="speed-label" class="sr-only">Live</span></span>
         </div>
         <div class="player-plate rival" role="button" tabindex="0" data-ta="Show the enemy board" aria-label="Show the enemy board" data-help="Your enemy's gold, income, lives and level. Tap to show their board.">
-          <div class="plate-body"><span class="plate-name" id="rival-name">Enemy</span><small id="rival-sub" class="sr-only">Training</small><span class="plate-gold"><b id="rival-gold">0</b><img src="assets/art/icon-coin.webp?v=v022zl" alt="Gold"></span><em class="plate-inc" id="rival-income">+0</em></div>
+          <div class="plate-body"><span class="plate-name" id="rival-name">Enemy</span><small id="rival-sub" class="sr-only">Training</small><span class="plate-gold"><b id="rival-gold">0</b><img src="assets/art/icon-coin.webp?v=v022zm" alt="Gold"></span><em class="plate-inc" id="rival-income">+0</em></div>
           <div class="plate-face"><img class="portrait" src="assets/art/portrait-enemy.webp" alt=""><i class="plate-skull" aria-hidden="true"></i><span class="plate-lives"><strong id="rival-lives">30</strong><img src="assets/art/icon-heart.webp" alt=""></span></div>
           <div class="plate-exp" data-tt="Experience" title="Experience"><i id="rival-exp"></i><span>Lv <b id="rival-level">1</b><em class="plate-tier">T<b id="rival-tier">1</b></em></span></div>
           <div class="enemy-stack" id="enemy-stack" hidden></div>
         </div>
       </header>
       <section class="resource-strip" hidden>
-        <div class="resource gold"><img src="assets/art/icon-coin.webp?v=v022zl" alt=""><strong id="gold">0</strong><em id="gold-income" class="gold-income">+0</em><small class="sr-only">Gold</small></div>
+        <div class="resource gold"><img src="assets/art/icon-coin.webp?v=v022zm" alt=""><strong id="gold">0</strong><em id="gold-income" class="gold-income">+0</em><small class="sr-only">Gold</small></div>
         <button id="faction-button" class="resource wood" aria-hidden="true"><img src="assets/art/icon-wood.webp" alt=""><strong id="wood">0</strong><small class="sr-only">Holz</small></button>
         <div class="resource income" hidden><img src="assets/art/icon-income.webp" alt=""><strong id="income">+0</strong><small class="sr-only"></small></div>
         <button id="view-button" class="view-button" data-ta="Switch view" aria-label="Switch view">Enemy</button>
@@ -109,8 +109,8 @@
     <section id="tower-panel" class="tower-panel" hidden></section>
   </main>
   <dialog id="modal"><div id="modal-body"></div></dialog>
-  <script src="vendor/babylon-felito.js?v=v022zl"></script>
-  <script type="module" src="src/app.js?v=v022zl"></script>
+  <script src="vendor/babylon-felito.js?v=v022zm"></script>
+  <script type="module" src="src/app.js?v=v022zm"></script>
 </body>
 </html>
 
