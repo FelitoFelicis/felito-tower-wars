@@ -30,7 +30,10 @@
   <link rel="icon" href="assets/app-icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="assets/app-icon-192.png">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="style.css?v=v022zm">
+  <!-- v0.23: the display and number fonts load at once; style.min.css is built from style.css (node tools/build-css.mjs) -->
+  <link rel="preload" href="assets/fonts/HTxwL3I-JCGChYJ8VI-L6OO_au7B47b1_3E.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="assets/fonts/lilita-one-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="style.min.css?v=v022zm">
   <script type="importmap">{"imports":{"./src/music.js":"./src/music.js?v=v022zm","./src/art.js":"./src/art.js?v=v022zm","./src/soundtrack.js":"./src/soundtrack.js?v=v022zm","./src/sfx.js":"./src/sfx.js?v=v022zm","./src/app.js":"./src/app.js?v=v022zm","./src/arena.js":"./src/arena.js?v=v022zm","./src/content.js":"./src/content.js?v=v022zm","./src/simulation.js":"./src/simulation.js?v=v022zm","./src/multiplayer.js":"./src/multiplayer.js?v=v022zm","./src/i18n.js":"./src/i18n.js?v=v022zm","./src/b2d.js":"./src/b2d.js?v=v022zm","./src/campaign.js":"./src/campaign.js?v=v022zm"}}</script>
 </head>
 <body>
