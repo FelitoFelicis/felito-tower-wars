@@ -649,11 +649,11 @@ function applyTowerDamageBuff(byId) {
 export const CREEP_TUNING = {
   n01D: { income: 60 }, // v0.21p: Ghoul earns income now (1500 gold: 4 %, like Demon Hound)
   // v0.21p: Naga Siren's death spawns +50 % hit points (they look like little Naga Sirens, art.js / arena.js)
-  n02Z: { hp: 3750 }, // Mutant 2500 → 3750
-  n034: { hp: 3000 }, // Scout 2000 → 3000
-  n02Y: { hp: 3000 }, // Thief 2000 → 3000
-  n036: { hp: 4500 }, // Warrior 3000 → 4500
-  n037: { hp: 2250 }, // Wizard 1500 → 2250
+  n02Z: { hp: 4050 }, // Mutant 2500 → 3750; v0.22zl: +8 %, 4050
+  n034: { hp: 3240 }, // Scout 2000 → 3000; v0.22zl: +8 %, 3240
+  n02Y: { hp: 3240 }, // Thief 2000 → 3000; v0.22zl: +8 %, 3240
+  n036: { hp: 4860 }, // Warrior 3000 → 4500; v0.22zl: +8 %, 4860
+  n037: { hp: 2430 }, // Wizard 1500 → 2250; v0.22zl: +8 %, 2430
   n02P: { hp: 90000 }, // Warden: +50 % hit points, 60000 → 90000 (v0.21k)
   n01R: { hp: 30000 }, // Eredar Warlock: +50 % hit points, 20000 → 30000 (v0.21k)
   n00E: { income: 1, cost: 5, stockMax: 18, bountyBase: 0.85, bountyDice: 0 }, // v0.22h1: bounty 0.85 per Goblin (+70 % over the tier 1 average); // Goblin: income 1.17 → 1 (v0.07g), cost 6 → 5 (v0.07h); peon companion removed (v0.07i); stock 16 → 18 (v0.08b)
@@ -670,7 +670,7 @@ export const CREEP_TUNING = {
   n00L: { speed: 375 }, // Wolf: 25 % faster, 300 → 375 (v0.08d)
   n00S: { speed: 420, stockRegen: 13, income: 8 }, // Raider: 25 % faster (v0.07b); restock 12 → 13 s (v0.17o); income 9 → 8 (v0.17q)
   n01H: { hp: 46200 }, // Meat Golem: hit points +10 %, 42000 → 46200 (v0.21y); v0.21z: no death spawns, denies its first death and rises enraged (simulation.js ENRAGED_GOLEM)
-  n03A: { income: 45 }, // v0.21z: Naga Siren earns a low income (1800 gold: 2.5 %)
+  n03A: { income: 45, hp: 4320 }, // v0.22zl: hit points +8 %, 4000 → 4320; // v0.21z: Naga Siren earns a low income (1800 gold: 2.5 %)
   n010: { hp: 1300 }, // Forest Troll: hit points −10 %, 1450 → 1300 (v0.16i: broke through 5–8× as often as other tier-2 creeps in self-play)
 };
 function applyCreepTuning(byId) {

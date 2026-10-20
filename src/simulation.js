@@ -922,7 +922,7 @@ export const PERKS = Object.freeze({
   quarry: { name: "Quarry", max: 1, element: "earth", powerup: true, unpopular: 0.5, text: "+100 gold and 8 stones. Clear them for an Earth perk", detail: "Instantly +100 gold and 8 stones on your field. Clear them all for a random Earth perk" },
   backup: { name: "Backup Line", max: 1, element: "storm", unpopular: 0.5, text: "Ranged towers +30% damage while top 3 rows are empty", detail: "Ranged towers +30% damage while your top 3 rows hold no tower" },
   tides: { name: "Low Tides", max: 1, element: "water", unpopular: 0.5, text: "Melee towers +50% damage while bottom 4 rows are empty", detail: "Melee towers +50% damage while your bottom 4 rows hold no tower" },
-  sanction: { name: "Sanction Policy", max: 1, element: "arcane", text: "Every 2nd creep locked, others +15% income, cooldowns −15%", detail: "Every 2nd creep locked for 30 rounds, other creeps +15% income. Abilities cooldown 15% faster permanently" }, // v0.19h1: no gold, cooldown 15 % (the tier boss is still locked)
+  sanction: { name: "Sanction Policy", max: 1, element: "arcane", text: "Every 2nd creep locked, others +15% income, cooldowns −15%", detail: "Every 2nd creep locked for 20 rounds, other creeps +15% income. Abilities cooldown 15% faster permanently" }, // v0.19h1: no gold, cooldown 15 % (the tier boss is still locked)
   monsun: { name: "Monsun", max: 5, element: "storm", text: "Active: pushes creeps back for {monsun} s", detail: "Active ability: Push creeps back for {monsun} s, lightning strikes flyers" },
   // v0.21: the former level-up upgrades (Warcraft researches) are ordinary perks now. "element" = needs that
   // element. v0.21g: every one of them needs its element now (before, six only wore the element's frame).
@@ -1383,7 +1383,7 @@ function zoneSpeed(game, p, c) {
   return f;
 }
 /** Sanction Policy (Arcane): gold, lock length in rounds, income bonus, ability cooldown cut. */
-export const SANCTION = { gold: 0, rounds: 30, income: 0.15, first: 0.075, cooldown: 0.15 }; // v0.19h1: no gold, 15 % shorter cooldowns
+export const SANCTION = { gold: 0, rounds: 20, income: 0.15, first: 0.075, cooldown: 0.15 }; // v0.19h1: no gold, 15 % shorter cooldowns
 /** v0.18h: cooldown of an active ability for this player (Sanction Policy: 20 % shorter). */
 export const abilityCd = (p, cd) => cd * (perkLevel(p, "sanction") ? 1 - SANCTION.cooldown : 1);
 function lockStock(game, p, id, rounds) {
