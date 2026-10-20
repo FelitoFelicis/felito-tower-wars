@@ -6189,8 +6189,59 @@ export function step(game, dt) {
   }
   return game;
 }
-export function serializeGame(game) {
-  return JSON.stringify(game);
+/**
+ * v0.23: `{ lean: true }` (online backup snapshots) leaves out the walking routes of ground creeps, about
+ * 70 % of a late-game snapshot; restoreGame rebuilds them the way the simulation re-routes after a build.
+ * `events: false` sends an empty event list. One JSON pass, no parse/stringify round trip.
+ */
+export function serializeGame(game, options = null) {
+  if (!options?.lean && options?.events !== false) return JSON.stringify(game);
+  return JSON.stringify(leanGame(game, options || {}));
+}
+function leanGame(game, { lean = false, events = true } = {}) {
+  return {
+    ...game,
+    ...(events === false ? { events: [] } : {}),
+    players: lean ? game.players.map((p) => ({ ...p, creeps: p.creeps.map(leanCreep) })) : game.players,
+  };
+}
+function leanCreep(c) {
+  // flyers (2 nodes), creeps mid knock-back and creeps at the end of their route keep the whole route
+  if (c.flying || c.knock || !Array.isArray(c.path) || c.pathIndex >= c.path.length) return c;
+  const head = c.path[c.pathIndex],
+    { path, ...rest } = c;
+  if (!head || !Number.isInteger(head.gridX)) return c;
+  return { ...rest, pathIndex: 0, prevNode: behindOf(c), pathHead: [head.gridX, head.gridY] };
+}
+/** v0.23: a ground creep without a usable route walks on from the nearest field that still leads to the exit. */
+function snapCreep(game, p, c) {
+  const d = exitDistances(game, p),
+    { cols, rows } = game.grid,
+    g = gridAt(game, c);
+  let best = null;
+  for (let y = -1; y < rows; y++)
+    for (let x = 0; x < cols; x++) {
+      if (d[square(game, x, y)] < 0) continue;
+      const m = Math.abs(x - g.x) + Math.abs(y - g.y);
+      if (!best || m < best.m) best = { x, y, m };
+    }
+  if (!best) return [];
+  const at = pos(game, best.x, best.y);
+  c.x = at.x;
+  c.y = at.y;
+  return findPath(game, p.id, best) || [];
+}
+/** v0.23: routes of a restored snapshot: lean creeps re-route from the node they were heading to (like repath). */
+function restoreCreepPaths(game, p) {
+  for (const c of p.creeps) {
+    if (c.flying || (c.pathHead === undefined && Array.isArray(c.path))) continue;
+    const head = Array.isArray(c.pathHead) && c.pathHead.every(Number.isInteger) ? c.pathHead : null;
+    delete c.pathHead;
+    c.path = head ? [pos(game, head[0], head[1])] : [];
+    c.pathIndex = 0;
+    c.path = creepPathFrom(game, p.id, c);
+    if (!c.path.length) c.path = snapCreep(game, p, c);
+  }
 }
 /** v0.21: a save from before the upgrade-to-perk change: research levels become perk levels, open upgrade options perks. */
 function migrateResearchPerks(game) {
@@ -6260,20 +6311,14 @@ export function restoreGame(serialized) {
     }
     for (const unit of [...p.towers, ...p.creeps])
       if (!obj(unit.typeId)) throw new Error("Save contains an unknown unit " + unit.typeId);
+    // v0.23: a creep standing on a tower field (it was walking there when the tower went up) no longer
+    // rejects the save (42 % of live online snapshots were refused); its route is rebuilt below instead
     if (
       !findPath(game, p.id) ||
-      p.creeps.some(
-        (c) =>
-          !Number.isFinite(c.x) ||
-          !Number.isFinite(c.y) ||
-          c.x < 0 ||
-          c.x > 1 ||
-          c.y < -0.2 ||
-          c.y > 1.2 ||
-          (!c.flying && !findPath(game, p.id, gridAt(game, c))),
-      )
+      p.creeps.some((c) => !Number.isFinite(c.x) || !Number.isFinite(c.y) || c.x < 0 || c.x > 1 || c.y < -0.2 || c.y > 1.2)
     )
       throw new Error("Save contains a blocked or invalid path");
+    restoreCreepPaths(game, p);
   }
   return game;
 }

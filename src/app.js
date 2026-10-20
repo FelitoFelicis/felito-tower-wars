@@ -2214,13 +2214,74 @@ function guestExtrapolate() {
 }
 let lastSentEvent = 0;
 const r4 = (v) => (typeof v === "number" ? Math.round(v * 1e4) / 1e4 : v);
+// v0.23: tower deltas. Only these tower fields change while a tower stands; the others (type, position,
+// name, cost, ...) travel only for towers that changed within the last TOWER_KEY states and in a full
+// "key" state about once per second. A guest that misses a tower's fields asks for a key state ("need-key").
+const TOWER_LIVE = new Set(["id", "cooldown", "aimId", "dmg", "kills", "buildRemaining", "completed", "curse"]),
+  TOWER_KEY = 8;
+const towerNet = { game: null, no: 0, keyAt: -TOWER_KEY, force: true, sig: new Map(), seed: null, cache: new Map(), askedAt: 0 };
+function towerDelta(p, t, key, next) {
+  const live = {},
+    rest = {};
+  for (const k in t) (TOWER_LIVE.has(k) ? live : rest)[k] = t[k];
+  const id = p.id + ":" + t.id,
+    sig = JSON.stringify(rest),
+    before = towerNet.sig.get(id),
+    entry = before && before.sig === sig ? before : { sig, at: towerNet.no };
+  next.set(id, entry);
+  // `$v` / `$`: the state number of the tower's last static change, so a follower never mixes in old fields
+  if (key || towerNet.no - entry.at < TOWER_KEY) return { ...t, $v: entry.at };
+  live.$ = entry.at; // "fields as in version $"
+  return live;
+}
+/** v0.23, follower: fills in the tower fields a delta state left out; false = a tower is unknown (wait for a key state). */
+function mergeTowerDeltas(next) {
+  if (towerNet.seed !== next.seed) {
+    towerNet.seed = next.seed;
+    towerNet.cache.clear();
+  }
+  for (const p of next.players) {
+    if (!Array.isArray(p.towers)) return false;
+    for (let i = 0; i < p.towers.length; i++) {
+      const t = p.towers[i],
+        id = p.id + ":" + t?.id;
+      if (!t || typeof t !== "object") return false;
+      if (t.$ !== undefined) {
+        const stat = towerNet.cache.get(id);
+        if (!stat || stat.v !== t.$) return false;
+        const merged = { ...stat.f, ...t };
+        delete merged.$;
+        p.towers[i] = merged;
+      } else {
+        const f = {};
+        for (const k in t) if ((!TOWER_LIVE.has(k) || k === "id") && k !== "$v") f[k] = t[k];
+        towerNet.cache.set(id, { v: t.$v, f });
+        delete t.$v;
+      }
+    }
+  }
+  return true;
+}
 function networkState() {
   // v0.13b: smaller states: rounded positions, no AI-internal data, only events not sent yet
   if ((game.eventId || 0) < lastSentEvent) lastSentEvent = 0; // a new match restarts the event numbers
   const fresh = game.events.filter((e) => (e.seq || e.id || 0) > lastSentEvent).slice(-60);
   if (fresh.length) lastSentEvent = fresh[fresh.length - 1].seq || fresh[fresh.length - 1].id || lastSentEvent;
   const { adaptation, ...rest } = game;
-  return {
+  // v0.23: a new match or a restored game (takeover) starts with a key state
+  if (towerNet.game !== game) {
+    towerNet.game = game;
+    towerNet.sig.clear();
+    towerNet.force = true;
+  }
+  towerNet.no++;
+  const key = towerNet.force || towerNet.no - towerNet.keyAt >= TOWER_KEY,
+    sigs = new Map();
+  if (key) {
+    towerNet.keyAt = towerNet.no;
+    towerNet.force = false;
+  }
+  const state = {
     ...rest,
     commands: [],
     pendingSpawns: [],
@@ -2228,6 +2289,7 @@ function networkState() {
     effects: [],
     players: game.players.map(({ aiPersona, aiMaze, ...p }) => ({
       ...p,
+      towers: p.towers.map((t) => towerDelta(p, t, key, sigs)), // v0.23
       creeps: p.creeps.map((c) => ({
         id: c.id,
         typeId: c.typeId,
@@ -2244,6 +2306,8 @@ function networkState() {
       })),
     })),
   };
+  towerNet.sig = sigs;
+  return state;
 }
 function sendState() {
   if (transportBlocked) return false;
@@ -2561,6 +2625,17 @@ function welcome() {
       }
     };
 }
+// v0.23: room state that disconnectRoom resets
+let qmConnectTimer = 0, // Quick Match host: no guest within 20 s -> back to the queue
+  stateDirty = false, // host: a guest command changed the state; netPulse sends it soon
+  takeoverFailed = null, // the snapshot a takeover could not restore (no retry every frame)
+  netLimit = 512 * 1024, // MAX_PAYLOAD_BYTES of the multiplayer module
+  netCallbacks = null; // the room callbacks (a rejoin opens a new session with them)
+/** v0.23: rejoin. Guest: its token and the reconnect attempts; host: token -> seat and the seats waiting for a rejoin. */
+const rejoin = { token: null, active: false, until: 0, timer: 0, code: null },
+  rejoinSeats = new Map(),
+  hostTokens = new Map(),
+  REJOIN_MS = 90000;
 function disconnectRoom() {
   clearTimeout(lobbyTimer); // v0.18b: no lobby start after leaving
   lobbyTimer = 0;
@@ -2576,6 +2651,19 @@ function disconnectRoom() {
   transportBlocked = false;
   networkSendFailures = 0;
   networkPauses.clear();
+  // v0.23: the background ticker, the takeover notes, the rejoin and Quick Match timers belong to this room
+  stopBackgroundTicker();
+  for (const k of Object.keys(takeoverShown)) delete takeoverShown[k];
+  clearTimeout(qmConnectTimer);
+  qmConnectTimer = 0;
+  rejoin.token = null;
+  rejoin.active = false;
+  clearTimeout(rejoin.timer);
+  for (const r of rejoinSeats.values()) clearTimeout(r.timer);
+  rejoinSeats.clear();
+  hostTokens.clear();
+  stateDirty = false;
+  takeoverFailed = null;
   old?.close();
 }
 let shownRival = -1;
@@ -5669,7 +5757,7 @@ let presence = null,
 function presenceState(state) {
   presenceBase = state;
   presenceWanted = qmSearch && state !== "pvp" ? "queue" : state; // v0.18a: a running search counts as "in the queue"
-  if (presence) return presence.set(state);
+  if (presence) return presence.set(presenceWanted); // v0.23: a search during a training match counts as "in the queue"
   if (state === "idle") return;
   import("./multiplayer.js")
     .then(({ createPresence }) => {
@@ -5794,6 +5882,13 @@ async function quickMatch() {
     if (match.role === "host") {
       connectOnline(undefined, match.code); // (closes any old room first)
       qmSlot = match.slot || null; // v0.19: more searchers can join this room until it starts or is full
+      // v0.23: nobody arrived in the room within 20 s: back to the queue
+      clearTimeout(qmConnectTimer);
+      qmConnectTimer = setTimeout(() => {
+        qmConnectTimer = 0;
+        if (begun || lobby || roomKind !== "quick" || !room || room.peers().length) return;
+        qmRequeue();
+      }, QM_CONNECT_MS);
     } else connectOnline(match.code, true);
   } catch (error) {
     if (signal.aborted || qmSearch !== q) return;
@@ -5803,6 +5898,15 @@ async function quickMatch() {
     if ($("network-status")) $("network-status").textContent = msg;
     else toast(msg);
   }
+}
+/** v0.23: a Quick Match whose connection failed or timed out searches again. */
+const QM_CONNECT_MS = 20000;
+function qmRequeue() {
+  if (begun) return;
+  disconnectRoom();
+  roomKind = "quick";
+  toast("No connection to the other player. Searching again …");
+  quickMatch();
 }
 function onlineMenu() {
   cancelQuickMatch(); // v0.18a: a room with a friend replaces a running Quick Match search
@@ -5856,9 +5960,12 @@ async function connectOnline(code, preset) {
   };
   status(t("Connecting …"));
   try {
-    const { createRoom, joinRoom } = await import("./multiplayer.js");
+    const { createRoom, joinRoom, MAX_PAYLOAD_BYTES } = await import("./multiplayer.js");
+    netLimit = MAX_PAYLOAD_BYTES || netLimit; // v0.23
     const callbacks = {
       signal,
+      // v0.23, host: a guest with this token may take its seat back in the running match
+      canRejoin: (token) => begun && !shownResult && game?.winner == null && hostTokens.has(token) && !game.players[hostTokens.get(token)]?.netLeft,
       onStatus: (s) => {
         if (s.error?.code === "browser-incompatible" && !begun) return noWebrtcModal(roomKind === "quick" ? "Quick Match" : "Play with a friend"); // v0.19b1
         status(t(s.message));
@@ -5867,12 +5974,14 @@ async function connectOnline(code, preset) {
           if ($("join-room")) $("join-room").disabled = false;
         }
       },
-      onConnect: (r, peerId) => {
+      onConnect: (r, peerId, info) => {
         room = r;
         const first = !connected;
         connected = true;
+        if (r.role === "host" && info?.rejoin) return hostRejoined(peerId, info.rejoin); // v0.23
         if (r.role === "host") netPeers.set(peerId, { seat: null, hidden: false, hiddenSince: 0, at: performance.now() }); // v0.19: one entry per guest
-        if (first) {
+        if (r.role === "guest" && rejoin.active) return guestRejoined(); // v0.23: back in our seat
+        if (first && !begun) {
           // v0.19: the host sits in seat 0; a guest learns its seat from the lobby (1 until then)
           own = r.role === "host" ? 0 : 1;
           lobbySeat = 1;
@@ -5893,14 +6002,17 @@ async function connectOnline(code, preset) {
         netPeers.delete(info.id);
         if (!begun) return lobbyPeerLeft(info.id);
         if (shownResult || game?.winner != null || peer?.seat == null) return;
+        // v0.23: a guest whose connection dropped (it did not leave) may come back with its rejoin token
+        if (simRole === "host" && !["left", "kicked"].includes(info.reason) && [...hostTokens.values()].includes(peer.seat)) return seatAway(peer.seat);
         if (!room?.peers().length) {
           connected = false;
           playerLeft(peer.seat);
         } else seatLeft(peer.seat);
       },
-      onDisconnect: () => {
+      onDisconnect: (info) => {
         if (signal.aborted) return;
         connected = false;
+        if (rejoin.active) return rejoinRetry(info); // v0.23: a reconnect attempt failed
         if (!begun) {
           // v0.18b: the other player left the lobby: no start, back to the menu with a note
           if (lobby) {
@@ -5913,14 +6025,18 @@ async function connectOnline(code, preset) {
             kickedNote = "";
             return;
           }
+          if (roomKind === "quick") return qmRequeue(); // v0.23: the Quick Match link failed: search again
           if ($("create-room")) $("create-room").disabled = false;
           if ($("join-room")) $("join-room").disabled = false;
           return;
         }
         if (shownResult || (game && game.winner != null)) return;
+        // v0.23: the link to the host dropped (we did not leave): reclaim our seat with the rejoin token
+        if (isFollower() && rejoin.token && !["left", "kicked", "rejoin-failed", "protocol-mismatch", "closed"].includes(info?.reason)) return rejoinStart();
         playerLeft(game && game.players.length > 2 ? 0 : 1 - own); // v0.16; v0.19: in larger matches the host (seat 0) left
       },
     };
+    netCallbacks = callbacks;
     let r;
     if (code && preset) {
       // Quick Match guest: the host registers its room a moment later, so retry briefly.
@@ -5954,6 +6070,8 @@ async function connectOnline(code, preset) {
     if (!code && !preset) lobbyOpen(); // v0.19c1: the host sees the room at once (code, players, bots)
   } catch (error) {
     if (signal.aborted) return;
+    // v0.23: a Quick Match that fails to connect goes back to the queue
+    if (roomKind === "quick" && !begun && error.code !== "browser-incompatible" && error.code !== "aborted") return qmRequeue();
     status(t("Connection failed:") + " " + error.message);
     if ($("create-room")) $("create-room").disabled = false;
     if ($("join-room")) $("join-room").disabled = false;
@@ -5981,6 +6099,12 @@ function receiveNetwork(message, r, peerId) {
     if (!message.hidden) box[since] = 0;
     return;
   }
+  // v0.23, guest: the token that reclaims our seat after a dropped connection
+  if (message.kind === "rejoin" && room.role === "guest" && typeof message.token === "string" && /^[0-9a-f]{32}$/.test(message.token)) {
+    rejoin.token = message.token;
+    rejoin.code = room.code;
+    return;
+  }
   if (message.kind === "takeover" && Number(message.epoch) > netEpoch) {
     // v0.16: the other side carries the match on (our tab stalled); from now on we follow
     netEpoch = Number(message.epoch);
@@ -6006,6 +6130,7 @@ function receiveNetwork(message, r, peerId) {
     if (message.kind === "ready" && !begun && room.role === "host") lobbyJoin(peerId, message); // v0.19: up to six players
     if (message.kind === "kicked" && !begun && room.role === "guest") kickedNote = message.reason === "full" ? "The room is full." : "The host removed you from the room."; // v0.19c1
     if (message.kind === "lobby-start" && !begun && lobby?.go && peer) lobby.go(); // v0.18b: a guest pressed Start
+    if (message.kind === "need-key" && begun) towerNet.force = true; // v0.23: a follower misses tower fields
     if (message.kind === "team" && !begun && lobby && !lobby.done && lobbyTeams()) lobbyMoveTeam(lobby.entries.findIndex((e) => e.peer === peerId), Number(message.team)); // v0.20: a guest changed its own team
     if (
       message.kind === "command" &&
@@ -6035,13 +6160,13 @@ function receiveNetwork(message, r, peerId) {
               player: seat,
             });
       replyTo(peerId, { kind: "result", result });
-      sendState();
+      stateDirty = true; // v0.23: netPulse sends it (was one extra full state per command)
     }
     if (message.kind === "pause" && typeof message.paused === "boolean") {
       // v0.10h: no pauses in PvP; a pause request from the guest is ignored
       networkPauses.clear();
       game.paused = transportBlocked || networkPauses.size > 0;
-      sendState();
+      stateDirty = true;
     }
   } else if (message.kind === "lobby" && !begun && isFollower()) {
     // v0.19: the host tells every guest its seat
@@ -6061,6 +6186,14 @@ function receiveNetwork(message, r, peerId) {
     isCompatibleGameGrid(message.game)
   ) {
     if (!isFollower()) return; // v0.16: a stale state from the old host
+    // v0.23: tower deltas: fill in the fields left out; without them wait for the next key state
+    if (!mergeTowerDeltas(message.game)) {
+      if (performance.now() - towerNet.askedAt > 1000) {
+        towerNet.askedAt = performance.now();
+        room.send({ kind: "need-key" });
+      }
+      return;
+    }
     lastStateAt = performance.now();
     if (!begun) own = view = lobbySeat; // v0.19: the seat from the lobby, taken with the first state
     guestReceived(message.game);
@@ -6533,6 +6666,10 @@ function startHostedMatch(entries, players) {
     if (peer) {
       peer.seat = i;
       peer.at = performance.now();
+      // v0.23: a rejoin token: after a dropped connection the guest reclaims this seat with it
+      const token = [...crypto.getRandomValues(new Uint8Array(16))].map((b) => b.toString(16).padStart(2, "0")).join("");
+      hostTokens.set(token, i);
+      room.sendTo(e.peer, { kind: "rejoin", token });
     }
   });
   warnedWave = 0;
@@ -6567,8 +6704,12 @@ let simRole = null,
   presenceSentAt = 0,
   absenceAt = 0;
 const away = { remoteHidden: false, remoteHiddenSince: 0, ownHiddenSince: 0 };
+// v0.23: a duel moves to the guest only after 8 s without a state AND an unanswered ping (was 3 s), so a
+// short hiccup (WiFi -> LTE) no longer swaps the simulation. Timeline of an absence: 8 s takeover (duels),
+// 20 s the AI plays an away seat, 30 s the link times out, up to 90 s a dropped guest can rejoin its seat.
 const AWAY_MS = 20000,
-  STALL_MS = 3000;
+  STALL_MS = 8000,
+  STALL_PING_MS = 3000;
 const isFollower = () => !!room && simRole === "guest";
 const isAuthority = () => !room || simRole === "host";
 function netPulse(now) {
@@ -6584,22 +6725,25 @@ function netPulse(now) {
       due -= slice;
     }
     absenceCheck(now);
-    if (now - netSentAt >= (room.isRelay?.() ? 200 : 120)) {
+    // v0.23: a guest command marks the state dirty; it goes out with the next pulse, at most every 50 ms
+    const every = room.isRelay?.() ? 200 : 120;
+    if (now - netSentAt >= every || (stateDirty && now - netSentAt >= 50)) {
       netSentAt = now;
+      stateDirty = false;
       sendState();
     }
     if (now - snapSentAt >= (room.isRelay?.() ? 6000 : 3000)) {
       snapSentAt = now;
-      try {
-        room.send({ kind: "snap", epoch: netEpoch, game: { ...JSON.parse(serializeGame(game)), events: [] } });
-      } catch {}
+      sendSnapshot();
     }
   } else {
     simClock = 0;
     if (begun && isFollower()) {
       guestExtrapolate();
       // v0.19: only duels can move the simulation to the guest (larger rooms are a star around the host)
-      if (lastSnap && now - lastStateAt > STALL_MS && game.players.length === 2) takeOver(now);
+      // v0.23: 8 s of silence and an unanswered ping; a snapshot that failed to restore is not tried again
+      if (lastSnap && now - lastStateAt > STALL_PING_MS && game.players.length === 2) room.ping?.();
+      if (lastSnap && lastSnap !== takeoverFailed && now - lastStateAt > STALL_MS && game.players.length === 2 && (room.pingMissed?.() ?? true)) takeOver(now);
     }
   }
   if (now - presenceSentAt >= 2000) {
@@ -6607,12 +6751,32 @@ function netPulse(now) {
     room.send({ kind: "presence", hidden: document.hidden });
   }
 }
+/**
+ * v0.23: the backup snapshot in one JSON pass (was stringify -> parse -> stringify, up to 72 ms on the host).
+ * Creep routes stay out (restoreGame rebuilds them), events too. Too large: a warning, not a silent drop.
+ */
+function sendSnapshot() {
+  if (room?.role === "host" && !room.peers().length) return;
+  let body;
+  try {
+    body = `{"kind":"snap","epoch":${netEpoch},"game":${serializeGame(game, { lean: true, events: false })}}`;
+  } catch {
+    return;
+  }
+  if (body.length > netLimit) {
+    console.warn(`Felito: backup snapshot too large (${Math.round(body.length / 1024)} KB > ${Math.round(netLimit / 1024)} KB), not sent.`);
+    return;
+  }
+  room.send(body);
+}
 /** The simulating side went silent: carry the match on from the last snapshot. */
 function takeOver(now) {
   let restored;
   try {
     restored = restoreGame(lastSnap);
-  } catch {
+  } catch (err) {
+    takeoverFailed = lastSnap; // v0.23: wait for the next snapshot instead of retrying every frame
+    console.warn("Felito: takeover failed:", err?.message);
     return;
   }
   game = restored;
@@ -6639,6 +6803,7 @@ function absenceCheck(now) {
     for (const peer of netPeers.values())
       if (peer.seat != null) gone[peer.seat] = (peer.hidden && peer.hiddenSince && now - peer.hiddenSince > AWAY_MS) || now - peer.at > AWAY_MS;
   } else gone[1 - own] = (away.remoteHidden && away.remoteHiddenSince && now - away.remoteHiddenSince > AWAY_MS) || now - lastPeerAt > AWAY_MS;
+  for (const seat of rejoinSeats.keys()) gone[seat] = true; // v0.23: dropped, waiting for a rejoin
   for (const [seat, isAway] of Object.entries(gone)) {
     const p = game.players[seat];
     if (!p || p.out || p.netLeft) continue;
@@ -6679,33 +6844,146 @@ function playerLeft(seat = 1 - own) {
     `${modalHeader(t("{name} left the game", { name }))}<p class="modal-copy">${t("{name} left the game.", { name })}</p>${local ? `<button class="primary-button" id="left-ai">${t("Continue with AI")}</button>` : ""}<button class="secondary-button" id="left-leave">${t("Leave the match")}</button>`,
     { pauseGame: false },
   );
-  if ($("left-ai"))
-    $("left-ai").onclick = () => {
-      game = local;
-      disconnectRoom();
-      simRole = null;
-      sessionMode = game.players.length > 2 ? "ffa" : "training";
-      // v0.19: every other seat is played by the AI from now on
-      for (const q of game.players) {
-        if (q.id === own) continue;
-        q.ai = true;
-        q.aiLevel ||= "normal";
-        delete q.aiTakeover;
-      }
-      delete game.players[own].aiTakeover;
-      game.players[own].ai = false;
-      game.paused = false;
-      uiPauses.clear();
-      closeModal();
-      refreshUI();
-      arena?.refresh();
-    };
-  $("left-leave").onclick = () => {
-    begun = false;
-    shownResult = false;
-    disconnectRoom();
-    welcome();
+  if ($("left-ai")) $("left-ai").onclick = () => continueWithAi(local);
+  $("left-leave").onclick = leaveOnlineMatch;
+}
+function leaveOnlineMatch() {
+  begun = false;
+  shownResult = false;
+  disconnectRoom();
+  welcome();
+}
+/** v0.16: play on offline against the AI from `local` (the follower's last snapshot, or the host's game). */
+function continueWithAi(local) {
+  if (!local) return;
+  game = local;
+  disconnectRoom();
+  simRole = null;
+  sessionMode = game.players.length > 2 ? "ffa" : "training";
+  // v0.19: every other seat is played by the AI from now on
+  for (const q of game.players) {
+    if (q.id === own) continue;
+    q.ai = true;
+    q.aiLevel ||= "normal";
+    delete q.aiTakeover;
+    delete q.netLeft;
+  }
+  delete game.players[own].aiTakeover;
+  game.players[own].ai = false;
+  game.paused = false;
+  begun = true;
+  uiPauses.clear();
+  closeModal();
+  refreshUI();
+  arena?.refresh();
+}
+// ---- v0.23: rejoin after a dropped connection -------------------------------------------------
+/** Host: a guest's link dropped (it did not leave): the AI plays the seat while we wait for a rejoin. */
+function seatAway(seat) {
+  const p = game?.players[seat];
+  if (!p) return;
+  if (!p.out && !p.ai) {
+    p.ai = true;
+    p.aiLevel ||= "normal";
+    p.aiTakeover = true; // takeoverNotes tells everyone
+  }
+  clearTimeout(rejoinSeats.get(seat)?.timer);
+  const timer = setTimeout(() => {
+    rejoinSeats.delete(seat);
+    for (const [k, v] of hostTokens) if (v === seat) hostTokens.delete(k);
+    if (!game || shownResult || game.winner != null || [...netPeers.values()].some((q) => q.seat === seat)) return;
+    if (!room?.peers().length && !rejoinSeats.size) {
+      connected = false;
+      playerLeft(seat);
+    } else seatLeft(seat);
+  }, REJOIN_MS);
+  rejoinSeats.set(seat, { timer });
+  stateDirty = true;
+}
+/** Host: a guest came back with its token: it takes its seat again (an old link of that seat is dropped). */
+function hostRejoined(peerId, token) {
+  const seat = hostTokens.get(token),
+    p = game?.players[seat];
+  if (seat == null || !p || !room) return room?.kick(peerId);
+  for (const [id, q] of [...netPeers])
+    if (q.seat === seat) {
+      netPeers.delete(id); // no "left" handling for the stale link
+      room.kick(id);
+    }
+  netPeers.set(peerId, { seat, hidden: false, hiddenSince: 0, at: performance.now() });
+  clearTimeout(rejoinSeats.get(seat)?.timer);
+  rejoinSeats.delete(seat);
+  if (p.aiTakeover && !p.out && !p.netLeft) {
+    p.ai = false;
+    delete p.aiTakeover;
+  }
+  room.sendTo(peerId, { kind: "rejoin", token });
+  towerNet.force = true; // the guest gets every tower field again
+  stateDirty = true;
+  snapSentAt = 0; // and a backup snapshot right away
+}
+/** Guest: the link to the host dropped: try to reclaim our seat for up to REJOIN_MS. */
+function rejoinStart() {
+  if (rejoin.active || !rejoin.token) return;
+  rejoin.active = true;
+  rejoin.until = performance.now() + REJOIN_MS;
+  rejoin.tries = 0;
+  rejoin.unavailable = 0;
+  const local = () => {
+    try {
+      return lastSnap ? restoreGame(lastSnap) : null;
+    } catch {
+      return null;
+    }
   };
+  showModal(
+    `${modalHeader(t("Connection lost"))}<p class="modal-copy">${t("Reconnecting to the match … The AI plays for you meanwhile.")}</p><div id="network-status" class="network-status">${t("Reconnecting …")}</div>${lastSnap ? `<button class="secondary-button" id="left-ai">${t("Continue with AI")}</button>` : ""}<button class="secondary-button" id="left-leave">${t("Leave the match")}</button>`,
+    { pauseGame: false },
+  );
+  if ($("left-ai")) $("left-ai").onclick = () => continueWithAi(local());
+  $("left-leave").onclick = leaveOnlineMatch;
+  rejoinRetry(null, 500);
+}
+function rejoinRetry(info, delay = null) {
+  if (!rejoin.active) return;
+  const reason = info?.reason || info?.code;
+  // the host's room is gone from the room service for 12 s (closed tab): give up earlier
+  if (reason === "peer-unavailable") rejoin.unavailable ||= performance.now();
+  else rejoin.unavailable = 0;
+  if (reason === "rejoin-failed" || reason === "protocol-mismatch" || performance.now() > rejoin.until || (rejoin.unavailable && performance.now() - rejoin.unavailable > 12000)) return rejoinGiveUp();
+  if (rejoin.timer) return; // an attempt is already queued
+  rejoin.tries++;
+  rejoin.timer = setTimeout(rejoinAttempt, delay ?? Math.min(8000, 1000 * 2 ** Math.min(3, rejoin.tries - 1)));
+}
+async function rejoinAttempt() {
+  rejoin.timer = 0;
+  if (!rejoin.active || !netCallbacks || netCallbacks.signal?.aborted) return;
+  if ($("network-status")) $("network-status").textContent = t("Reconnecting … (attempt {n})", { n: rejoin.tries });
+  try {
+    const { joinRoom } = await import("./multiplayer.js");
+    const r = await joinRoom(rejoin.code, netCallbacks, { rejoin: rejoin.token });
+    if (!rejoin.active) r.close();
+  } catch (error) {
+    rejoinRetry(error);
+  }
+}
+function rejoinGiveUp() {
+  rejoin.active = false;
+  clearTimeout(rejoin.timer);
+  rejoin.timer = 0;
+  if (!begun || shownResult) return;
+  playerLeft(game && game.players.length > 2 ? 0 : 1 - own);
+}
+/** Guest: back in our seat. */
+function guestRejoined() {
+  rejoin.active = false;
+  clearTimeout(rejoin.timer);
+  rejoin.timer = 0;
+  lastStateAt = lastPeerAt = performance.now();
+  takeoverFailed = null;
+  if ($("left-leave")) closeModal();
+  toast("Reconnected – you're back in your seat.", "level");
+  room?.send({ kind: "presence", hidden: document.hidden });
 }
 /** Tells both players when the AI starts or stops playing for someone. */
 const takeoverShown = {};
@@ -6721,6 +6999,13 @@ function takeoverNotes() {
 }
 // a worker tick keeps a hidden host running (timers in hidden tabs are slowed down a lot)
 let bgTicker = null;
+/** v0.23: ends the worker (or the fallback interval) with the room. */
+function stopBackgroundTicker() {
+  if (!bgTicker) return;
+  if (typeof bgTicker === "object" && bgTicker.terminate) bgTicker.terminate();
+  else clearInterval(bgTicker);
+  bgTicker = null;
+}
 function ensureBackgroundTicker() {
   if (bgTicker) return;
   const run = () => {
@@ -7307,6 +7592,10 @@ async function init() {
           hardoTalk: () => hardoTalk(),
           hardoSay: (text) => hardoSay(text),
           showTower: (id) => showTower(id), // v0.22o2: test hook
+          dispatch: (input) => dispatch(input), // v0.23: test hook (online commands go through the room)
+          get net() {
+            return { simRole, epoch: netEpoch, snap: !!lastSnap, rejoin: rejoin.active, token: !!rejoin.token, begun }; // v0.23: test hook
+          },
           get player() {
             return own;
           },
@@ -7364,6 +7653,10 @@ document.addEventListener("visibilitychange", () => {
     if (!$("modal").open && !room) menu(); // v0.10h: online games carry on without the menu
     setUiPause("background", false);
   }
+});
+// v0.23: closing the page leaves the room on purpose ("bye"), so the others don't wait for a rejoin
+window.addEventListener("pagehide", (e) => {
+  if (room && !e.persisted) room.close();
 });
 window.addEventListener("pagehide", () => {
   if (game && begun && !room)
