@@ -127,7 +127,8 @@ import {
   AUTO_MODES,
 } from "./simulation.js";
 import { mountArena, artFor } from "./arena.js";
-import { artUrl, iconUrl, ELEMENT_ICON, ART_MANIFEST, registerTowerArt, TEAM_COLORS, recolorTeam } from "./art.js";
+import { designRow, setDesign, currentDesign } from "./design.js"; // design variants (Original, Sonnenwiese, Bonbon, Pfotenwelt)
+import { artUrl, iconUrl, ELEMENT_ICON, ART_MANIFEST, registerTowerArt, TEAM_COLORS, recolorTeam, setPropUrl, activeArtSet, uiArt, useArtSet, artSetFor } from "./art.js";
 import { createSoundtrack } from "./soundtrack.js";
 import { createSfx, haptic } from "./sfx.js";
 import { t, num, goldText } from "./i18n.js";
@@ -150,12 +151,12 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.22zk",
+const APP_VERSION = "0.22zk1",
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
-  APP_DATE = "20.10.2026";
+  APP_DATE = "21.10.2026";
 // v0.18: the version also stands in the page title (browser tab and the artifact window in chats)
 try {
-  document.title = `Felito Tower Wars · v${APP_VERSION}`;
+  document.title = `${currentDesign() === "original" ? "Felito" : "Circle"} Tower Wars · v${APP_VERSION}`; // design variants: the new looks are called Circle Tower Wars
 } catch {}
 const WAVES_PREF = "felito.waves";
 const COACH_PREF = "felito.coach.v1";
@@ -365,7 +366,15 @@ function assignColors(picks) {
 const rivalColor = () => (hardoGame() ? "purple" : colorChoice === "red" ? "blue" : "red"); // v0.22e: Hardo always wears purple
 /** v0.22e: a Training match against Hardo (the secret "insane" level). */
 const hardoGame = () => !!game?.players?.some((q) => q.ai && (q.aiLevel || game.aiLevel) === "insane");
-const HARDO_ICON = "assets/art/icon-hardo.webp?v=022e";
+const HARDO_ICON_URL = "assets/art/icon-hardo.webp?v=022e";
+/** Design variants: the new looks carry the Circle Tower Wars logo. */
+const logoUrl = () => (currentDesign() === "original" ? "assets/art/ui-logo.webp" : setPropUrl("toy", "ui-logo"));
+const gameName = () => (currentDesign() === "original" ? "Felito Tower Wars" : "Circle Tower Wars");
+/** Design variants: a few heroes of the art set stand between the logo and the menu (a goblin sneaks in). */
+const castMarkup = () =>
+  activeArtSet()
+    ? `<div class="welcome-cast" aria-hidden="true">${["tower-archer", "tower-guard-champion", "tower-magic-grand", "creep-goblin"].map((k, i) => `<img class="cast-${i}" src="${towerArtUrl(k)}" alt="">`).join("")}</div>`
+    : "";
 // v0.08b: four players. Seats get distinct colours; the rival plate shows whoever you send to.
 const FFA_COLORS = ["red", "green", "yellow", "purple", "teal", "orange", "pink", "blue"];
 const isFfa = () => (game?.players?.length || 2) > 2;
@@ -406,22 +415,25 @@ const iconLocked = (id) => !!ICON_UNLOCK[id] && !campaignDone().has(ICON_UNLOCK[
 const ICON_PREF = "felito.playerIcon";
 const savedIcon = pref(ICON_PREF, "player") === "h000" ? "guard2" : pref(ICON_PREF, "player"); // v0.19g1: the old Footman icon becomes Footman level 2
 let iconChoice = PLAYER_ICONS.includes(savedIcon) ? savedIcon : "player";
+/** Design variants: the classic portraits are Felix's paintings; the new looks show their own archer and goblin. */
+const playerPortrait = () => (currentDesign() === "original" ? "assets/art/portrait-player.webp" : headCrop(artUrl("tower-archer")));
+const enemyPortrait = () => (currentDesign() === "original" ? "assets/art/portrait-enemy.webp" : headCrop(artUrl("creep-goblin")));
 function iconSrc(icon) {
-  if (icon === "hardo") return HARDO_ICON;
-  if (!icon || icon === "player" || !PLAYER_ICONS.includes(icon)) return "assets/art/portrait-player.webp";
+  if (icon === "hardo") return uiArt(HARDO_ICON_URL);
+  if (!icon || icon === "player" || !PLAYER_ICONS.includes(icon)) return playerPortrait();
   if (ICON_ART[icon]) return headCrop(artUrl(ICON_ART[icon]));
   const item = catalog?.byId[icon];
-  return item ? headCrop(artUrl(artFor(item))) : "assets/art/portrait-player.webp";
+  return item ? headCrop(artUrl(artFor(item))) : playerPortrait();
 }
 /** Your own plate and splats: your icon (the classic portrait until you pick one). */
 const ownPortrait = () => iconSrc(game?.players?.[own]?.icon || iconChoice);
 function portraitFor(q) {
   if (q?.missionArt) return headCrop(artUrl(q.missionArt)); // v0.17: campaign enemies
   if (q && !q.ai && PLAYER_ICONS.includes(q.icon) && q.icon !== "player") return iconSrc(q.icon); // v0.19c1
-  if (q?.ai && (q.aiLevel || game.aiLevel) === "insane") return HARDO_ICON; // v0.22e: the goblin with purple eyes
+  if (q?.ai && (q.aiLevel || game.aiLevel) === "insane") return uiArt(HARDO_ICON_URL); // v0.22e: the goblin with purple eyes
   const id = q?.ai ? AI_PORTRAIT[q.aiLevel || game.aiLevel] : null,
     item = id && catalog?.byId[id];
-  return item ? headCrop(artUrl(artFor(item))) : "assets/art/portrait-enemy.webp";
+  return item ? headCrop(artUrl(artFor(item))) : enemyPortrait();
 }
 /** Head and shoulders per figure: left, top, size in the image's pixels. */
 const HEAD_BOX = { "creep-skeleton": [128, 22, 172], "creep-orc": [132, 22, 176], "creep-alchemist": [118, 62, 176] };
@@ -453,7 +465,7 @@ function headCrop(url) {
               if (x < left) left = x;
               if (x > right) right = x;
             }
-        const key = url.split("/").pop().split("?")[0].replace(".webp", ""),
+        const key = url.includes("/art-") ? "" : url.split("/").pop().split("?")[0].replace(".webp", ""), // art sets: no hand-made boxes
           box = HEAD_BOX[key],
           size = box ? box[2] : Math.max(40, Math.round((right - left) * 0.5)),
           cx = box ? box[0] + size / 2 : (left + right) / 2,
@@ -1126,7 +1138,7 @@ const teamArt = new Map();
 function towerArtUrl(key, quiet = false) {
   const url = artUrl(key);
   if (TEAM_COLORS[colorChoice].hue === null || !/^(tower|creep)-/.test(key)) return url; // v0.15: creep cards too
-  const id = key + "#" + colorChoice,
+  const id = url + "#" + colorChoice, // the url: design variants draw the same key from another art set
     hit = teamArt.get(id);
   if (typeof hit === "string") return hit;
   if (!hit) {
@@ -2429,7 +2441,7 @@ function welcome() {
   }
   const saved = unusableSave ? null : localStorage.getItem(SAVE);
   showModal(
-    `<div class="welcome-eyes" aria-hidden="true"></div><div class="welcome-mood mood-easy" aria-hidden="true"></div><div class="welcome-mood mood-hard" aria-hidden="true"></div><div class="welcome-mood mood-hard-glow" aria-hidden="true"></div><div class="welcome-art" aria-hidden="true"></div><button class="welcome-options" id="welcome-options" type="button" aria-label="${t("Options")}"><img src="${iconUrl("gear")}" alt=""></button><button class="welcome-options welcome-mute" id="welcome-mute" type="button" aria-pressed="${muted}" aria-label="${t(muted ? "Sound off" : "Sound on")}">${speakerSvg(muted)}</button><span class="app-version">v${APP_VERSION} · ${APP_DATE}${APP_NOTE ? `<small class="app-version-note">${esc(APP_NOTE)}</small>` : ""}</span><img class="welcome-logo" src="assets/art/ui-logo.webp" alt="Felito Tower Wars"><div class="welcome-panel" id="welcome-panel" data-view="home"><div class="welcome-home"><span class="modal-label">${t("Your color")}: <b id="color-name">${colorLabel()}</b></span><div class="color-picker" role="radiogroup" aria-label="${t("Your color")}">${Object.entries(TEAM_COLORS).map(([id, c]) => `<button role="radio" data-color="${id}" aria-checked="${id === colorPick}" aria-label="${t(c.name)}" title="${t(c.name)}" class="${id === colorPick ? "active" : ""}" style="--c:${c.css}"></button>`).join("")}</div><div class="welcome-modes"><button class="primary-button big welcome-mode" data-open="ai">${t("Training")}</button><button class="primary-button big welcome-mode alt" data-open="player"><span class="keep-case">${t("PvP")}</span></button></div></div><section class="welcome-group" data-sub="ai" aria-label="${t("Training")}"><h3 class="welcome-group-title"><button class="welcome-back" type="button" data-back aria-label="${t("Back")}">${t("Back")}</button>${t("Training")}</h3><div class="segmented ai-levels${hardoUnlocked ? " hardo-mode" : ""}" role="radiogroup" aria-label="${t("Difficulty")}">${Object.entries(AI_NAMES).map(([id, name]) => `<button role="radio" data-ai="${id}" aria-checked="${id === aiChoice}" class="${id === aiChoice ? "active" : ""}${id === "insane" ? " hardo-level" : hardoUnlocked ? " hardo-gone" : ""}"${id === "insane" && !hardoUnlocked ? " hidden" : ""}${id !== "insane" && hardoUnlocked ? " disabled" : ""}>${t(name)}</button>`).join("")}<button type="button" class="ai-mixed${aiMixed ? " active" : ""}${hardoUnlocked ? " hardo-gone" : ""}" id="ai-mixed" aria-pressed="${aiMixed}"${hardoUnlocked ? " disabled" : ""} title="${t("Shuffles AI enemies of different difficulties into the match, up to the chosen one")}">${t("Mixed")}</button></div>${hardoUnlocked ? hardoNoteHtml() : ""}<div class="welcome-inline"><span class="modal-label">${t("Neutral waves")}</span><div class="segmented" role="radiogroup" aria-label="${t("Neutral waves")}">${[["on", "On"], ["off", "Off"]].map(([id, name]) => `<button role="radio" data-waves="${id}" aria-checked="${(id === "on") === wavesOn}" class="${(id === "on") === wavesOn ? "active" : ""}">${t(name)}</button>`).join("")}</div></div><span class="modal-label">${t("Number of AI enemies")}</span><div class="segmented ai-count" role="radiogroup" aria-label="${t("Number of AI enemies")}">${hardoUnlocked ? hardoJustHtml() : AI_COUNTS.map((n) => `<button role="radio" data-aicount="${n}" aria-checked="${n === aiCount}" class="${n === aiCount ? "active" : ""}">${n}</button>`).join("")}</div><button class="primary-button big" id="start-training">${t("Start")}</button><button class="secondary-button big campaign-open" id="start-campaign">${t("Campaign")} · ${campaignDone().size}/${MISSIONS.length}</button></section><section class="welcome-group" data-sub="player" aria-label="${t("PvP")}"><h3 class="welcome-group-title"><button class="welcome-back" type="button" data-back aria-label="${t("Back")}">${t("Back")}</button><span class="keep-case">${t("PvP")}</span></h3><label class="modal-label name-label pvp-name" for="player-name">${t("Player name")}</label><div class="name-row"><input id="player-name" class="name-input" maxlength="16" autocomplete="nickname" spellcheck="false" placeholder="${t("Your name")}" value="${esc(playerNameChoice)}"><button type="button" class="icon-pick" id="icon-pick" aria-label="${t("Choose your player icon")}" style="--pc:${iconColor()}"><img src="${iconSrc(iconChoice)}" alt=""></button></div><div class="welcome-row pvp-row"><button class="primary-button" id="start-quick">${t("Quick Match")}</button><button class="secondary-button" id="start-online">${t("Play a friend")}</button><button class="secondary-button" id="start-ranked" disabled aria-disabled="true" title="${t("Ranked matches are coming soon.")}">${t("Ranked match")}</button></div></section></div>`,
+    `<div class="welcome-eyes" aria-hidden="true"></div><div class="welcome-mood mood-easy" aria-hidden="true"></div><div class="welcome-mood mood-hard" aria-hidden="true"></div><div class="welcome-mood mood-hard-glow" aria-hidden="true"></div><div class="welcome-art" aria-hidden="true"></div><button class="welcome-options" id="welcome-options" type="button" aria-label="${t("Options")}"><img src="${iconUrl("gear")}" alt=""></button><button class="welcome-options welcome-mute" id="welcome-mute" type="button" aria-pressed="${muted}" aria-label="${t(muted ? "Sound off" : "Sound on")}">${speakerSvg(muted)}</button><span class="app-version">v${APP_VERSION} · ${APP_DATE}${APP_NOTE ? `<small class="app-version-note">${esc(APP_NOTE)}</small>` : ""}</span><img class="welcome-logo" src="${logoUrl()}" alt="${gameName()}">${castMarkup()}<div class="welcome-panel" id="welcome-panel" data-view="home"><div class="welcome-home"><span class="modal-label">${t("Your color")}: <b id="color-name">${colorLabel()}</b></span><div class="color-picker" role="radiogroup" aria-label="${t("Your color")}">${Object.entries(TEAM_COLORS).map(([id, c]) => `<button role="radio" data-color="${id}" aria-checked="${id === colorPick}" aria-label="${t(c.name)}" title="${t(c.name)}" class="${id === colorPick ? "active" : ""}" style="--c:${c.css}"></button>`).join("")}</div><div class="welcome-modes"><button class="primary-button big welcome-mode" data-open="ai">${t("Training")}</button><button class="primary-button big welcome-mode alt" data-open="player"><span class="keep-case">${t("PvP")}</span></button></div></div><section class="welcome-group" data-sub="ai" aria-label="${t("Training")}"><h3 class="welcome-group-title"><button class="welcome-back" type="button" data-back aria-label="${t("Back")}">${t("Back")}</button>${t("Training")}</h3><div class="segmented ai-levels${hardoUnlocked ? " hardo-mode" : ""}" role="radiogroup" aria-label="${t("Difficulty")}">${Object.entries(AI_NAMES).map(([id, name]) => `<button role="radio" data-ai="${id}" aria-checked="${id === aiChoice}" class="${id === aiChoice ? "active" : ""}${id === "insane" ? " hardo-level" : hardoUnlocked ? " hardo-gone" : ""}"${id === "insane" && !hardoUnlocked ? " hidden" : ""}${id !== "insane" && hardoUnlocked ? " disabled" : ""}>${t(name)}</button>`).join("")}<button type="button" class="ai-mixed${aiMixed ? " active" : ""}${hardoUnlocked ? " hardo-gone" : ""}" id="ai-mixed" aria-pressed="${aiMixed}"${hardoUnlocked ? " disabled" : ""} title="${t("Shuffles AI enemies of different difficulties into the match, up to the chosen one")}">${t("Mixed")}</button></div>${hardoUnlocked ? hardoNoteHtml() : ""}<div class="welcome-inline"><span class="modal-label">${t("Neutral waves")}</span><div class="segmented" role="radiogroup" aria-label="${t("Neutral waves")}">${[["on", "On"], ["off", "Off"]].map(([id, name]) => `<button role="radio" data-waves="${id}" aria-checked="${(id === "on") === wavesOn}" class="${(id === "on") === wavesOn ? "active" : ""}">${t(name)}</button>`).join("")}</div></div><span class="modal-label">${t("Number of AI enemies")}</span><div class="segmented ai-count" role="radiogroup" aria-label="${t("Number of AI enemies")}">${hardoUnlocked ? hardoJustHtml() : AI_COUNTS.map((n) => `<button role="radio" data-aicount="${n}" aria-checked="${n === aiCount}" class="${n === aiCount ? "active" : ""}">${n}</button>`).join("")}</div><button class="primary-button big" id="start-training">${t("Start")}</button><button class="secondary-button big campaign-open" id="start-campaign">${t("Campaign")} · ${campaignDone().size}/${MISSIONS.length}</button></section><section class="welcome-group" data-sub="player" aria-label="${t("PvP")}"><h3 class="welcome-group-title"><button class="welcome-back" type="button" data-back aria-label="${t("Back")}">${t("Back")}</button><span class="keep-case">${t("PvP")}</span></h3><label class="modal-label name-label pvp-name" for="player-name">${t("Player name")}</label><div class="name-row"><input id="player-name" class="name-input" maxlength="16" autocomplete="nickname" spellcheck="false" placeholder="${t("Your name")}" value="${esc(playerNameChoice)}"><button type="button" class="icon-pick" id="icon-pick" aria-label="${t("Choose your player icon")}" style="--pc:${iconColor()}"><img src="${iconSrc(iconChoice)}" alt=""></button></div><div class="welcome-row pvp-row"><button class="primary-button" id="start-quick">${t("Quick Match")}</button><button class="secondary-button" id="start-online">${t("Play a friend")}</button><button class="secondary-button" id="start-ranked" disabled aria-disabled="true" title="${t("Ranked matches are coming soon.")}">${t("Ranked match")}</button></div></section></div>`,
     { pauseGame: false, welcome: true },
   );
   $("modal-body")
@@ -3753,18 +3765,18 @@ const RESEARCH_SVG = { R00V: "leadership", R002: "meleeprotocol", R005: "heavywe
 const RESEARCH_PERK = { R00V: "leadership", R002: "melee", R005: "heavy", R00K: "owl", R00J: "firearrows", R00C: "frenzy", R001: "medicine", R006: "bank", R00X: "mind", R00W: "tailwind", R00U: "carmor", R00D: "wolves" }; // v0.22zd1
 const researchArt = (item) => (RESEARCH_PERK[item.id] ? elPerkArt(RESEARCH_PERK[item.id]) : RESEARCH_SVG[item.id] ? svgUrl(RESEARCH_SVG[item.id]) : artUrl(artFor(item)));
 /** v0.22zd1: painted icons for all 45 element perks (sheet in element order); v0.22zf1: re-cut with a matting model, larger; v0.22zh1: cleaner glow, smoke and interiors. */
-const elPerkArt = (id) => `assets/art/perks/${id}.webp?v=v022zh1`;
+const elPerkArt = (id) => uiArt(`assets/art/perks/${id}.webp?v=v022zh1`);
 const PERK_ART = {
   recruit: () => iconUrl("attack"),
   feudal: () => iconUrl("crown"),
-  gunpowder: () => "assets/art/perk-gunpowder.webp?v=v021u", // v0.21u: powder keg and cannonballs
-  archery: () => "assets/art/perk-archery.webp?v=v021t", // v0.21t: painted target
-  militia: () => "assets/art/perk-militia.webp?v=v021t", // v0.21t: painted sword
-  evolution: () => "assets/art/perk-upgrade-tower.webp?v=v022q2", // v0.22q2: Upgrade Tower: tower with a green arrow
+  gunpowder: () => uiArt("assets/art/perk-gunpowder.webp?v=v021u"), // v0.21u: powder keg and cannonballs
+  archery: () => uiArt("assets/art/perk-archery.webp?v=v021t"), // v0.21t: painted target
+  militia: () => uiArt("assets/art/perk-militia.webp?v=v021t"), // v0.21t: painted sword
+  evolution: () => uiArt("assets/art/perk-upgrade-tower.webp?v=v022q2"), // v0.22q2: Upgrade Tower: tower with a green arrow
   gold: () => iconUrl("coin"),
-  novice: () => "assets/art/perk-novice-v2.webp?v=v022p2", // v0.22p2: scroll, quill and candle (v0.21t: painted scroll and quill)
-  volley: () => "assets/art/perk-volley.webp?v=v022q2", // v0.22q2: painted arrows (was an svg)
-  pillage: (lv = 1) => `assets/art/perk-pillage-${Math.max(1, Math.min(3, lv || 1))}.webp?v=v022q2`, // v0.22q2: loot bag with dagger / two daggers / axe per level
+  novice: () => uiArt("assets/art/perk-novice-v2.webp?v=v022p2"), // v0.22p2: scroll, quill and candle (v0.21t: painted scroll and quill)
+  volley: () => uiArt("assets/art/perk-volley.webp?v=v022q2"), // v0.22q2: painted arrows (was an svg)
+  pillage: (lv = 1) => uiArt(`assets/art/perk-pillage-${Math.max(1, Math.min(3, lv || 1))}.webp?v=v022q2`), // v0.22q2: loot bag with dagger / two daggers / axe per level
   crowd: () => elPerkArt("crowd"),
   golem: () => elPerkArt("golem"),
   permafrost: () => elPerkArt("permafrost"),
@@ -3773,7 +3785,7 @@ const PERK_ART = {
   fireblock: () => elPerkArt("fireblock"),
   burst: () => elPerkArt("burst"),
   pocks: () => elPerkArt("pocks"),
-  treasure: () => "assets/art/perk-treasure.webp?v=v022q2", // v0.22q2: treasure chest
+  treasure: () => uiArt("assets/art/perk-treasure.webp?v=v022q2"), // v0.22q2: treasure chest
   voltage: () => elPerkArt("voltage"),
   boots: () => elPerkArt("boots"),
   exhume: () => elPerkArt("exhume"),
@@ -3781,7 +3793,7 @@ const PERK_ART = {
   airblock: () => elPerkArt("airblock"),
   supergrowth: () => elPerkArt("supergrowth"),
   // v0.12
-  lone: () => "assets/art/perk-lone.webp?v=v022h1", // v0.21u: painted shield and sword; v0.22h1: zoomed in further, brighter glow
+  lone: () => uiArt("assets/art/perk-lone.webp?v=v022h1"), // v0.21u: painted shield and sword; v0.22h1: zoomed in further, brighter glow
   autoloader: () => elPerkArt("autoloader"),
   hills: () => elPerkArt("hills"),
   stormfeathers: () => elPerkArt("stormfeathers"),
@@ -3806,7 +3818,7 @@ const PERK_ART = {
   nobility: () => elPerkArt("nobility"),
   breeding: () => elPerkArt("breeding"),
   pillar: () => elPerkArt("pillar"),
-  fort: () => "assets/art/perk-fort.webp?v=v022q2", // v0.22q2: wall of stone and stakes
+  fort: () => uiArt("assets/art/perk-fort.webp?v=v022q2"), // v0.22q2: wall of stone and stakes
   agolem: () => elPerkArt("agolem"),
   monsun: () => elPerkArt("monsun"),
   slave: () => elPerkArt("slave"),
@@ -5484,7 +5496,7 @@ function audioModal(back) {
 }
 function graphicModal(back) {
   showModal(
-    `${subHeader(t("Graphic"))}<div id="menu-controls">${controlsRow()}</div><div id="menu-minimap">${minimapRow()}</div><button class="secondary-button" id="menu-popnum">${t("Pop-up numbers")}: ${onOff(popNumbers)}</button><button class="secondary-button" id="menu-popnote">${t("Pop-up notifications")}: ${onOff(popNotes)}</button>`,
+    `${subHeader(t("Graphic"))}<div id="menu-design">${designRow(t)}</div><div id="menu-controls">${controlsRow()}</div><div id="menu-minimap">${minimapRow()}</div><button class="secondary-button" id="menu-popnum">${t("Pop-up numbers")}: ${onOff(popNumbers)}</button><button class="secondary-button" id="menu-popnote">${t("Pop-up notifications")}: ${onOff(popNotes)}</button>`,
   );
   $("sub-back").onclick = back;
   $("menu-controls").onclick = (e) => {
@@ -5499,6 +5511,15 @@ function graphicModal(back) {
     applyControlMode();
     $("menu-controls").innerHTML = controlsRow();
     toast(controlMode === "pc" ? "PC version: mouse hover shows tips, mouse wheel and arrow keys switch fields, B / S switch Build and Send." : "Mobile version: touch controls, tips only in help mode.");
+    tone("select");
+  };
+  // Design variants: Original (default), Sonnenwiese, Bonbon, Pfotenwelt. Only the look changes; board, figures and icons follow at once.
+  $("menu-design").onclick = (e) => {
+    const d = e.target.closest?.("[data-design]")?.dataset.design;
+    if (!d || d === currentDesign()) return;
+    setDesign(d);
+    $("menu-design").innerHTML = designRow(t);
+    applyDesignArt();
     tone("select");
   };
   $("menu-minimap").onclick = (e) => {
@@ -5657,7 +5678,7 @@ function installHelp() {
     return;
   }
   showModal(
-    `${modalHeader(t("Your phone app"))}<img class="modal-hero" src="assets/art/ui-logo.webp" alt="Felito Tower Wars"><p class="modal-copy">${t("<b>iPhone:</b> Open the game address in Safari. Tap Share and “Add to Home Screen”.<br><br><b>Android:</b> Open the address in Chrome. In the browser menu choose “Install app” or “Add to Home screen”.")}</p><p class="modal-note">${t("AI training also works offline after the first full load. A direct duel needs an internet connection. A private deployment needs the owner's sign-in.")}</p><button class="primary-button" data-close>${t("Got it")}</button>`,
+    `${modalHeader(t("Your phone app"))}<img class="modal-hero" src="${logoUrl()}" alt="${gameName()}"><p class="modal-copy">${t("<b>iPhone:</b> Open the game address in Safari. Tap Share and “Add to Home Screen”.<br><br><b>Android:</b> Open the address in Chrome. In the browser menu choose “Install app” or “Add to Home screen”.")}</p><p class="modal-note">${t("AI training also works offline after the first full load. A direct duel needs an internet connection. A private deployment needs the owner's sign-in.")}</p><button class="primary-button" data-close>${t("Got it")}</button>`,
   );
 }
 
@@ -7012,6 +7033,41 @@ preloadFonts();
  * the background after start-up, a few at a time, and tower art is recoloured to the player's
  * colour ahead of time – so opening a tower's upgrade buttons or a dialog shows it at once.
  */
+/**
+ * Design variants: after a design change the figures (board, cards, portraits) and the logo follow the
+ * new look at once; the board swaps its pictures in place, the match keeps running.
+ */
+/** The original path of an icon drawn from the toy set (assets/art-toy/ui/<name>.webp). */
+const originalIcon = (src) => {
+  const name = /assets\/art-toy\/ui\/([a-z0-9-]+)\.webp/.exec(src)?.[1];
+  return !name ? src : /^(icon|perk)-/.test(name) ? `assets/art/${name}.webp` : `assets/art/perks/${name}.webp`;
+};
+/** Icons on screen (HUD in index.html, open panels) follow the design; the original path is kept on the element. */
+function swapStaticIcons() {
+  for (const img of document.querySelectorAll('img[src*="assets/art/icon-"], img[src*="assets/art/perk"], img[src*="assets/art-toy/ui/"], img[data-icon-src]')) {
+    img.dataset.iconSrc ||= originalIcon(img.getAttribute("src"));
+    const src = uiArt(img.dataset.iconSrc);
+    if (img.getAttribute("src") !== src) img.src = src;
+  }
+}
+function applyDesignArt() {
+  useArtSet(artSetFor(currentDesign())); // pictures for cards, icons and dialogs; the board follows in switchArt
+  swapStaticIcons();
+  document.title = `${gameName()} · v${APP_VERSION}`;
+  for (const img of document.querySelectorAll(".welcome-logo")) {
+    img.src = logoUrl();
+    img.alt = gameName();
+  }
+  arena?.switchArt?.();
+  arena?.refresh?.();
+  artWarmColor = null;
+  warmDialogArt();
+  if (game) {
+    renderCards();
+    renderEnemyStack(true);
+    refreshUI();
+  }
+}
 let artWarmColor = null;
 function warmDialogArt() {
   if (artWarmColor === colorChoice) return;
@@ -7289,6 +7345,7 @@ async function init() {
       renderCards();
     };
     setPage("build");
+    swapStaticIcons(); // design variants: HUD icons in the chosen look
     welcome();
     setTimeout(() => music.preload("menu"), 1500);
     if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js").catch(() => {});

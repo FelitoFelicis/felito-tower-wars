@@ -9,7 +9,8 @@ function topFour(def) {
   }
   return TOP_FOUR.get(def.id);
 }
-import { ART_MANIFEST, ANIM_MANIFEST, animUrl, artFor, artUrl, towerTier, TOWER_ART, CREEP_ART, TEAM_COLORS, CLOTH_COLORS, recolorTeam } from "./art.js";
+import { ART_MANIFEST, ANIM_MANIFEST, animUrl, artFor, artUrl, towerTier, TOWER_ART, CREEP_ART, TEAM_COLORS, CLOTH_COLORS, recolorTeam, activeArtSet, artSetFor, useArtSet, setArtKey, setArtMeta, setPropUrl, SET_ART } from "./art.js";
+import { towerIdle, towerAttack, towerAttackStyle, creepGait } from "./motion.js";
 /** v0.22n2: mix a colour towards another (0 = black, 0xffffff = white) by k. */
 const metalTint = (hex, to, k) => {
   const ch = (c, sh) => ((c >> sh) & 255) * (1 - k) + ((to >> sh) & 255) * k;
@@ -17,6 +18,7 @@ const metalTint = (hex, to, k) => {
 };
 import { t } from "./i18n.js";
 import { Stage, BLEND, TINT, hsvToColor } from "./b2d.js";
+import { boardPalette, currentDesign, boardProps } from "./design.js";
 
 export { artFor, artUrl };
 
@@ -363,21 +365,70 @@ export function mountArena({
       this.flash = 0;
       this.gainFlash = 0;
       this.fireflies = Array.from({ length: 18 }, (_, i) => ({ seed: i * 7.31, x: hash(i, 3), y: hash(i, 9) }));
+      this.geo = new Map(); // design variants: size and plate data of each loaded figure from an art set
+      this.artGen = 0;
+      this.artSetShown = activeArtSet(); // the set whose pictures the board is loading or showing
     }
     preload() {
-      return Promise.all(ESSENTIAL.map((key) => this.stage.loadImage(key, artUrl(key))));
+      return Promise.all(ESSENTIAL.map((key) => (SET_ART.test(key) ? this.loadArt(key) : this.stage.loadImage(key, artUrl(key)))));
+    }
+    /**
+     * Load one figure from the active art set (or Felix's art). Its size data is stored together with the
+     * picture, so both always match; a load that started before a design change is redone with the new set.
+     */
+    loadArt(key, force = false) {
+      const gen = this.artGen,
+        set = activeArtSet(),
+        meta = setArtMeta(set, key);
+      const done = (r) => {
+        if (r) {
+          if (meta) this.geo.set(key, meta);
+          else this.geo.delete(key);
+          if (force) for (const k of this.stage.derivedKeys(key)) this.teamTexture(key, k.split("#")[1], true);
+          if (gen !== this.artGen) return this.loadArt(key, true);
+        }
+        return r;
+      };
+      return (force ? this.stage.reloadImage(key, artUrl(key)) : this.stage.loadImage(key, artUrl(key))).then(done);
+    }
+    /** Size and plate data of a loaded figure. */
+    artMeta(key) {
+      return this.geo.get(key) || ART_MANIFEST[key];
     }
     /** Queue every remaining figure and animation once the arena is up (six at a time). */
     streamArt() {
-      const queue = [...BACKGROUND.map((key) => [key, artUrl(key), 0, 0]), ...Object.entries(ANIM_MANIFEST).map(([key, a]) => [`anim:${key}`, animUrl(key), a.fw, a.fh])];
+      // with an art set, level variants share their base figure and the frame animations are not used
+      const set = activeArtSet(),
+        queue = [...BACKGROUND.filter((key) => !set || setArtKey(key) === key).map((key) => [key]), ...(set ? [] : Object.entries(ANIM_MANIFEST).map(([key, a]) => [`anim:${key}`, animUrl(key), a.fw, a.fh]))];
+      this.streamQueue(queue, false);
+    }
+    streamQueue(queue, force) {
       const next = () => {
         const item = queue.shift();
-        if (item && !this.stage.disposed) this.stage.loadImage(...item).then(next);
+        if (!item || this.stage.disposed) return;
+        (item.length === 1 ? this.loadArt(item[0], force && this.stage.hasTexture(item[0])) : this.stage.loadImage(...item)).then(next);
       };
       for (let i = 0; i < 6; i++) next();
     }
+    /**
+     * Design variants: switch every figure to the art set of the chosen design. Pictures are replaced in
+     * place, so the board keeps running; figures not loaded yet follow from the queue.
+     */
+    switchArt() {
+      useArtSet(artSetFor(currentDesign()));
+      if (this.artSetShown === activeArtSet()) return false;
+      this.artSetShown = activeArtSet();
+      this.artGen++;
+      const set = activeArtSet(),
+        loaded = [...ESSENTIAL, ...BACKGROUND].filter((k) => SET_ART.test(k) && (!set || setArtKey(k) === k));
+      this.streamQueue(loaded.map((k) => [k]), true);
+      if (!set) this.streamQueue(Object.entries(ANIM_MANIFEST).map(([key, a]) => [`anim:${key}`, animUrl(key), a.fw, a.fh]), false);
+      this.terrainKey = "";
+      return true;
+    }
     /** The art key if its texture has arrived, else the line's base art, else a stand-in. */
     ready(key, kind = "tower") {
+      key = setArtKey(key); // art sets: level variants draw their base figure
       if (this.stage.hasTexture(key)) return key;
       const base = key.replace(/-(v|l)\d$/, "");
       if (this.stage.hasTexture(base)) return base;
@@ -389,11 +440,11 @@ export function mountArena({
      * browser, the first time an enemy tower needs them.
      */
     /** The art in a player's colour: team blue moved to that colour's hue (cached per colour). */
-    teamTexture(key, colorId) {
+    teamTexture(key, colorId, force = false) {
       const color = CLOTH_COLORS[colorId];
       if (!color || color.hue === null || !this.stage.hasTexture(key)) return key;
       const red = key + "#" + colorId;
-      if (this.stage.hasTexture(red)) return red;
+      if (this.stage.hasTexture(red) && !force) return red;
       try {
         const src = this.stage.sourceImage(key),
           canvas = document.createElement("canvas");
@@ -416,6 +467,7 @@ export function mountArena({
     }
     /** Frame animation for an art key, once its sheet has loaded. */
     animFor(artKey) {
+      if (activeArtSet()) return null; // art sets: one still picture per figure, moved by motion.js
       const a = ANIM_MANIFEST[artKey];
       if (!a) return null;
       const tex = `anim:${artKey}`;
@@ -443,6 +495,7 @@ export function mountArena({
       this.hpBars = this.stage.graphics().setDepth(6450);
       this.vignette = this.stage.graphics().setDepth(8000);
       this.strips = this.stage.graphics().setDepth(6); // spawn strip (portal fields) and exit strip
+      this.flatTiles = this.stage.graphics().setDepth(2); // design variants: flat checker tiles
       this.ghost = this.stage.image(0, 0, "tower-archer").setDepth(4000).setVisible(false);
       this.previewLabel = this.stage
         .text(0, 0, "", { fontFamily: FONT, fontSize: "14px", color: "#ffffff", stroke: "#10221d", strokeThickness: 5, resolution: DPR })
@@ -690,7 +743,7 @@ export function mountArena({
       return { gridX: Math.floor(u * z.logicalCols), gridY: Math.floor(v * z.logicalRows) };
     }
     keyFor(z) {
-      return [z.w, z.h, z.left, z.top, z.bw, z.bh, z.logicalCols, z.logicalRows].join(":");
+      return [z.w, z.h, z.left, z.top, z.bw, z.bh, z.logicalCols, z.logicalRows, currentDesign()].join(":"); // design variants: a new look redraws the board
     }
     // ---- static scenery ---------------------------------------------------------
     drawTerrain() {
@@ -700,6 +753,9 @@ export function mountArena({
         f = this.frameG,
         cell = z.cw;
       g.clear();
+      const P = boardPalette();
+      if (P) return this.drawThemeTerrain(z, P);
+      this.flatTiles?.clear();
       // Night forest around the arena (Mobile Max: also above and below, where the board scrolls).
       const y0 = z.scroll ? Math.min(0, z.scroll.lo) - 160 : 0,
         span = z.scroll ? Math.max(z.h, z.scroll.hi + z.h + 160 - y0) : z.h;
@@ -843,6 +899,178 @@ export function mountArena({
       this.terrainKey = this.keyFor(z) + "|" + colorOf(getViewPlayer());
       this.pathKey = "";
     }
+    /**
+     * Design variants: the board without painted detail. Sonnenwiese and Pfotenwelt: sky (clouds or paw prints),
+     * the board as a floating meadow island (grass rim, soil cliff underneath). Bonbon: turquoise with dots, the
+     * board as a sticker (thick navy outline, white edge, hard shadow). Tiles are flat two-tone checks; the
+     * design's props stand around the island (placeProps), never on the board.
+     */
+    drawThemeTerrain(z, P) {
+      const g = this.bg,
+        f = this.frameG,
+        cell = z.cw,
+        y0 = z.scroll ? Math.min(0, z.scroll.lo) - 160 : 0,
+        span = z.scroll ? Math.max(z.h, z.scroll.hi + z.h + 160 - y0) : z.h;
+      for (const t of this.tiles) t.destroy();
+      for (const d of this.decos) d.destroy();
+      this.tiles = [];
+      this.decos = [];
+      this.braziers = [];
+      this.shadeG.clear();
+      // background
+      g.fillGradientStyle(P.sky[0], P.sky[0], P.sky[1], P.sky[1], 1);
+      g.fillRect(0, y0, z.w, span);
+      if (P.cloud) {
+        for (let i = 0; i < 9; i++) {
+          const x = hash(i, 61) * z.w,
+            y = y0 + hash(i, 62) * span,
+            s = 16 + hash(i, 63) * 18;
+          g.fillStyle(P.cloud, 0.75);
+          g.fillEllipse(x, y, s * 3.2, s * 1.3);
+          g.fillCircle(x - s * 0.6, y - s * 0.35, s * 0.75);
+          g.fillCircle(x + s * 0.35, y - s * 0.55, s * 0.95);
+        }
+      }
+      if (P.dots) {
+        const step = 30;
+        g.fillStyle(P.dots[0], P.dots[1]);
+        for (let y = Math.floor(y0 / step) * step; y < y0 + span; y += step)
+          for (let x = (y / step) % 2 ? step / 2 : 0; x < z.w + step; x += step) g.fillCircle(x, y, 3.2);
+      }
+      if (P.paws) {
+        // Pfotenwelt: soft paw prints scattered over the warm sky
+        g.fillStyle(P.paws[0], P.paws[1]);
+        const step = 74;
+        for (let y = Math.floor(y0 / step) * step, row = 0; y < y0 + span + step; y += step, row++)
+          for (let x = row % 2 ? step / 2 : 0, col = 0; x < z.w + step; x += step, col++) {
+            const px = x + (hash(col, row, 31) - 0.5) * 24,
+              py = y + (hash(col, row, 32) - 0.5) * 24,
+              r = 7 + hash(col, row, 33) * 3;
+            g.fillEllipse(px, py + r * 0.35, r * 1.5, r * 1.25);
+            for (const [ox, oy] of [[-0.85, -0.65], [-0.3, -1.05], [0.3, -1.05], [0.85, -0.65]]) g.fillCircle(px + ox * r, py + oy * r, r * 0.33);
+          }
+      }
+      // frame
+      f.clear();
+      const L = z.left - z.frame,
+        fv = z.frameV ?? z.frame,
+        T = z.top - z.strip - fv,
+        W = z.bw + z.frame * 2,
+        H = z.bh + z.strip + fv * 2,
+        r = Math.min(18, z.frame + 8);
+      if (P.soil) {
+        const soilH = Math.max(14, cell * 0.34);
+        f.fillStyle(P.shadow[0], P.shadow[1]);
+        f.fillEllipse(L + W / 2, T + H + soilH + 10, W * 0.92, soilH * 1.4);
+        f.fillStyle(P.soilDark, 1);
+        f.fillRoundedRect(L + 4, T + H - r, W - 8, soilH + r + 4, r);
+        f.fillStyle(P.soil, 1);
+        f.fillRoundedRect(L + 2, T + H - r, W - 4, soilH + r - 2, r);
+        for (let i = 0; i < 9; i++) {
+          f.fillStyle(P.soilDark, 0.55);
+          f.fillEllipse(L + 16 + hash(i, 71) * (W - 32), T + H + 4 + hash(i, 72) * (soilH - 8), 7 + hash(i, 73) * 8, 4 + hash(i, 74) * 3);
+        }
+        f.fillStyle(P.rim, 1);
+        f.fillRoundedRect(L, T, W, H, r);
+        f.lineStyle(2, P.rimLight, 0.9);
+        f.strokeRoundedRect(L + 2, T + 2, W - 4, H - 4, r - 2);
+      } else {
+        f.fillStyle(P.shadow[0], P.shadow[1]);
+        f.fillRoundedRect(L, T + 6, W, H, r);
+        f.fillStyle(P.outline, 1);
+        f.fillRoundedRect(L, T, W, H, r);
+        f.fillStyle(P.inner, 1);
+        f.fillRoundedRect(L + 3, T + 3, W - 6, H - 6, r - 3);
+      }
+      this.placeProps(z, L, T, W, H, P);
+      // flat checker tiles
+      const ft = this.flatTiles;
+      ft.clear();
+      for (let y = 0; y < z.logicalRows; y++)
+        for (let x = 0; x < z.logicalCols; x++) {
+          ft.fillStyle((x + y) & 1 ? P.tileB : P.tileA, 1);
+          ft.fillRect(z.left + x * cell, z.top + y * cell, cell + 0.5, cell + 0.5);
+        }
+      const gr = this.grout;
+      gr.clear();
+      gr.lineStyle(1, P.grid[0], P.grid[1]);
+      for (let i = 1; i < z.logicalCols; i++) gr.lineBetween(z.left + i * cell, z.top, z.left + i * cell, z.top + z.bh);
+      for (let j = 1; j < z.logicalRows; j++) gr.lineBetween(z.left, z.top + j * cell, z.left + z.bw, z.top + j * cell);
+      this.drawStrips(z);
+      this.terrainKey = this.keyFor(z) + "|" + colorOf(getViewPlayer());
+      this.pathKey = "";
+    }
+    /**
+     * Design variants: props from the design's art set around the island, like a diorama. The portal stands
+     * above the spawn row (the monsters come out of it), the castle below the exit, trees and small things
+     * peek out from behind the island's edges. Nothing is placed on the board itself.
+     */
+    placeProps(z, L, T, W, H, P) {
+      const props = boardProps(),
+        set = activeArtSet();
+      if (!props || !set) return;
+      this.propsFailed ||= new Set(); // a picture that could not be loaded is not asked for again
+      const names = [...new Set([...props.trees, ...props.small, props.gate, props.goal])],
+        key = (n) => `prop:${set}:${n}`,
+        missing = names.filter((n) => !this.stage.hasTexture(key(n)) && !this.propsFailed.has(key(n)));
+      if (missing.length) {
+        if (this.propsLoading !== set) {
+          this.propsLoading = set;
+          Promise.all(missing.map((n) => this.stage.loadImage(key(n), setPropUrl(set, "deco-" + n)).then((r) => r || this.propsFailed.add(key(n))))).then(() => {
+            this.propsLoading = null;
+            this.terrainKey = ""; // draw again with the props
+          });
+        }
+        return;
+      }
+      const cell = z.cw,
+        put = (n, x, y, size, depth, flip = false) => {
+          if (!this.stage.hasTexture(key(n))) return;
+          const meta = setArtMeta(set, "deco-" + n) || { w: 1, h: 1, footY: 1 },
+            img = this.stage.image(x, y, key(n));
+          img.setOrigin(0.5, meta.footY / meta.h).setScale(size / Math.max(meta.w, meta.h)).setDepth(depth).setFlipX(flip);
+          this.decos.push(img);
+        },
+        soil = P.soil ? Math.max(14, cell * 0.34) : 6,
+        cx = L + W / 2,
+        trees = props.trees,
+        small = props.small;
+      // above the spawn row: the portal in the middle, trees to both sides (behind the island's edge)
+      put(props.gate, cx, T + cell * 0.18, cell * 1.9, 0.8);
+      for (let i = 0; i < 6; i++) {
+        const side = i % 2 ? 1 : -1,
+          step = Math.floor(i / 2),
+          x = cx + side * (cell * 1.55 + step * cell * 1.05 + hash(i, 81) * cell * 0.3);
+        if (x < L - cell * 0.4 || x > L + W + cell * 0.4) continue;
+        put(trees[(i + step) % trees.length], x, T + cell * (0.22 + 0.08 * hash(i, 82)), cell * (0.95 + 0.25 * hash(i, 83)), 0.75 - step * 0.01, hash(i, 84) > 0.5);
+      }
+      // below the exit: the castle, flanked by trees and small things in front of the cliff
+      const by = T + H + soil + cell * 0.55;
+      put(props.goal, cx, by + cell * 0.55, cell * 2.1, 1.6);
+      for (let i = 0; i < 6; i++) {
+        const side = i % 2 ? 1 : -1,
+          step = Math.floor(i / 2),
+          x = cx + side * (cell * 1.7 + step * cell * 1.1 + hash(i, 91) * cell * 0.3),
+          tree = step !== 1;
+        if (x < L - cell * 0.4 || x > L + W + cell * 0.4) continue;
+        put(tree ? trees[(i + 1) % trees.length] : small[i % small.length], x, by + cell * (tree ? 0.35 : 0.5) + hash(i, 92) * cell * 0.2, cell * (tree ? 1.05 : 0.6), 1.55 + (tree ? 0 : 0.02), hash(i, 93) > 0.5);
+      }
+      // along both sides: bushes and trees half hidden behind the island
+      const rows = Math.max(2, Math.floor(H / (cell * 1.6)));
+      for (let r = 0; r < rows; r++)
+        for (const side of [-1, 1]) {
+          const y = T + cell * 1.2 + (r + 0.5) * ((H - cell * 1.2) / rows) + hash(r, side, 95) * cell * 0.4,
+            x = side < 0 ? L + cell * 0.12 : L + W - cell * 0.12,
+            n = (r + (side > 0 ? 1 : 0)) % 3 === 0 ? small[(r + 2) % small.length] : trees[(r * 2 + (side > 0 ? 1 : 0)) % trees.length];
+          put(n, x + side * cell * 0.25, y, cell * (small.includes(n) ? 0.55 : 0.85), 0.7, side > 0);
+          // wide screens: a second, looser row further out where there is room
+          if (L > cell * 1.1 && z.w - (L + W) > cell * 1.1) {
+            const far = side < 0 ? L - cell * 0.85 : L + W + cell * 0.85,
+              m = (r + (side > 0 ? 2 : 1)) % 2 ? trees[(r + 3) % trees.length] : small[(r * 3 + 1) % small.length];
+            put(m, far + (hash(r, side, 97) - 0.5) * cell * 0.4, y + cell * 0.6, cell * (small.includes(m) ? 0.6 : 1), 0.65 + y * 1e-6, side < 0);
+          }
+        }
+    }
     /** Spawn strip: a row of quarter-height portal fields above the board. */
     drawStrips(z) {
       const g = this.strips,
@@ -851,6 +1079,20 @@ export function mountArena({
         top = z.top - sh,
         bottom = z.top + z.bh;
       g.clear();
+      const P = boardPalette();
+      if (P) {
+        // design variants: light portal row, rounded pads
+        g.fillStyle(P.stripDeep, 1);
+        g.fillRect(z.left, top, z.bw, sh);
+        for (let x = 0; x < z.logicalCols; x++) {
+          const x0 = z.left + x * cell + 3;
+          g.fillStyle(P.strip, 1);
+          g.fillRoundedRect(x0, top + 2, cell - 6, sh - 4, Math.min(8, sh / 2 - 1));
+          g.fillStyle(0xffffff, 0.75);
+          g.fillRoundedRect(x0 + cell * 0.22, top + sh * 0.38, cell * 0.56 - 6, sh * 0.24, sh * 0.12);
+        }
+        return;
+      }
       g.fillStyle(0x1a0d2e, 1);
       g.fillRect(z.left, top, z.bw, sh);
       for (let x = 0; x < z.logicalCols; x++) {
@@ -886,6 +1128,10 @@ export function mountArena({
           .setDisplaySize(cell + 0.6, cell + 0.6)
           .setAngle(Math.floor(hash(p.gridX, p.gridY, 7) * 4) * 90)
           .setTint(frozen ? [0x5fa9e6, 0x6ab3ec, 0x58a2e0, 0x72b8ee][Math.floor(hash(p.gridX, p.gridY, 9) * 4)] : 0xffffff); // v0.22h1: deeper water blue
+        // design variants: the path is a flat, light colour (sand / peach), no stone texture
+        const PP = boardPalette();
+        img.setTintMode(PP && !frozen ? TINT.FILL : TINT.MULTIPLY);
+        if (PP && !frozen) img.setTint(PP.path[(p.gridX + p.gridY) & 1 ? 1 : 0]);
         // v0.10o: Permafrost: a pale ice sheen over the same tile
         let ice = this.iceTiles?.[i];
         if (frozen && !ice) {
@@ -1290,7 +1536,7 @@ export function mountArena({
         glow.fillStyle(0xa04dff, 0.1 + 0.08 * pulse);
         glow.fillEllipse(cx, z.top - z.strip / 2, cell * 0.9, z.strip * 1.6);
       }
-      for (const f of this.fireflies) {
+      for (const f of boardPalette() ? [] : this.fireflies) {
         const x = (f.x * z.w + Math.sin(time * 0.0004 + f.seed) * 40 + z.w) % z.w,
           y = ((f.y * z.h + Math.cos(time * 0.0003 + f.seed * 2) * 30 + z.h) % z.h) + (this.stage.scrollY || 0),
           a = 0.35 + 0.35 * Math.sin(time * 0.003 + f.seed * 5);
@@ -1419,7 +1665,7 @@ export function mountArena({
       const path = player.path || [];
       if (path.length) {
         const pts = path.map((p) => this.point(p.x, p.y));
-        this.chevrons(pl, pts, time, cell, 0x4a3018, preview?.ok ? 0.18 : 0.38);
+        this.chevrons(pl, pts, time, cell, 0x4a3018, preview?.ok ? 0.18 : 0.38, true);
       }
       // ---- placement aids
       if (selected?.towerId) {
@@ -1474,7 +1720,7 @@ export function mountArena({
         const key = `${view}:t:${t.id}`,
           q = this.point(t.x, t.y),
           artKey = this.ready(artFor(def)),
-          m = ART_MANIFEST[artKey],
+          m = this.artMeta(artKey),
           skin = this.teamTexture(artKey, colorOf(view));
         alive.add(key);
         let sprite = this.units.get(key);
@@ -1491,9 +1737,10 @@ export function mountArena({
         const popT = sprite.getData("pop") ? clamp((time - sprite.getData("pop")) / 280, 0, 1) : 1,
           pop = popT < 1 ? 0.5 + 0.5 * this.backOut(popT) : 1,
           recoil = 0,
-          breathe = t.stone ? 0 : Math.sin(time * 0.0032 + phase) * 0.014; // v0.18h: stones stand still
+          moving = !!activeArtSet() && !t.stone && artKey.startsWith("tower-"), // design variants: every figure moves its own way (motion.js)
+          breathe = t.stone || moving ? 0 : Math.sin(time * 0.0032 + phase) * 0.014; // v0.18h: stones stand still
         // v0.09: every figure without its own frame animation acts out each attack (see attackPose)
-        const pose = !anim && !building ? this.attackPose(def, sprite, time) : null;
+        const pose = moving ? this.figureMotion(def, artKey, sprite, time, phase, building, q, tc) : !anim && !building ? this.attackPose(def, sprite, time) : null;
         if (pose) sprite.setBend((m.plateCY - (m.plateCY - m.plateTop) * 0.35) / m.h, pose.lean * m.h * 0.12, pose.stretch);
         else sprite.setBend(0);
         const cx = q.x,
@@ -1688,7 +1935,7 @@ export function mountArena({
           // Render-only spread so a group reads as several units, not one blob.
           q = { x: raw.x + ((((phase0 * 37) % 7) - 3) / 3) * cell * 0.14, y: raw.y + ((((phase0 * 53) % 5) - 2) / 2) * cell * 0.1 },
           artKey = this.ready(c.art || artFor(def), "creep"), // v0.16: c.art (wave 1 boxer goblin)
-          m = ART_MANIFEST[artKey],
+          m = this.artMeta(artKey),
           // v0.14: creeps wear their sender's colour (team blue in the art moved to that colour)
           teamId = c.owner >= 0 ? colorOf(c.owner) : "neutral", // v0.15: neutral creeps wear brown; v0.17c: the Arcane Golem too wears its owner's colour
           recolor = !!teamId && CLOTH_COLORS[teamId].hue !== null,
@@ -1708,7 +1955,18 @@ export function mountArena({
           height = cell * (boss ? 1.3 * (c.waveBoss ? 1 : tierGrowth(def.tier || (def.bossTier || 2) - 1)) : (flying ? 0.82 : 0.78) * (neutral ? 1 : creepSize(catalog, def.id))) * (c.golem ? 1 + 0.07 * ((c.level || 1) - 1) : 1), // v0.17c: the Arcane Golem grows 7 % per perk level
           s = (height / m.h) * (1 - 0.12 * (c.shrink || 0)),
           step = time * 0.016 + phase0;
-        const lift = flying ? cell * 0.32 + Math.sin(time * 0.006 + phase0) * cell * 0.05 : walk ? 0 : Math.abs(Math.sin(step)) * cell * 0.05;
+        // design variants: each monster walks its own way (motion.js); its clock runs with its pace and stops when stunned
+        let gait = null;
+        if (activeArtSet() && artKey.startsWith("creep-")) {
+          const st = c.statuses || [],
+            stuck = st.some((x) => x.stun || x.abilityId === "entangle") || c.enrageUntil > game.time, // the growling Meat Golem stands still too
+            rate = stuck ? 0 : clamp((c.speed || 270) / 270, 0.45, 2.2) * (st.some((x) => x.slow > 0 && !x.poison) ? 0.6 : 1),
+            last = sprite.getData("gt") ?? time,
+            clock = (sprite.getData("gc") ?? phase0 * 1.7) + (Math.min(100, time - last) * rate * 0.016);
+          sprite.setData("gt", time).setData("gc", clock);
+          gait = creepGait(artKey, clock, stuck ? 0 : time / 1000, phase0);
+        }
+        const lift = (flying ? cell * 0.32 + (gait ? 0 : Math.sin(time * 0.006 + phase0) * cell * 0.05) : walk || gait ? 0 : Math.abs(Math.sin(step)) * cell * 0.05) + (gait ? gait.y * cell : 0);
         const dx = q.x - (sprite.getData("px") ?? q.x);
         if (Math.abs(dx) > 0.35) sprite.setData("face", dx < 0 ? -1 : 1);
         sprite.setData("px", q.x);
@@ -1741,17 +1999,21 @@ export function mountArena({
           else if (c.spiritWolf) sprite.setTint(0xe8d0ff); // v0.19a1: Spirit Wolves
           else sprite.clearTint();
         }
-        const flap = flying ? 1 + Math.sin(time * 0.03 + phase0) * 0.05 : 1,
+        const flap = flying && !gait ? 1 + Math.sin(time * 0.03 + phase0) * 0.05 : 1,
           // v0.21z: Enraged Meat Golem: 10 % larger; while it growls it swells once, smoothly
           growl = c.enrageUntil > game.time ? Math.sin(Math.PI * clamp(1 - (c.enrageUntil - game.time) / 1.2, 0, 1)) : 0,
           rage = c.enraged ? 1.1 + 0.1 * growl : 1;
+        const face = sprite.getData("face") === -1 ? -1 : 1;
+        if (gait) sprite.setBend(m.footY / m.h, gait.lean * face * m.h * 0.12, 1);
+        else sprite.setBend(0);
         sprite
           .setOrigin(walk ? (m.w / 2 + walk.ox) / walk.fw : 0.5, walk ? (m.footY + walk.oy) / walk.fh : m.footY / m.h)
           .setPosition(q.x, q.y + cell * 0.18 - lift)
-          .setScale(s * rage * (sprite.getData("face") === -1 ? -1 : 1) * (c.buff === "fat" ? 1.42 : 1) * (c.spiritWolf ? 1.08 : 1), s * rage * flap * (c.buff === "fat" ? 1.06 : 1) * (c.spiritWolf ? 1.08 : 1)) // v0.15: fat quest creeps; v0.19a1: Spirit Wolves a little larger
-          .setRotation(flying || walk ? 0 : Math.sin(step) * 0.07)
+          .setScale(s * rage * face * (c.buff === "fat" ? 1.42 : 1) * (c.spiritWolf ? 1.08 : 1) * (gait ? gait.sx : 1), s * rage * flap * (c.buff === "fat" ? 1.06 : 1) * (c.spiritWolf ? 1.08 : 1) * (gait ? gait.sy : 1)) // v0.15: fat quest creeps; v0.19a1: Spirit Wolves a little larger
+          .setRotation(gait ? gait.rot * face : flying || walk ? 0 : Math.sin(step) * 0.07)
           .setDepth(3000 + Math.floor(q.y) + (flying ? 1200 : 0)); // creeps always draw in front of towers
-        g.fillStyle(0x06120e, flying ? 0.22 : 0.32);
+        if (gait) g.fillStyle(0x2d5a1c, flying ? 0.14 : 0.2); // design variants: a softer, green-tinted shadow on the light meadow
+        else g.fillStyle(0x06120e, flying ? 0.22 : 0.32);
         g.fillEllipse(q.x, q.y + cell * 0.2, cell * (boss ? 0.8 : 0.48), cell * (boss ? 0.28 : 0.17));
         if (c.buff === "fast") {
           // v0.15: fast quest creeps: a winged helmet and fine golden boots
@@ -1943,6 +2205,34 @@ export function mountArena({
       this.drawPip(game, view, own, z, catalog, time);
       this.drawVignette(z, dt);
     }
+    /** Phase of the running attack (0..1) or null (same timing as attackPose). */
+    attackPhase(def, sprite, time) {
+      const atk = sprite.getData("atk");
+      if (atk == null && this.poseK == null) return null;
+      const dur = clamp((def.cooldown || 1) * 850, 240, 520),
+        k = this.poseK ?? (time - atk) / dur; // poseK: fixed phase for local screenshots only
+      return k < 0 || k >= 1 ? null : k;
+    }
+    /**
+     * Design variants: idle and attack of a figure from its own profile in motion.js. Stomps and slams
+     * puff a little dust ring on landing.
+     */
+    figureMotion(def, artKey, sprite, time, phase, building, q, tc) {
+      const idle = building ? { lean: 0, stretch: 1 } : towerIdle(artKey, time / 1000, phase),
+        k = building ? null : this.attackPhase(def, sprite, time),
+        hit = k == null ? null : towerAttack(artKey, k),
+        aim = sprite.getData("aimX") || 1;
+      if (hit && k > 0.38 && k < 0.85) {
+        const style = towerAttackStyle(artKey);
+        if (style === "stomp" || style === "slam") {
+          const x = (k - 0.38) / 0.47,
+            g = this.overlay;
+          g.lineStyle(Math.max(1.5, tc * 0.035), 0xffffff, 0.45 * (1 - x));
+          g.strokeEllipse(q.x, q.y + tc * 0.14, tc * (0.7 + 0.7 * x), tc * (0.3 + 0.3 * x));
+        }
+      }
+      return { lean: (hit ? hit.lean * aim : 0) + idle.lean, stretch: (hit ? hit.stretch : 1) * idle.stretch };
+    }
     /**
      * Attack pose of a tower figure from its last shot: the body above the pedestal leans and
      * stretches. Melee towers wind up and lunge, archers draw and release, cannons kick back and
@@ -2034,7 +2324,43 @@ export function mountArena({
       if (label.getData("bg") !== color) label.setBackgroundColor(color).setData("bg", color);
       label.setText(String(level)).setPosition(x, y).setDepth(depth).setVisible(true);
     }
-    chevrons(g, pts, time, cell, color, alpha) {
+    /** Pfotenwelt: instead of arrows, little paw prints walk along the route (left, right, left …). */
+    pawFlow(g, pts, time, cell, [color, alpha]) {
+      const spacing = cell * 0.42,
+        r = cell * 0.085;
+      let total = 0;
+      const segs = [];
+      for (let i = 1; i < pts.length; i++) {
+        const a = pts[i - 1],
+          b = pts[i],
+          len = Math.hypot(b.x - a.x, b.y - a.y);
+        segs.push({ a, b, len, start: total });
+        total += len;
+      }
+      if (total <= 0) return;
+      const run = time * 0.001 * cell * 0.55,
+        offset = (run % (spacing * 2)) + spacing * 0.5;
+      g.fillStyle(color, alpha);
+      let n = 0;
+      for (let d = offset; d < total - spacing * 0.3; d += spacing, n++) {
+        const s = segs.find((s) => d >= s.start && d <= s.start + s.len) || segs[segs.length - 1],
+          t = (d - s.start) / (s.len || 1),
+          ang = Math.atan2(s.b.y - s.a.y, s.b.x - s.a.x),
+          side = n % 2 ? 1 : -1, // the offset wraps by two steps, so every print keeps its side
+          ca = Math.cos(ang),
+          sa = Math.sin(ang),
+          x = lerp(s.a.x, s.b.x, t) - sa * cell * 0.1 * side,
+          y = lerp(s.a.y, s.b.y, t) + ca * cell * 0.1 * side,
+          // fade in at the start and out at the end of the route
+          fade = Math.min(1, d / spacing, (total - d) / spacing);
+        g.fillStyle(color, alpha * fade);
+        g.fillEllipse(x - ca * r * 0.2, y - sa * r * 0.2, r * 1.25, r * 1.25);
+        for (const [u, v] of [[0.85, -0.62], [1.12, -0.2], [1.12, 0.22], [0.85, 0.64]]) g.fillCircle(x + ca * u * r - sa * v * r, y + sa * u * r + ca * v * r, r * 0.3);
+      }
+    }
+    chevrons(g, pts, time, cell, color, alpha, paws = false) {
+      const PP = paws && boardPalette()?.pathPaw;
+      if (PP) return this.pawFlow(g, pts, time, cell, PP); // Pfotenwelt: the route is walked by paw prints
       const spacing = cell * 0.62,
         size = cell * 0.1;
       let total = 0;
@@ -2080,7 +2406,7 @@ export function mountArena({
           cell = z.cw * fp;
         if (!def) return img.setVisible(false);
         const artKey = this.ready(artFor(def)),
-          m = ART_MANIFEST[artKey];
+          m = this.artMeta(artKey);
         img
           .setTexture(this.teamTexture(artKey, colorOf(getOwnPlayer())))
           .setVisible(true)
@@ -2156,7 +2482,7 @@ export function mountArena({
       }
       if (def) {
         const artKey = this.ready(artFor(def)),
-          m = ART_MANIFEST[artKey],
+          m = this.artMeta(artKey),
           s = ((cell * 0.98 * TOWER_SCALE) / m.plateW) * levelScale(def.level || 1);
         this.ghost
           .setTexture(this.teamTexture(artKey, colorOf(getOwnPlayer())))
@@ -2606,6 +2932,7 @@ export function mountArena({
     if (destroyed) return;
     arena.create();
     started = true;
+    arena.switchArt(); // design variants: a design picked while the board was still loading
     stage.start((time, delta) => arena.update(time, delta));
   });
   // The board follows its container and the HUD/dock around it.
@@ -2643,6 +2970,10 @@ export function mountArena({
     refresh() {
       measureInsets();
       scene()?.drawTerrain();
+    },
+    /** Design variants: swap the figures to the chosen design's art set. */
+    switchArt() {
+      return scene()?.switchArt?.();
     },
     geometry() {
       return (
