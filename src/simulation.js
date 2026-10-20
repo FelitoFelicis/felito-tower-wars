@@ -77,6 +77,35 @@ const pos = (game, x, y) => {
 const square = (game, x, y) => (y + 1) * game.grid.cols + x;
 const dist = (game, a, b) =>
   Math.hypot((a.x - b.x) * game.grid.cols, (a.y - b.y) * game.grid.rows) * game.grid.cellUnits;
+// v0.23: exactly `dist(game, a, b) <= r`, but without Math.hypot unless the squared distance lies within a
+// relative 1e-9 of the boundary (Math.hypot is off by an ulp at most): the answer is always the same
+const DIST_SLACK = 1e-9;
+const inRange = (game, a, b, r) => {
+  const fx = (a.x - b.x) * game.grid.cols,
+    fy = (a.y - b.y) * game.grid.rows,
+    s = fx * fx + fy * fy,
+    q = r / game.grid.cellUnits,
+    q2 = q * q;
+  if (q > 1e-140 && q < 1e140) {
+    // positive and in the normal floating-point range (no underflow / overflow in the squares)
+    if (s < q2 * (1 - DIST_SLACK)) return true;
+    if (s > q2 * (1 + DIST_SLACK)) return false;
+  }
+  return dist(game, a, b) <= r;
+};
+/** v0.23: exactly `dist(game, a, b) > r` (NaN positions included), the same way as inRange. */
+const outOfRange = (game, a, b, r) => {
+  const fx = (a.x - b.x) * game.grid.cols,
+    fy = (a.y - b.y) * game.grid.rows,
+    s = fx * fx + fy * fy,
+    q = r / game.grid.cellUnits,
+    q2 = q * q;
+  if (q > 1e-140 && q < 1e140) {
+    if (s < q2 * (1 - DIST_SLACK)) return false;
+    if (s > q2 * (1 + DIST_SLACK)) return true;
+  }
+  return dist(game, a, b) > r;
+};
 const gridAt = (game, p) => ({
   x: clamp(Math.floor(p.x * game.grid.cols), 0, game.grid.cols - 1),
   y: p.y < 0 ? -1 : Math.min(game.grid.rows, Math.floor(p.y * game.grid.rows)),
@@ -117,53 +146,76 @@ function blocked(game, player, extra = null) {
  * order; never permits a closed maze. Without `start` it searches from every spawn field and
  * returns the shortest route, which is what the maze length and the route display use.
  */
+// v0.23: findPath works on integer cell keys (square()) in reused typed arrays: no Set/Map, no direction
+// arrays per node; same search order (down, left, right, up), so the very same path comes out
+const PATH_DX = [0, -1, 1, 0],
+  PATH_DY = [1, 0, 0, -1];
+let pathWalls = new Uint8Array(0),
+  pathPrev = new Int32Array(0),
+  pathQueue = new Int32Array(0);
 export function findPath(game, playerIndex = 0, start = null, extra = null) {
   const player = game.players[playerIndex],
-    { cols, rows } = game.grid;
-  const walls = blocked(game, player, extra),
-    keyOf = (x, y) => square(game, x, y),
-    starts = start ? [{ x: start.x, y: start.y }] : Array.from({ length: cols }, (_, x) => ({ x, y: -1 }));
-  const queue = [],
-    previous = new Map();
-  for (const a of starts) {
-    if (a.y >= rows) return [pos(game, a.x, rows)];
-    const k = keyOf(a.x, a.y);
-    if (walls.has(k) || previous.has(k)) continue;
-    previous.set(k, -1);
-    queue.push(k);
+    { cols, rows } = game.grid,
+    size = (rows + 2) * cols; // keys of rows -1 … rows
+  if (pathWalls.length < size) {
+    pathWalls = new Uint8Array(size);
+    pathPrev = new Int32Array(size);
+    pathQueue = new Int32Array(size);
   }
-  let endKey = null;
-  for (let i = 0; i < queue.length && endKey === null; i++) {
+  const walls = pathWalls,
+    previous = pathPrev, // -2: not reached, -1: a start field
+    queue = pathQueue;
+  walls.fill(0, 0, size);
+  previous.fill(-2, 0, size);
+  const wall = (x, y) => {
+    const k = square(game, x, y);
+    if (k >= 0 && k < size && Number.isInteger(k)) walls[k] = 1;
+  };
+  for (const t of player.towers) {
+    const n = towerSize(t);
+    for (let dy = 0; dy < n; dy++) for (let dx = 0; dx < n; dx++) wall(t.gridX + dx, t.gridY + dy);
+  }
+  for (const e of Array.isArray(extra) ? extra : extra ? [extra] : []) wall(e.x, e.y);
+  let tail = 0;
+  const begin = (x, y) => {
+    if (y >= rows) return true;
+    const k = square(game, x, y);
+    if (walls[k] || previous[k] !== -2) return false;
+    previous[k] = -1;
+    queue[tail++] = k;
+    return false;
+  };
+  if (start) {
+    if (begin(start.x, start.y)) return [pos(game, start.x, rows)];
+  } else for (let x = 0; x < cols; x++) begin(x, -1);
+  let endKey = -1;
+  for (let i = 0; i < tail && endKey < 0; i++) {
     const key = queue[i],
       x = key % cols,
       y = Math.floor(key / cols) - 1;
-    for (const [dx, dy] of [
-      [0, 1],
-      [-1, 0],
-      [1, 0],
-      [0, -1],
-    ]) {
-      const nx = x + dx,
+    for (let d = 0; d < 4; d++) {
+      const dy = PATH_DY[d],
+        nx = x + PATH_DX[d],
         ny = y + dy;
       if (nx < 0 || nx >= cols || ny < -1 || ny > rows) continue;
       // The exit strip is touched from the last row only; the spawn strip runs sideways.
       if (ny === rows && dy !== 1) continue;
-      const k = keyOf(nx, ny);
-      if (walls.has(k) || previous.has(k)) continue;
-      previous.set(k, key);
+      const k = (ny + 1) * cols + nx;
+      if (walls[k] || previous[k] !== -2) continue;
+      previous[k] = key;
       if (ny === rows) {
         endKey = k;
         break;
       }
-      queue.push(k);
+      queue[tail++] = k;
     }
   }
-  if (endKey === null) return null;
+  if (endKey < 0) return null;
   const path = [];
   let k = endKey;
   while (k !== -1) {
     path.push(pos(game, k % cols, Math.floor(k / cols) - 1));
-    k = previous.get(k);
+    k = previous[k];
   }
   return path.reverse();
 }
@@ -691,7 +743,41 @@ export function previewBuild(game, playerIndex, gridX, gridY, id = null) {
 const ARCHER_RANGE_CUT = 0.15, // fields (v0.17c)
   BOMBARD_RANGE_CUT = 0.1,
   RANGE_KEEP = /^(Bird Hunter|Water Elemental)/;
+// v0.23: statsFor is asked for every tower every tick and many times by the bots: the result is kept per player
+// and unit type (WeakMap, never saved or sent) and handed out again while every input it reads has the same
+// value: the game, the levels of the perks it reads (STATS_PERKS), the research levels of item.researchAffected,
+// Supergrowth of this unit, the contract share (quest log), Last Guardians on/off, Backup Line and Low Tides
+// on/off. Values are compared, not objects, so even a perk or research level changed in place is seen.
+// Auras, curses and other timed effects are not part of statsFor (attack() applies them).
+// The returned object is shared: callers only read it.
+const STATS_CACHE = new WeakMap();
+const STATS_PERKS = ["archery", "autoloader", "backup", "carmor", "firearrows", "frenzy", "golem", "heavy", "leadership", "lone", "medicine", "melee", "militia", "mind", "nobility", "owl", "stormfeathers", "tailwind", "tides", "wings"];
+function statsInputs(player, item) {
+  const research = player.research || {},
+    affected = item.researchAffected || [],
+    out = [
+      player.growth?.[item.id] || 0,
+      contractShare(player, item, "hp"),
+      item.isBuildable && item.attacks ? loneActive(player) : false,
+      !!player.backupOn,
+      !!player.tidesOn,
+    ];
+  for (const id of STATS_PERKS) out.push(perkLevel(player, id));
+  for (const id of affected) out.push(research[id] || 0);
+  return out;
+}
 function statsFor(game, player, item) {
+  if (!game || !player || !item || typeof player !== "object") return statsForRaw(game, player, item);
+  let byItem = STATS_CACHE.get(player);
+  if (!byItem) STATS_CACHE.set(player, (byItem = new Map()));
+  const inputs = statsInputs(player, item),
+    hit = byItem.get(item);
+  if (hit && hit.game === game && sameList(hit.inputs, inputs)) return hit.stats;
+  const stats = statsForRaw(game, player, item);
+  byItem.set(item, { game, inputs, stats });
+  return stats;
+}
+function statsForRaw(game, player, item) {
   // Explicit map ranges remain authoritative: Footman 150, Archer 600, etc.
   // The adapter's inherited weapon='normal' fallback is not a melee classifier.
   const stats = {
@@ -3259,13 +3345,13 @@ function aurasOf(unit) {
 // over its sources, so their order does not matter.
 const AURA_SOURCES = new WeakMap();
 function auraSources(game, p) {
-  const key = game.tick + ":" + p.creeps.length + ":" + p.towers.length;
+  // v0.23: the same key (tick, creep count, tower count) compared as numbers, no string built per call
   let hit = AURA_SOURCES.get(p);
-  if (!hit || hit.key !== key) {
+  if (!hit || hit.tick !== game.tick || hit.creeps !== p.creeps.length || hit.towers !== p.towers.length) {
     const list = [];
     for (const u of p.towers) if (aurasOf(u).length) list.push(u);
     for (const u of p.creeps) if (aurasOf(u).length) list.push(u);
-    AURA_SOURCES.set(p, (hit = { key, list }));
+    AURA_SOURCES.set(p, (hit = { tick: game.tick, creeps: p.creeps.length, towers: p.towers.length, list }));
   }
   return hit.list;
 }
@@ -3289,7 +3375,7 @@ function auraAt(game, target, owner, units) {
       if (friendly && !a.friend && !a.self) continue;
       if (!friendly && !a.enemies) continue;
       if (target === source && !a.self) continue;
-      if (a.radius <= 0 || dist(game, source, target) > a.radius) continue;
+      if (a.radius <= 0 || outOfRange(game, source, target, a.radius)) continue; // v0.23: outOfRange
       const fly = !!target.flying;
       if (a.air !== a.ground && (fly ? !a.air : !a.ground)) continue; // v0.17p: air-only / ground-only auras
       if (a.only) {
@@ -3495,7 +3581,7 @@ function negativeDuration(c, normal) {
   return cls === "boss" && creepSkills(c).some((sk) => sk.type === "tierBoss") ? normal * TIER_BOSS.shorter : normal * 0.25;
 }
 function detected(game, p, c) {
-  return p.towers.some((t) => !(t.buildRemaining > 0) && towerSkills(p, t).some((sk) => sk.type === "detect" && dist(game, t, c) <= sk.radius));
+  return p.towers.some((t) => !(t.buildRemaining > 0) && towerSkills(p, t).some((sk) => sk.type === "detect" && inRange(game, t, c, sk.radius))); // v0.23: inRange
 }
 /** One damage instance against a creep, with creep-side skills applied. */
 /** v0.22za2: true while a tower's splash lands (Splash Resistance); set around the splash strikes in attack(). */
@@ -3774,7 +3860,7 @@ function tickAreaDamage(game, p, tower, skills) {
   for (const sk of skills) {
     if (sk.type !== "immolation" || sk.dps <= 0) continue;
     for (const c of p.creeps) {
-      if (c.dead || c.hp <= 0 || (sk.airOnly && !c.flying) || dist(game, tower, c) > sk.radius) continue;
+      if (c.dead || c.hp <= 0 || (sk.airOnly && !c.flying) || outOfRange(game, tower, c, sk.radius)) continue; // v0.23: outOfRange
       strike(game, p, tower, c, sk.dps * TICK * (c.flying ? sk.flyFactor : 1), "spells", true);
     }
   }
@@ -3786,7 +3872,7 @@ function tickAreaDamage(game, p, tower, skills) {
 function tickHowl(game, p, tower, skills) {
   const sk = skills.find((x) => x.type === "howl");
   if (!sk || (tower.howlReady || 0) > game.time) return;
-  const near = p.creeps.filter((c) => !c.dead && c.hp > 0 && dist(game, tower, c) <= sk.radius);
+  const near = p.creeps.filter((c) => !c.dead && c.hp > 0 && inRange(game, tower, c, sk.radius)); // v0.23: inRange
   if (!near.length) return;
   for (const c of near) {
     c.statuses = c.statuses.filter((st) => st.abilityId !== "howl");
@@ -3894,7 +3980,7 @@ function attack(game, p, tower, dt, known = null) {
   if (tower.cooldown > 0) return;
   const canHit = (c) => (c.flying ? item.targets.includes("air") : item.targets.includes("ground")) && (!c.invisible || detected(game, p, c));
   const melee = isMeleeTower(item) && towerSize(tower) === 1,
-    inReach = (c) => (melee ? inMeleeReach(game, tower, c) : dist(game, tower, c) <= stats.range);
+    inReach = (c) => (melee ? inMeleeReach(game, tower, c) : inRange(game, tower, c, stats.range)); // v0.23: inRange
   const targets = p.creeps.filter((c) => !c.dead && c.hp > 0 && !divineShield(game, c) && inReach(c) && canHit(c)); // v0.21x: no shots at invulnerable creeps
   const skills = towerSkills(p, tower),
     focus = skills.find((sk) => sk.type === "focus");
@@ -4071,7 +4157,7 @@ function secondWeapon(game, p, tower, item, stats, aura, dt, cursed) {
   tower.cooldown2 = (tower.cooldown2 || 0) - dt;
   if (tower.cooldown2 > 0) return;
   const target = p.creeps
-    .filter((c) => !c.dead && c.hp > 0 && !divineShield(game, c) && c.flying && w.targets.includes("air") && dist(game, tower, c) <= rangedReach(game, w.range) && (!c.invisible || detected(game, p, c)))
+    .filter((c) => !c.dead && c.hp > 0 && !divineShield(game, c) && c.flying && w.targets.includes("air") && inRange(game, tower, c, rangedReach(game, w.range)) && (!c.invisible || detected(game, p, c))) // v0.23: inRange
     .sort((a, b) => b.progress - a.progress || a.id.localeCompare(b.id))[0];
   if (!target) {
     tower.cooldown2 = 0;
@@ -4287,7 +4373,7 @@ function moveCreep(game, p, c, dt) {
     c.cooldown = (c.cooldown || 0) - dt;
     if (c.cooldown <= 0) {
       const tower = p.towers
-        .filter((t) => !(t.buildRemaining > 0) && !(t.curse && t.curse.until > game.time) && dist(game, c, t) <= curse.range)
+        .filter((t) => !(t.buildRemaining > 0) && !(t.curse && t.curse.until > game.time) && inRange(game, c, t, curse.range)) // v0.23: inRange
         .sort((a, b) => dist(game, c, a) - dist(game, c, b))[0];
       if (tower) {
         tower.curse = { amount: curse.amount, until: game.time + curse.duration };
@@ -4688,7 +4774,7 @@ function reachOn(game, item, stats, x, y, size, path) {
   for (const node of path) {
     if (isMeleeTower(item) && size === 1) {
       if (Math.abs(node.gridX - x) <= 1 && Math.abs(node.gridY - y) <= 1) n++;
-    } else if (dist(game, centre, node) <= stats.range + cu * 0.15) n++;
+    } else if (inRange(game, centre, node, stats.range + cu * 0.15)) n++; // v0.23: inRange
   }
   return n;
 }
@@ -4719,11 +4805,22 @@ function towerPassDamage(game, p, item, x, y, size, path, air = false) {
 }
 /** Flyers cross straight down the column they spawn in; any column is equally likely. */
 const airPathOf = (game) => Array.from({ length: game.grid.rows }, (_, y) => pos(game, Math.floor(game.grid.cols / 2), y));
+// v0.23: the flyer columns of a board, made once per game (pos() only depends on the grid; never changed by a caller)
+const AIR_COLUMNS = new WeakMap();
+function airColumns(game) {
+  let list = AIR_COLUMNS.get(game);
+  if (!list) {
+    const { cols, rows } = game.grid;
+    list = Array.from({ length: cols }, (_, c) => Array.from({ length: rows }, (_, r) => pos(game, c, r)));
+    AIR_COLUMNS.set(game, list);
+  }
+  return list;
+}
 function airPass(game, p, item, x, y, size) {
-  const { cols, rows } = game.grid;
+  const { cols } = game.grid,
+    columns = airColumns(game); // v0.23
   let sum = 0;
-  for (let c = 0; c < cols; c++)
-    sum += towerPassDamage(game, p, item, x, y, size, Array.from({ length: rows }, (_, r) => pos(game, c, r)), true);
+  for (let c = 0; c < cols; c++) sum += towerPassDamage(game, p, item, x, y, size, columns[c], true);
   return sum / cols;
 }
 /** Ground kill capacity of the existing towers along a route. */
@@ -4736,7 +4833,31 @@ function groundCapacity(game, p, path) {
  * Routes from every portal field (v0.07k). Creeps appear above a random column, so the template
  * bot rates towers by the average of these routes, not only by the shortest one.
  */
+// v0.23: the routes without extra cells only depend on the tower fields: kept per player until a tower is
+// built, sold, moved or removed (WeakMap, never saved; callers only read the routes)
+const SPAWN_ROUTES = new WeakMap();
+const towerLayout = (p) => {
+  const out = [];
+  for (const t of p.towers) out.push(t.gridX, t.gridY, towerSize(t));
+  return out;
+};
+function sameList(a, b) {
+  if (!a || a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
 function spawnRoutes(game, p, extra = null) {
+  if (!extra) {
+    const layout = towerLayout(p),
+      hit = SPAWN_ROUTES.get(p);
+    if (hit && hit.game === game && sameList(hit.layout, layout)) return hit.routes;
+    const routes = spawnRoutesRaw(game, p, null);
+    if (routes[0] !== p.path) SPAWN_ROUTES.set(p, { game, layout, routes }); // the [p.path] fallback is not kept
+    return routes;
+  }
+  return spawnRoutesRaw(game, p, extra);
+}
+function spawnRoutesRaw(game, p, extra = null) {
   const out = [];
   for (let c = 0; c < game.grid.cols; c++) {
     const path = findPath(game, p.id, { x: c, y: -1 }, extra);
@@ -4755,7 +4876,29 @@ function routesCapacity(game, p, routes) {
   return ground;
 }
 /** Kill capacity of a lane: ground along its route(s), air along a straight column. */
+// v0.23: laneCapacity is asked for several times per bot turn (own lane and the opponent's) and the towers seldom
+// change in between: the result is kept per player and handed out again while every input is the same: the game,
+// the path and route arrays (never changed in place), the bot view (splashView, crowdView), every tower's type,
+// field and size, and the stats object statsFor returns for it (the same object while its inputs are unchanged).
+// Up to 4 entries per player (own and opponent's view); WeakMap, never saved or sent.
+const LANE_CAPACITY = new WeakMap();
 function laneCapacity(game, p, path = p.path, routes = null) {
+  const towers = [];
+  for (const t of p.towers) {
+    const item = obj(t.typeId);
+    towers.push(t.typeId, t.gridX, t.gridY, towerSize(t), item?.attacks ? statsFor(game, p, item) : null);
+  }
+  let list = LANE_CAPACITY.get(p);
+  if (!list) LANE_CAPACITY.set(p, (list = []));
+  for (const e of list)
+    if (e.game === game && e.path === path && e.routes === routes && e.splash === splashView && e.crowd === crowdView && sameList(e.towers, towers))
+      return { ground: e.ground, air: e.air };
+  const { ground, air } = laneCapacityRaw(game, p, path, routes);
+  if (list.length >= 4) list.shift();
+  list.push({ game, path, routes, splash: splashView, crowd: crowdView, towers, ground, air });
+  return { ground, air };
+}
+function laneCapacityRaw(game, p, path = p.path, routes = null) {
   let ground = 0,
     air = 0;
   for (const t of p.towers) {
@@ -5425,7 +5568,7 @@ function think(game, p) {
       live = p.creeps.filter((c) => !c.dead && c.hp > 0 && c.owner !== p.id);
     let best = null;
     for (const c of live) {
-      const n = live.filter((o) => dist(game, c, o) <= r).length;
+      const n = live.filter((o) => inRange(game, c, o, r)).length; // v0.23: inRange
       if (!best || n > best.n) best = { c, n };
     }
     if (best && (best.n >= 4 || best.c.progress > 0.75)) command(game, { type: "volley", player: p.id, x: best.c.x, y: best.c.y });
@@ -5436,7 +5579,7 @@ function think(game, p) {
       live = p.creeps.filter((c) => !c.dead && c.hp > 0 && c.owner !== p.id);
     let best = null;
     for (const c of live) {
-      const n = live.filter((o) => dist(game, c, o) <= r).length;
+      const n = live.filter((o) => inRange(game, c, o, r)).length; // v0.23: inRange
       if (!best || n > best.n) best = { c, n };
     }
     if (best && (best.n >= 3 || best.c.progress > 0.75)) command(game, { type: "burst", player: p.id, x: best.c.x, y: best.c.y });
@@ -5447,7 +5590,7 @@ function think(game, p) {
       live = p.creeps.filter((c) => !c.dead && c.hp > 0 && c.owner !== p.id);
     let best = null;
     for (const c of live) {
-      const n = live.filter((o) => dist(game, c, o) <= r).length;
+      const n = live.filter((o) => inRange(game, c, o, r)).length; // v0.23: inRange
       if (!best || n > best.n) best = { c, n };
     }
     if (best && (best.n >= 5 || best.c.progress > 0.8)) command(game, { type: "pillar", player: p.id, x: best.c.x, y: best.c.y });
@@ -6094,9 +6237,11 @@ function fixedTickInner(game) {
   }
   for (const p of game.players) {
     if (p.out) continue;
-    for (const [id, stock] of Object.entries(p.stock)) {
-      const item = obj(id);
-      if (item.tier !== p.tier || stock.count >= stockMaxOf(p, item) || stock.lockRound > game.round) continue;
+    // v0.23: only the sends of the current tier can restock (the others were skipped one by one before); each
+    // stock is independent, so the order does not matter
+    for (const item of stockTierSends(p.tier)) {
+      const stock = p.stock[item.id];
+      if (!stock || stock.count >= stockMaxOf(p, item) || stock.lockRound > game.round) continue;
       if (game.time + EPS >= stock.next) {
         stock.count++;
         stock.next = game.time + Math.max(TICK, stockRegenOf(p, item));
@@ -6134,9 +6279,13 @@ function fixedTickInner(game) {
       const item = obj(t.typeId),
         stats = statsFor(game, p, item);
       t.hp = Math.min(t.maxHp, t.hp + stats.regen * TICK);
-      const manaBonus = Math.max(0, ...manaAuras.filter((m) => dist(game, m.t, t) <= m.sk.radius).map((m) => m.sk.regen));
+      // v0.23: the strongest mana / mana-regeneration aura in reach, in plain loops (no arrays per tower and tick)
+      let manaBonus = 0,
+        regenBest = 0;
+      for (const m of manaAuras) if (m.sk.regen > manaBonus && inRange(game, m.t, t, m.sk.radius)) manaBonus = m.sk.regen;
+      for (const m of regenAuras) if (m.sk.rate > regenBest && inRange(game, m.t, t, m.sk.radius)) regenBest = m.sk.rate;
       const regen = isMagicTower(item) ? stats.mana / MAGIC_CHARGE_SECONDS : item.manaRegen,
-        regenRate = 1 + Math.max(0, ...regenAuras.filter((m) => dist(game, m.t, t) <= m.sk.radius).map((m) => m.sk.rate)); // v0.17p
+        regenRate = 1 + regenBest; // v0.17p
       t.mana = Math.min(stats.mana, t.mana + (regen + manaBonus) * regenRate * TICK);
       attack(game, p, t, TICK, stats); // v0.21l: the stats just computed
       const tSkills = towerSkills(p, t);
@@ -6174,9 +6323,30 @@ function fixedTickInner(game) {
     else if (!p.autoSend && (p.autoMode === "eco" || p.autoMode === "tierup") && p.autoSendActive !== false && !p.autoHold && game.tick % 5 === 0) autoModeSend(game, p); // v0.18h
     if (p.ai) think(game, p);
   }
-  game.effects = game.events.filter(
-    (e) => game.time - e.time < 0.35 && ["shot", "kill", "leak", "build"].includes(e.type),
-  );
+  // v0.23: made anew only when an event was added (game.eventId) or its oldest entry left the 0.35 s window (event
+  // times never decrease, so the rest is still inside); plain loop with a constant type set
+  const fx = EFFECTS_CACHE.get(game);
+  if (!fx || fx.eventId !== game.eventId || fx.list !== game.effects || (fx.list.length && !(game.time - fx.list[0].time < 0.35))) {
+    const effects = [];
+    for (const e of game.events) if (game.time - e.time < 0.35 && EFFECT_TYPES.has(e.type)) effects.push(e);
+    game.effects = effects;
+    EFFECTS_CACHE.set(game, { eventId: game.eventId, list: effects });
+  }
+}
+const EFFECT_TYPES = new Set(["shot", "kill", "leak", "build"]);
+const EFFECTS_CACHE = new WeakMap(); // v0.23: never saved or sent
+// v0.23: every send of a tier, as the restock loop in fixedTickInner needs them (per catalog; never changed by a caller)
+const STOCK_TIER = new Map();
+let stockTierCatalog = null;
+function stockTierSends(tier) {
+  const catalog = getCatalog();
+  if (stockTierCatalog !== catalog) {
+    STOCK_TIER.clear();
+    stockTierCatalog = catalog;
+  }
+  let list = STOCK_TIER.get(tier);
+  if (!list) STOCK_TIER.set(tier, (list = catalog.sends.filter((s) => s.tier === tier)));
+  return list;
 }
 export function step(game, dt) {
   if (!Number.isFinite(dt) || dt < 0) throw new TypeError("dt must be a finite, positive number of seconds.");
