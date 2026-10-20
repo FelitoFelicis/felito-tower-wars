@@ -170,6 +170,27 @@ export class Stage {
       img.src = url;
     });
   }
+  /**
+   * Design variants: load a picture over an existing texture of the same key (the old one stays visible
+   * until the new one has arrived). Copies made from it (player colours, "key#colour") are rebuilt by the
+   * caller, see derivedKeys.
+   */
+  reloadImage(key, url, frameWidth = 0, frameHeight = 0) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.decoding = "async";
+      img.onload = () => resolve(this.disposed ? null : this.addCanvas(key, img, frameWidth, frameHeight));
+      img.onerror = () => {
+        console.warn("Bild fehlt:", url);
+        resolve(null);
+      };
+      img.src = url;
+    });
+  }
+  /** Keys of the textures made from `key` (player colour copies). */
+  derivedKeys(key) {
+    return [...this.textures.keys()].filter((k) => k.startsWith(key + "#"));
+  }
   /** Frame rectangle in UV space (DynamicTexture is uploaded with invertY). */
   _uv(key, frame) {
     const t = this.textures.get(key);

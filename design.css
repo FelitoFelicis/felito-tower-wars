@@ -1,0 +1,708 @@
+/* Design variants (Options › Graphic › Design). Original needs nothing from this file; the three new looks
+   ("Circle Tower Wars") restyle the UI on top of style.css. To drop them remove this file, src/design.js,
+   src/motion.js, src/art-sets.js, assets/art-toy and assets/art-pets (see DESIGNS.md).
+   Sonnenwiese: daylight, cream panels with brown outlines, candy-blue and green buttons, the board as a meadow island.
+   Bonbon: turquoise with dots, white sticker panels with thick navy outlines and hard shadows, pink and orange.
+   Pfotenwelt: warm peach sky with paw prints, milk-cream panels with chocolate outlines, tangerine and coral. */
+
+@font-face {
+  font-family: "Fredoka";
+  font-weight: 600;
+  font-display: swap;
+  src: url("assets/fonts/fredoka-latin-600-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Fredoka";
+  font-weight: 700;
+  font-display: swap;
+  src: url("assets/fonts/fredoka-latin-700-normal.woff2") format("woff2");
+}
+
+/* ---- tokens -------------------------------------------------------------------------------- */
+:root[data-design="sonne"] {
+  --d-font: "Lilita One", "DM Sans", system-ui, sans-serif;
+  --d-weight: 400;
+  --d-line: #5a3a1f;
+  --d-text: #4a2e16;
+  --d-soft: #8a6a48;
+  --d-panel: #fff4dc;
+  --d-panel-own: #e4f4ff;
+  --d-panel-rival: #ffe6de;
+  --d-inset: #f3e2bd;
+  --d-header: #4fb4f7;
+  --d-main: #ffb93f;
+  --d-main-lo: #e8840f;
+  --d-alt: #4fb4f7;
+  --d-alt-lo: #2079c9;
+  --d-go: #7fd24f;
+  --d-go-lo: #3f9a25;
+  --d-red: #ff6a5c;
+  --d-red-lo: #c93a2e;
+  --d-violet: #a789ff;
+  --d-violet-lo: #6a4bd6;
+  --d-tab-build: #4fb4f7;
+  --d-tab-build-lo: #2079c9;
+  --d-tab-send: #7fd24f;
+  --d-tab-send-lo: #3f9a25;
+  --d-num: #ffd02e;
+  --d-inc: #79e05a;
+  --d-card: #fffaf0;
+  --d-card-art: radial-gradient(circle at 50% 78%, #eaf8ff, #b6e4f8 75%);
+  --d-card-send-art: radial-gradient(circle at 50% 78%, #fff0f3, #ffc8d6 75%);
+  --d-radius: 14px;
+  --d-bw: 3px;
+  --d-drop: 0 4px 0 var(--d-line);
+  --d-bg: linear-gradient(#c4ecff, #92d6f4);
+  --d-scene:
+    radial-gradient(ellipse 34% 5.5% at 22% 16%, #ffffffd9 97%, #fff0 100%),
+    radial-gradient(ellipse 22% 4.5% at 30% 13%, #ffffffd9 97%, #fff0 100%),
+    radial-gradient(ellipse 28% 4.5% at 82% 27%, #ffffffc4 97%, #fff0 100%),
+    radial-gradient(ellipse 90% 22% at 12% 104%, #6fc044 98%, #6fc04400 100%),
+    radial-gradient(ellipse 80% 20% at 92% 108%, #5fb339 98%, #5fb33900 100%),
+    radial-gradient(ellipse 110% 26% at 50% 116%, #86d457 98%, #86d45700 100%),
+    linear-gradient(#bfe9ff, #8fd3f4 70%, #a9e0f7);
+}
+:root[data-design="bonbon"] {
+  --d-font: "Fredoka", "Lilita One", system-ui, sans-serif;
+  --d-weight: 700;
+  --d-line: #23255c;
+  --d-text: #23255c;
+  --d-soft: #5a5c9a;
+  --d-panel: #ffffff;
+  --d-panel-own: #e8f0ff;
+  --d-panel-rival: #ffe8f3;
+  --d-inset: #eef0ff;
+  --d-header: #ff5ea8;
+  --d-main: #ff9a2e;
+  --d-main-lo: #d4650c;
+  --d-alt: #8c6cff;
+  --d-alt-lo: #5a3fcb;
+  --d-go: #33d17a;
+  --d-go-lo: #1d9450;
+  --d-red: #ff4f6d;
+  --d-red-lo: #c42a46;
+  --d-violet: #8c6cff;
+  --d-violet-lo: #5a3fcb;
+  --d-tab-build: #4c8dff;
+  --d-tab-build-lo: #2a5fd0;
+  --d-tab-send: #ff5ea8;
+  --d-tab-send-lo: #c2306e;
+  --d-num: #ffd23f;
+  --d-inc: #3ddc84;
+  --d-card: #ffffff;
+  --d-card-art: radial-gradient(circle at 50% 78%, #fffbe0, #ffe98a 78%);
+  --d-card-send-art: radial-gradient(circle at 50% 78%, #fff0f7, #ffbfdc 78%);
+  --d-radius: 18px;
+  --d-bw: 3px;
+  --d-drop: 0 5px 0 var(--d-line);
+  --d-bg:
+    radial-gradient(circle, #ffffff33 2.6px, #fff0 3.2px) 0 0 / 30px 30px,
+    radial-gradient(circle, #ffffff33 2.6px, #fff0 3.2px) 15px 15px / 30px 30px,
+    linear-gradient(#4fd8cf, #36bfb8);
+  --d-scene:
+    radial-gradient(circle at 104% 30%, #ffd23f 0 92px, #ffd23f00 93px),
+    radial-gradient(circle at -6% 62%, #ff8fc7 0 110px, #ff8fc700 111px),
+    radial-gradient(circle at 80% 104%, #8c6cff 0 120px, #8c6cff00 121px),
+    radial-gradient(circle, #ffffff33 2.6px, #fff0 3.2px) 0 0 / 30px 30px,
+    radial-gradient(circle, #ffffff33 2.6px, #fff0 3.2px) 15px 15px / 30px 30px,
+    linear-gradient(#4fd8cf, #36bfb8);
+}
+:root[data-design="pets"] {
+  --d-font: "Fredoka", "Lilita One", system-ui, sans-serif;
+  --d-weight: 700;
+  --d-line: #6b3f22;
+  --d-text: #5a341b;
+  --d-soft: #9a6c48;
+  --d-panel: #fff6e8;
+  --d-panel-own: #e9f6ff;
+  --d-panel-rival: #ffe9e3;
+  --d-inset: #f8e5c6;
+  --d-header: #ff8f6b;
+  --d-main: #ff9b54;
+  --d-main-lo: #d96a24;
+  --d-alt: #6cc3ff;
+  --d-alt-lo: #2f86cc;
+  --d-go: #8ad25a;
+  --d-go-lo: #4f9a2a;
+  --d-red: #ff6b6b;
+  --d-red-lo: #c93d3d;
+  --d-violet: #b48cff;
+  --d-violet-lo: #7d58d6;
+  --d-tab-build: #6cc3ff;
+  --d-tab-build-lo: #2f86cc;
+  --d-tab-send: #ff8fb8;
+  --d-tab-send-lo: #cf507f;
+  --d-num: #ffd25a;
+  --d-inc: #8fe06a;
+  --d-card: #fffaf2;
+  --d-card-art: radial-gradient(circle at 50% 78%, #fff6e6, #ffd9a6 78%);
+  --d-card-send-art: radial-gradient(circle at 50% 78%, #fff0f5, #ffc6da 78%);
+  --d-radius: 20px;
+  --d-bw: 3px;
+  --d-drop: 0 4px 0 var(--d-line);
+  --d-bg:
+    radial-gradient(ellipse 9px 8px at 37px 41px, #ffffff40 96%, #fff0 100%) 0 0 / 74px 74px,
+    radial-gradient(circle 3.4px at 29px 31px, #ffffff40 96%, #fff0 100%) 0 0 / 74px 74px,
+    radial-gradient(circle 3.4px at 35px 27px, #ffffff40 96%, #fff0 100%) 0 0 / 74px 74px,
+    radial-gradient(circle 3.4px at 41px 27px, #ffffff40 96%, #fff0 100%) 0 0 / 74px 74px,
+    radial-gradient(circle 3.4px at 47px 31px, #ffffff40 96%, #fff0 100%) 0 0 / 74px 74px,
+    linear-gradient(#ffe8c6, #ffd29e);
+  --d-scene:
+    radial-gradient(ellipse 30% 5% at 20% 15%, #ffffffd0 97%, #fff0 100%),
+    radial-gradient(ellipse 20% 4.2% at 28% 12%, #ffffffd0 97%, #fff0 100%),
+    radial-gradient(ellipse 26% 4.5% at 80% 26%, #ffffffb8 97%, #fff0 100%),
+    radial-gradient(ellipse 90% 22% at 12% 104%, #86c957 98%, #86c95700 100%),
+    radial-gradient(ellipse 80% 20% at 92% 108%, #74bd47 98%, #74bd4700 100%),
+    radial-gradient(ellipse 110% 26% at 50% 116%, #9bd866 98%, #9bd86600 100%),
+    linear-gradient(#ffe6c2, #ffd09c 70%, #ffdcb0);
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) {
+  color-scheme: light;
+  --ink: var(--d-text);
+  --muted: var(--d-soft);
+  --gold: var(--d-main);
+  --d-outline:
+    -1.5px -1.5px 0 var(--d-line), 1.5px -1.5px 0 var(--d-line), -1.5px 1.5px 0 var(--d-line),
+    1.5px 1.5px 0 var(--d-line), 0 2.5px 0 var(--d-line);
+  --d-button-text: 0 2px 0 color-mix(in srgb, var(--d-line) 70%, transparent);
+}
+
+/* ---- page, board area, HUD backdrop --------------------------------------------------------- */
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) body,
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .game-shell {
+  background: var(--d-bg);
+  box-shadow: none;
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) #arena {
+  background: transparent;
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .mini-hud,
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .command-deck,
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .bottom-nav {
+  background: none;
+  border-top: 0;
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) #game-loader {
+  color: var(--d-text);
+}
+
+/* ---- shared panel look ----------------------------------------------------------------------- */
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) :is(.player-plate, .round-plate, .tower-panel, dialog, .coach, .auto-send, .help-tip),
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) #toast {
+  background: var(--d-panel);
+  border: var(--d-bw) solid var(--d-line);
+  border-radius: var(--d-radius);
+  box-shadow: var(--d-drop);
+  color: var(--d-text);
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .player-plate.own {
+  background: var(--d-panel-own);
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .player-plate.rival {
+  background: var(--d-panel-rival);
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) :is(.plate-name, .round-label) {
+  font-family: var(--d-font);
+  font-weight: var(--d-weight);
+  letter-spacing: 0.01em;
+  text-transform: none;
+  color: var(--d-text);
+  text-shadow: none;
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) :is(.plate-gold b, .plate-lives strong, .plate-inc),
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) #income-time {
+  font-family: var(--d-font);
+  font-weight: var(--d-weight);
+  text-shadow: var(--d-outline);
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .plate-gold b {
+  color: var(--d-num);
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .plate-inc {
+  color: var(--d-inc);
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .plate-lives strong,
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) #income-time {
+  color: #fff;
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .plate-exp {
+  background: color-mix(in srgb, var(--d-line) 22%, transparent);
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .plate-exp span {
+  color: var(--d-text);
+  text-shadow: none;
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .plate-face .portrait {
+  border-radius: 10px;
+  box-shadow: 0 0 0 2px var(--d-line);
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .income-timer circle {
+  stroke: color-mix(in srgb, var(--d-line) 18%, transparent);
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .income-timer #income-ring {
+  stroke: var(--d-go);
+}
+
+/* ---- cards ----------------------------------------------------------------------------------- */
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .unit-card {
+  background: var(--d-card);
+  border: var(--d-bw) solid var(--d-line);
+  border-radius: calc(var(--d-radius) - 2px);
+  box-shadow: var(--d-drop);
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .unit-card.selected {
+  transform: translateY(-4px);
+  box-shadow: 0 0 0 3px var(--d-main), var(--d-drop);
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .unit-name {
+  font-family: var(--d-font);
+  font-weight: var(--d-weight);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--d-text);
+  background: none;
+  text-shadow: none;
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .card-art {
+  background: var(--d-card-art);
+  border-radius: calc(var(--d-radius) - 6px);
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .card-send .card-art {
+  background: var(--d-card-send-art);
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .card-art img {
+  filter: drop-shadow(0 3px 0 color-mix(in srgb, var(--d-line) 35%, transparent));
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .price {
+  font-family: var(--d-font);
+  font-weight: var(--d-weight);
+  color: var(--d-num);
+  text-shadow: var(--d-outline);
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .deck-arrow {
+  background: var(--d-panel);
+  border: var(--d-bw) solid var(--d-line);
+  box-shadow: var(--d-drop);
+  color: var(--d-text);
+}
+
+/* ---- bottom bar ------------------------------------------------------------------------------ */
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .bottom-nav [data-tab] {
+  font-family: var(--d-font);
+  font-weight: var(--d-weight);
+  font-size: 19px;
+  letter-spacing: 0.01em;
+  text-transform: none;
+  color: var(--d-text);
+  background: var(--d-panel);
+  border: var(--d-bw) solid var(--d-line);
+  border-radius: var(--d-radius);
+  box-shadow: inset 0 -4px 0 color-mix(in srgb, var(--d-line) 14%, transparent), var(--d-drop);
+  text-shadow: none;
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .bottom-nav [data-tab] img {
+  filter: none;
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .bottom-nav [data-tab].active {
+  color: #fff;
+  text-shadow: var(--d-button-text);
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .bottom-nav .tab-build.active {
+  background: var(--d-tab-build);
+  box-shadow: inset 0 3px 0 #ffffff66, inset 0 -5px 0 var(--d-tab-build-lo), var(--d-drop);
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .bottom-nav .tab-send.active {
+  background: var(--d-tab-send);
+  box-shadow: inset 0 3px 0 #ffffff66, inset 0 -5px 0 var(--d-tab-send-lo), var(--d-drop);
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .side-button {
+  background: var(--d-panel);
+  border: var(--d-bw) solid var(--d-line);
+  border-radius: var(--d-radius);
+  box-shadow: var(--d-drop);
+  color: var(--d-main-lo);
+  text-shadow: none;
+}
+
+/* ---- level button, auto slot ----------------------------------------------------------------- */
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .level-button {
+  background: var(--d-panel);
+  border: var(--d-bw) solid var(--d-line);
+  border-radius: var(--d-radius);
+  box-shadow: var(--d-drop);
+  color: var(--d-text);
+  text-shadow: none;
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .level-button .level-fill {
+  background: var(--d-violet);
+  box-shadow: inset 0 2px 0 #ffffff80;
+  border-radius: 0 0 calc(var(--d-radius) - 4px) calc(var(--d-radius) - 4px);
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .level-button :is(span, b) {
+  font-family: var(--d-font);
+  color: var(--d-text);
+  text-shadow: 0 0 3px #fff, 0 0 6px #fff;
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .auto-slot {
+  background: color-mix(in srgb, var(--d-panel) 85%, transparent);
+  border: var(--d-bw) dashed var(--d-line);
+  border-radius: var(--d-radius);
+  box-shadow: none;
+  color: var(--d-text);
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) :is(.side-label, .tier-badge) {
+  font-family: var(--d-font);
+  font-weight: var(--d-weight);
+  color: var(--d-text);
+  text-shadow: 0 0 4px #ffffffcc;
+  text-transform: none;
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .tier-badge {
+  background: var(--d-panel);
+  border: 2px solid var(--d-line);
+}
+
+/* ---- dialogs and buttons --------------------------------------------------------------------- */
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) dialog::backdrop {
+  background: color-mix(in srgb, var(--d-line) 45%, transparent);
+  backdrop-filter: blur(2px);
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .modal-header {
+  background: var(--d-header);
+  border: var(--d-bw) solid var(--d-line);
+  box-shadow: inset 0 3px 0 #ffffff55;
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .modal-header h2 {
+  font-family: var(--d-font);
+  font-weight: var(--d-weight);
+  letter-spacing: 0.01em;
+  text-transform: none;
+  color: #fff;
+  text-shadow: var(--d-outline);
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) :is(.primary-button, .secondary-button, .danger-button, .restart-button, .submenu-button) {
+  font-family: var(--d-font);
+  font-weight: var(--d-weight);
+  letter-spacing: 0.01em;
+  text-transform: none;
+  color: #fff;
+  border: var(--d-bw) solid var(--d-line);
+  border-radius: var(--d-radius);
+  text-shadow: var(--d-button-text);
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .primary-button {
+  background: var(--d-main);
+  box-shadow: inset 0 3px 0 #ffffff70, inset 0 -5px 0 var(--d-main-lo), var(--d-drop);
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) :is(.secondary-button, .submenu-button) {
+  background: var(--d-alt);
+  box-shadow: inset 0 3px 0 #ffffff66, inset 0 -5px 0 var(--d-alt-lo), var(--d-drop);
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .danger-button {
+  background: var(--d-red);
+  box-shadow: inset 0 3px 0 #ffffff66, inset 0 -5px 0 var(--d-red-lo), var(--d-drop);
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .restart-button {
+  background: var(--d-go);
+  box-shadow: inset 0 3px 0 #ffffff66, inset 0 -5px 0 var(--d-go-lo), var(--d-drop);
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .close-modal {
+  border: var(--d-bw) solid var(--d-line);
+  border-radius: 12px;
+  background: var(--d-red);
+  box-shadow: inset 0 -4px 0 var(--d-red-lo), 0 3px 0 var(--d-line);
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) :is(.modal-label, .modal-copy, .modal-note, .welcome-group-title) {
+  color: var(--d-text);
+  text-shadow: none;
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) :is(.modal-label, .welcome-group-title) {
+  font-family: var(--d-font);
+  font-weight: var(--d-weight);
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) :is(.segmented, .pills) {
+  background: var(--d-inset);
+  border: 2px solid color-mix(in srgb, var(--d-line) 35%, transparent);
+  box-shadow: none;
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) :is(.segmented button, .pills button, .choice-button) {
+  font-family: var(--d-font);
+  font-weight: var(--d-weight);
+  letter-spacing: 0.01em;
+  text-transform: none;
+  color: var(--d-text);
+  text-shadow: none;
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) :is(.segmented button.active, .pills button.active, .choice-button.active, .segmented button[aria-checked="true"]) {
+  color: #fff;
+  background: var(--d-main);
+  border: 2px solid var(--d-line);
+  box-shadow: inset 0 -3px 0 var(--d-main-lo);
+  text-shadow: var(--d-button-text);
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) :is(.name-input, .catalog-search, .select),
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) #room-input {
+  background: #fff;
+  border: var(--d-bw) solid var(--d-line);
+  box-shadow: inset 0 3px 0 color-mix(in srgb, var(--d-line) 12%, transparent);
+  color: var(--d-text);
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .pick-card {
+  background: var(--d-panel);
+  color: var(--d-text);
+  box-shadow: var(--d-drop);
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .pick-card :is(b, span, small) {
+  color: var(--d-text);
+  text-shadow: none;
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .pick-card b {
+  font-family: var(--d-font);
+  font-weight: var(--d-weight);
+  text-transform: none;
+  letter-spacing: 0.01em;
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) :is(.coach, .help-tip) :is(b, strong, h3, .tip-head),
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) #toast :is(b, strong, h3, .tip-head) {
+  color: var(--d-text);
+}
+
+/* ---- main menu ------------------------------------------------------------------------------- */
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) dialog.welcome-modal,
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .menu-under-dialog {
+  background: var(--d-scene);
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) dialog.welcome-modal::backdrop {
+  background: var(--d-bg);
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) :is(.welcome-art, .welcome-eyes, .welcome-mood) {
+  display: none;
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .welcome-logo {
+  filter: drop-shadow(0 6px 0 color-mix(in srgb, var(--d-line) 45%, transparent));
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .welcome-panel {
+  background: var(--d-panel);
+  border: var(--d-bw) solid var(--d-line);
+  border-radius: calc(var(--d-radius) + 4px);
+  box-shadow: var(--d-drop);
+  padding: 12px;
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) :is(.app-version, .welcome-options) {
+  color: var(--d-text);
+  text-shadow: none;
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .welcome-options {
+  background: var(--d-panel);
+  border: var(--d-bw) solid var(--d-line);
+  box-shadow: var(--d-drop);
+}
+
+/* ---- training page of the main menu ---------------------------------------------------------- */
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .welcome-group {
+  background: var(--d-panel);
+  border: var(--d-bw) solid var(--d-line);
+  border-radius: calc(var(--d-radius) + 4px);
+  box-shadow: var(--d-drop);
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .welcome-back {
+  font-family: var(--d-font);
+  font-weight: var(--d-weight);
+  letter-spacing: 0.01em;
+  text-transform: none;
+  border: var(--d-bw) solid var(--d-line);
+  background: var(--d-main);
+  box-shadow: inset 0 3px 0 #ffffff70, inset 0 -4px 0 var(--d-main-lo), 0 3px 0 var(--d-line);
+  text-shadow: var(--d-button-text);
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .segmented.ai-levels .ai-mixed {
+  background: #ffffffb3;
+  color: var(--d-text);
+  border: 2px solid color-mix(in srgb, var(--d-line) 40%, transparent);
+  box-shadow: none;
+  text-shadow: none;
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .segmented.ai-levels .ai-mixed.active {
+  background: var(--d-violet);
+  color: #fff;
+  border-color: var(--d-line);
+  text-shadow: var(--d-button-text);
+}
+
+/* PvP and other second choices in the main menu use the second colour */
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .primary-button.alt {
+  background: var(--d-alt);
+  box-shadow: inset 0 3px 0 #ffffff66, inset 0 -5px 0 var(--d-alt-lo), var(--d-drop);
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .color-picker {
+  background: var(--d-inset);
+  border: 2px solid color-mix(in srgb, var(--d-line) 35%, transparent);
+  box-shadow: none;
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .color-picker button {
+  box-shadow: 0 0 0 2px var(--d-line);
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .modal-label b {
+  color: var(--d-alt-lo);
+  text-shadow: none;
+}
+
+/* ---- welcome: a few heroes of the design's art set between logo and menu ---------------------- */
+.welcome-cast {
+  display: none;
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .welcome-cast {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 0;
+  padding-bottom: 10px;
+  pointer-events: none;
+}
+.welcome-cast img {
+  width: min(29%, 128px);
+  height: auto;
+  max-height: 100%;
+  object-fit: contain;
+  object-position: 50% 100%;
+  transform-origin: 50% 92%;
+  filter: drop-shadow(0 5px 0 color-mix(in srgb, var(--d-line, #000) 30%, transparent));
+  animation: cast-in 0.7s cubic-bezier(0.2, 1.4, 0.4, 1) backwards;
+}
+.welcome-cast .cast-0 {
+  margin-right: -4%;
+  animation: cast-in 0.7s 0.1s cubic-bezier(0.2, 1.4, 0.4, 1) backwards, cast-bob 2.2s 0.8s ease-in-out infinite;
+}
+.welcome-cast .cast-1 {
+  position: relative;
+  z-index: 1;
+  width: min(35%, 156px);
+  animation: cast-in 0.7s cubic-bezier(0.2, 1.4, 0.4, 1) backwards, cast-proud 3s 0.8s ease-in-out infinite;
+}
+.welcome-cast .cast-2 {
+  margin-left: -4%;
+  animation: cast-in 0.7s 0.2s cubic-bezier(0.2, 1.4, 0.4, 1) backwards, cast-float 2.8s 0.9s ease-in-out infinite;
+}
+.welcome-cast .cast-3 {
+  position: absolute;
+  right: 0;
+  bottom: 4px;
+  width: min(17%, 70px);
+  animation: cast-sneak 7s 1.5s ease-in-out infinite backwards;
+}
+@keyframes cast-in {
+  from {
+    opacity: 0;
+    transform: translateY(24px) scale(0.85);
+  }
+}
+@keyframes cast-bob {
+  50% {
+    transform: translateY(-5px) scaleY(1.03);
+  }
+}
+@keyframes cast-proud {
+  50% {
+    transform: scaleY(1.04) scaleX(0.985);
+  }
+}
+@keyframes cast-float {
+  50% {
+    transform: translateY(-8px) rotate(-2deg);
+  }
+}
+@keyframes cast-sneak {
+  0%, 100% {
+    opacity: 0;
+    transform: translateX(40px);
+  }
+  12%, 55% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  30% {
+    transform: translateX(0) translateY(-6px);
+  }
+  70% {
+    opacity: 0;
+    transform: translateX(60px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .welcome-cast img {
+    animation: none !important;
+  }
+}
+
+/* ---- locked send cards: just the padlock, no heavy chains; the figure stays readable ---------- */
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .card-lock .lk-chain {
+  display: none;
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .unit-card.locked img {
+  filter: grayscale(0.55) brightness(1.08) opacity(0.62);
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .card-lock svg {
+  filter: drop-shadow(0 2px 0 color-mix(in srgb, var(--d-line) 60%, transparent));
+}
+
+/* ---- icons painted by CSS (gold, wood, income) in the toy look -------------------------------- */
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .price::before {
+  background-image: url("assets/art-toy/ui/icon-coin.webp?v=ctw1");
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .wood-price::before {
+  background-image: url("assets/art-toy/ui/icon-wood.webp?v=ctw1");
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .card-note::before {
+  background-image: url("assets/art-toy/ui/icon-income.webp?v=ctw1");
+}
+
+/* ---- card book: tech tree, creep and perk lists in the new looks ------------------------------- */
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .pills button:not(.active) {
+  background: var(--d-card);
+  border: 2px solid color-mix(in srgb, var(--d-line) 45%, transparent);
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .tt-tree {
+  background: var(--d-inset);
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--el) 45%, transparent);
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .tt-tree h3 {
+  font-family: var(--d-font);
+  font-weight: var(--d-weight);
+  letter-spacing: 0.01em;
+  text-transform: none;
+  color: var(--d-text);
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .tt-children {
+  border-left-color: color-mix(in srgb, var(--d-line) 28%, transparent);
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .tt-children > .tt-branch::before {
+  border-top-color: color-mix(in srgb, var(--d-line) 28%, transparent);
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .tt-node {
+  border: 2px solid var(--d-line);
+  border-radius: 12px;
+  background: var(--d-card);
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--el) 55%, transparent), 0 2px 0 var(--d-line);
+  color: var(--d-text);
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .tt-node b {
+  font-family: var(--d-font);
+  font-weight: var(--d-weight);
+  letter-spacing: 0;
+  text-transform: none;
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .tt-node i {
+  color: var(--d-soft);
+  text-shadow: none;
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .tt-node small {
+  color: var(--d-text);
+}

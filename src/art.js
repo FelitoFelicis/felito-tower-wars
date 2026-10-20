@@ -1,4 +1,6 @@
 /** Generated art (Higgsfield, GPT Image 2.5) and the mapping from catalog entries to art keys. */
+import { ART_SETS, ART_SET_VERSION, UI_ICONS } from "./art-sets.js";
+import { currentDesign } from "./design.js";
 const BASE_ART = {
   "creep-alchemist": { w: 350, h: 400, footY: 384 },
   "creep-bat-rider": { w: 400, h: 387, footY: 371 },
@@ -191,9 +193,43 @@ export const ART_MANIFEST = Object.freeze({
   ...Object.fromEntries(VARIANT_ART.map((k) => [k, BASE_ART[k.replace(/-v\d$/, "")]])),
 });
 
+// ---- art sets of the Circle Tower Wars designs ------------------------------------------------------
+// Sonnenwiese and Bonbon draw every figure as a round toy ("toy"), Pfotenwelt as a cute animal ("pets").
+// A set holds one picture per figure; level variants (-v1..-v3, -l1, -l2) share their base figure there.
+// The original design keeps Felix's art and everything in ART_MANIFEST unchanged.
+export const artSetFor = (design) => (design === "pets" ? "pets" : design === "sonne" || design === "bonbon" ? "toy" : null);
+let artSet = artSetFor(currentDesign());
+export const activeArtSet = () => artSet;
+/** Called when the design changes; returns true when the figures change too. */
+export function useArtSet(set) {
+  set = set && ART_SETS[set] ? set : null;
+  if (set === artSet) return false;
+  artSet = set;
+  return true;
+}
+export const baseArtKey = (key) => String(key).replace(/-(v|l)\d$/, "");
+/** Keys a set replaces: figures, and the rock of campaign rocks and quarry stones (not the original scenery). */
+export const SET_ART = /^(tower|creep)-|^deco-rock$/;
+const inSet = (key) => !!artSet && SET_ART.test(key) && !!ART_SETS[artSet][baseArtKey(key)];
+/** The key the active set draws for an art key (variants fold into their base figure). */
+export const setArtKey = (key) => (inSet(key) ? baseArtKey(key) : key);
+/** Size and plate data of an art key in a set (null: the original art). */
+export const setArtMeta = (set, key) => (set && ART_SETS[set]?.[baseArtKey(key)]) || null;
+/** Extra pictures of a set that are not figures (board props, logo). */
+export const setPropUrl = (set, name) => `assets/art-${set}/${name}.webp?v=${ART_SET_VERSION}`;
+
 // v0.15: creep art repainted (cloth in team blue); the query makes browsers fetch the new pictures
-export const artUrl = (key) => `assets/art/${key}.webp${/^creep-/.test(key) ? "?v=016" : ""}`;
-export const iconUrl = (name) => `assets/art/icon-${name}.webp${name === "coin" ? "?v=v022zg1" : ""}`; // v0.22zg1: new gold coin (portrait)
+export const artUrl = (key) => (inSet(key) ? setPropUrl(artSet, baseArtKey(key)) : `assets/art/${key}.webp${/^creep-/.test(key) ? "?v=016" : ""}`);
+export const iconUrl = (name) => uiArt(`assets/art/icon-${name}.webp${name === "coin" ? "?v=v022zg1" : ""}`); // v0.22zg1: new gold coin (portrait)
+/**
+ * Design variants: icons and reward pictures in the toy look (assets/art-toy/ui, same file names as in
+ * assets/art and assets/art/perks). Any other picture, and every picture in the original design, stays as it is.
+ */
+export function uiArt(url) {
+  if (!artSet) return url;
+  const m = /^assets\/art\/(?:perks\/)?([a-z0-9-]+)\.webp/.exec(url);
+  return m && UI_ICONS.has(m[1]) ? `assets/art-toy/ui/${m[1]}.webp?v=${ART_SET_VERSION}` : url;
+}
 
 /** Cut-out frame animations (rigged from the still art). attack = played on each shot from `start`, walk = looped. */
 export const ANIM_MANIFEST = Object.freeze({
