@@ -7405,7 +7405,7 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
 .pick-card {
   grid-template-columns: minmax(0, 1fr); /* the card's column never grows with a long word */
 }
-.pick-card b {
+.pick-card > b { /* v0.23: the headline only, not the values inside the text (they stay inline) */
   display: block;
   width: 100%;
   max-width: 100%;
@@ -7413,6 +7413,17 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
   word-break: normal;
   hyphens: manual;
 }
+/* v0.23: level-up dialog, perk offered at level 2+: values in the tooltip value colour ("+5 → 10%"); the arrow keeps the text colour */
+.pick-card.pick-up > span b.val {
+  font: inherit;
+  font-weight: 700;
+  text-transform: none;
+  letter-spacing: normal;
+  color: #ffd257;
+}
+.pick-card.pick-up > span b.val.gold { color: #ffe27a; }
+.pick-card.pick-up > span b.val.inc { color: #6ee87a; }
+.pick-card.pick-up > span b.val.exp { color: #d2b0ff; }
 
 /* ---- v0.22zm: perk icons about 12 % larger, frames and card widths unchanged ---- */
 .pick-perk img {
