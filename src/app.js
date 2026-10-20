@@ -150,7 +150,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.22zj",
+const APP_VERSION = "0.22zk",
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "20.10.2026";
 // v0.18: the version also stands in the page title (browser tab and the artifact window in chats)
@@ -2285,6 +2285,39 @@ function pause(value) {
     if (room && connected) sendState();
   }
 }
+/**
+ * v0.22zk: perk headlines (level-up cards, card book) keep whole words: if the longest word does not
+ * fit the card or the title would take more than 2 lines, the font shrinks in 0.5 px steps (min 7 px).
+ */
+const TITLE_SEL = ".pick-card b",
+  TITLE_MIN_PX = 7,
+  TITLE_MAX_LINES = 2;
+function fitTitle(el) {
+  if (!el.isConnected || !el.clientWidth) return;
+  el.style.fontSize = el.style.letterSpacing = "";
+  const cs = getComputedStyle(el);
+  let size = parseFloat(cs.fontSize);
+  const lineRatio = (parseFloat(cs.lineHeight) || size * 1.1) / size,
+    tooBig = () => el.scrollWidth > el.clientWidth + 0.5 || el.offsetHeight > size * lineRatio * TITLE_MAX_LINES + 1;
+  if (tooBig()) el.style.letterSpacing = "0"; // first give up the wide spacing, then shrink
+  while (size > TITLE_MIN_PX && tooBig()) {
+    size -= 0.5;
+    el.style.fontSize = size + "px";
+  }
+}
+let titleFitFrame = 0;
+function fitTitles() {
+  if (titleFitFrame) return;
+  titleFitFrame = requestAnimationFrame(() => {
+    titleFitFrame = 0;
+    document.querySelectorAll(TITLE_SEL).forEach(fitTitle);
+  });
+}
+new MutationObserver((list) => {
+  if (list.some((m) => [...m.addedNodes].some((n) => n.nodeType === 1 && (n.matches?.(TITLE_SEL) || n.querySelector?.(TITLE_SEL))))) fitTitles();
+}).observe(document.documentElement, { childList: true, subtree: true });
+addEventListener("resize", fitTitles);
+document.fonts?.ready.then(fitTitles);
 function showModal(body, { pauseGame = true, welcome = false } = {}) {
   // v0.18g: a dialog opened from the main menu keeps the menu (its current page) underneath,
   // blurred, instead of showing an old board behind the dialog

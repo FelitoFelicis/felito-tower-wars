@@ -7399,3 +7399,17 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
   color: #f1e6ff;
   text-shadow: 0 0 12px #a066ff88, 0 2px 0 #1a0b2e;
 }
+
+/* ---- v0.22zk: perk headlines never break inside a word ("MANUFACTUR / E"); app.js shrinks the
+   font of a headline whose longest word does not fit, or that would need more than 2 lines ---- */
+.pick-card {
+  grid-template-columns: minmax(0, 1fr); /* the card's column never grows with a long word */
+}
+.pick-card b {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  overflow-wrap: normal;
+  word-break: normal;
+  hyphens: manual;
+}

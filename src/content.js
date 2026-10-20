@@ -316,7 +316,7 @@ export function configureContent(data) {
       name: "Wall",
       shortName: "Wall",
       description: "A plain stone wall for cheap mazes. No attack. Double-tap to sell it.",
-      cost: 5,
+      cost: 4, // v0.22zk: 5 → 4
       hp: 400,
       regen: 0,
       armor: 5,
@@ -338,8 +338,8 @@ export function configureContent(data) {
       fields: {},
       weapon2: undefined,
       buildTime: 1,
-      pointValue: 2,
-      sellRate: 0.5,
+      pointValue: 4, // v0.22zk: worth its price of 4, sells for 1 (pinned in getSellValue)
+      sellRate: 0.25,
       level: 1,
       element: "neutral",
       isRoot: true,

@@ -913,7 +913,7 @@ export const PERKS = Object.freeze({
   nobility: { name: "Heavy Nobility", max: 3, element: "earth", text: "Heavy creeps {nobility} cheaper, +{nobilityHp} HP", detail: "Heavy creeps {nobility} cheaper, +{nobilityHp} HP, restock 10% faster" },
   breeding: { name: "Breeding Pools", max: 3, element: "plague", text: "Deathrattles: {breeding} chance for an extra creep", detail: "Deathrattles have {breeding} chance to spawn an extra creep. Summoned creeps +{breedingHp} HP" }, // v0.19j: tooltip
   pillar: { name: "Pillar of Fire", max: 5, element: "fire", text: "Active: fire pillar, {pillar} damage every 0.3 s", detail: "Active ability: a pillar of fire burns an area, {pillar} damage every 0.3 s" }, // v0.19j: shorter tooltip
-  fort: { name: "Fortifications", max: 1, text: "Unlocks the Wall: 5 gold, no attack", detail: "Unlocks the Wall: 5 gold, no attack. Double-tap sells it for 1 gold" },
+  fort: { name: "Fortifications", max: 1, text: "Unlocks the Wall: 4 gold, no attack", detail: "Unlocks the Wall: 4 gold, no attack. Double-tap sells it for 1 gold" },
   agolem: { name: "Arcane Golem", max: 5, element: "arcane", text: "Active: a golem knocks creeps back up your path", detail: "Active ability: a golem walks up your path, knocks creeps back, then runs on to the next lane" },
   // v0.14: two new perks
   slave: { name: "Slave Labour", max: 3, element: "plague", text: "1st creep: +{slaveStock} stock, recruits {slaveSpeed} faster", detail: "1st creep of every tier: +{slaveStock} max stock, recruits {slaveSpeed} faster" },
@@ -2950,6 +2950,7 @@ export function getSellValue(game, playerIndex, towerId) {
   const item = obj(t.typeId);
   if (t.typeId === ROCK_ID) return -(t.stonePrice ?? game.mission?.rockCost ?? 40); // v0.17: clearing a rock costs gold (v0.18h: Quarry stones 50 / 200)
   if (item.support === "farm") return 0;
+  if (t.typeId === WALL_ID) return 1; // v0.22zk: a wall always sells for 1 gold
   const relief = sellRelief(game, playerIndex),
     rate = item.sellRate + (1 - item.sellRate) * relief, // v0.19d2: smaller sell penalty against very easy / easy bots
     value = Math.trunc((item.pointValue - (t.discount || 0)) * rate);
