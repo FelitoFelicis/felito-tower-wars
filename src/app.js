@@ -157,7 +157,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.23n",
+const APP_VERSION = "0.23o",
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "21.10.2026";
 // v0.18: the version also stands in the page title (browser tab and the artifact window in chats)
@@ -291,6 +291,18 @@ const TILE_MODES = ["checkers", "grid", "none"];
 const TILE_NAMES = { checkers: "Checkboard", grid: "Grid", none: "No Grid" }; // v0.23c: renamed
 let tileMode = TILE_MODES.includes(pref(TILES_PREF, "checkers")) ? pref(TILES_PREF, "checkers") : "checkers";
 const tilesText = () => `${t("Tiles")}: ${t(TILE_NAMES[tileMode])}`;
+// v0.23o: Options › Online: switch off the v0.23 tower deltas and compression to test online lag, and a net stats overlay
+const NET_DELTA_PREF = "felito.net.deltas",
+  NET_ZIP_PREF = "felito.net.zip",
+  NET_STATS_PREF = "felito.net.stats";
+let netDeltas = pref(NET_DELTA_PREF, "true") !== "false",
+  netZip = pref(NET_ZIP_PREF, "true") !== "false",
+  netStatsOn = pref(NET_STATS_PREF, "false") === "true";
+globalThis.felitoNetZip = netZip; // read by multiplayer.js when a link is set up
+const netStats = (globalThis.felitoNetStats ||= {});
+const netPresence = () => ({ kind: "presence", hidden: document.hidden, nodelta: !netDeltas }); // v0.23o: a guest asks for full towers
+/** v0.23o: tower deltas only when the host and every guest have them on. */
+const useTowerDeltas = () => netDeltas && ![...netPeers.values()].some((p) => p.nodelta);
 let predatorView = pref(PREDATOR_PREF, "false") === "true";
 // v0.15: control scheme (Graphic): "mobile" (touch) or "pc" (mouse and keyboard); default by device
 const CONTROL_PREF = "felito.controls";
@@ -2366,7 +2378,7 @@ function networkState() {
     towerNet.force = true;
   }
   towerNet.no++;
-  const key = towerNet.force || towerNet.no - towerNet.keyAt >= TOWER_KEY,
+  const key = towerNet.force || !useTowerDeltas() || towerNet.no - towerNet.keyAt >= TOWER_KEY, // v0.23o: deltas can be switched off
     sigs = new Map();
   if (key) {
     towerNet.keyAt = towerNet.no;
@@ -2409,6 +2421,7 @@ function sendState() {
   }
   const sent = room?.send({ kind: "state", epoch: netEpoch, game: networkState() });
   networkSendFailures = sent ? 0 : networkSendFailures + 1;
+  netStats[sent ? "sent" : "sendFail"] = (netStats[sent ? "sent" : "sendFail"] || 0) + 1; // v0.23o
   if (networkSendFailures >= 30) {
     transportBlocked = true;
     game.paused = true;
@@ -5657,7 +5670,7 @@ const onOff = (v) => t(v ? "On" : "Off");
 // v0.13: Audio and Graphic open as sub-menus; music and sound are volume sliders now.
 function settingsButtons() {
   // v0.15: Tips, preview and double tap moved into the Gameplay sub-menu (below Graphic)
-  return `<button class="secondary-button submenu-button" id="menu-audio">${t("Audio")}<i aria-hidden="true">›</i></button><button class="secondary-button submenu-button" id="menu-graphic">${t("Graphics")}<i aria-hidden="true">›</i></button><button class="secondary-button submenu-button" id="menu-gameplay">${t("Gameplay")}<i aria-hidden="true">›</i></button>`;
+  return `<button class="secondary-button submenu-button" id="menu-audio">${t("Audio")}<i aria-hidden="true">›</i></button><button class="secondary-button submenu-button" id="menu-graphic">${t("Graphics")}<i aria-hidden="true">›</i></button><button class="secondary-button submenu-button" id="menu-gameplay">${t("Gameplay")}<i aria-hidden="true">›</i></button><button class="secondary-button submenu-button" id="menu-online">${t("Online")}<i aria-hidden="true">›</i></button>`;
 }
 const DBL_LABELS = { upgrade: "Upgrade", advanced: "Advanced Upgrade", info: "Tower info", off: "Off" };
 const dblText = () => `${t("Double tap on a tower")}: ${t(DBL_LABELS[dblMode])}`;
@@ -5772,6 +5785,76 @@ function graphicModal(back) {
 }
 /** v0.15: Gameplay sub-menu: tips, build preview, double tap and Predator view. */
 const predatorText = () => `${t("Predator view")}: ${onOff(predatorView)}`;
+/** v0.23o: Options › Online: test switches for the online protocol and the net stats overlay. */
+function onlineModal(back) {
+  const deltaText = () => `${t("Tower deltas")}: ${onOff(netDeltas)}`,
+    zipText = () => `${t("Compression")}: ${onOff(netZip)}`,
+    statsText = () => `${t("Net stats")}: ${onOff(netStatsOn)}`;
+  showModal(
+    `${subHeader(t("Online"))}<button class="secondary-button" id="menu-netdelta">${deltaText()}</button><button class="secondary-button" id="menu-netzip">${zipText()}</button><button class="secondary-button" id="menu-netstats">${statsText()}</button><p class="modal-note">${t(
+      "Test switches for online lag. Tower deltas: off on any player sends every tower in full. Compression: off on either side, from the next connection on. Net stats: a small box with lost, skipped and late game states.",
+    )}</p>`,
+  );
+  $("sub-back").onclick = back;
+  $("menu-netdelta").onclick = () => {
+    netDeltas = !netDeltas;
+    savePref(NET_DELTA_PREF, netDeltas);
+    room?.send(netPresence());
+    $("menu-netdelta").textContent = deltaText();
+    tone("select");
+  };
+  $("menu-netzip").onclick = () => {
+    netZip = !netZip;
+    globalThis.felitoNetZip = netZip;
+    savePref(NET_ZIP_PREF, netZip);
+    $("menu-netzip").textContent = zipText();
+    if (room) toast("Applies from the next connection.");
+    tone("select");
+  };
+  $("menu-netstats").onclick = () => {
+    netStatsOn = !netStatsOn;
+    savePref(NET_STATS_PREF, netStatsOn);
+    $("menu-netstats").textContent = statsText();
+    updateNetStats(performance.now(), true);
+    tone("select");
+  };
+}
+/** v0.23o: the net stats overlay (top left, small), refreshed twice a second while online. Counts are per 10 s. */
+let netStatsAt = 0,
+  netWindowAt = 0;
+function updateNetStats(now, force = false) {
+  let box = document.getElementById("net-stats");
+  if (!netStatsOn || !room || !begun) {
+    if (box) box.hidden = true;
+    return;
+  }
+  if (!force && now - netStatsAt < 500) return;
+  netStatsAt = now;
+  if (!box) {
+    box = document.createElement("div");
+    box.id = "net-stats";
+    box.style.cssText = "position:fixed;left:6px;top:calc(env(safe-area-inset-top,0px) + 64px);z-index:60;padding:4px 7px;border-radius:6px;background:#000b;color:#cfe;font:11px/1.35 ui-monospace,monospace;white-space:pre;pointer-events:none";
+    document.body.appendChild(box);
+  }
+  box.hidden = false;
+  const st = netStats,
+    secs = Math.max(1, (now - (netWindowAt || now)) / 1000),
+    host = isAuthority(),
+    gap = st.gapMax || 0;
+  const lines = host
+    ? [`host · deltas ${useTowerDeltas() ? "on" : "off"} · zip ${netZip ? "on" : "off"}${room.isRelay?.() ? " · relay" : ""}`, `sent ${st.sent || 0}  failed ${st.sendFail || 0}`, `busy ${st.backpressure || 0}  limit ${st.sendLimit || 0}`, `need-key asked ${st.needKey || 0}`]
+    : [
+        `guest · deltas ${netDeltas ? "on" : "off"} · zip ${netZip ? "on" : "off"}${room.isRelay?.() ? " · relay" : ""}`,
+        `states ${((st.applied || 0) / secs).toFixed(1)}/s  max gap ${Math.round(gap)} ms`,
+        `wait key ${st.waitKey || 0}  skipped ${st.skipped || 0}`,
+        `burst ${st.burst || 0}  dropped ${st.burstDropped || 0}`,
+      ];
+  box.textContent = lines.join("\n") + `\n(last ${Math.round(secs)} s)`;
+  if (!netWindowAt || now - netWindowAt > 10000) {
+    for (const k of Object.keys(st)) st[k] = 0;
+    netWindowAt = now;
+  }
+}
 function gameplayModal(back) {
   showModal(
     `${subHeader(t("Gameplay"))}<button class="secondary-button" id="menu-tips">${t("Tips")}: ${onOff(tipsEnabled)}</button><button class="secondary-button" id="menu-preview">${t("Build with preview")}: ${onOff(buildPreview)}</button><button class="secondary-button" id="menu-dbl">${dblText()}</button><button class="secondary-button" id="menu-predator">${predatorText()}</button>`,
@@ -5808,6 +5891,7 @@ function wireSettings(reopen) {
   $("menu-gameplay").onclick = () => gameplayModal(reopen);
   $("menu-audio").onclick = () => audioModal(reopen);
   $("menu-graphic").onclick = () => graphicModal(reopen);
+  $("menu-online").onclick = () => onlineModal(reopen); // v0.23o
   $("menu-rules").onclick = () => rulesModal(reopen); // v0.22n2: Back returns to the menu
 }
 /** In-game menu: settings only, rulebook at the bottom. */
@@ -6252,6 +6336,7 @@ function receiveNetwork(message, r, peerId) {
     const key = peer ? "hidden" : "remoteHidden",
       since = peer ? "hiddenSince" : "remoteHiddenSince";
     box[key] = !!message.hidden;
+    if (peer) peer.nodelta = message.nodelta === true; // v0.23o
     if (message.hidden && !box[since]) box[since] = now;
     if (!message.hidden) box[since] = 0;
     return;
@@ -6287,7 +6372,10 @@ function receiveNetwork(message, r, peerId) {
     if (message.kind === "ready" && !begun && room.role === "host") lobbyJoin(peerId, message); // v0.19: up to six players
     if (message.kind === "kicked" && !begun && room.role === "guest") kickedNote = message.reason === "full" ? "The room is full." : "The host removed you from the room."; // v0.19c1
     if (message.kind === "lobby-start" && !begun && lobby?.go && peer) lobby.go(); // v0.18b: a guest pressed Start
-    if (message.kind === "need-key" && begun) towerNet.force = true; // v0.23: a follower misses tower fields
+    if (message.kind === "need-key" && begun) {
+      towerNet.force = true; // v0.23: a follower misses tower fields
+      netStats.needKey = (netStats.needKey || 0) + 1; // v0.23o
+    }
     if (message.kind === "team" && !begun && lobby && !lobby.done && lobbyTeams()) lobbyMoveTeam(lobby.entries.findIndex((e) => e.peer === peerId), Number(message.team)); // v0.20: a guest changed its own team
     if (
       message.kind === "command" &&
@@ -6345,13 +6433,17 @@ function receiveNetwork(message, r, peerId) {
     if (!isFollower()) return; // v0.16: a stale state from the old host
     // v0.23: tower deltas: fill in the fields left out; without them wait for the next key state
     if (!mergeTowerDeltas(message.game)) {
+      netStats.waitKey = (netStats.waitKey || 0) + 1; // v0.23o
       if (performance.now() - towerNet.askedAt > 1000) {
         towerNet.askedAt = performance.now();
         room.send({ kind: "need-key" });
       }
       return;
     }
-    lastStateAt = performance.now();
+    const arrived = performance.now();
+    if (lastStateAt && begun) netStats.gapMax = Math.max(netStats.gapMax || 0, arrived - lastStateAt); // v0.23o
+    netStats.applied = (netStats.applied || 0) + 1;
+    lastStateAt = arrived;
     if (!begun) own = view = lobbySeat; // v0.19: the seat from the lobby, taken with the first state
     guestReceived(message.game);
     game = message.game;
@@ -6907,9 +6999,10 @@ function netPulse(now) {
       if (lastSnap && lastSnap !== takeoverFailed && now - lastStateAt > STALL_MS && game.players.length === 2 && (room.pingMissed?.() ?? true)) takeOver(now);
     }
   }
+  updateNetStats(now); // v0.23o
   if (now - presenceSentAt >= 2000) {
     presenceSentAt = now;
-    room.send({ kind: "presence", hidden: document.hidden });
+    room.send(netPresence());
   }
 }
 /**
@@ -7144,7 +7237,7 @@ function guestRejoined() {
   takeoverFailed = null;
   if ($("left-leave")) closeModal();
   toast("Reconnected – you're back in your seat.", "level");
-  room?.send({ kind: "presence", hidden: document.hidden });
+  room?.send(netPresence());
 }
 /** Tells both players when the AI starts or stops playing for someone. */
 const takeoverShown = {};
@@ -7183,7 +7276,7 @@ function ensureBackgroundTicker() {
 document.addEventListener("visibilitychange", () => {
   away.ownHiddenSince = document.hidden ? performance.now() : 0;
   if (room) {
-    room.send({ kind: "presence", hidden: document.hidden });
+    room.send(netPresence());
     presenceSentAt = performance.now();
     if (!document.hidden) lastStateAt = Math.max(lastStateAt, performance.now() - 1000); // no takeover right after waking up
   }

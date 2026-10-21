@@ -959,6 +959,7 @@ class Link {
         this.failure(error("traffic-limit", "The data channel exceeded its data limit."));
         return;
       }
+      netCount("burst"); // v0.23o
       return this.holdBack(raw, frame);
     }
     if (frame) this.unzip(frame);
@@ -977,6 +978,7 @@ class Link {
     // are merged. Host: a guest's surplus commands are dropped (the rate limit stays a limit)
     if (kind !== "state" && kind !== "snap") return this.role === "guest" ? (frame ? this.unzip(frame, true) : this.handle(raw, true)) : undefined;
     this.deferred ||= {};
+    if (this.deferred[kind]) netCount("burstDropped"); // v0.23o: an older held-back state is replaced
     this.deferred[kind] = { raw, frame };
     if (this.deferredTimer === undefined)
       this.deferredTimer = this.later(() => {
@@ -996,6 +998,7 @@ class Link {
     this.inChain = this.inChain
       .then(() => (isState && frame.seq < this.newestState ? "skip" : inflateCapped(frame.bytes.subarray(frame.offset), MAX_WIRE_BYTES)))
       .then((b) => {
+        if (b === "skip") netCount("skipped"); // v0.23o: a newer state was already queued
         if (this.closed || b === "skip") return;
         if (!b) throw new Error("too large");
         const body = textDec.decode(b);
@@ -1162,10 +1165,11 @@ class Link {
       // v0.23: the relay reports its broker sockets' unsent bytes too
       const buffered = this.connection.dataChannel?.bufferedAmount ?? this.connection.bufferedAmount ?? 0;
       if ((this.connection.bufferSize || 0) > 16 || buffered > 1024 * 1024 || this.zipPending > 8) {
+        netCount("backpressure"); // v0.23o
         throw error("backpressure", "The connection is busy. The next update will try again.");
       }
       if (zip) {
-        if (!this.outbound() || !this.outboundBytes(Math.ceil(body.length / 6))) throw error("send-limit", "Too many game messages. Please wait for the next update.");
+        if (!this.outbound() || !this.outboundBytes(Math.ceil(body.length / 6))) { netCount("sendLimit"); throw error("send-limit", "Too many game messages. Please wait for the next update."); }
         const z = zipped || deflate(textEnc.encode(body)),
           kind = wireKind(body, 0),
           connection = this.connection;
@@ -1182,7 +1186,7 @@ class Link {
       }
       const wire = head.slice(0, -1) + ',"payload":' + body + "}";
       if (!this.outbound() || !this.outboundBytes(wire.length)) {
-        throw error("send-limit", "Too many game messages. Please wait for the next update.");
+        { netCount("sendLimit"); throw error("send-limit", "Too many game messages. Please wait for the next update."); }
       }
       this.connection.send(wire);
       this.sequence++;
@@ -1207,7 +1211,13 @@ class Link {
 }
 
 /** v0.23: compression on the direct channel needs both stream APIs (and can be switched off for tests). */
-const canZip = (session) => session.dependencies.zip !== false && !!globalThis.CompressionStream && !!globalThis.DecompressionStream;
+// v0.23o: Options › Online › Compression sets globalThis.felitoNetZip; off on either side = no compression on that link
+const canZip = (session) => session.dependencies.zip !== false && globalThis.felitoNetZip !== false && !!globalThis.CompressionStream && !!globalThis.DecompressionStream;
+/** v0.23o: counters for the net stats overlay (Options › Online › Net stats). */
+const netCount = (key) => {
+  const st = (globalThis.felitoNetStats ||= {});
+  st[key] = (st[key] || 0) + 1;
+};
 /** v0.23: the message kind of a serialized payload or wire string, without parsing it. */
 function wireKind(text, from = null) {
   const i = from ?? text.indexOf(',"payload":');
