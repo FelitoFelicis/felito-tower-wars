@@ -153,9 +153,9 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.22zm",
+const APP_VERSION = "0.23",
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
-  APP_DATE = "20.10.2026";
+  APP_DATE = "21.10.2026";
 // v0.18: the version also stands in the page title (browser tab and the artifact window in chats)
 try {
   document.title = `Felito Tower Wars · v${APP_VERSION}`;
