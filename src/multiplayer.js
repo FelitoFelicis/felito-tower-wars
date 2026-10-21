@@ -6,7 +6,9 @@
 // Version 3 requires the schema-4 expanded board and mobile movement rules. Keep the address namespace
 // stable so an old client receives a clear handshake mismatch, not a lost room.
 // v0.19: protocol 5 = rooms with up to six players (seat assignment in the lobby).
-export const PROTOCOL_VERSION = 6; // v0.20: team games and room options (older versions cannot join)
+// v0.23: protocol 7 = compressed direct channel, tower deltas, rejoin tokens, room-wide relay topic. An older
+// client gets a clean "versions don't match" at the handshake instead of undecodable data.
+export const PROTOCOL_VERSION = 7; // v0.20: team games and room options (older versions cannot join)
 export const MAX_GUESTS = 5;
 export const MAX_PAYLOAD_BYTES = 512 * 1024;
 export const ROOM_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -84,16 +86,52 @@ async function inflate(bytes) {
   const out = new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream("deflate-raw")));
   return new Uint8Array(await out.arrayBuffer());
 }
+/** v0.23: inflate that stops at `max` bytes (a tiny frame can't blow up into gigabytes); null if larger. */
+async function inflateCapped(bytes, max) {
+  if (!globalThis.DecompressionStream) return null;
+  const reader = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("deflate-raw")).getReader(),
+    parts = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > max) {
+      reader.cancel().catch(() => {});
+      return null;
+    }
+    parts.push(value);
+  }
+  const out = new Uint8Array(total);
+  let at = 0;
+  for (const p of parts) {
+    out.set(p, at);
+    at += p.byteLength;
+  }
+  return out;
+}
 /** Minimal MQTT 3.1.1 client over WebSocket: connect, subscribe, QoS 0 publish, ping. */
+const RELAY_GIVE_UP_MS = 45000, // v0.23: a broker that stays unreachable this long is gone for good
+  RELAY_LINK_BUFFER = 512 * 1024; // v0.23: a broker socket with this much unsent data skips frames
 class MqttLink {
   constructor(url, onMessage) {
     this.url = url;
     this.onMessage = onMessage;
     this.ready = false;
     this.closed = false;
+    this.dead = false; // v0.23: gave up reconnecting
     this.subs = [];
     this.buffer = new Uint8Array(0);
     this.packetId = 1;
+    this.everReady = false;
+    this.retries = 0;
+    this.downSince = 0;
+    this.retryTimer = null;
+    this.opening = false;
+    this.onDead = null;
+  }
+  get bufferedAmount() {
+    return this.ws?.bufferedAmount || 0;
   }
   static str(s) {
     const b = textEnc.encode(s);
@@ -119,43 +157,96 @@ class MqttLink {
   open(timeout = 6000) {
     return new Promise((resolve) => {
       let done = false;
+      this.opening = true;
       const finish = (ok) => {
         if (done) return;
         done = true;
+        this.opening = false;
         clearTimeout(timer);
         resolve(ok);
       };
       const timer = setTimeout(() => {
         finish(false);
-        this.close();
+        // v0.23: a reconnect attempt that times out only drops its socket (the link keeps retrying)
+        if (this.everReady) this.dropSocket();
+        else this.close();
       }, timeout);
+      this.buffer = new Uint8Array(0);
       try {
         this.ws = new WebSocket(this.url, ["mqtt"]);
       } catch {
-        return finish(false);
+        finish(false);
+        if (this.everReady) this.lost();
+        return;
       }
-      this.ws.binaryType = "arraybuffer";
-      this.ws.onopen = () => {
+      const ws = this.ws;
+      ws.binaryType = "arraybuffer";
+      ws.onopen = () => {
         const id = "felito-" + Math.random().toString(36).slice(2, 12);
-        this.ws.send(this.packet(0x10, [...MqttLink.str("MQTT"), 4, 2, 0, 60, ...MqttLink.str(id)]));
+        ws.send(this.packet(0x10, [...MqttLink.str("MQTT"), 4, 2, 0, 60, ...MqttLink.str(id)]));
       };
-      this.ws.onmessage = (e) => {
+      ws.onmessage = (e) => {
+        if (ws !== this.ws) return;
         const add = new Uint8Array(e.data),
           merged = new Uint8Array(this.buffer.length + add.length);
         merged.set(this.buffer);
         merged.set(add, this.buffer.length);
         this.buffer = merged;
-        this.parse(() => finish(true));
+        this.parse(() => {
+          if (this.ready) {
+            this.everReady = true;
+            this.retries = 0;
+            this.downSince = 0;
+          }
+          finish(true);
+        });
       };
-      this.ws.onerror = () => finish(false);
-      this.ws.onclose = () => {
+      ws.onerror = () => finish(false);
+      ws.onclose = () => {
+        if (ws !== this.ws) return;
         this.ready = false;
         finish(false);
+        if (this.everReady) this.lost(); // v0.23: the broker dropped us: reconnect with backoff
       };
+      clearInterval(this.ping); // v0.23: one keep-alive per link, also after reconnects
       this.ping = setInterval(() => {
         if (this.ready) this.raw(new Uint8Array([0xc0, 0]));
       }, 25000);
     });
+  }
+  /** v0.23: closes the current socket only (a reconnect follows). */
+  dropSocket() {
+    const ws = this.ws;
+    this.ready = false;
+    try {
+      ws?.close();
+    } catch {}
+    if (!this.closed) this.lost();
+  }
+  /**
+   * v0.23: the broker socket closed while we still need it: reconnect after 1, 2, 4 … 15 s (with jitter).
+   * The subscriptions are sent again on CONNACK. After RELAY_GIVE_UP_MS without a broker the link is dead.
+   */
+  lost() {
+    if (this.closed || this.dead || this.retryTimer || this.opening) return;
+    const now = Date.now();
+    this.downSince ||= now;
+    if (now - this.downSince >= RELAY_GIVE_UP_MS) {
+      this.dead = true;
+      clearInterval(this.ping);
+      try {
+        this.onDead?.(this);
+      } catch {}
+      return;
+    }
+    const delay = Math.min(15000, 1000 * 2 ** this.retries++) * (0.8 + Math.random() * 0.4);
+    this.retryTimer = setTimeout(() => {
+      this.retryTimer = null;
+      if (this.closed) return;
+      this.open().then((ok) => {
+        if (!ok && !this.closed) this.lost();
+      });
+    }, delay);
   }
   parse(onConnack) {
     while (this.buffer.length >= 2) {
@@ -203,6 +294,7 @@ class MqttLink {
   }
   publish(topic, bytes) {
     if (!this.ready) return false;
+    if (this.bufferedAmount > RELAY_LINK_BUFFER) return false; // v0.23: this broker is behind; the other one carries the frame
     const t = MqttLink.str(topic),
       body = new Uint8Array(t.length + bytes.length);
     body.set(t);
@@ -213,6 +305,8 @@ class MqttLink {
   close() {
     this.closed = true;
     clearInterval(this.ping);
+    clearTimeout(this.retryTimer);
+    this.retryTimer = null;
     try {
       if (this.ws?.readyState === 1) this.raw(new Uint8Array([0xe0, 0]));
       this.ws?.close();
@@ -220,23 +314,80 @@ class MqttLink {
   }
 }
 /**
+ * v0.23: in-order delivery of relay frames that arrive over two brokers. Replaces the old high-water
+ * mark, which threw away a frame that only the slower broker delivered. A sliding window drops
+ * duplicates, holds frames that arrive early and waits up to RELAY_GAP_MS for a missing one before
+ * it skips the gap. `deliver(bytes)` gets every frame once, in counter order.
+ */
+const RELAY_GAP_MS = 500,
+  RELAY_WINDOW = 256;
+export function frameWindow(deliver, timers = {}) {
+  const later = timers.setTimeout || setTimeout,
+    stop = timers.clearTimeout || clearTimeout;
+  let next = 0,
+    gapTimer = null;
+  const held = new Map();
+  const drain = () => {
+    while (held.has(next)) {
+      const bytes = held.get(next);
+      held.delete(next++);
+      deliver(bytes);
+    }
+    if (!held.size) {
+      stop(gapTimer);
+      gapTimer = null;
+    } else if (!gapTimer)
+      gapTimer = later(() => {
+        gapTimer = null;
+        if (held.size) next = Math.min(...held.keys()); // the missing frame never came: skip it
+        drain();
+      }, RELAY_GAP_MS);
+  };
+  return (n, bytes) => {
+    if (!next) next = n; // the first frame we hear starts the window
+    if (n < next || held.has(n)) return false; // a duplicate (the other broker) or too old
+    if (n >= next + RELAY_WINDOW) {
+      // far ahead (the sender restarted its window or we were away): start over from here
+      for (const k of [...held.keys()].sort((a, b) => a - b)) deliver(held.get(k));
+      held.clear();
+      next = n;
+    }
+    held.set(n, bytes);
+    drain();
+    return true;
+  };
+}
+/**
  * A message channel on all reachable brokers. `inbox`/`outbox` are topics. Messages are strings
  * (deflated on the wire, framed with a counter). Resolves once at least one broker is connected.
+ * v0.23: more inboxes (e.g. the room-wide broadcast topic) can be added later with `links.listen(topic, onText)`.
  */
 async function openRelayLinks(inbox, onText) {
-  let lastIn = 0;
-  const chain = { p: Promise.resolve() };
+  const inboxes = new Map();
+  const listen = (topic, handler) => {
+    if (inboxes.has(topic)) return;
+    const chain = { p: Promise.resolve() };
+    const accept = frameWindow((bytes) => {
+      chain.p = chain.p.then(() => inflate(bytes)).then((b) => handler(textDec.decode(b))).catch(() => {});
+    });
+    inboxes.set(topic, accept);
+  };
+  if (inbox) listen(inbox, onText);
   const onMessage = (topic, bytes) => {
-    if (topic !== inbox || bytes.length < 4) return;
+    const accept = inboxes.get(topic);
+    if (!accept || bytes.length < 4) return;
     const n = ((bytes[0] << 24) >>> 0) + (bytes[1] << 16) + (bytes[2] << 8) + bytes[3];
-    if (n <= lastIn) return;
-    lastIn = n;
-    chain.p = chain.p.then(() => inflate(bytes.subarray(4))).then((b) => onText(textDec.decode(b))).catch(() => {});
+    accept(n, bytes.subarray(4));
   };
   const links = RELAY_BROKERS.map((url) => new MqttLink(url, onMessage));
   const opened = await Promise.all(links.map((l) => l.open().then((ok) => (ok ? l : (l.close(), null)))));
   const live = opened.filter(Boolean);
-  for (const l of live) l.subscribe(inbox);
+  if (inbox) for (const l of live) l.subscribe(inbox);
+  // v0.23: subscribe to one more topic on every broker of this channel
+  live.listen = (topic, handler) => {
+    listen(topic, handler);
+    for (const l of live) if (!l.subs.includes(topic)) l.subscribe(topic);
+  };
   return live;
 }
 /**
@@ -344,13 +495,21 @@ class RelayLinkSender {
     this.queue = Promise.resolve();
     this.pending = 0;
   }
-  send(text) {
-    const n = ++this.n;
+  /** v0.23: the smallest socket backlog of the live brokers (the fastest one carries the frames). */
+  get bufferedAmount() {
+    const live = this.links.filter((l) => l.ready);
+    return live.length ? Math.min(...live.map((l) => l.bufferedAmount)) : 0;
+  }
+  send(text, zipped = null) {
     this.pending++;
     this.queue = this.queue
-      .then(() => deflate(textEnc.encode(text)))
+      .then(() => zipped || deflate(textEnc.encode(text)))
       .then((z) => {
-        const out = new Uint8Array(z.length + 4);
+        // v0.23: a frame number is only used when a broker takes the frame, so a frame no broker could
+        // carry (all reconnecting) never leaves a gap the receiver waits for
+        if (!this.links.some((l) => l.ready && l.bufferedAmount <= RELAY_LINK_BUFFER)) return;
+        const n = ++this.n,
+          out = new Uint8Array(z.length + 4);
         out.set([(n >>> 24) & 255, (n >> 16) & 255, (n >> 8) & 255, n & 255]);
         out.set(z, 4);
         for (const l of this.links) l.publish(this.outbox, out);
@@ -365,6 +524,7 @@ class RelayLinkSender {
  */
 class RelayChannel {
   constructor(secret, role, code) {
+    this.code = code;
     this.base = `felito/v${PROTOCOL_VERSION}/r/${code}/${secret}`;
     this.role = role;
     this.handlers = {};
@@ -387,6 +547,18 @@ class RelayChannel {
   }
   get bufferSize() {
     return this.sender?.pending || 0;
+  }
+  /** v0.23: bytes the broker sockets have not sent yet (WebSocket.bufferedAmount), for backpressure. */
+  get bufferedAmount() {
+    return this.sender?.bufferedAmount || 0;
+  }
+  /** v0.23, guest: also listen on the room-wide topic the host broadcasts its states to. */
+  joinBroadcast(secret) {
+    if (!validSecret(secret) || !this.links?.listen) return false;
+    this.links.listen(`felito/v${PROTOCOL_VERSION}/r/${this.code}/${secret}/b`, (text) => {
+      if (!this.closed && this.open) this.emit("data", text);
+    });
+    return true;
   }
   async start() {
     const me = this.role === "host" ? "h" : "g",
@@ -413,6 +585,13 @@ class RelayChannel {
       this.emit("error", { type: "relay-unavailable" });
       return;
     }
+    // v0.23: a broker that drops us reconnects on its own; only when every broker is gone for good does the channel close
+    for (const l of this.links)
+      l.onDead = () => {
+        if (this.closed || !this.links.every((x) => x.dead)) return;
+        this.emit("error", { type: "relay-unavailable" });
+        this.closeNow(true);
+      };
     this.sender = new RelayLinkSender(this.links, `${this.base}/${me}`);
     this.sender.send("\u0001hi");
     this.hello = setInterval(() => !this.open && this.sender.send("\u0001hi"), 600);
@@ -628,6 +807,14 @@ class Link {
     this.inbound = tokenBucket(now, 120, 90);
     this.outboundBytes = tokenBucket(now, 4 * 1024 * 1024, 2 * 1024 * 1024);
     this.inboundBytes = tokenBucket(now, 4 * 1024 * 1024, 2 * 1024 * 1024);
+    this.zip = false; // v0.23: both sides compress data on the direct channel
+    this.outChain = Promise.resolve();
+    this.inChain = Promise.resolve();
+    this.zipPending = 0;
+    this.deferred = null; // v0.23, guest: the newest state held back during a burst
+    this.pingAt = 0; // v0.23: when the oldest unanswered ping went out
+    this.bcast = false; // v0.23, host: this relay guest also hears the room-wide topic
+    this.receivedBcast = 0;
   }
   get relay() {
     return !!this.connection?.relay;
@@ -679,6 +866,8 @@ class Link {
       "close",
       () => {
         if (this.closed || relayNow?.()) return;
+        // v0.23: closed during the handshake: most likely an older game version on the other side
+        if (this.channelOpen && !this.connected) return this.failure(error("handshake-closed", "The other side closed the connection. It may run a different game version."));
         this.failure(error("opponent-left", this.role === "guest" ? "Your opponent left the room." : "A player left the room."));
       },
       this.listeners,
@@ -694,7 +883,7 @@ class Link {
         () => this.failure(error("handshake-timeout", "The other side didn't finish the handshake.")),
         this.s.handshakeTimeout,
       );
-      if (this.role === "guest") this.control("hello");
+      if (this.role === "guest") this.control("hello", canZip(this.s) ? { zip: true } : {});
       else this.s.status("connecting", "Player found. Checking the game version …");
     };
     this.s.listen(connection, "open", onOpen, this.listeners);
@@ -734,14 +923,89 @@ class Link {
   }
   receive(raw) {
     if (this.closed) return;
-    if (typeof raw !== "string" || raw.length > MAX_WIRE_BYTES || !this.inbound()) {
+    // v0.23: compressed data frames on the direct channel (see zipFrame)
+    if (raw instanceof Blob) {
+      raw.arrayBuffer().then((b) => this.receive(b), () => {});
+      return;
+    }
+    let frame = null;
+    if (raw instanceof ArrayBuffer || ArrayBuffer.isView(raw)) {
+      frame = this.zip ? unzipHeader(raw) : null;
+      if (!frame) {
+        this.failure(error("invalid-traffic", "The data channel received invalid or too many messages."));
+        return;
+      }
+    } else if (typeof raw !== "string") {
       this.failure(error("invalid-traffic", "The data channel received invalid or too many messages."));
       return;
     }
-    if (!this.inboundBytes(raw.length)) {
-      this.failure(error("traffic-limit", "The data channel exceeded its data limit."));
+    const size = frame ? frame.bytes.byteLength : raw.length;
+    if (size > MAX_WIRE_BYTES) {
+      this.failure(error("invalid-traffic", "The data channel received invalid or too many messages."));
       return;
     }
+    if (!this.inbound() || !this.inboundBytes(size)) {
+      // v0.23: a guest that wakes up (phone back from the background, WiFi -> LTE) gets the host's backlog at
+      // once. That burst no longer kills the link: excess messages are dropped and the newest state is kept
+      // and shown a moment later.
+      // (After a duel takeover the host receives states too, so this holds for both sides; only a flood
+      // that goes on for seconds still ends the link.)
+      const now = this.s.now();
+      if (now - (this.floodAt || 0) > 10000) {
+        this.floodAt = now;
+        this.flood = 0;
+      }
+      if (++this.flood > 1500) {
+        this.failure(error("traffic-limit", "The data channel exceeded its data limit."));
+        return;
+      }
+      return this.holdBack(raw, frame);
+    }
+    if (frame) this.unzip(frame);
+    else this.handle(raw);
+  }
+  /** v0.23: a compressed state that a newer queued state replaces is skipped (no inflate after a burst). */
+  supersede(frame) {
+    if (frame.kind !== "state") return false;
+    if (frame.seq > (this.newestState || 0)) this.newestState = frame.seq;
+    return true;
+  }
+  /** v0.23, guest: keeps only the newest held-back state (or snapshot) of a burst; the rest is dropped. */
+  holdBack(raw, frame) {
+    const kind = frame ? frame.kind : wireKind(raw);
+    // guest: rare host messages (results, takeover, rejoin token, lobby) are handled right away; only states
+    // are merged. Host: a guest's surplus commands are dropped (the rate limit stays a limit)
+    if (kind !== "state" && kind !== "snap") return this.role === "guest" ? (frame ? this.unzip(frame, true) : this.handle(raw, true)) : undefined;
+    this.deferred ||= {};
+    this.deferred[kind] = { raw, frame };
+    if (this.deferredTimer === undefined)
+      this.deferredTimer = this.later(() => {
+        this.deferredTimer = undefined;
+        const held = this.deferred || {};
+        this.deferred = null;
+        for (const k of ["snap", "state"]) {
+          const d = held[k];
+          if (!d) continue;
+          if (d.frame) this.unzip(d.frame, true);
+          else this.handle(d.raw, true);
+        }
+      }, 150);
+  }
+  unzip(frame, stale = false) {
+    const isState = this.supersede(frame);
+    this.inChain = this.inChain
+      .then(() => (isState && frame.seq < this.newestState ? "skip" : inflateCapped(frame.bytes.subarray(frame.offset), MAX_WIRE_BYTES)))
+      .then((b) => {
+        if (this.closed || b === "skip") return;
+        if (!b) throw new Error("too large");
+        const body = textDec.decode(b);
+        this.handle(frame.head.slice(0, -1) + ',"payload":' + body + "}", stale);
+      })
+      .catch(() => this.failure(error("invalid-payload", "Only valid JSON game data can be sent.")));
+  }
+  /** One wire message (a JSON string). `stale`: a held-back message that may already be outdated. */
+  handle(raw, stale = false) {
+    if (this.closed) return;
     let packet;
     try {
       packet = JSON.parse(raw);
@@ -757,26 +1021,37 @@ class Link {
       packet.version !== PROTOCOL_VERSION ||
       packet.room !== this.code
     ) {
+      // v0.23: say so before closing, so an older client shows "versions don't match" instead of waiting
+      if (!this.connected) this.control("reject", { reason: "version" });
       this.failure(error("protocol-mismatch", "The game versions or room codes don't match."));
       return;
     }
     this.lastReceived = this.s.now();
+    this.pingAt = 0; // v0.23: the other side is alive
     if (packet.type === "reject") {
+      // v0.23: only a guest is ever rejected (a host ignores such a packet)
+      if (this.role !== "guest") return;
       this.s.fail(
         packet.reason === "match-started"
           ? error("match-started", "This match has already started.")
-          : error("room-full", `The room is full (${MAX_GUESTS + 1} players).`),
+          : packet.reason === "rejoin-failed"
+            ? error("rejoin-failed", "Your seat in this match is no longer available.")
+            : packet.reason === "version"
+              ? error("protocol-mismatch", "The game versions or room codes don't match.")
+              : error("room-full", `The room is full (${MAX_GUESTS + 1} players).`),
       );
       return;
     }
     if (!this.connected) {
       if (this.role === "host" && this.phase === "hello" && packet.type === "hello") {
         this.phase = "confirm";
-        this.control("welcome");
+        this.zip = packet.zip === true && canZip(this.s); // v0.23
+        this.control("welcome", this.zip ? { zip: true } : {});
         return;
       }
       if (this.role === "guest" && this.phase === "welcome" && packet.type === "welcome") {
         this.phase = "ready";
+        this.zip = packet.zip === true && canZip(this.s); // v0.23
         this.control("confirm");
         return;
       }
@@ -796,7 +1071,25 @@ class Link {
       return;
     }
     if (packet.type === "pong") return;
-    if (packet.type !== "data" || !Number.isSafeInteger(packet.sequence) || packet.sequence <= this.receivedSequence) {
+    // v0.23: the other side closed the room on purpose (no rejoin wait for a player who left)
+    if (packet.type === "bye") {
+      this.failure(error("left", this.role === "guest" ? "The host left the match." : "A player left the room."));
+      return;
+    }
+    // v0.23: the host tells a relay guest the room-wide topic; the guest says when it listens there
+    if (packet.type === "bcast-topic" && this.role === "guest") {
+      if (this.connection?.joinBroadcast?.(packet.secret)) this.control("bcast-ok");
+      return;
+    }
+    if (packet.type === "bcast-ok" && this.role === "host") {
+      this.bcast = this.relay;
+      return;
+    }
+    // v0.23: messages on the room-wide relay topic count their own sequence
+    const bcast = packet.type === "bcast" && this.role === "guest",
+      last = bcast ? this.receivedBcast : this.receivedSequence;
+    if (!Number.isSafeInteger(packet.sequence) || packet.sequence <= last || (packet.type !== "data" && !bcast)) {
+      if (stale || bcast) return; // a held-back state that a newer one overtook; a broadcast heard twice
       this.failure(error("invalid-message", "The data channel received an invalid message sequence."));
       return;
     }
@@ -805,8 +1098,19 @@ class Link {
       this.failure(error("invalid-payload", "Only valid JSON game data can be sent."));
       return;
     }
-    this.receivedSequence = packet.sequence;
+    if (bcast) this.receivedBcast = packet.sequence;
+    else this.receivedSequence = packet.sequence;
     callback(this.s.callbacks, "onData", payload, this.s.room, this.id);
+  }
+  /** v0.23: a ping now (at most one unanswered at a time) for a quick "is the other side alive" check. */
+  ping() {
+    if (!this.connected) return;
+    if (this.pingAt && this.s.now() - this.pingAt < 3000) return;
+    if (this.control("ping")) this.pingAt ||= this.s.now();
+  }
+  /** v0.23: a ping went unanswered for 2 s (the other side's page is not running). */
+  pingMissed() {
+    return !!this.pingAt && this.s.now() - this.pingAt > 2000;
   }
   connectedNow() {
     if (this.closed || this.connected) return;
@@ -815,8 +1119,26 @@ class Link {
     this.cancel(this.handshakeTimer);
     this.cancel(this.connectionTimer);
     this.lastReceived = this.s.now();
+    let beatAt = this.s.now();
     const heartbeat = () => {
-      if (this.s.now() - this.lastReceived > this.s.idleTimeout) {
+      // v0.23: a heartbeat that fires far too late means OUR page was frozen (phone in the background).
+      // The other side's messages are only now arriving, so its silence doesn't count: wait for them.
+      // (one grace per idle timeout, so a hidden tab whose timers are throttled still notices a dead link)
+      const now = this.s.now(),
+        late = now - beatAt > 2.5 * this.s.heartbeatInterval;
+      beatAt = now;
+      if (late && now - (this.graceAt || -Infinity) > this.s.idleTimeout) {
+        this.graceAt = now;
+        this.lastReceived = Math.max(this.lastReceived, now - this.s.heartbeatInterval);
+        // back from a freeze: if the other side doesn't answer a ping within 4 s, the link is gone
+        // (the host dropped us meanwhile); the guest then rejoins at once instead of after 30 s
+        this.pingAt = 0;
+        if (this.control("ping")) this.pingAt = now;
+        this.later(() => {
+          if (this.pingAt && this.s.now() - this.pingAt >= 4000) this.failure(error("opponent-timeout", this.role === "guest" ? "The host stopped responding." : "A player stopped responding."));
+        }, 4000);
+      }
+      if (now - this.lastReceived > this.s.idleTimeout) {
         this.failure(
           error(
             "opponent-timeout",
@@ -825,24 +1147,40 @@ class Link {
         );
         return;
       }
-      this.control("ping");
+      if (this.control("ping")) this.pingAt ||= now;
       if (!this.closed) this.later(heartbeat, this.s.heartbeatInterval);
     };
     this.later(heartbeat, this.s.heartbeatInterval);
     this.s.linkConnected(this);
   }
-  /** Sends one already serialized JSON object (the payload). */
-  sendBody(body) {
+  /** Sends one already serialized JSON object (the payload). v0.23: `zipped` = a shared deflate of it. */
+  sendBody(body, zipped = null) {
     if (this.closed || !this.connected || !this.connection?.open) return false;
     try {
-      const wire =
-        JSON.stringify({ protocol: PROTOCOL, version: PROTOCOL_VERSION, room: this.code, type: "data", sequence: this.sequence + 1 }).slice(0, -1) +
-        ',"payload":' +
-        body +
-        "}";
-      if ((this.connection.bufferSize || 0) > 16 || (this.connection.dataChannel?.bufferedAmount || 0) > 1024 * 1024) {
+      const head = JSON.stringify({ protocol: PROTOCOL, version: PROTOCOL_VERSION, room: this.code, type: "data", sequence: this.sequence + 1 }),
+        zip = this.zip && !this.relay; // the relay deflates on its own
+      // v0.23: the relay reports its broker sockets' unsent bytes too
+      const buffered = this.connection.dataChannel?.bufferedAmount ?? this.connection.bufferedAmount ?? 0;
+      if ((this.connection.bufferSize || 0) > 16 || buffered > 1024 * 1024 || this.zipPending > 8) {
         throw error("backpressure", "The connection is busy. The next update will try again.");
       }
+      if (zip) {
+        if (!this.outbound() || !this.outboundBytes(Math.ceil(body.length / 6))) throw error("send-limit", "Too many game messages. Please wait for the next update.");
+        const z = zipped || deflate(textEnc.encode(body)),
+          kind = wireKind(body, 0),
+          connection = this.connection;
+        this.sequence++;
+        this.zipPending++;
+        this.outChain = this.outChain
+          .then(() => z)
+          .then((bytes) => {
+            if (!this.closed && this.connection === connection && connection.open) connection.send(zipFrame(head, kind, bytes));
+          })
+          .catch((err) => this.failure(peerFailure(err)))
+          .finally(() => this.zipPending--);
+        return true;
+      }
+      const wire = head.slice(0, -1) + ',"payload":' + body + "}";
       if (!this.outbound() || !this.outboundBytes(wire.length)) {
         throw error("send-limit", "Too many game messages. Please wait for the next update.");
       }
@@ -868,9 +1206,52 @@ class Link {
   }
 }
 
-/** Serializes a payload once (v0.13b: one pass) and checks it. */
+/** v0.23: compression on the direct channel needs both stream APIs (and can be switched off for tests). */
+const canZip = (session) => session.dependencies.zip !== false && !!globalThis.CompressionStream && !!globalThis.DecompressionStream;
+/** v0.23: the message kind of a serialized payload or wire string, without parsing it. */
+function wireKind(text, from = null) {
+  const i = from ?? text.indexOf(',"payload":');
+  if (i < 0) return "";
+  const m = /^(?:,"payload":)?\{"kind":"([a-z-]{1,24})"/.exec(text.slice(i, i + 48));
+  return m ? m[1] : "";
+}
+/**
+ * v0.23: a compressed frame on the direct channel: 0x5a, the header length (2 bytes), the header JSON
+ * (protocol, version, room, type, sequence) and the deflated payload. The header names the kind ("k")
+ * so a guest can drop surplus states without inflating them.
+ */
+function zipFrame(head, kind, zipped) {
+  const h = textEnc.encode(kind ? head.slice(0, -1) + ',"k":' + JSON.stringify(kind) + "}" : head),
+    out = new Uint8Array(3 + h.length + zipped.length);
+  out[0] = 0x5a;
+  out[1] = h.length >> 8;
+  out[2] = h.length & 255;
+  out.set(h, 3);
+  out.set(zipped, 3 + h.length);
+  return out;
+}
+function unzipHeader(raw) {
+  const bytes = raw instanceof ArrayBuffer ? new Uint8Array(raw) : new Uint8Array(raw.buffer, raw.byteOffset, raw.byteLength);
+  if (bytes.length < 4 || bytes[0] !== 0x5a) return null;
+  const n = (bytes[1] << 8) | bytes[2];
+  if (n > 512 || bytes.length < 3 + n) return null;
+  let head, kind, seq;
+  try {
+    const text = textDec.decode(bytes.subarray(3, 3 + n)),
+      obj = JSON.parse(text);
+    if (!obj || typeof obj !== "object") return null;
+    kind = typeof obj.k === "string" ? obj.k : "";
+    delete obj.k;
+    head = JSON.stringify(obj);
+    seq = Number.isSafeInteger(obj.sequence) ? obj.sequence : 0;
+  } catch {
+    return null;
+  }
+  return { bytes, offset: 3 + n, head, kind, seq };
+}
+/** Serializes a payload once (v0.13b: one pass) and checks it. v0.23: a string is an already serialized payload. */
 function payloadBody(data) {
-  const body = JSON.stringify(data);
+  const body = typeof data === "string" ? data : JSON.stringify(data);
   if (!body || body[0] !== "{") throw error("invalid-payload", "Only valid JSON game data can be sent.");
   if (body.length > MAX_PAYLOAD_BYTES) throw error("payload-too-large", "The game data is too large for one message.");
   return body;
@@ -898,6 +1279,12 @@ class Session {
     this.locked = false;
     this.closed = false;
     this.relaySecret = role === "guest" ? randomSecret(dependencies) : null;
+    // v0.23, host: the room-wide relay topic (one publish per state for every relay guest)
+    this.roomSecret = role === "host" ? randomSecret(dependencies) : null;
+    this.bcastSender = null;
+    this.bcastSequence = 0;
+    // v0.23, guest: a rejoin token that reclaims our seat in a running (locked) match
+    this.rejoin = role === "guest" && validSecret(dependencies.rejoin) ? dependencies.rejoin : null;
     const connectedLinks = () => [...this.links.values()].filter((l) => l.connected);
     this.room = Object.freeze({
       code,
@@ -915,6 +1302,11 @@ class Session {
       },
       kick: (id) => this.dropLink(this.links.get(id), error("kicked", "Removed from the room.")),
       close: () => this.finish("closed", "Room closed."),
+      /** v0.23: ping the other side now (guest: the host) / did that ping go unanswered for 2 s? */
+      ping: () => connectedLinks().forEach((l) => l.ping()),
+      pingMissed: () => connectedLinks().some((l) => l.pingMissed()),
+      /** v0.23, host: the rejoin token a guest link came with (null for a new player). */
+      rejoinOf: (id) => this.links.get(id)?.rejoin || null,
     });
   }
 
@@ -981,6 +1373,13 @@ class Session {
           "connection",
           (connection) => {
             if (this.closed || this.role !== "host") return this.rejectExtra(connection, "room-full");
+            // v0.23: a guest with a valid rejoin token reclaims its seat in a running match
+            const rejoin = connection.metadata?.rejoin;
+            if (this.locked && validSecret(rejoin)) {
+              if (!this.callbacks.canRejoin?.(rejoin) || this.links.size >= 2 * MAX_GUESTS) return this.rejectExtra(connection, "rejoin-failed");
+              this.addLink(connection).rejoin = rejoin;
+              return;
+            }
             if (this.locked) return this.rejectExtra(connection, "match-started");
             if (this.links.size >= this.maxGuests) return this.rejectExtra(connection, "room-full");
             this.addLink(connection);
@@ -1011,8 +1410,16 @@ class Session {
           this.peer,
           "disconnected",
           () => {
-            if (this.anyConnected()) this.status("warning", "Room service disconnected; the running match stays directly connected.");
-            else if (this.role === "host" && this.opened) {
+            if (this.anyConnected()) {
+              this.status("warning", "Room service disconnected; the running match stays directly connected.");
+              // v0.23: a host stays registered, so a guest whose connection dropped can rejoin
+              if (this.role === "host")
+                this.later(() => {
+                  try {
+                    if (!this.closed && this.peer?.disconnected) this.peer.reconnect?.();
+                  } catch {}
+                }, 1000);
+            } else if (this.role === "host" && this.opened) {
               // v0.19: a waiting room tries to stay registered
               try {
                 this.peer.reconnect?.();
@@ -1046,7 +1453,7 @@ class Session {
     try {
       const connection = this.peer.connect("felito-v1-" + this.code, {
         label: PROTOCOL,
-        metadata: { protocol: PROTOCOL, version: PROTOCOL_VERSION, room: this.code, relay: this.relaySecret },
+        metadata: { protocol: PROTOCOL, version: PROTOCOL_VERSION, room: this.code, relay: this.relaySecret, ...(this.rejoin ? { rejoin: this.rejoin } : {}) }, // v0.23: rejoin
         serialization: "binary",
         reliable: true,
       });
@@ -1087,13 +1494,15 @@ class Session {
   }
 
   linkConnected(link) {
+    // v0.23, host: a relay guest also listens on the room-wide topic (it answers "bcast-ok")
+    if (this.role === "host" && link.relay) link.control("bcast-topic", { secret: this.roomSecret });
     if (this.role === "guest") {
       this.status("connected", link.relay ? "Connected through the relay server. The match can start." : "Directly connected. The match can start.");
     } else {
       const n = this.room.peers().length;
       this.status("connected", `${n + 1}/${this.maxGuests + 1} players in the room.`);
     }
-    callback(this.callbacks, "onConnect", this.room, link.id);
+    callback(this.callbacks, "onConnect", this.room, link.id, link.rejoin ? { rejoin: link.rejoin } : null);
   }
 
   dropLink(link, err) {
@@ -1127,8 +1536,33 @@ class Session {
       return false;
     }
     let ok = false;
-    for (const link of [...this.links.values()]) if (link.connected && link.sendBody(body)) ok = true;
+    const links = [...this.links.values()].filter((l) => l.connected);
+    // v0.23: one deflate for every compressed direct link
+    const zipped = links.filter((l) => l.zip && !l.relay).length > 1 ? deflate(textEnc.encode(body)) : null;
+    zipped?.catch(() => {});
+    // v0.23: relay guests on the room-wide topic get one publish together instead of one per guest × broker
+    const bcast = this.role === "host" ? links.filter((l) => l.bcast && l.relay && l.connection?.open) : [];
+    if (bcast.length && this.sendBroadcast(body, bcast)) ok = true;
+    else bcast.length = 0;
+    for (const link of links) if (!bcast.includes(link) && link.sendBody(body, link.zip && !link.relay ? zipped : null)) ok = true;
     return ok;
+  }
+  /** v0.23, host: one message to the room-wide relay topic (on the brokers of one relay guest's channel). */
+  sendBroadcast(body, links) {
+    // one ready broker socket per broker address, taken from the relay guests' channels: every broker a
+    // relay guest shares with the host gets the message once
+    const byUrl = new Map();
+    for (const l of links) for (const m of l.connection?.links || []) if (m.ready && !byUrl.has(m.url)) byUrl.set(m.url, m);
+    if (!byUrl.size) return false;
+    const sender = (this.bcastSender ||= new RelayLinkSender([], `felito/v${PROTOCOL_VERSION}/r/${this.code}/${this.roomSecret}/b`));
+    sender.links = [...byUrl.values()]; // the frame counter stays with the sender when the brokers change
+    if (sender.pending > 16 || sender.bufferedAmount > 1024 * 1024) {
+      this.status("warning", "The connection is busy. The next update will try again.");
+      return true; // skipped like a busy link; the next state follows
+    }
+    const wire = JSON.stringify({ protocol: PROTOCOL, version: PROTOCOL_VERSION, room: this.code, type: "bcast", sequence: ++this.bcastSequence }).slice(0, -1) + ',"payload":' + body + "}";
+    sender.send(wire);
+    return true;
   }
 
   sendTo(id, data) {
@@ -1151,13 +1585,35 @@ class Session {
     this.closed = true;
     for (const timer of this.timers) this.clearTimer(timer);
     this.timers.clear();
-    for (const link of this.links.values()) link.close();
+    // v0.23: closing on purpose says "bye" first, so the others know this player left (and isn't just
+    // reconnecting); those channels close a moment later so the message gets out
+    const byes = state === "closed" ? [...this.links.values()].filter((l) => l.connected && l.control("bye")) : [];
+    for (const link of this.links.values()) {
+      if (!byes.includes(link)) {
+        link.close();
+        continue;
+      }
+      for (const timer of link.timers) this.clearTimer(timer);
+      link.timers.clear();
+      link.disposeListeners();
+      link.closed = true; // no more callbacks from it
+    }
     this.links.clear();
     for (const dispose of this.peerListeners.splice(0)) dispose();
     this.callbacks.signal?.removeEventListener("abort", this.abort);
-    try {
-      this.peer?.destroy();
-    } catch {}
+    const peer = this.peer,
+      teardown = () => {
+        for (const link of byes) {
+          try {
+            link.connection?.close();
+          } catch {}
+        }
+        try {
+          peer?.destroy();
+        } catch {}
+      };
+    if (byes.length) this.setTimer(teardown, 200);
+    else teardown();
     this.status(state, message, err);
     this.reject?.(err || error("closed", message));
     this.resolve = this.reject = null;
