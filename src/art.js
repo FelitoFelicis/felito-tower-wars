@@ -191,9 +191,13 @@ export const ART_MANIFEST = Object.freeze({
   ...Object.fromEntries(VARIANT_ART.map((k) => [k, BASE_ART[k.replace(/-v\d$/, "")]])),
 });
 
-// v0.15: creep art repainted (cloth in team blue); the query makes browsers fetch the new pictures
-export const artUrl = (key) => `assets/art/${key}.webp${/^creep-/.test(key) ? "?v=016" : ""}`;
-export const iconUrl = (name) => `assets/art/icon-${name}.webp${name === "coin" ? "?v=v022zg1" : ""}`; // v0.22zg1: new gold coin (portrait)
+/**
+ * v0.23: version key on every art URL (figures, animations, icons): raise it whenever pictures in
+ * assets/art or assets/anim change, so browsers fetch the new ones (see the README).
+ */
+export const ART_VERSION = "v023";
+export const artUrl = (key) => `assets/art/${key}.webp?v=${ART_VERSION}`;
+export const iconUrl = (name) => `assets/art/icon-${name}.webp?v=${ART_VERSION}`;
 
 /** Cut-out frame animations (rigged from the still art). attack = played on each shot from `start`, walk = looped. */
 export const ANIM_MANIFEST = Object.freeze({
@@ -202,7 +206,7 @@ export const ANIM_MANIFEST = Object.freeze({
   "tower-guard-l2": { kind: "attack", frames: 10, cols: 5, fw: 380, fh: 420, ox: 40, oy: 20, ms: 45, start: 2 },
   "creep-skeleton": { kind: "walk", frames: 8, cols: 4, fw: 444, fh: 412, ox: 24, oy: 12, ms: 80 },
 });
-export const animUrl = (key) => `assets/anim/${key}.webp${/^creep-/.test(key) ? "?v=016" : ""}`;
+export const animUrl = (key) => `assets/anim/${key}.webp?v=${ART_VERSION}`;
 export const TOWER_ART = Object.keys(ART_MANIFEST).filter((k) => k.startsWith("tower-"));
 export const CREEP_ART = Object.keys(ART_MANIFEST).filter((k) => k.startsWith("creep-"));
 export const ELEMENT_ICON = {

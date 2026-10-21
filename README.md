@@ -30,7 +30,7 @@ python3 -m http.server 8080
 | `assets/`, `vendor/` | Art, fonts (WOFF2), music (MP3, 96 kbps); bundled libraries (Babylon.js subset, PeerJS) |
 | `tools/` | Build scripts for the generated files (`style.min.css`, `vendor/babylon-felito.js`) |
 
-When publishing a new version, renew all `?v=` keys in `index.html` and `APP_VERSION` in `src/app.js`.
+When publishing a new version, renew all `?v=` keys in `index.html` and `APP_VERSION` in `src/app.js`. When pictures in `assets/art` or `assets/anim` change, also raise `ART_VERSION` in `src/art.js` (the version key on every art URL).
 
 **After editing style.css run `node tools/build-css.mjs`** – it writes `style.min.css` (the file the page loads; no dependencies). Commit both files.
 

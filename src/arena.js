@@ -9,7 +9,7 @@ function topFour(def) {
   }
   return TOP_FOUR.get(def.id);
 }
-import { ART_MANIFEST, ANIM_MANIFEST, animUrl, artFor, artUrl, towerTier, TOWER_ART, CREEP_ART, TEAM_COLORS, CLOTH_COLORS, recolorTeam } from "./art.js";
+import { ART_MANIFEST, ANIM_MANIFEST, animUrl, artFor, artUrl, towerTier, TEAM_COLORS, CLOTH_COLORS, recolorTeam } from "./art.js";
 /** v0.22n2: mix a colour towards another (0 = black, 0xffffff = white) by k. */
 const metalTint = (hex, to, k) => {
   const ch = (c, sh) => ((c >> sh) & 255) * (1 - k) + ((to >> sh) & 255) * k;
@@ -20,6 +20,8 @@ import { Stage, BLEND, TINT, hsvToColor } from "./b2d.js";
 
 export { artFor, artUrl };
 
+const NO_PATH = []; // v0.23
+const ANIM_KEY = {}; // v0.23: art key -> "anim:" + key, built once
 const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
 const lerp = (a, b, t) => a + (b - a) * t;
 const FONT = "Lilita One, DM Sans, system-ui, sans-serif";
@@ -258,6 +260,7 @@ export function mountArena({
   getMinimapMode = () => "on", // v0.18c: "on", "off" or "all"
   getMiniPlayers = () => [], // v0.18c: the fields shown in the "All" row
   getAllyPlayers = () => [], // v0.21d: team games: your allies' fields, shown beside the normal mini map
+  getPrefetch = () => null, // v0.23: catalog items whose art the board should load ahead (buildable towers, sendable creeps)
 }) {
   /** A lane's colour: the player's choice, else blue for you and red for the other side. */
   const colorOf = (player) => {
@@ -323,27 +326,25 @@ export function mountArena({
   measureInsets();
   // Render at the device's pixel density: the canvas is sized in device pixels and
   // the camera zooms by DPR, so world units stay CSS pixels everywhere else.
-  const DPR = Math.max(1, Math.min(2.5, window.devicePixelRatio || 1));
+  // v0.23: at most 2 (was 2.5); MSAA only below a pixel ratio of 2
+  const DPR = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
   const DECO = ["deco-bush", "deco-crate", "deco-crystal", "deco-grass", "deco-mush-purple", "deco-mush-teal", "deco-pine", "deco-rock", "deco-torch"];
   const GRASS = ["tile-grass", "tile-grass-2", "tile-grass-3"];
   // Start fast: only the board itself and two fallback figures load before the arena opens.
-  // Every other figure streams in the background right after (entry-level towers first);
-  // until a figure has arrived, its base art or a stand-in is drawn.
-  const ESSENTIAL = [...GRASS, "tile-path", ...DECO, "tower-archer", "creep-goblin"];
+  // v0.23: every other figure loads the first time it is needed (it was: all ~190 pictures streamed in at the
+  // start and were kept three times, as canvas, image and texture). The art of the towers you can build and the
+  // creeps you can send is fetched ahead (getPrefetch), the entry-level and element towers right after the start.
+  const ESSENTIAL = ["tile-path", "tower-archer", "creep-goblin"];
   const FIRST = ["tower-archer-v2", "tower-guard-l1", "tower-cannon-v3", "tower-hall", "tower-arcane-v2", "tower-farm"];
-  const BACKGROUND = [
-    ...FIRST,
-    ...CREEP_ART,
-    ...TOWER_ART.filter((k) => !/-(v|l)\d$/.test(k)),
-    ...TOWER_ART.filter((k) => /-(v|l)\d$/.test(k)),
-  ].filter((k, i, all) => !ESSENTIAL.includes(k) && all.indexOf(k) === i);
+  const ELEMENT_ART = ["tower-frost", "tower-fire", "tower-storm", "tower-earth", "tower-arcane", "tower-poison"]; // v0.23: element art stays preloaded
+  /** How long a new figure may stay hidden while its art loads before a stand-in shows (ms). */
+  const ART_WAIT = 400;
 
   // v0.08: the board is drawn with Babylon.js (see b2d.js), the scene keeps its old shape.
   class Arena {
     constructor(stage) {
       this.stage = stage;
       this.units = new Map();
-      this.labels = new Map();
       this.lastView = -1;
       this.lastEvent = 0;
       this.terrainKey = "";
@@ -357,69 +358,115 @@ export function mountArena({
       this.bolts = []; // v0.12
       this.floaters = [];
       this.textPool = [];
-      this.tiles = [];
-      this.decos = [];
-      this.pathTiles = [];
+      this.skinKeys = new Map(); // v0.23: art key -> colour -> texture key (no string building per frame)
+      this.painters = {};
+      this.waiting = new Map(); // v0.23: unit key -> since when its art is loading
+      this._look = { art: null, tex: null, anim: null, hide: false };
+      this.badgeBatches = new Map(); // v0.23: depth -> level badges of that row, one draw call
+      this.badgeNames = {};
       this.flash = 0;
       this.gainFlash = 0;
       this.fireflies = Array.from({ length: 18 }, (_, i) => ({ seed: i * 7.31, x: hash(i, 3), y: hash(i, 9) }));
     }
     preload() {
-      return Promise.all(ESSENTIAL.map((key) => this.stage.loadImage(key, artUrl(key))));
-    }
-    /** Queue every remaining figure and animation once the arena is up (six at a time). */
-    streamArt() {
-      const queue = [...BACKGROUND.map((key) => [key, artUrl(key), 0, 0]), ...Object.entries(ANIM_MANIFEST).map(([key, a]) => [`anim:${key}`, animUrl(key), a.fw, a.fh])];
-      const next = () => {
-        const item = queue.shift();
-        if (item && !this.stage.disposed) this.stage.loadImage(...item).then(next);
-      };
-      for (let i = 0; i < 6; i++) next();
-    }
-    /** The art key if its texture has arrived, else the line's base art, else a stand-in. */
-    ready(key, kind = "tower") {
-      if (this.stage.hasTexture(key)) return key;
-      const base = key.replace(/-(v|l)\d$/, "");
-      if (this.stage.hasTexture(base)) return base;
-      return kind === "creep" ? "creep-goblin" : "tower-archer";
+      // v0.23: the meadow (grass tiles and props) comes as one atlas, drawn in a single call
+      return Promise.all([
+        this.stage.loadAtlas("terrain", [...GRASS, ...DECO].map((key) => [key, artUrl(key)])),
+        ...ESSENTIAL.map((key) => this.stage.loadImage(key, artUrl(key))),
+      ]);
     }
     /**
-     * Player colour on tower figures: the art's team-blue cloth stays blue for the viewer's own
-     * towers and turns red on the opponent's. Recoloured copies are made once per figure, in the
-     * browser, the first time an enemy tower needs them.
+     * v0.23: the texture key of `key` (a still, or "anim:" + key for a sheet) in a player's colour if it has
+     * arrived; else it is requested (team blue moved to that colour's hue while loading) and null comes back.
      */
-    /** The art in a player's colour: team blue moved to that colour's hue (cached per colour). */
-    teamTexture(key, colorId) {
-      const color = CLOTH_COLORS[colorId];
-      if (!color || color.hue === null || !this.stage.hasTexture(key)) return key;
-      const red = key + "#" + colorId;
-      if (this.stage.hasTexture(red)) return red;
-      try {
-        const src = this.stage.sourceImage(key),
-          canvas = document.createElement("canvas");
-        canvas.width = src.width;
-        canvas.height = src.height;
-        const ctx = canvas.getContext("2d", { willReadFrequently: true });
-        ctx.drawImage(src, 0, 0);
-        const img = ctx.getImageData(0, 0, canvas.width, canvas.height),
-          d = img.data;
-        recolorTeam(d, colorId);
-        ctx.putImageData(img, 0, 0);
-        const anim = Object.values(ANIM_MANIFEST).find((a, i) => `anim:${Object.keys(ANIM_MANIFEST)[i]}` === key);
-        if (anim) this.stage.addCanvas(red, canvas, anim.fw, anim.fh);
-        else this.stage.addCanvas(red, canvas);
-        return this.stage.hasTexture(red) ? red : key;
-      } catch (err) {
-        console.warn("Team colour not possible for", key, err);
-        return key;
+    need(key, colorId, urgent = true, ask = true) {
+      const color = CLOTH_COLORS[colorId],
+        recolor = !!color && color.hue !== null;
+      let tex = key;
+      if (recolor) {
+        let byColor = this.skinKeys.get(key);
+        if (!byColor) this.skinKeys.set(key, (byColor = new Map()));
+        tex = byColor.get(colorId);
+        if (!tex) byColor.set(colorId, (tex = key + "#" + colorId));
       }
+      if (this.stage.hasTexture(tex) || !ask) return this.stage.hasTexture(tex) ? tex : null;
+      const sheet = key.startsWith("anim:") ? ANIM_MANIFEST[key.slice(5)] : null;
+      this.stage.request(tex, sheet ? animUrl(key.slice(5)) : artUrl(key), {
+        fw: sheet?.fw || 0,
+        fh: sheet?.fh || 0,
+        paint: recolor ? (this.painters[colorId] ||= (d) => recolorTeam(d, colorId)) : null,
+        urgent,
+      });
+      return null;
     }
-    /** Frame animation for an art key, once its sheet has loaded. */
-    animFor(artKey) {
-      const a = ANIM_MANIFEST[artKey];
-      if (!a) return null;
-      const tex = `anim:${artKey}`;
-      return this.stage.hasTexture(tex) ? { ...a, tex } : null;
+    /**
+     * v0.23: what a figure shows: { art, tex, anim, hide } in a reused object. The wanted art (its frame
+     * animation first) once loaded; until then the picture it already shows; a new figure stays hidden for
+     * up to ART_WAIT ms, then the line's base art or a stand-in in the same colour fills in.
+     */
+    look(sprite, unitKey, want, colorId, kind, now) {
+      const L = this._look,
+        sheet = ANIM_MANIFEST[want],
+        animTex = sheet ? this.need((ANIM_KEY[want] ||= "anim:" + want), colorId) : null,
+        tex = animTex || this.need(want, colorId);
+      L.hide = false;
+      if (tex) {
+        this.waiting.delete(unitKey);
+        L.art = want;
+        L.tex = tex;
+        L.anim = animTex ? sheet : null;
+      } else if (sprite?._look) {
+        Object.assign(L, sprite._look);
+        return L;
+      } else {
+        const since = this.waiting.get(unitKey) ?? now;
+        this.waiting.set(unitKey, since);
+        const stand = kind === "creep" ? "creep-goblin" : "tower-archer",
+          base = want.replace(/-(v|l)\d$/, ""),
+          baseTex = base !== want && this.need(base, colorId, false, false);
+        L.anim = null;
+        if (baseTex) {
+          L.art = base;
+          L.tex = baseTex;
+        } else {
+          L.art = stand;
+          L.tex = this.need(stand, colorId) || stand;
+          L.hide = now - since < ART_WAIT;
+        }
+        if (L.hide) return L;
+      }
+      if (sprite) Object.assign((sprite._look ||= {}), L);
+      return L;
+    }
+    /** v0.23: art for a ghost (preview, pre-build): the wanted still once loaded, else its base or the stand-in. */
+    stillFor(want, colorId) {
+      const L = this._look;
+      L.anim = null;
+      L.hide = false;
+      const base = want.replace(/-(v|l)\d$/, "");
+      L.art = want;
+      L.tex = this.need(want, colorId);
+      if (!L.tex && base !== want && (L.tex = this.need(base, colorId, false, false))) L.art = base;
+      if (!L.tex) {
+        L.art = "tower-archer";
+        L.tex = this.need("tower-archer", colorId) || "tower-archer";
+      }
+      return L;
+    }
+    /** v0.23: fetch ahead the art of what the player can build and send now (in their colour), once a second. */
+    prefetch(now) {
+      if (now - (this.prefetchAt || 0) < 1000) return;
+      this.prefetchAt = now;
+      const items = getPrefetch(),
+        catalog = getCatalog(),
+        color = colorOf(getOwnPlayer());
+      if (!items || !catalog) return;
+      for (const item of items) {
+        const key = artFor(item);
+        if (!ART_MANIFEST[key]) continue;
+        this.need(key, color, false);
+        if (ANIM_MANIFEST[key]) this.need("anim:" + key, color, false);
+      }
     }
     /** Switch a sprite to the given sheet frame without resetting it every draw. */
     showFrame(sprite, tex, frame) {
@@ -427,9 +474,15 @@ export function mountArena({
       else if (sprite.frame.name !== frame) sprite.setFrame(frame);
     }
     create() {
-      this.streamArt();
+      for (const key of [...FIRST, ...ELEMENT_ART]) this.need(key, colorOf(getOwnPlayer()), false); // v0.23
       this.bg = this.stage.graphics().setDepth(0);
       this.frameG = this.stage.graphics().setDepth(1);
+      // v0.23: grass tiles and props in one batch (they were ~90 images, one draw call each): props outside
+      // the wall first (they lay under the tiles), then the tiles, then the tufts on the meadow
+      this.meadow = this.stage.sprites("terrain").setDepth(1.5);
+      this.pathBatch = this.stage.sprites("tile-path").setDepth(3); // v0.23: path tiles, one draw call
+      this.iceBatch = this.stage.sprites("tile-path").setDepth(3.5);
+      this.badgeAtlas();
       this.grout = this.stage.graphics().setDepth(4);
       this.pathLayer = this.stage.graphics().setDepth(5);
       this.terrainFx = this.stage.graphics().setDepth(3.7); // v0.22h1: Frozen Ground ice and Hill Paths mud over the path tiles
@@ -766,38 +819,22 @@ export function mountArena({
           this.braziers.push({ x: xx, y: y - 2, seed: xx * 0.01 + yy });
         }
       // Grass and plaza tiles, rotated per cell so the texture never looks tiled.
-      for (const t of this.tiles) t.destroy();
-      this.tiles = [];
+      // v0.23: all in one batch from the "terrain" atlas, in the order the depths drew them before
+      // (props outside the wall at 1.5, tiles at 2, meadow tufts at 2.5)
+      const mb = this.meadow.clear(),
+        tiles = [],
+        tufts = [],
+        deco = (list, key, x, y, size, alpha = 1) => list.push([key, x, y, size, alpha]);
       for (let y = 0; y < z.logicalRows; y++)
-        for (let x = 0; x < z.logicalCols; x++) {
-          const plaza = false, // every row is buildable meadow now
-            r = hash(x, y),
-            grass = GRASS[Math.floor(hash(x, y, 13) * GRASS.length)],
-            img = this.stage
-              .image(z.left + (x + 0.5) * cell, z.top + (y + 0.5) * cell, plaza ? "tile-path" : grass)
-              .setDisplaySize(cell + 0.6, cell + 0.6)
-              .setAngle(Math.floor(r * 4) * 90)
-              .setDepth(2);
-          img.setFlipX(hash(y, x, 5) > 0.5);
-          img.setTint(plaza ? 0x9c958e : [0xe9f1df, 0xdfe9d3, 0xf2f6e8, 0xe4edd9][Math.floor(hash(x, y, 2) * 4)]);
-          this.tiles.push(img);
-        }
+        for (let x = 0; x < z.logicalCols; x++) tiles.push([x, y]);
       // Meadow detail and scenery: tufts under the path layer, props in the plaza corners
       // and around the wall, so the board never reads as one flat green.
-      for (const d of this.decos) d.destroy();
-      this.decos = [];
-      const deco = (key, x, y, size, depth, alpha = 1) => {
-        const img = this.stage.image(x, y, key).setOrigin(0.5, 0.9).setDepth(depth).setAlpha(alpha);
-        img.setScale(size / Math.max(img.width, img.height)).setFlipX(hash(x, y, 3) > 0.5);
-        this.decos.push(img);
-        return img;
-      };
       for (let y = 0; y < z.logicalRows; y++)
         for (let x = 0; x < z.logicalCols; x++) {
           const r = hash(x, y, 21);
           if (r > 0.42) continue;
           const key = r < 0.06 ? "deco-mush-teal" : r < 0.1 ? "deco-mush-purple" : "deco-grass";
-          deco(key, z.left + (x + 0.2 + hash(x, y, 22) * 0.6) * cell, z.top + (y + 0.35 + hash(x, y, 23) * 0.5) * cell, cell * (key === "deco-grass" ? 0.34 : 0.26), 2.5, 0.92);
+          deco(tufts, key, z.left + (x + 0.2 + hash(x, y, 22) * 0.6) * cell, z.top + (y + 0.35 + hash(x, y, 23) * 0.5) * cell, cell * (key === "deco-grass" ? 0.34 : 0.26), 0.92);
         }
       // Forest props outside the wall (only where the screen leaves room).
       const outside = [];
@@ -816,7 +853,24 @@ export function mountArena({
             y = above ? T - 12 - hash(i, 52) * 120 : T + H + 34 + hash(i, 52) * 130;
           outside.push([["deco-pine", "deco-rock", "deco-bush", "deco-pine", "deco-mush-teal", "deco-crystal"][i % 6], x, y]);
         }
-      for (const [key, x, y] of outside) deco(key, x, y, cell * (key === "deco-pine" ? 0.9 : 0.55), 1.5);
+      const props = outside.map(([key, x, y]) => [key, x, y, cell * (key === "deco-pine" ? 0.9 : 0.55), 1]);
+      const prop = ([key, x, y, size, alpha]) => {
+        const r = this.stage.rect("terrain", key);
+        if (!r) return;
+        const s = size / Math.max(r.w, r.h);
+        mb.quad(x, y, r.w * s, r.h * s, 0.5, 0.9, 0, hash(x, y, 3) > 0.5, 0xffffff, alpha, r.uv);
+      };
+      props.forEach(prop);
+      for (const [x, y] of tiles) {
+        const r = hash(x, y),
+          grass = GRASS[Math.floor(hash(x, y, 13) * GRASS.length)],
+          rect = this.stage.rect("terrain", grass);
+        if (!rect) continue;
+        const sx = (cell + 0.6) / rect.w,
+          sy = (cell + 0.6) / rect.h;
+        mb.quad(z.left + (x + 0.5) * cell, z.top + (y + 0.5) * cell, rect.w * sx, rect.h * sy, 0.5, 0.5, (Math.floor(r * 4) * 90 * Math.PI) / 180, hash(y, x, 5) > 0.5, [0xe9f1df, 0xdfe9d3, 0xf2f6e8, 0xe4edd9][Math.floor(hash(x, y, 2) * 4)], 1, rect.uv);
+      }
+      tufts.forEach(prop);
       // Grout between tiles.
       const gr = this.grout;
       gr.clear();
@@ -842,6 +896,7 @@ export function mountArena({
       this.drawStrips(z);
       this.terrainKey = this.keyFor(z) + "|" + colorOf(getViewPlayer());
       this.pathKey = "";
+      this.pathRef = null;
     }
     /** Spawn strip: a row of quarter-height portal fields above the board. */
     drawStrips(z) {
@@ -865,45 +920,32 @@ export function mountArena({
       // v0.09: no goal line any more; creeps break through as they leave the board at the bottom
     }
     drawPathTiles(player, z) {
-      const path = player.path || [],
+      const path = player.path || NO_PATH,
         frozen = (player.perks?.permafrost || 0) > 0, // v0.10o: Frozen Ground (was Permafrost) turns the path to ice
-        hills = (player.perks?.hills || 0) > 0, // v0.22h1: Hill Paths: the upward steps become muddy hill trails
-        key = path.map((p) => p.gridX + "," + p.gridY).join(";") + "|" + this.terrainKey + (frozen ? "|ice" : "") + (hills ? "|hill" : "");
+        hills = (player.perks?.hills || 0) > 0; // v0.22h1: Hill Paths: the upward steps become muddy hill trails
+      // v0.23: the simulation hands out a new path array whenever the path changes: compare that (and the
+      // flags) first, the key string is only built when one of them changed
+      if (path === this.pathRef && frozen === this.pathIce && hills === this.pathHills) return;
+      this.pathRef = path;
+      this.pathIce = frozen;
+      this.pathHills = hills;
+      const key = path.map((p) => p.gridX + "," + p.gridY).join(";") + "|" + this.terrainKey + (frozen ? "|ice" : "") + (hills ? "|hill" : "");
       if (key === this.pathKey) return;
       this.pathKey = key;
-      const cell = z.cw;
-      let i = 0;
+      const cell = z.cw,
+        tiles = this.pathBatch.clear(),
+        ice = this.iceBatch.clear();
       for (const p of path) {
         if (p.gridY < 0 || p.gridY >= z.logicalRows) continue; // strips are not tiled
-        let img = this.pathTiles[i];
-        if (!img) {
-          img = this.stage.image(0, 0, "tile-path").setDepth(3);
-          this.pathTiles.push(img);
-        }
-        img
-          .setVisible(true)
-          .setPosition(z.left + (p.gridX + 0.5) * cell, z.top + (p.gridY + 0.5) * cell)
-          .setDisplaySize(cell + 0.6, cell + 0.6)
-          .setAngle(Math.floor(hash(p.gridX, p.gridY, 7) * 4) * 90)
-          .setTint(frozen ? [0x5fa9e6, 0x6ab3ec, 0x58a2e0, 0x72b8ee][Math.floor(hash(p.gridX, p.gridY, 9) * 4)] : 0xffffff); // v0.22h1: deeper water blue
+        // v0.23: one batch for the tiles, one for the ice sheen (they were an image each)
+        const x = z.left + (p.gridX + 0.5) * cell,
+          y = z.top + (p.gridY + 0.5) * cell,
+          rot = (Math.floor(hash(p.gridX, p.gridY, 7) * 4) * 90 * Math.PI) / 180;
+        tiles.quad(x, y, cell + 0.6, cell + 0.6, 0.5, 0.5, rot, false, frozen ? [0x5fa9e6, 0x6ab3ec, 0x58a2e0, 0x72b8ee][Math.floor(hash(p.gridX, p.gridY, 9) * 4)] : 0xffffff); // v0.22h1: deeper water blue
         // v0.10o: Permafrost: a pale ice sheen over the same tile
-        let ice = this.iceTiles?.[i];
-        if (frozen && !ice) {
-          (this.iceTiles ||= [])[i] = ice = this.stage.image(0, 0, "tile-path").setDepth(3.5).setTintMode(TINT.FILL);
-        }
-        if (ice)
-          ice
-            .setVisible(frozen)
-            .setPosition(z.left + (p.gridX + 0.5) * cell, z.top + (p.gridY + 0.5) * cell)
-            .setDisplaySize(cell + 0.6, cell + 0.6)
-            .setAngle(Math.floor(hash(p.gridX, p.gridY, 7) * 4) * 90)
-            .setTint(0xb4e4ff)
-            .setAlpha(0.34 + 0.1 * hash(p.gridX, p.gridY, 11));
-        i++;
+        if (frozen) ice.quad(x, y, cell + 0.6, cell + 0.6, 0.5, 0.5, rot, false, 0xb4e4ff, 0.34 + 0.1 * hash(p.gridX, p.gridY, 11), null, 1);
       }
-      for (let k = i; k < (this.iceTiles?.length || 0); k++) this.iceTiles[k]?.setVisible(false);
       this.drawTerrainFx(path, z, frozen, hills);
-      for (; i < this.pathTiles.length; i++) this.pathTiles[i].setVisible(false);
     }
     /**
      * v0.22h1: path dressing. Frozen Ground: a glossy sheet of ice (water-blue wash, cracks, light streaks).
@@ -1232,12 +1274,20 @@ export function mountArena({
         }
       }
     }
-    update(time, delta) {
-      const dt = Math.min(delta / 1000, 0.1);
+    /** `redraw`: a frame drawn out of turn (after a resize) without a game tick. */
+    update(time, delta, redraw = false) {
       this.stepSlide();
-      onTick(dt);
+      if (!redraw) onTick(Math.min(delta / 1000, 0.1));
       const game = getState();
       if (!game) return;
+      // v0.23: while the game is paused or a dialog is open, the board redraws ~10 times a second (unless a
+      // finger or the mouse is busy with it); the canvas keeps showing the last frame in between
+      const wall = performance.now();
+      if (!redraw && (game.paused || modalEl?.open) && !this.press && !this.slide && !this.scrollVel && wall - (this.pointer?.at ?? -1e9) > 400 && wall >= this.stage.shakeUntil && wall - (this.drawnAt ?? -1e9) < 100)
+        return false;
+      const dt = redraw ? 0 : Math.min((wall - (this.drawnAt ?? wall - delta)) / 1000, 0.1);
+      this.drawnAt = wall;
+      this.prefetch(wall);
       if (this.gameSeed !== game.seed || game.eventId < this.lastEvent) {
         this.gameSeed = game.seed;
         this.lastEvent = game.eventId || 0;
@@ -1268,6 +1318,7 @@ export function mountArena({
         this.lastView = view;
         this.lastEvent = game.eventId || 0;
         this.pathKey = "";
+        this.pathRef = null;
       }
       const cell = z.cw,
         selected = z.passive ? null : getSelection(),
@@ -1465,25 +1516,34 @@ export function mountArena({
       this.drawQueued(game, view, getQueued(), catalog, z, time);
       this.drawPreview(game, view, preview, catalog, z, time);
       // ---- towers: figures on their pedestals
-      const alive = new Set(),
-        team = TEAM_COLORS[colorOf(view)].hex;
+      const alive = this.alive || (this.alive = new Set()),
+        team = TEAM_COLORS[colorOf(view)].hex,
+        viewColor = colorOf(view),
+        now = performance.now();
+      alive.clear();
+      for (const b of this.badgeBatches.values()) {
+        b.clear();
+        b.used = false;
+      }
       for (const t of player.towers) {
         const tc = cell * towerSize(t); // a 2×2 hall draws at twice the size
         const def = catalog.byId[t.typeId || t.unitId || t.defId || t.type || t.id];
         if (!def) continue;
         const key = `${view}:t:${t.id}`,
-          q = this.point(t.x, t.y),
-          artKey = this.ready(artFor(def)),
-          m = ART_MANIFEST[artKey],
-          skin = this.teamTexture(artKey, colorOf(view));
+          q = this.point(t.x, t.y);
         alive.add(key);
         let sprite = this.units.get(key);
-        const baseAnim = this.animFor(artKey),
-          anim = baseAnim && TEAM_COLORS[colorOf(view)].hue !== null ? { ...baseAnim, tex: this.teamTexture(baseAnim.tex, colorOf(view)) } : baseAnim;
+        // v0.23: the art loads on first use; meanwhile the figure keeps its old picture (upgrades) or waits
+        const look = this.look(sprite, key, artFor(def), viewColor, "tower", now),
+          artKey = look.art,
+          m = ART_MANIFEST[artKey],
+          skin = look.tex,
+          anim = look.anim;
         if (!sprite) {
-          sprite = this.stage.image(q.x, q.y, anim ? anim.tex : skin, anim ? 0 : undefined);
+          sprite = this.stage.image(q.x, q.y, skin, anim ? 0 : undefined);
           this.units.set(key, sprite);
         }
+        if (sprite.visible === look.hide) sprite.setVisible(!look.hide);
         const building = (t.buildRemaining || 0) > 0,
           // Higher levels of the same figure stand a little taller on a slightly larger pedestal.
           base = ((tc * 0.98 * TOWER_SCALE) / m.plateW) * levelScale(def.level || 1) * (t.stone === "large" ? 1.23 : t.stone === "small" ? 0.8 : 1), // v0.18h: Quarry stones; v0.19c1: large ones 6 % larger
@@ -1506,7 +1566,7 @@ export function mountArena({
             const k = Math.floor((time - atk) / anim.ms) + (anim.start || 0);
             if (k < anim.frames) frame = k;
           }
-          this.showFrame(sprite, anim.tex, frame);
+          this.showFrame(sprite, skin, frame);
         } else if (sprite.texture.key !== skin) sprite.setTexture(skin);
         sprite
           .setOrigin(anim ? (m.plateCX + anim.ox) / anim.fw : m.plateCX / m.w, anim ? (m.plateCY + anim.oy) / anim.fh : m.plateCY / m.h)
@@ -1637,9 +1697,14 @@ export function mountArena({
           g.strokePath();
         }
         const level = t.level || def.level || 1;
-        if (def.perkUnit || def.id === "hROK") this.labels.get(key)?.setVisible(false); // v0.12: walls (v0.17: and rocks) carry no level badge
-        else this.levelBadge(key, level, cx - tc * 0.36, cy + tc * 0.2, Math.floor(cy) + 101, BADGE_COLORS[def.element] || BADGE_COLORS.neutral);
+        // v0.12: walls (v0.17: and rocks) carry no level badge
+        if (!def.perkUnit && def.id !== "hROK") this.levelBadge(level, cx - tc * 0.36, cy + tc * 0.2, Math.floor(cy) + 101, BADGE_COLORS[def.element] || BADGE_COLORS.neutral);
       }
+      for (const [depth, b] of this.badgeBatches)
+        if (!b.used) {
+          b.destroy();
+          this.badgeBatches.delete(depth);
+        }
       // ---- disease clouds
       for (const cl of game.clouds || []) {
         if (cl.lane !== view) continue;
@@ -1687,18 +1752,23 @@ export function mountArena({
           raw = this.point(c.x, c.y),
           // Render-only spread so a group reads as several units, not one blob.
           q = { x: raw.x + ((((phase0 * 37) % 7) - 3) / 3) * cell * 0.14, y: raw.y + ((((phase0 * 53) % 5) - 2) / 2) * cell * 0.1 },
-          artKey = this.ready(c.art || artFor(def), "creep"), // v0.16: c.art (wave 1 boxer goblin)
-          m = ART_MANIFEST[artKey],
           // v0.14: creeps wear their sender's colour (team blue in the art moved to that colour)
-          teamId = c.owner >= 0 ? colorOf(c.owner) : "neutral", // v0.15: neutral creeps wear brown; v0.17c: the Arcane Golem too wears its owner's colour
-          recolor = !!teamId && CLOTH_COLORS[teamId].hue !== null,
-          skin = recolor ? this.teamTexture(artKey, teamId) : artKey;
+          teamId = c.owner >= 0 ? colorOf(c.owner) : "neutral"; // v0.15: neutral creeps wear brown; v0.17c: the Arcane Golem too wears its owner's colour
         alive.add(key);
         let sprite = this.units.get(key);
-        const baseWalk = this.animFor(artKey),
-          walk = baseWalk && recolor ? { ...baseWalk, tex: this.teamTexture(baseWalk.tex, teamId) } : baseWalk;
+        // v0.23: a creep whose art is still loading stays out of sight for a moment (it comes out of the portal)
+        const look = this.look(sprite, key, c.art || artFor(def), teamId, "creep", now), // v0.16: c.art (wave 1 boxer goblin)
+          artKey = look.art,
+          m = ART_MANIFEST[artKey],
+          skin = look.tex,
+          walk = look.anim;
+        if (look.hide) {
+          if (sprite?.visible) sprite.setVisible(false);
+          continue;
+        }
+        if (sprite && !sprite.visible) sprite.setVisible(true);
         if (!sprite) {
-          sprite = this.stage.image(q.x, q.y, walk ? walk.tex : skin, walk ? 0 : undefined);
+          sprite = this.stage.image(q.x, q.y, skin, walk ? 0 : undefined);
           sprite.setData("hp", c.hp).setData("px", q.x);
           this.units.set(key, sprite);
         }
@@ -1725,7 +1795,7 @@ export function mountArena({
             last = sprite.getData("wt") ?? time,
             clock = (sprite.getData("wc") ?? phase0 * 97) + Math.min(100, time - last) * rate;
           sprite.setData("wt", time).setData("wc", clock);
-          this.showFrame(sprite, walk.tex, Math.floor(clock / walk.ms) % walk.frames);
+          this.showFrame(sprite, skin, Math.floor(clock / walk.ms) % walk.frames);
         } else if (sprite.texture.key !== skin) sprite.setTexture(skin);
         if ((sprite.getData("hit") || 0) > time) sprite.setTint(0xffffff).setTintMode(TINT.FILL);
         else {
@@ -1935,9 +2005,8 @@ export function mountArena({
         if (!alive.has(key)) {
           s.destroy();
           this.units.delete(key);
-          this.labels.get(key)?.destroy();
-          this.labels.delete(key);
         }
+      for (const key of this.waiting.keys()) if (!alive.has(key)) this.waiting.delete(key); // v0.23
       this.consumeEvents(game, view, own, catalog, z, time);
       this.drawFx(game, player, dt, cell);
       this.drawPip(game, view, own, z, catalog, time);
@@ -2022,17 +2091,32 @@ export function mountArena({
       }
       return this.burnCache.get(def.id);
     }
-    levelBadge(key, level, x, y, depth, color = BADGE_COLORS.neutral) {
-      let label = this.labels.get(key);
-      if (!label) {
-        label = this.stage
-          .text(0, 0, "", { fontFamily: FONT, fontSize: "11px", color: "#ffffff", stroke: "#0b0f14", strokeThickness: 3, backgroundColor: color, resolution: DPR })
-          .setPadding(3, 0, 3, 1)
-          .setOrigin(0.5);
-        this.labels.set(key, label);
+    /**
+     * v0.23: level badges come from one shared atlas (every colour × level, drawn exactly like the text labels
+     * they replace) and are batched per row, so the depth order with the figures stays the same.
+     */
+    badgeAtlas(extra) {
+      this.badgeSet ||= new Set(Object.values(BADGE_COLORS).flatMap((c) => Array.from({ length: 10 }, (_, i) => c + "|" + (i + 1))));
+      if (extra) this.badgeSet.add(extra);
+      const entries = [...this.badgeSet].map((name) => {
+        const [color, text] = name.split("|");
+        return { name, text, pad: [3, 0, 3, 1], style: { fontFamily: FONT, fontSize: "11px", color: "#ffffff", stroke: "#0b0f14", strokeThickness: 3, backgroundColor: color } };
+      });
+      this.stage.textAtlas("badges", entries, DPR);
+    }
+    levelBadge(level, x, y, depth, color = BADGE_COLORS.neutral) {
+      const names = (this.badgeNames[color] ||= []),
+        name = (names[level] ||= color + "|" + level);
+      let r = this.stage.rect("badges", name);
+      if (!r) {
+        this.badgeAtlas(name);
+        r = this.stage.rect("badges", name);
+        if (!r) return;
       }
-      if (label.getData("bg") !== color) label.setBackgroundColor(color).setData("bg", color);
-      label.setText(String(level)).setPosition(x, y).setDepth(depth).setVisible(true);
+      let batch = this.badgeBatches.get(depth);
+      if (!batch) this.badgeBatches.set(depth, (batch = this.stage.sprites("badges").setDepth(depth)));
+      batch.used = true;
+      batch.quad(x, y, r.w, r.h, 0.5, 0.5, 0, false, 0xffffff, 1, r.uv);
     }
     chevrons(g, pts, time, cell, color, alpha) {
       const spacing = cell * 0.62,
@@ -2079,10 +2163,10 @@ export function mountArena({
           q = this.point((qd.gridX + fp / 2) / z.logicalCols, (qd.gridY + fp / 2) / z.logicalRows),
           cell = z.cw * fp;
         if (!def) return img.setVisible(false);
-        const artKey = this.ready(artFor(def)),
-          m = ART_MANIFEST[artKey];
+        const still = this.stillFor(artFor(def), colorOf(getOwnPlayer())), // v0.23
+          m = ART_MANIFEST[still.art];
         img
-          .setTexture(this.teamTexture(artKey, colorOf(getOwnPlayer())))
+          .setTexture(still.tex)
           .setVisible(true)
           .setOrigin(m.plateCX / m.w, m.plateCY / m.h)
           .setAlpha(0.4)
@@ -2155,11 +2239,11 @@ export function mountArena({
         g.lineBetween(q.x + s, q.y - s, q.x - s, q.y + s);
       }
       if (def) {
-        const artKey = this.ready(artFor(def)),
-          m = ART_MANIFEST[artKey],
+        const still = this.stillFor(artFor(def), colorOf(getOwnPlayer())), // v0.23
+          m = ART_MANIFEST[still.art],
           s = ((cell * 0.98 * TOWER_SCALE) / m.plateW) * levelScale(def.level || 1);
         this.ghost
-          .setTexture(this.teamTexture(artKey, colorOf(getOwnPlayer())))
+          .setTexture(still.tex)
           .setVisible(ok)
           .setOrigin(m.plateCX / m.w, m.plateCY / m.h)
           .setAlpha(0.6 + 0.15 * Math.sin(time * 0.01))
@@ -2322,7 +2406,9 @@ export function mountArena({
         const p = this.particles[i];
         p.life -= dt;
         if (p.life <= 0) {
-          this.particles.splice(i, 1);
+          // v0.23: swap-remove (splice moved every later particle)
+          const last = this.particles.pop();
+          if (last !== p) this.particles[i] = last;
           continue;
         }
         p.vy += p.gravity * dt;
@@ -2597,7 +2683,8 @@ export function mountArena({
       this.gainFlash = 0;
     }
   }
-  const stage = new Stage(container, { background: "#0b201d", dpr: DPR }),
+  const modalEl = document.getElementById("modal"); // v0.23: the dialog (menu, picks, results) over the board
+  const stage = new Stage(container, { background: "#0b201d", dpr: DPR, antialias: (window.devicePixelRatio || 1) < 2 }),
     arena = new Arena(stage);
   if (/^(127\.0\.0\.1|localhost)$/.test(location.hostname)) window.felitoArena = arena; // local debugging only
   let started = false,
@@ -2606,12 +2693,15 @@ export function mountArena({
     if (destroyed) return;
     arena.create();
     started = true;
-    stage.start((time, delta) => arena.update(time, delta));
+    stage.start((time, delta, redraw) => arena.update(time, delta, redraw));
   });
   // The board follows its container and the HUD/dock around it.
   const resize = new ResizeObserver(() => {
     measureInsets();
-    if (container.clientWidth > 0 && container.clientHeight > 0) stage.resize();
+    if (container.clientWidth > 0 && container.clientHeight > 0) {
+      stage.resize();
+      if (started) stage.redraw(); // v0.23: the resized (cleared) canvas never shows empty for a frame
+    }
   });
   for (const el of [
     container,

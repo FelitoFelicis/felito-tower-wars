@@ -3450,6 +3450,16 @@ function deckItems() {
     )
     .sort((a, b) => Number(elementIds.includes(a.id)) - Number(elementIds.includes(b.id)) || a.woodCost - b.woodCost);
 }
+/** v0.23: what the board loads ahead: the towers you can build, their next upgrades and the creeps you can send. */
+function prefetchArt() {
+  const p = game?.players[own];
+  if (!p || !catalog) return null;
+  const items = new Set();
+  for (const x of catalog.towers) if (x.isRoot && x.playable && x.support !== "farm" && !isLocked(available(game, own, "build", x.id))) items.add(x);
+  for (const tw of p.towers) for (const id of catalog.byId[tw.typeId]?.upgrades || []) if (catalog.byId[id]) items.add(catalog.byId[id]);
+  for (const x of catalog.sends) if (x.playable && x.tier === p.tier) items.add(x);
+  return items;
+}
 function upgradeTower() {
   if (!game || tab !== "build" || view !== own || !selectedTower) return null;
   return game.players[own].towers.find((t) => t.id === selectedTower) || null;
@@ -7451,6 +7461,7 @@ async function init() {
         hoverCell = cell && tab === "build" && selected && view === own ? cell : null;
       },
       onTick: tick,
+      getPrefetch: prefetchArt, // v0.23
     });
     // v0.15: a double tap on Send opens the send cards but keeps your own field in view; the
     // first tap waits a moment before it rolls over to the target's field.
