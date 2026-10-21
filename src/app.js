@@ -119,7 +119,7 @@ import {
   AUTO_MODES,
 } from "./simulation.js";
 import { mountArena, artFor } from "./arena.js";
-import { artUrl, iconUrl, ELEMENT_ICON, ART_MANIFEST, registerTowerArt, TEAM_COLORS, recolorTeam } from "./art.js";
+import { artUrl, iconUrl, ELEMENT_ICON, ART_MANIFEST, registerTowerArt, TEAM_COLORS, recolorTeam, CREEP_PORTRAIT } from "./art.js";
 import { createSoundtrack } from "./soundtrack.js";
 import { createSfx, haptic } from "./sfx.js";
 import { t, num, goldText } from "./i18n.js";
@@ -142,7 +142,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.22",
+const APP_VERSION = "0.22f (branch - creeps)",
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "18.10.2026";
 // v0.18: the version also stands in the page title (browser tab and the artifact window in chats)
@@ -1228,7 +1228,7 @@ const REWORK_HINT = {
 };
 
 // The original names, except for the creeps and buildings renamed in this port.
-const namesEn = { Peon: "Goblin", "Chaos Peon": "Imp", Lumbermill: "EXP Generator", "Skeleton Grunt": "Skeleton Berserker", "Draenai Marauder": "Arcane Marauder" }; // v0.21h: two renames
+const namesEn = { Peon: "Goblin", "Chaos Peon": "Imp", Lumbermill: "EXP Generator", "Skeleton Grunt": "Skeleton Berserker", "Draenai Marauder": "Arcane Marauder", "Boar Scout": "Boar" }; // v0.21h: two renames; v0.22f: Boar
 function itemName(item) {
   if (researchCopy[item?.id]) return t(researchCopy[item.id][0]);
   if (item?.id === "n00Y" && game && burningTreant(game.players[own])) return t("Burning Treant"); // v0.10w
@@ -1621,6 +1621,7 @@ function statTip(item, action, towerId = null, who = own, bare = false) {
     rows.push([t("Damage/second"), s.cooldown > 0 ? changed(b.cooldown > 0 ? b.damage / b.cooldown : NaN, s.damage / s.cooldown) : "–"]); // v0.16e, v0.17g: right below Damage
     rows.push([t("Range"), isMeleeTower(item) ? t("Melee") : changed(b.range / cu, s.range / cu)]); // v0.17m: numbers only
     if (ai.splash) rows.push([t("Splash Radius"), changed(attackInfo(game, item.id, null).splash / cu, ai.splash / cu)]); // v0.17g, v0.17m: numbers only
+    if (ai.splash && isMeleeTower(item) && item.splashMediumFactor > 0 && !(item.splashFull > 0)) rows.push([t("Splash Damage"), Math.round(item.splashMediumFactor * 100) + "%"]); // branch - creeps
     if (ai.multi) rows.push([t("Multi Targets"), String(ai.multi)]);
     if (ai.bounce) rows.push([t("Bouncing Targets"), String(ai.bounce)]);
     rows.push([t("Attacks every"), `${changed(b.cooldown, s.cooldown)} s`]);
@@ -3069,11 +3070,17 @@ function fitCardNames(root) {
   for (const el of root.querySelectorAll(".unit-card:not(.up-card) .unit-name"))
     if (el.scrollWidth > el.clientWidth + 1) el.classList.add("long-name");
 }
+/** v0.22f (branch - creeps): send cards show the creep's painted portrait where its sheet has one. */
+function cardArtHtml(item) {
+  const key = artFor(item),
+    portrait = item.kind === "send" ? CREEP_PORTRAIT[key] : null;
+  return portrait ? `<span class="card-art portrait-art"><img src="${towerArtUrl(portrait)}" alt=""></span>` : `<span class="card-art"><img src="${towerArtUrl(key)}" alt=""></span>`;
+}
 function cardMarkup(item) {
   const a = available(game, own, cardAction(item), item.id),
     label = priceLabel(item),
     kindClass = item.kind === "send" ? "card-send" : item.kind === "research" ? "card-research" : "card-tower";
-  return `<button class="unit-card ${kindClass}${item.id === "n00Y" && game && burningTreant(game.players[own]) ? " burning" : ""} ${item.kind === "send" && (item.bossTier || item.flying) ? "framed" : ""} ${selected === item.id && tab === "build" ? "selected" : ""} ${a.ok ? "" : "unaffordable"} ${isPoor(a) ? "poor" : ""}" data-kind="${item.kind}" data-card="${item.id}" aria-label="${esc(itemName(item))}, ${esc(label)} Gold, ${esc(cardHint(item))}${a.ok ? "" : ", " + esc(t(a.reason))}"><span class="unit-name">${esc(itemName(item))}</span><span class="card-art"><img src="${towerArtUrl(artFor(item))}" alt=""></span><span class="card-foot${item.kind === "send" && (label + formatInc(incomeFor(item))).length >= (item.bossTier || item.flying ? 6 : 7) ? " long" : ""}"><span class="price${item.kind === "research" && itemPrice(item).wood ? " wood-price" : ""}${isFreeLabel(label) ? " free" : ""}">${label}</span>${item.kind === "send" ? `<span class="card-note${incomeFor(item) > item.income + 0.004 ? " buffed" : ""}">+${formatInc(incomeFor(item))}</span>` : ""}</span><span class="card-status">${cardStatus(item)}</span>${item.kind === "send" ? `<span class="card-stock">${stockCount(item)}</span>${item.bossTier ? '<i class="frame-boss" aria-hidden="true"></i>' : item.flying ? '<i class="frame-air" aria-hidden="true"></i>' : ""}` : ""}</button>`;
+  return `<button class="unit-card ${kindClass}${item.id === "n00Y" && game && burningTreant(game.players[own]) ? " burning" : ""} ${item.kind === "send" && (item.bossTier || item.flying) ? "framed" : ""} ${selected === item.id && tab === "build" ? "selected" : ""} ${a.ok ? "" : "unaffordable"} ${isPoor(a) ? "poor" : ""}" data-kind="${item.kind}" data-card="${item.id}" aria-label="${esc(itemName(item))}, ${esc(label)} Gold, ${esc(cardHint(item))}${a.ok ? "" : ", " + esc(t(a.reason))}"><span class="unit-name">${esc(itemName(item))}</span>${cardArtHtml(item)}<span class="card-foot${item.kind === "send" && (label + formatInc(incomeFor(item))).length >= (item.bossTier || item.flying ? 6 : 7) ? " long" : ""}"><span class="price${item.kind === "research" && itemPrice(item).wood ? " wood-price" : ""}${isFreeLabel(label) ? " free" : ""}">${label}</span>${item.kind === "send" ? `<span class="card-note${incomeFor(item) > item.income + 0.004 ? " buffed" : ""}">+${formatInc(incomeFor(item))}</span>` : ""}</span><span class="card-status">${cardStatus(item)}</span>${item.kind === "send" ? `<span class="card-stock">${stockCount(item)}</span>${item.bossTier ? '<i class="frame-boss" aria-hidden="true"></i>' : item.flying ? '<i class="frame-air" aria-hidden="true"></i>' : ""}` : ""}</button>`;
 }
 function renderCards() {
   if (!game) return;

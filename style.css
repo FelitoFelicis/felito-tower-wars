@@ -7256,3 +7256,109 @@ p.room-opts { text-align: center; }
 dialog.welcome-modal.easy-eyes .mood-easy,
 dialog.welcome-modal.hard-eyes .mood-hard { opacity: 1; }
 dialog.welcome-modal.hard-eyes .mood-hard-glow { opacity: 0.8; } /* v0.22: only the wolf's eyes pulse; the others glow steadily */
+
+/* ---- branch - creeps: send buttons in the bestiary scroll style ----------------------------
+   Parchment card, a tan scroll ribbon with dark ink for gold and income, the stock in the
+   square number box of the scrolls; bosses get the red skull ribbon. */
+.game-shell[data-page="send"] .unit-card[data-kind="send"] {
+  background:
+    radial-gradient(ellipse 70% 62% at 50% 42%, #fbf0d8 0%, #f1dcb2 55%, #dcb87f 100%) !important;
+  border: 2px solid #3b2413;
+  box-shadow:
+    inset 0 0 0 1px #fff4dc,
+    inset 0 0 6px #b68a4f,
+    0 2px 0 #1a0d05;
+}
+.game-shell[data-page="send"] .unit-card[data-kind="send"] .card-art {
+  background: none;
+}
+.game-shell[data-page="send"] .unit-card[data-kind="send"] .card-art img {
+  filter: drop-shadow(0 1.5px 1px #3b241366);
+}
+.game-shell[data-page="send"] .unit-card[data-kind="send"] .card-foot {
+  left: 2px;
+  right: 2px;
+  bottom: 1px;
+  height: 15px;
+  border: 1.5px solid #3b2413;
+  border-radius: 3px;
+  background: linear-gradient(#fdebc8, #f1d4a5 55%, #dcb376);
+  box-shadow:
+    inset 3px 0 0 #c99b5f,
+    inset -3px 0 0 #c99b5f,
+    inset 0 1px 0 #fff6e0;
+}
+.game-shell[data-page="send"] .unit-card[data-kind="send"] .card-foot .price {
+  color: #2e1a0c;
+  text-shadow: none;
+}
+.game-shell[data-page="send"] .unit-card[data-kind="send"] .card-note,
+.game-shell[data-page="send"] .unit-card[data-kind="send"].framed .card-note {
+  color: #17692a;
+  text-shadow: 0 0.5px 0 #fff6e0;
+}
+.game-shell[data-page="send"] .unit-card[data-kind="send"] .card-note.buffed {
+  color: #0e7f8a;
+}
+.game-shell[data-page="send"] .unit-card[data-kind="send"] .card-stock {
+  left: 3px;
+  top: 3px;
+  bottom: auto;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 2px;
+  border: 1.5px solid #2a180b;
+  border-radius: 3px;
+  background: linear-gradient(#fdf0d2, #ecd0a0);
+  box-shadow: 0 1px 0 #2a180b66;
+  font: 400 11px/12px var(--font-number);
+  text-align: center;
+  color: #2a180b;
+  text-shadow: none;
+}
+.game-shell[data-page="send"] .unit-card[data-kind="send"].framed .card-stock {
+  left: 7px;
+  top: 7px;
+  bottom: auto;
+}
+.game-shell[data-page="send"] .unit-card[data-kind="send"].framed .card-foot {
+  left: 4px;
+  right: 4px;
+  bottom: 5px;
+  height: 15px;
+  border-radius: 3px;
+}
+/* boss: the red BOSS ribbon of the scrolls, light ink */
+.game-shell[data-page="send"] .unit-card[data-kind="send"]:has(.frame-boss) .card-foot {
+  border-color: #3a0806;
+  background: linear-gradient(#ef5a49, #c4281f 55%, #8f1610);
+  box-shadow:
+    inset 3px 0 0 #7d120d,
+    inset -3px 0 0 #7d120d,
+    inset 0 1px 0 #ff9a8a;
+}
+.game-shell[data-page="send"] .unit-card[data-kind="send"]:has(.frame-boss) .card-foot .price,
+.game-shell[data-page="send"] .unit-card[data-kind="send"]:has(.frame-boss) .card-note {
+  color: #fff3e6;
+  text-shadow: 0 1px 0 #3a0806;
+}
+.game-shell[data-page="send"] .unit-card[data-kind="send"].unaffordable .price,
+.game-shell[data-page="send"] .unit-card[data-kind="send"].poor .price {
+  color: #a3241c;
+}
+.game-shell[data-page="send"] .unit-card[data-kind="send"]:has(.frame-boss).unaffordable .price,
+.game-shell[data-page="send"] .unit-card[data-kind="send"]:has(.frame-boss).poor .price {
+  color: #ffd0c8;
+}
+
+/* v0.22f (branch - creeps): painted portraits on the send buttons fill the picture area, flat cut at the ribbon */
+.unit-card[data-kind="send"] .card-art.portrait-art img {
+  inset: 1px 1px 0;
+  width: calc(100% - 2px);
+  height: calc(100% - 1px);
+  object-fit: contain;
+  object-position: 50% 100%;
+}
+.game-shell[data-page="send"] .unit-card[data-kind="send"] .card-art.portrait-art img {
+  filter: drop-shadow(0 1px 1px #3b241355);
+}

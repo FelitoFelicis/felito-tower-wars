@@ -324,11 +324,11 @@ export function mountArena({
   // Start fast: only the board itself and two fallback figures load before the arena opens.
   // Every other figure streams in the background right after (entry-level towers first);
   // until a figure has arrived, its base art or a stand-in is drawn.
-  const ESSENTIAL = [...GRASS, "tile-path", ...DECO, "tower-archer", "creep-goblin"];
+  const ESSENTIAL = [...GRASS, "tile-path", ...DECO, "tower-archer", "creep-n-goblin"]; // branch - creeps
   const FIRST = ["tower-archer-v2", "tower-guard-l1", "tower-cannon-v3", "tower-hall", "tower-arcane-v2", "tower-farm"];
   const BACKGROUND = [
     ...FIRST,
-    ...CREEP_ART,
+    ...CREEP_ART.filter((k) => k.startsWith("creep-n-")), // branch - creeps: only the bestiary figures are drawn on the board
     ...TOWER_ART.filter((k) => !/-(v|l)\d$/.test(k)),
     ...TOWER_ART.filter((k) => /-(v|l)\d$/.test(k)),
   ].filter((k, i, all) => !ESSENTIAL.includes(k) && all.indexOf(k) === i);
@@ -376,7 +376,7 @@ export function mountArena({
       if (this.stage.hasTexture(key)) return key;
       const base = key.replace(/-(v|l)\d$/, "");
       if (this.stage.hasTexture(base)) return base;
-      return kind === "creep" ? "creep-goblin" : "tower-archer";
+      return kind === "creep" ? "creep-n-goblin" : "tower-archer";
     }
     /**
      * Player colour on tower figures: the art's team-blue cloth stays blue for the viewer's own
@@ -408,6 +408,51 @@ export function mountArena({
         console.warn("Team colour not possible for", key, err);
         return key;
       }
+    }
+    /**
+     * v0.22f (branch - creeps): a killed creep with a death sheet stays where it fell and plays its six
+     * death frames (flyers sink to the ground meanwhile), lies still for a moment and fades. Creeps that
+     * break through or leave the screen simply vanish as before.
+     */
+    settleDeaths(view, time) {
+      this.dying ||= [];
+      for (const [key, s] of this.gone || []) {
+        const art = s.getData("art"),
+          meta = ANIM_MANIFEST[`${art}-death`],
+          killedAt = this.killed?.get(key);
+        let tex = `anim:${art}-death`;
+        if (!meta || killedAt === undefined || time - killedAt > 600 || !this.stage.hasTexture(tex)) {
+          s.destroy();
+          continue;
+        }
+        const team = s.getData("team");
+        if (team) tex = this.teamTexture(tex, team);
+        const lift = s.getData("lift") || 0,
+          shown = s.getData("show") ?? s.getData("dir") ?? 0,
+          sx = Math.abs(s.sx) * (shown >= 1 && shown <= 3 ? -1 : 1), // right-facing creeps fall the mirrored way
+          sy = Math.abs(s.sy);
+        s.setTintMode(TINT.MULTIPLY).clearTint();
+        s.setTexture(tex, 0).setOrigin(meta.footX / meta.fw, meta.footY / meta.fh).setScale(sx, sy).setAlpha(1);
+        s.setDepth(2990 + Math.floor(s.y + lift));
+        this.dying.push({ s, view, start: time, meta, tex, groundY: s.y + lift, lift });
+      }
+      this.gone = [];
+      if (this.killed?.size > 64) for (const [k, t] of this.killed) if (time - t > 2000) this.killed.delete(k);
+      this.dying = this.dying.filter((d) => {
+        const el = time - d.start,
+          play = d.meta.ms * d.meta.frames,
+          hold = 900,
+          fade = 500;
+        if (d.view !== view || el > play + hold + fade || d.s.destroyed) {
+          d.s.destroy();
+          return false;
+        }
+        this.showFrame(d.s, d.tex, Math.min(d.meta.frames - 1, Math.floor(el / d.meta.ms)));
+        const fall = clamp(el / (d.meta.ms * 4), 0, 1);
+        d.s.setPosition(d.s.x, d.groundY - d.lift * (1 - fall * fall));
+        d.s.setAlpha(el > play + hold ? 1 - (el - play - hold) / fade : 1);
+        return true;
+      });
     }
     /** Frame animation for an art key, once its sheet has loaded. */
     animFor(artKey) {
@@ -1096,6 +1141,7 @@ export function mountArena({
             this.floatText(q.x, q.y - cell * 0.45, `+${n} EXP`, "#d2b0ff", 15, 44, 1.2);
           }
         } else if (e.type === "kill" && e.player === view) {
+          (this.killed ||= new Map()).set(`${view}:c:${e.creepId}`, time); // v0.22f: death animation
           const q = this.point(e.x, e.y),
             def = catalog.byId[e.id],
             big = !!def?.bossTier;
@@ -1577,12 +1623,46 @@ export function mountArena({
           flying = !!(c.flying ?? def.flying),
           neutral = c.owner < 0,
           height = cell * (boss ? 1.3 * (c.waveBoss ? 1 : tierGrowth(def.tier || (def.bossTier || 2) - 1)) : (flying ? 0.82 : 0.78) * (neutral ? 1 : creepSize(catalog, def.id))) * (c.golem ? 1 + 0.07 * ((c.level || 1) - 1) : 1), // v0.17c: the Arcane Golem grows 7 % per perk level
-          s = (height / m.h) * (1 - 0.12 * (c.shrink || 0)),
+          s = (height / (walk?.figH ? walk.figH * 1.04 : m.h)) * (1 - 0.12 * (c.shrink || 0)), // branch - creeps: directional walks are scaled by their own figure height
           step = time * 0.016 + phase0;
         const lift = flying ? cell * 0.32 + Math.sin(time * 0.006 + phase0) * cell * 0.05 : walk ? 0 : Math.abs(Math.sin(step)) * cell * 0.05;
+        sprite.setData("lift", lift).setData("art", artKey).setData("team", recolor ? teamId : ""); // v0.22f: for the death animation
         const dx = q.x - (sprite.getData("px") ?? q.x);
         if (Math.abs(dx) > 0.35) sprite.setData("face", dx < 0 ? -1 : 1);
         sprite.setData("px", q.x);
+        if (walk?.dirs) {
+          // branch - creeps: 8-way walk. The heading follows a smoothed screen velocity and only turns
+          // once it is clearly in the next sector, so corners do not flicker between two views.
+          const px = sprite.getData("wx") ?? raw.x,
+            py = sprite.getData("wy") ?? raw.y,
+            ddx = raw.x - px,
+            ddy = raw.y - py,
+            moved = Math.hypot(ddx, ddy);
+          sprite.setData("wx", raw.x).setData("wy", raw.y);
+          if (moved < cell * 2) {
+            // steps follow the ground: one full cycle (two steps) per ~0.85 figure heights walked
+            sprite.setData("wd", (sprite.getData("wd") ?? phase0 * 0.37) + moved);
+            // time-based smoothing (~0.25 s), so a corner in the path is taken as a curve
+            const kk = 1 - Math.exp(-Math.min(100, time - (sprite.getData("vt") ?? time)) / 250),
+              vx = (sprite.getData("vx") ?? ddx) * (1 - kk) + ddx * kk,
+              vy = (sprite.getData("vy") ?? ddy) * (1 - kk) + ddy * kk;
+            sprite.setData("vt", time);
+            sprite.setData("vx", vx).setData("vy", vy);
+            if (Math.hypot(vx, vy) > cell * 0.002) {
+              const ang = Math.atan2(vy, vx),
+                cur = sprite.getData("dir"),
+                k = ((Math.round(ang / (Math.PI / 4)) % 8) + 8) % 8,
+                next = (10 - k) % 8;
+              let turn = cur === undefined;
+              if (!turn && next !== cur) {
+                const curAng = (((10 - cur) % 8) * Math.PI) / 4,
+                  off = Math.abs(Math.atan2(Math.sin(ang - curAng), Math.cos(ang - curAng)));
+                turn = off > Math.PI / 8 + 0.14; // ~8° past the sector edge
+              }
+              if (turn && next !== cur) sprite.setData("dir", next);
+            }
+          }
+        }
         if (c.hp < (sprite.getData("hp") ?? c.hp) - 0.01 && time - (sprite.getData("flashAt") || 0) > 170)
           sprite.setData("flashAt", time).setData("hit", time + 55);
         sprite.setData("hp", c.hp);
@@ -1596,7 +1676,22 @@ export function mountArena({
             last = sprite.getData("wt") ?? time,
             clock = (sprite.getData("wc") ?? phase0 * 97) + Math.min(100, time - last) * rate;
           sprite.setData("wt", time).setData("wc", clock);
-          this.showFrame(sprite, walk.tex, Math.floor(clock / walk.ms) % walk.frames);
+          if (walk.dirs) {
+            // branch - creeps: the cycle is driven by the distance walked (feet match the ground speed,
+            // a stopped or stunned creep freezes mid-step). Turns are played out: the figure steps through
+            // each view in between (front → front-right → right …), one every 130 ms, instead of snapping.
+            const stride = Math.max(4, height * 0.85),
+              pos = ((((sprite.getData("wd") ?? 0) / stride) * walk.frames) % walk.frames + walk.frames) % walk.frames,
+              dir = sprite.getData("dir") ?? 0;
+            let shown = sprite.getData("show") ?? dir;
+            if (shown !== dir && time - (sprite.getData("showAt") ?? -1e9) >= 130) {
+              const diff = ((dir - shown + 12) % 8) - 4; // shortest way round, -4..3
+              shown = (shown + (diff >= 0 ? 1 : -1) + 8) % 8;
+              sprite.setData("showAt", time);
+            }
+            sprite.setData("show", shown);
+            this.showFrame(sprite, walk.tex, shown * walk.frames + Math.floor(pos));
+          } else this.showFrame(sprite, walk.tex, Math.floor(clock / walk.ms) % walk.frames);
         } else if (sprite.texture.key !== skin) sprite.setTexture(skin);
         if ((sprite.getData("hit") || 0) > time) sprite.setTint(0xffffff).setTintMode(TINT.FILL);
         else {
@@ -1617,9 +1712,9 @@ export function mountArena({
           growl = c.enrageUntil > game.time ? Math.sin(Math.PI * clamp(1 - (c.enrageUntil - game.time) / 1.2, 0, 1)) : 0,
           rage = c.enraged ? 1.1 + 0.1 * growl : 1;
         sprite
-          .setOrigin(walk ? (m.w / 2 + walk.ox) / walk.fw : 0.5, walk ? (m.footY + walk.oy) / walk.fh : m.footY / m.h)
+          .setOrigin(walk ? (walk.footX ?? m.w / 2 + walk.ox) / walk.fw : 0.5, walk ? (walk.footY ?? m.footY + walk.oy) / walk.fh : m.footY / m.h)
           .setPosition(q.x, q.y + cell * 0.18 - lift)
-          .setScale(s * rage * (sprite.getData("face") === -1 ? -1 : 1) * (c.buff === "fat" ? 1.42 : 1) * (c.spiritWolf ? 1.08 : 1), s * rage * flap * (c.buff === "fat" ? 1.06 : 1) * (c.spiritWolf ? 1.08 : 1)) // v0.15: fat quest creeps; v0.19a1: Spirit Wolves a little larger
+          .setScale(s * rage * (sprite.getData("face") === -1 && !walk?.dirs ? -1 : 1) * (c.buff === "fat" ? 1.42 : 1) * (c.spiritWolf ? 1.08 : 1), s * rage * flap * (c.buff === "fat" ? 1.06 : 1) * (c.spiritWolf ? 1.08 : 1)) // v0.15: fat quest creeps; v0.19a1: Spirit Wolves a little larger
           .setRotation(flying || walk ? 0 : Math.sin(step) * 0.07)
           .setDepth(3000 + Math.floor(q.y) + (flying ? 1200 : 0)); // creeps always draw in front of towers
         g.fillStyle(0x06120e, flying ? 0.22 : 0.32);
@@ -1774,14 +1869,18 @@ export function mountArena({
           hb.fillRoundedRect(q.x - bar / 2, barY, Math.max(1, bar * ratio), barH, 2);
         }
       }
+      this.gone ||= [];
       for (const [key, s] of this.units)
         if (!alive.has(key)) {
-          s.destroy();
+          // v0.22f (branch - creeps): creeps with a death sheet wait for this frame's kill events
+          if (ANIM_MANIFEST[`${s.getData("art")}-death`]) this.gone.push([key, s]);
+          else s.destroy();
           this.units.delete(key);
           this.labels.get(key)?.destroy();
           this.labels.delete(key);
         }
       this.consumeEvents(game, view, own, catalog, z, time);
+      this.settleDeaths(view, time);
       this.drawFx(game, player, dt, cell);
       this.drawPip(game, view, own, z, catalog, time);
       this.drawVignette(z, dt);

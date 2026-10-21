@@ -3875,8 +3875,9 @@ function attack(game, p, tower, dt, known = null) {
     const bombard = lineSet("h02R").has(tower.typeId),
       gp = bombard ? gunpowderBonus(game, p) : 0, // v0.21u: Gunpowder widens the outermost ring
       maxR = bombard ? Math.max(item.splashFull, item.splashMedium, item.splashSmall) * BOMBARD_RADIUS + gp : Infinity;
+    const melee = isMeleeTower(item); // branch - creeps: melee splash (former Splash Attack) only hits the ground
     for (const other of p.creeps) {
-      if (other === target || other.dead || other.hp <= 0) continue;
+      if (other === target || other.dead || other.hp <= 0 || (melee && other.flying)) continue;
       const d = dist(game, target, other);
       if (d > maxR) continue;
       let rate =
