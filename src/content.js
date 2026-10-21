@@ -590,6 +590,8 @@ const ABILITY_PATCH = {
   A02E: { fields: { aub1: { 1: "Shoots |c00FFFF004|r arrows simultaneously" } } },
   A03G: { fields: { aub1: { 1: "Shoots |c00FFFF005|r arrows simultaneously" } } },
   A05G: { fields: { aub1: { 1: "Shoots |c00FFFF006|r arrows simultaneously" } } },
+  A0D1: { fields: { Ssk3: { 1: 12 } } }, // v0.23: Druid's Scale Armor ignores 12 damage per hit (the value was missing, so it ignored nothing)
+  A08K: { fields: { Ssk2: { 1: 3 } } }, // v0.23: Frost Wyrm and Lord Garithos take at least 3 damage per hit (was 1: the value was missing)
 };
 /**
  * v0.21m: the names this port gave its units, written over the Warcraft names in the catalog itself, so every
@@ -624,9 +626,12 @@ const UNIT_ABILITY_SWAP = {
   n01H: { A0D1: "", A05F: "", A01S: "" }, // Meat Golem
   n01T: { A09P: "", A05F: "", A01S: "" }, // Infernal Golem
   n02R: { A0D5: "", A05F: "" }, // Mountain Golem
+  // v0.23: Skeleton Berserker and Ghoul: Arrow Resistance like the Skeleton's, 33 % less damage from Archer-Line towers (was: ignores 1 / 9 ranged damage)
+  n011: { A00C: "XA01" },
+  n01D: { A09U: "XA01" },
 };
 /** Per unit: abilities added in front. */
-const UNIT_ABILITY_ADD = { n02P: ["XA08"], n01R: ["XA08"], n00Y: ["XA10", "XA09"], n01H: ["XA11", "XA12"], n00T: ["XA12"], n015: ["XA12"], n01T: ["XA12"], n02R: ["XA12"] }; // v0.22n2: Tier Boss // v0.21z: Treant EXP Bonus and Spawn Wisp, Meat Golem Enrage // v0.21k: Slow Resistance for Warden and Eredar Warlock
+const UNIT_ABILITY_ADD = { n02P: ["XA08"], n01R: ["XA08"], n00Y: ["XA10", "XA09"], n01H: ["XA11", "XA12"], n00T: ["XA12"], n015: ["XA12"], n01T: ["XA12"], n02R: ["XA12"], n02I: ["A03D"] }; // v0.23: Lord Garithos shows his Divine Shield // v0.22n2: Tier Boss // v0.21z: Treant EXP Bonus and Spawn Wisp, Meat Golem Enrage // v0.21k: Slow Resistance for Warden and Eredar Warlock
 /**
  * v0.18a: tower damage buffs in percent of the average damage, rounded up to the next whole number.
  * The difference is added to the flat damage part, so the dice spread stays the same.

@@ -125,6 +125,9 @@ import {
   towerPerkBuffs,
   abilityCd,
   AUTO_MODES,
+  ULTIMATES, // v0.23: Decay Attack tooltip
+  DECAY_DRAIN, // v0.23
+  owlRange, // v0.23: Watcher Owl shows its total range
 } from "./simulation.js";
 import { mountArena, artFor } from "./arena.js";
 import { artUrl, iconUrl, ELEMENT_ICON, ART_MANIFEST, registerTowerArt, TEAM_COLORS, recolorTeam } from "./art.js";
@@ -1387,7 +1390,7 @@ const REWORK_HINT = {
   R00C: (lv) => t("All towers attack speed +{v}", { v: pctOf(FRENZY * lv) }),
   R001: (lv) => t("Creep HP +{a}, creep income +{b}", { a: pctOf(HEALING.hp * lv), b: pctOf(HEALING.income * lv) }), // v0.20c
   R006: (lv) => t("{v} interest on your gold at the start of each round", { v: pctOf(BANK.rate * lv) }),
-  R00X: (lv) => t("Creep HP +{a}, speed +{b}", { a: pctOf(MIND.hp * lv), b: pctOf(MIND.speed * lv) }),
+  R00X: (lv) => t("Creep HP +{a}, speed +{b} (flyers half)", { a: pctOf(MIND.hp * lv), b: pctOf(MIND.speed * lv) }), // v0.23: flyers half
   R00W: (lv) => t("Creep Speed +{v}", { v: pctOf(TAILWIND.speed * lv) }),
   R00U: (lv) => t("Creep HP +{a}, income +{b}", { a: pctOf(CREEP_ARMOR.hp * lv), b: pctOf(CREEP_ARMOR.income * lv) }),
   R00J: (lv) => t("Archer-Line +{v} damage", { v: pctOf(0.1 * lv) }),
@@ -1415,7 +1418,7 @@ function cardHint(item, current = false) {
   if (item.id === "R00K") {
     // v0.16g: the value of the next level instead of a list of all levels
     const lv = Math.min(OWL.range.length, lvNow);
-    return t(researchCopy.R00K[1], { owl: format(OWL.range[lv - 1]), lv });
+    return t(researchCopy.R00K[1], { owl: format(owlRange(lv)), lv }); // v0.23: total of all levels
   }
   if (researchCopy[item.id]) return t(researchCopy[item.id][1]);
   if (item.kind === "send") return t("+{n} income", { n: formatInc(incomeFor(item)) });
@@ -1696,6 +1699,24 @@ function abilityDesc(name, item) {
     const n = fv(abil(/^Scale Armor$/, "Ansk"), "Ssk3");
     if (n > 0) return `Ignore ${num(n)} damage from every hit`;
   }
+  // v0.23: Decay Attack as the code runs it: Hall of Plague and Pit Lord charge a decay strike, Kel Thuzad drains on every hit
+  if (name === "Decay Attack") {
+    const a = abil(/Decay Attack$/, "Aspo"),
+      lvl = item.level || 1,
+      dps = num(Math.max(1, fv(a, "Spo1", lvl) || 0)),
+      slow = pctN(fv(a, "Spo2", lvl) || POISON_SLOW),
+      u = ULTIMATES[item.id],
+      drain = DECAY_DRAIN[a?.id];
+    if (drain) return `Hits drain ${pctN(drain)}% of remaining HP and poison: ${dps} damage/s, ${slow}% slow, stacks`;
+    if (u?.kind === "decay") return `Every ~8 attacks destroys ${num(u.pct)}% of max HP, bosses ${pctN(u.pct / 400)}%. Hits poison: ${dps} damage/s, ${slow}% slow, stacks`;
+  }
+  // v0.23: death spawns with their count and creep ("Spawn [Midfernal]", 3): "Spawns 3 Midfernals on death"
+  if (name === "Spawn") {
+    const a = (item.abilities || []).map((id) => catalog.abilities[id]).find((x) => x?.baseId === "Aspt"),
+      who = String(a?.fields?.anam?.[0] ?? "").match(/\[([^\]]+)\]/)?.[1],
+      n = fv(a, "Sod1");
+    if (who && n > 0) return `Spawns ${num(n)} ${who}${n > 1 ? "s" : ""} on death`;
+  }
   if (name === "Magic Resistance") {
     const n = fv(abil(/^Magic Resistance$/, "AIsr"), "isr2");
     return `Magic attacks and spells inflict ${pctN(n > 0 ? n : 0.3)}% less damage`;
@@ -1739,6 +1760,9 @@ function valHtml(text) {
   // v0.17g: EXP values in the EXP purple
   // v0.19j: gold amounts in the gold of the HUD, income in its green, EXP in its purple (by the word next to the value)
   const kindOf = (v, before, after) => {
+    // v0.23: "old → new" (level-up dialog) is one value: each side looks past the other for its label
+    before = before.replace(/[+−-]?\d+(?:[.,]\d+)?\s?(?:%|s\b)?\s*→\s*$/, "");
+    after = after.replace(/^\s*→\s*[+−-]?\d+(?:[.,]\d+)?(?:\s?(?:%|s\b|fields?\b|×))?/, "");
     // a value right after another label ("HP +8%") belongs to that label, not to the word after it
     const label = (before.match(/([A-Za-z]+)\s*$/) || [])[1],
       free = !label || /^(and|or|by|to|for|of|steal|instantly|gives?|gets?|with|plus|another|extra|costs?|pays?|earns?)$/i.test(label),
@@ -1748,7 +1772,7 @@ function valHtml(text) {
     if (/\bincome\s*$/i.test(before) || next("income")) return " inc";
     return "";
   };
-  return esc(text).replace(/(^|[^&#\w])([+−-]?\d+(?:[.,]\d+)?(?!\d|st\b|nd\b|rd\b|th\b)(?:\s?(?:%|s\b|fields?\b|gold\b|EXP\b|×))?)/g, (m, a, v, at, all) => `${a}<b class="val${kindOf(v, all.slice(Math.max(0, at - 16), at + a.length), all.slice(at + m.length, at + m.length + 14))}">${v}</b>`).replace(LINE_NAME_RE, '<span class="line-name">$1-Line</span>'); // v0.22g1: tower line names in white
+  return esc(text).replace(/(^|[^&#\w])([+−-]?\d+(?:[.,]\d+)?(?!\d|st\b|nd\b|rd\b|th\b)(?:\s?(?:%|s\b|fields?\b|gold\b|EXP\b|×))?)/g, (m, a, v, at, all) => `${a}<b class="val${kindOf(v, all.slice(Math.max(0, at - 32), at + a.length), all.slice(at + m.length, at + m.length + 30))}">${v}</b>`).replace(LINE_NAME_RE, '<span class="line-name">$1-Line</span>'); // v0.22g1: tower line names in white
 }
 /** v0.16k: typos in the map data, fixed for display. */
 const ABILITY_RENAME = { Invisibillity: "Invisibility", "Mana Regenration Aura": "Mana Regeneration Aura", "Scale Armor": "Armor", Evasion: "Dodge" }; // v0.22n2: Armor, Dodge
@@ -1892,13 +1916,13 @@ function abilityTip(id) {
     fields = (n) => `${format(n)}`,
     tips = {
       volley: () => ["Arrows rain on an area", [["Damage", `${format(VOLLEY.bonus + getStats(game, own, "h003").damage)} per arrow`], ["Arrows", `${VOLLEY.perLevel * lv} + ${VOLLEY.perTower} per Archer-Line tower`], ["Radius", fields(VOLLEY.radius)], ["Cooldown", `${volleyCd(lv)} s`]]],
-      burst: () => ["Deals damage split among creeps in a radius", [["Damage", format(burstDamage(p, lv))], ["Radius", fields(burstRadius(lv))], ["Cooldown", `${BURST.cooldown} s`]]],
-      pillar: () => [`A pillar of fire burns an area for ${PILLAR.duration} s, up to 75% more in its centre`, [["Damage", `${format(pillarDamage(p, lv))} every ${PILLAR.interval} s`], ["Radius", fields(PILLAR.radius)], ["Cooldown", `${PILLAR.cooldown} s`]]],
+      burst: () => ["Deals damage split among creeps in a radius", [["Damage", format(burstDamage(p, lv))], ["Radius", fields(burstRadius(lv))], ["Cooldown", `${format(abilityCd(p, BURST.cooldown))} s`]]], // v0.23: Sanction Policy's −15 % included
+      pillar: () => [`A pillar of fire burns an area for ${PILLAR.duration} s, up to 75% more in its centre`, [["Damage", `${format(pillarDamage(p, lv))} every ${PILLAR.interval} s`], ["Radius", fields(PILLAR.radius)], ["Cooldown", `${format(abilityCd(p, PILLAR.cooldown))} s`]]], // v0.23
       agolem: () => {
         const hp = golemHp(p, lv);
-        return ["A golem walks your path upwards, knocks creeps back, then moves on to the next lane", [["Damage", `${format(hp * AGOLEM.loss[i] * AGOLEM.damage)} per hit`], ["Radius", fields(AGOLEM.reach)], ["Golem life", format(hp)], ["Cooldown", `${AGOLEM.cooldown} s`]]];
+        return ["A golem walks your path upwards, knocks creeps back, then moves on to the next lane", [["Damage", `${format(hp * AGOLEM.loss[i] * AGOLEM.damage)} per hit`], ["Radius", fields(AGOLEM.reach)], ["Golem life", format(hp)], ["Cooldown", `${format(abilityCd(p, AGOLEM.cooldown))} s`]]]; // v0.23
       },
-      monsun: () => [`Storm winds push the creeps in your field back for ${MONSUN.duration[i]} s; lightning strikes flyers`, [["Damage", `${format(monsunDamage(p, lv))} every ${MONSUN.strike} s`], ["Radius", t("Whole field")], ["Cooldown", `${MONSUN.cooldown} s`]]],
+      monsun: () => [`Storm winds push the creeps in your field back for ${MONSUN.duration[i]} s; lightning strikes flyers`, [["Damage", `${format(monsunDamage(p, lv))} every ${MONSUN.strike} s`], ["Radius", t("Whole field")], ["Cooldown", `${format(abilityCd(p, MONSUN.cooldown))} s`]]], // v0.23
     };
   if (!tips[id] || !game) return null;
   const [desc, rows] = tips[id]();
@@ -2289,7 +2313,7 @@ function pause(value) {
  * v0.22zk: perk headlines (level-up cards, card book) keep whole words: if the longest word does not
  * fit the card or the title would take more than 2 lines, the font shrinks in 0.5 px steps (min 7 px).
  */
-const TITLE_SEL = ".pick-card b",
+const TITLE_SEL = ".pick-card > b", // v0.23: headline only (the values inside the text are <b> too)
   TITLE_MIN_PX = 7,
   TITLE_MAX_LINES = 2;
 function fitTitle(el) {
@@ -3846,16 +3870,34 @@ setInterval(() => {
 /** Perk text with its numbers filled in (the gold perk shows the amount, not the formula). */
 /** v0.12: `q` is the player and `next` true when the perk is offered (its values at the next level). */
 const perkText = (id, level, q = game?.players[own], next = false, detail = false) => {
+  const have = q?.perks?.[id] || 0,
+    lv = Math.max(1, Math.min(PERKS[id]?.max || 1, have + (next ? 1 : 0))),
+    text = (detail && PERKS[id].detail) || PERKS[id].text, // v0.22za2: short tooltip, longer text in the card book's detail view
+    vars = perkVars(level, q, lv, next);
+  // v0.23: level-up dialog, a perk offered at level 2 or higher: every value that changes shows "old → new"
+  if (next && have >= 1 && lv > have) {
+    const old = perkVars(level, q, have, false);
+    for (const k of Object.keys(vars)) if (text.includes("{" + k + "}") && String(old[k]) !== String(vars[k])) vars[k] = arrowValue(old[k], vars[k]);
+  }
+  return t(text, vars);
+};
+/** v0.23: "5%" and "10%" → "5 → 10%" (a shared unit only after the new value), else "a → b". */
+const arrowValue = (a, b) => {
+  const ma = String(a).match(/^(.*\d)(\D*)$/),
+    mb = String(b).match(/^(.*\d)(\D*)$/);
+  return ma && mb && ma[2] && ma[2] === mb[2] ? `${ma[1]} → ${b}` : `${a} → ${b}`;
+};
+/** v0.23: the placeholder values of the perk texts at perk level `lv` (was inline in perkText). */
+const perkVars = (level, q, lv, next) => {
   const pct = (x) => Math.round(x * 100) + "%",
-    lv = Math.max(1, Math.min(PERKS[id]?.max || 1, (q?.perks?.[id] || 0) + (next ? 1 : 0))),
     l3 = Math.min(3, lv) - 1;
-  return t((detail && PERKS[id].detail) || PERKS[id].text, { // v0.22za2: short tooltip, longer text in the card book's detail view
+  return {
     gold: format(perkGold(level, q, game)),
     treasure: format(treasureGold(game)),
     treasureInc: format(treasureIncome(game, q)), // v0.19e2
     manufacture: pct(MANUFACTURE.discount[l3]),
     // v0.21: the former level-up upgrades
-    owl: format(OWL.range[Math.min(OWL.range.length, lv) - 1]),
+    owl: format(owlRange(lv)), // v0.23: the total range of all levels, as the game sums it (was: only this level's step)
     carmorHp: pctOf(CREEP_ARMOR.hp * lv),
     carmorInc: pctOf(CREEP_ARMOR.income * lv),
     leadership: pctOf(LEADERSHIP * lv),
@@ -3930,12 +3972,17 @@ const perkText = (id, level, q = game?.players[own], next = false, detail = fals
     pillarCd: format(abilityCd(q, PILLAR.cooldown)),
     golemCd: format(abilityCd(q, AGOLEM.cooldown)),
     monsunCd: format(abilityCd(q, MONSUN.cooldown)),
-  });
+  };
 };
 /** v0.19l: cooldown of an active-ability perk ("45 s"), shown in its own line instead of inside the text. */
 const PERK_CD = { volley: (q, next) => volleyCd((q?.perks?.volley || 0) + (next ? 1 : 0) || 1), // v0.21c: 1 s less per level
   burst: () => BURST.cooldown, pillar: () => PILLAR.cooldown, agolem: () => AGOLEM.cooldown, monsun: () => MONSUN.cooldown };
-const perkCd = (id, q = game?.players[own], next = false) => (PERK_CD[id] ? t("Cooldown {s} s", { s: format(abilityCd(q, PERK_CD[id](q, next))) }) : "");
+const perkCd = (id, q = game?.players[own], next = false) => {
+  if (!PERK_CD[id]) return "";
+  const s = format(abilityCd(q, PERK_CD[id](q, next))),
+    was = next && q?.perks?.[id] ? format(abilityCd(q, PERK_CD[id](q, false))) : s; // v0.23: level-up dialog: "20 → 19 s"
+  return t("Cooldown {s} s", { s: was !== s ? arrowValue(was, s) : s });
+};
 const elementOf = (id) => catalog.factions.find((f) => f.id === id);
 function pickCard(o, i, p) {
   if (o.type === "element") {
@@ -3947,7 +3994,8 @@ function pickCard(o, i, p) {
       level = p.perks?.[o.id] || 0,
       els = perkLook(o.id), // v0.21: frame also for "look" perks
       pel = els.length ? elementOf(els.find((e) => p.research[elementOf(e)?.unlock]) || els[0]) : null; // v0.10n: element perks get the element frame
-    return `<button class="pick-card pick-perk perk-${o.id}${pel ? " pick-element el-" + pel.id : ""}" data-pick="${i}"${pel ? ` style="--el:${pel.color}"` : ""}><img src="${PERK_ART[o.id](level + 1)}" alt="" decoding="sync"><b>${esc(t(d.name))}</b><span>${valHtml(perkText(o.id, p.picks[0]?.level || p.level, p, true))}</span>${perkCd(o.id, p, true) ? `<small class="pick-cd">${valHtml(perkCd(o.id, p, true))}</small>` : ""}<small>${t("Level {a} → {b}", { a: level, b: level + 1 })}</small></button>`;
+    // v0.23: "pick-up": offered at level 2 or higher, its text shows "old → new" values (perkText)
+    return `<button class="pick-card pick-perk perk-${o.id}${pel ? " pick-element el-" + pel.id : ""}${level ? " pick-up" : ""}" data-pick="${i}"${pel ? ` style="--el:${pel.color}"` : ""}><img src="${PERK_ART[o.id](level + 1)}" alt="" decoding="sync"><b>${esc(t(d.name))}</b><span>${valHtml(perkText(o.id, p.picks[0]?.level || p.level, p, true))}</span>${perkCd(o.id, p, true) ? `<small class="pick-cd">${valHtml(perkCd(o.id, p, true))}</small>` : ""}<small>${t("Level {a} → {b}", { a: level, b: level + 1 })}</small></button>`;
   }
   if (o.type === "quest") {
     const q = QUESTS[o.id];

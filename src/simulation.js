@@ -988,7 +988,7 @@ export const PERKS = Object.freeze({
   hills: { name: "Hill Paths", max: 5, element: "earth", text: "Uphill ground creeps {hills} slower", detail: "Ground creeps walking upwards in your field {hills} slower" }, // v0.22h1
   stormfeathers: { name: "Stormfeathers", max: 10, element: "storm", text: "Archer-Line attack speed +{stormfeathers}" }, // v0.22h1: +8 % per level
   golem: { name: "Golem Whisperer", max: 1, element: "earth", text: "Boss creeps 25% cheaper, +10% HP" }, // v0.10n
-  crowd: { name: "Crowd Control", max: 3, element: "plague", text: "When {crowdMax}+ creeps in field, weakest 3 are culled. Triggers every 5 seconds.", detail: "When more than {crowdMax} creeps are in your field, the 3 weakest are culled. Triggers every 5 seconds. Each culled creep goes back to its owner as an undead creep of their tier, worth a little income" }, // v0.20d: Plague, fewer creeps per level, an undead creep goes back
+  crowd: { name: "Crowd Control", max: 3, element: "plague", text: "When {crowdMax}+ creeps in field, weakest 3 are culled. Triggers every 5 seconds.", detail: "When {crowdMax} or more creeps are in your field, the 3 weakest are culled, never shielded ones. Triggers every 5 seconds. Each culled creep goes back to its owner as an undead creep of its tier, worth a little income" }, // v0.23: 50 or more, Divine Shield spared, one undead per culled creep // v0.20d: Plague, fewer creeps per level, an undead creep goes back
   pillage: { name: "Pillage", max: 3, text: "Steal {pillage} gold on breakthrough" }, // v0.22m2: 14 / 24 / 30 % of the breached player's gold
   // v0.12: nine new perks
   lone: { name: "Last Guardians", max: 4, text: "Towers attack {lone} faster with {loneTowers} towers or fewer", detail: "All towers attack {lone} faster while you own {loneTowers} towers or fewer" }, // v0.22g1: 4 levels // v0.20c: no bracket note; v0.16h: back to the v0.13 effect; v0.19g1: was Lone Guardians
@@ -1008,7 +1008,7 @@ export const PERKS = Object.freeze({
   quarry: { name: "Quarry", max: 1, element: "earth", powerup: true, unpopular: 0.5, text: "+100 gold and 8 stones. Clear them for an Earth perk", detail: "Instantly +100 gold and 8 stones on your field. Clear them all for a random Earth perk" },
   backup: { name: "Backup Line", max: 1, element: "storm", unpopular: 0.5, text: "Ranged towers +30% damage while top 3 rows are empty", detail: "Ranged towers +30% damage while your top 3 rows hold no tower" },
   tides: { name: "Low Tides", max: 1, element: "water", unpopular: 0.5, text: "Melee towers +50% damage while bottom 4 rows are empty", detail: "Melee towers +50% damage while your bottom 4 rows hold no tower" },
-  sanction: { name: "Sanction Policy", max: 1, element: "arcane", text: "Every 2nd creep locked, others +15% income, cooldowns −15%", detail: "Every 2nd creep locked for 20 rounds, other creeps +15% income. Abilities cooldown 15% faster permanently" }, // v0.19h1: no gold, cooldown 15 % (the tier boss is still locked)
+  sanction: { name: "Sanction Policy", max: 1, element: "arcane", text: "Every 2nd creep locked, others +15% income, 1st only +7.5%, cooldowns −15%", detail: "Every 2nd creep locked for 20 rounds, other creeps +15% income, the 1st creep only +7.5%. Abilities cooldown 15% faster permanently" }, // v0.23: the 1st creep's +7.5 % named // v0.19h1: no gold, cooldown 15 % (the tier boss is still locked)
   monsun: { name: "Monsun", max: 5, element: "storm", text: "Active: pushes creeps back for {monsun} s", detail: "Active ability: Push creeps back for {monsun} s, lightning strikes flyers" },
   // v0.21: the former level-up upgrades (Warcraft researches) are ordinary perks now. "element" = needs that
   // element. v0.21g: every one of them needs its element now (before, six only wore the element's frame).
@@ -1016,7 +1016,7 @@ export const PERKS = Object.freeze({
   carmor: { name: "Creep Armor", max: 20, element: "earth", text: "Creep HP +{carmorHp}, income +{carmorInc}" },
   leadership: { name: "Leadership", max: 20, element: "fire", text: "Creeps +{leadership} HP" },
   tailwind: { name: "Tailwind", max: 10, element: "storm", text: "Creep Speed +{tailwind}" },
-  mind: { name: "Mind Control", max: 10, element: "plague", text: "Creep HP +{mindHp}, speed +{mindSpeed}" },
+  mind: { name: "Mind Control", max: 10, element: "plague", text: "Creep HP +{mindHp}, speed +{mindSpeed} (flyers half)" }, // v0.23: flyers get half (MIND.air)
   medicine: { name: "Creep Medicine", max: 20, element: "water", text: "Creep HP +{medHp}, creep income +{medInc}" },
   melee: { name: "Melee Protocol", max: 20, element: "water", text: "Melee attack speed +{melee}" },
   heavy: { name: "Heavy Weapons", max: 20, element: "earth", text: "Footman-Line and Bombard-Line +{heavy} damage" },
@@ -1213,6 +1213,11 @@ function tickGuardian(game, p) {
   best.guard = { hp, max: hp, magic: guardMagic(level) };
   p.guardReady = game.time + GUARDIAN.cooldown;
   emit(game, "skill", { player: best.defender, kind: "guardOn", creepId: best.id, x: best.x, y: best.y });
+}
+/** v0.23: Magic Resistance also cuts perk spell damage (Arcane Burst, Pillar of Fire, Fire Block, Monsun, Air Block, Arcane Golem); applied before the shield, like tower magic. */
+function spellResist(c) {
+  const resist = creepSkills(c).find((sk) => sk.type === "magicResist");
+  return resist ? 1 - resist.reduce : 1;
 }
 /** Damage after a River Guardian shield took its share (magic is reduced first). */
 function guardCut(game, c, damage, magic = false) {
@@ -1547,7 +1552,7 @@ function tickPillars(game) {
         if (c.dead || c.hp <= 0 || d > r || divineShield(game, c)) continue;
         // v0.16i: hotter core: up to +75 % damage in the centre, the full value at the edge
         const core = 1 + PILLAR.core * (1 - d / Math.max(1, r));
-        c.hp -= guardCut(game, c, f.damage * core * (c.flying ? PILLAR.air : 1) * (!c.wave && isBudget(c.typeId) ? PILLAR.budget : 1), true);
+        c.hp -= guardCut(game, c, f.damage * core * (c.flying ? PILLAR.air : 1) * (!c.wave && isBudget(c.typeId) ? PILLAR.budget : 1) * spellResist(c), true); // v0.23: Magic Resistance (Pillar, Fire Block)
         if (c.hp <= 0) killCreep(game, p, c);
       }
     }
@@ -1577,7 +1582,7 @@ function tickMonsun(game, p) {
     if (!list.length) continue;
     const c = list[Math.floor(random(game) * list.length)],
       damage = m.damage * (air.length ? 1 : MONSUN.groundShare);
-    c.hp -= guardCut(game, c, damage, true);
+    c.hp -= guardCut(game, c, damage * spellResist(c), true); // v0.23: Magic Resistance
     emit(game, "lightning", { player: p.id, x: c.x, y: c.y, small: !air.length, damage: Math.round(damage) });
     if (c.hp <= 0) killCreep(game, p, c);
   }
@@ -1636,7 +1641,7 @@ function tickGolems(game, p) {
       g.hit.push(c.id);
       const loss = g.maxHp * AGOLEM.loss[i] * (heavyCreep(c) ? AGOLEM.heavy : 1);
       g.hp -= loss;
-      if (!divineShield(game, c)) c.hp -= guardCut(game, c, loss * AGOLEM.damage);
+      if (!divineShield(game, c)) c.hp -= guardCut(game, c, loss * AGOLEM.damage * spellResist(c)); // v0.23: Magic Resistance
       knockBack(game, c, AGOLEM.knock[i] * game.grid.cellUnits, p); // v0.19k: glides back
       emit(game, "skill", { player: p.id, kind: "golemHit", x: c.x, y: c.y });
       if (c.hp <= 0) killCreep(game, p, c);
@@ -1716,7 +1721,7 @@ function launchBurst(game, p, x, y) {
     total = burstDamage(p, level),
     share = inside.length ? total / inside.length : 0;
   for (const c of inside) {
-    c.hp -= guardCut(game, c, share, true);
+    c.hp -= guardCut(game, c, share * spellResist(c), true); // v0.23: Magic Resistance
     if (c.hp <= 0) killCreep(game, p, c);
   }
   p.burstReady = game.time + abilityCd(p, BURST.cooldown);
@@ -1806,7 +1811,7 @@ function airBlock(game, p, c) {
   emit(game, "skill", { player: p.id, kind: "airblock", x: c.x, y: c.y });
   if (!divineShield(game, c)) {
     const damage = airBlockDamage(p, level);
-    c.hp -= guardCut(game, c, damage, true);
+    c.hp -= guardCut(game, c, damage * spellResist(c), true); // v0.23: Magic Resistance
     emit(game, "lightning", { player: p.id, x: c.x, y: c.y, damage });
     if (c.hp <= 0) killCreep(game, p, c);
   }
@@ -3363,6 +3368,7 @@ function auraAt(game, target, owner, units) {
     armorUp = 0,
     armorDown = 0,
     damage = 0,
+    trueDamage = 0, // v0.23: Trueshot Aura adds onto Damage Aura (the strongest of each kind)
     regen = 0,
     trueshot = false;
   for (const source of units) {
@@ -3395,7 +3401,8 @@ function auraAt(game, target, owner, units) {
         armorUp = Math.max(armorUp, a.had1);
         armorDown = Math.min(armorDown, a.had1);
       }
-      if (a.baseId === "AEar" || a.baseId === "ACat") damage = Math.max(damage, a.ear1);
+      if (a.baseId === "AEar" && a.only === "ranged") trueDamage = Math.max(trueDamage, a.ear1); // v0.23
+      else if (a.baseId === "AEar" || a.baseId === "ACat") damage = Math.max(damage, a.ear1);
       if (a.baseId === "AUau") {
         speedUp = Math.max(speedUp, a.uau1);
         regen = Math.max(regen, a.uau2);
@@ -3406,7 +3413,7 @@ function auraAt(game, target, owner, units) {
     speed: Math.max(0.1, 1 + speedUp + speedDown),
     attack: Math.max(0.1, 1 + attackUp + attackDown),
     armor: armorUp + armorDown,
-    damage: 1 + damage,
+    damage: 1 + damage + trueDamage, // v0.23: Damage Aura + Trueshot Aura add up (was: only the stronger one)
     regen,
     trueshot,
   };
@@ -3748,7 +3755,7 @@ export function statusSlowParts(statuses) {
 // Every attack adds 1-10 charge; at N the tower casts its special and resets. Values come
 // from the dummy casters (o002 Flamestrike, o003 Chain Lightning, o004 Blizzard, o005
 // Tsunami, o006 Swarm Rockets, n00H Entangle) and the trigger bodies.
-const ULTIMATES = {
+export const ULTIMATES = { // v0.23: exported for the Decay Attack tooltip
   h01L: { charge: 40, kind: "entangle", level: 1 },
   h00B: { charge: 40, kind: "entangle", level: 2 },
   h037: { charge: 40, kind: "entangle", level: 3 },
@@ -3902,6 +3909,8 @@ function tickClouds(game, p) {
   }
   game.clouds = game.clouds.filter((cl) => cl.remaining > 0);
 }
+/** v0.23: Decay Attack abilities that drain this share of the creep's remaining health per hit (Kel Thuzad). */
+export const DECAY_DRAIN = { A0BL: 0.06 };
 function applyOnHit(game, player, tower, target) {
   for (const ability of unitAbilities(tower)) {
     const level = abilityLevel(player, tower, ability),
@@ -3945,6 +3954,12 @@ function applyOnHit(game, player, tower, target) {
         dps,
         owner: player.id,
       });
+      // v0.23: Kel Thuzad's Decay Attack also drains a share of the remaining health on every hit (not while shielded)
+      const drain = DECAY_DRAIN[ability.id];
+      if (drain && target.hp > 0 && !divineShield(game, target)) {
+        target.hp -= guardCut(game, target, target.hp * drain);
+        target.lastHit = tower.id;
+      }
     }
     if (
       ability.baseId === "Aslo" &&
@@ -4179,24 +4194,34 @@ function crowdControl(game, p) {
   if (game.time + EPS < p.crowdNext) return;
   p.crowdNext = game.time + CROWD.interval;
   const alive = p.creeps.filter((c) => !c.dead && c.hp > 0);
-  if (alive.length <= CROWD.threshold[Math.min(3, level) - 1]) return;
-  const victims = alive.sort((a, b) => a.hp - b.hp || a.id.localeCompare(b.id)).slice(0, CROWD.cull);
-  const senders = {};
+  if (alive.length < CROWD.threshold[Math.min(3, level) - 1]) return; // v0.23: at 50 or more creeps (was: more than 50)
+  const victims = alive
+    .filter((c) => !divineShield(game, c)) // v0.23: creeps under Divine Shield are never culled
+    .sort((a, b) => a.hp - b.hp || a.id.localeCompare(b.id))
+    .slice(0, CROWD.cull);
+  const back = [];
   for (const c of victims) {
     emit(game, "skill", { player: p.id, kind: "crowd", x: c.x, y: c.y });
-    if (!c.wave && c.owner >= 0 && c.owner !== p.id) senders[c.owner] = (senders[c.owner] || 0) + 1;
+    if (!c.wave && c.owner >= 0 && c.owner !== p.id) back.push({ to: c.owner, tier: creepTier(game, c) });
     c.hp = 0;
     killCreep(game, p, c);
   }
-  // v0.20d: an undead creep of your tier rises and walks to the player whose creeps were culled (most of them); it pays a little income
-  const to = Object.keys(senders).map(Number).sort((a, b) => senders[b] - senders[a] || a - b)[0],
-    undead = CROWD_UNDEAD[Math.max(1, Math.min(5, p.tier || 1))];
-  if (to == null || game.players[to]?.out || (game.teams && game.players[to]?.team === p.team)) return;
-  if (spawnCreep(game, p.id, undead, null, to)) {
-    p.incomeDecimal += Math.round((obj(undead)?.pointValue || 0) * 100 * CROWD.income);
-    p.income += Math.trunc(p.incomeDecimal / 100);
-    p.incomeDecimal %= 100;
+  // v0.23: every culled creep goes back to its owner as one undead creep of its own tier (was: one undead of your tier, to the main sender); each pays a little income
+  for (const b of back) {
+    const q = game.players[b.to],
+      undead = CROWD_UNDEAD[b.tier];
+    if (!q || q.out || (game.teams && q.team === p.team)) continue;
+    if (spawnCreep(game, p.id, undead, null, b.to)) {
+      p.incomeDecimal += Math.round((obj(undead)?.pointValue || 0) * 100 * CROWD.income);
+      p.income += Math.trunc(p.incomeDecimal / 100);
+      p.incomeDecimal %= 100;
+    }
   }
+}
+/** v0.23: the send tier of a creep (spawned helpers without a tier of their own, such as death spawns, count as their sender's tier). */
+function creepTier(game, c) {
+  const it = obj(c.typeId);
+  return Math.max(1, Math.min(5, it?.kind === "send" && it.tier > 0 ? it.tier : game.players[c.owner]?.tier || 1));
 }
 /**
  * v0.21z: the Meat Golem denies its first death. It stops, growls and rises as the Enraged Meat
