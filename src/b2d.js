@@ -122,6 +122,8 @@ export class Stage {
     this.waiters = new Map();
     this.jobs = [];
     this.jobByUrl = new Map();
+    this.outs = new Map(); // v0.23a: key -> its load on the way (reloadImage marks an older one stale)
+    this.users = new Map(); // v0.23a: key -> images drawing it (they redraw when the texture is replaced)
     this.loading = 0;
     this.atlases = new Map();
     this.shakeUntil = 0;
@@ -223,6 +225,11 @@ export class Stage {
     entry.cols = Math.max(1, Math.floor(entry.w / entry.fw));
     this.textures.set(key, entry);
     for (const [k, m] of this.materials) if (k.startsWith(key + "|")) m.setTexture("tex", tex);
+    // v0.23a: images of this key take the new size and UVs (a picture swapped in place, a lost context)
+    for (const img of this.users.get(key) || []) {
+      img.uvDirty = true;
+      img._dirty();
+    }
     return key;
   }
   /**
@@ -253,8 +260,15 @@ export class Stage {
    * v0.23: queue `url` for texture `key` unless it is there or on its way (art loads on first use).
    * `paint(rgba)` changes the pixels before the upload (team colours); urgent requests jump the queue.
    */
-  request(key, url, { fw = 0, fh = 0, paint = null, urgent = false } = {}) {
-    if (this.disposed || this.textures.has(key) || this.failed.has(key)) return;
+  request(key, url, { fw = 0, fh = 0, paint = null, urgent = false, meta = null, force = false } = {}) {
+    if (this.disposed || (!force && (this.textures.has(key) || this.failed.has(key)))) return;
+    if (force) {
+      // v0.23a: a load of this key still on its way is dropped when it arrives (reloadImage)
+      const old = this.outs.get(key);
+      if (old) old.stale = true;
+      this.pending.delete(key);
+      this.failed.delete(key);
+    }
     let job = this.jobByUrl.get(url);
     if (!this.pending.has(key)) {
       this.pending.add(key);
@@ -264,7 +278,9 @@ export class Stage {
         if (urgent) this.jobs.unshift(job);
         else this.jobs.push(job);
       }
-      job.outs.push({ key, url, fw, fh, paint });
+      const out = { key, url, fw, fh, paint, meta };
+      job.outs.push(out);
+      this.outs.set(key, out);
     }
     if (urgent && job && this.jobs[0] !== job) {
       const i = this.jobs.indexOf(job);
@@ -287,16 +303,51 @@ export class Stage {
   loadImage(key, url, frameWidth = 0, frameHeight = 0) {
     return this.load(key, url, { fw: frameWidth, fh: frameHeight });
   }
+  /**
+   * Design variants: load a picture over an existing texture of the same key (the old one stays visible
+   * until the new one has arrived). v0.23a: no copy of a picture is kept after its upload, so the new file is
+   * fetched and decoded; `paint` (team colours), frame size and size data come along like in request.
+   */
+  reloadImage(key, url, opts = {}) {
+    if (this.disposed) return Promise.resolve(null);
+    return new Promise((resolve) => {
+      if (!this.waiters.has(key)) this.waiters.set(key, []);
+      this.waiters.get(key).push(resolve);
+      this.request(key, url, { ...opts, force: true });
+    });
+  }
+  /** Keys of the textures made from `key` (player colour copies), loaded or on their way. */
+  derivedKeys(key) {
+    const out = [];
+    for (const k of this.artKeys()) if (k.startsWith(key + "#")) out.push(k);
+    return out;
+  }
+  /** v0.23a: every picture texture key, loaded or on its way. */
+  artKeys() {
+    return new Set([...this.textures.keys(), ...this.pending]);
+  }
+  /** v0.23a: the file a texture was loaded from (or is loading from), if it came from request. */
+  urlOf(key) {
+    return this.outs.get(key)?.url ?? this.textures.get(key)?.url ?? null;
+  }
+  /** v0.23a: let a texture go (the old look's scenery atlas); its batches draw nothing until it is back. */
+  dropTexture(key) {
+    const t = this.textures.get(key);
+    if (!t) return;
+    t.tex.dispose();
+    this.textures.delete(key);
+  }
   _pump() {
     while (this.loading < 4 && this.jobs.length) {
       const job = this.jobs.shift();
       this.jobByUrl.delete(job.url);
+      if (job.outs.every((o) => o.stale)) continue; // v0.23a: every key of it was reloaded from another file
       this.loading++;
       this._decode(job.url)
         .then((src) => {
           for (const o of job.outs)
             try {
-              if (!this.disposed) this._uploadArt(o, src);
+              if (!this.disposed && !o.stale) this._uploadArt(o, src); // v0.23a: stale = replaced by a newer load
             } catch (err) {
               console.warn("Texture upload failed:", o.key, err);
             }
@@ -304,11 +355,13 @@ export class Stage {
         })
         .catch(() => {
           console.warn("Bild fehlt:", job.url);
-          for (const o of job.outs) this.failed.add(o.key);
+          for (const o of job.outs) if (!o.stale) this.failed.add(o.key);
         })
         .finally(() => {
           this.loading--;
           for (const o of job.outs) {
+            if (o.stale) continue; // v0.23a: the newer load of this key finishes it
+            if (this.outs.get(o.key) === o) this.outs.delete(o.key);
             this.pending.delete(o.key);
             const w = this.waiters.get(o.key);
             if (w) {
@@ -353,7 +406,7 @@ export class Stage {
       const data = ctx.getImageData(0, 0, w, h);
       o.paint(data.data);
       ctx.putImageData(data, 0, 0);
-      this.addCanvas(o.key, canvas, o.fw, o.fh, { free: true, restore });
+      this.addCanvas(o.key, canvas, o.fw, o.fh, { free: true, restore, url: o.url, meta: o.meta });
       return;
     }
     // An ImageBitmap ignores the flip and premultiply upload flags (it is premultiplied already), so it is
@@ -365,7 +418,7 @@ export class Stage {
     internal._dynamicTextureSource = null;
     const tex = new B.Texture(null, this.scene, false, false, B.Texture.TRILINEAR_SAMPLINGMODE);
     tex._texture = internal;
-    this._setTexture(o.key, tex, { w, h, fw: o.fw, fh: o.fh, top: bitmap, restore });
+    this._setTexture(o.key, tex, { w, h, fw: o.fw, fh: o.fh, top: bitmap, restore, url: o.url, meta: o.meta });
   }
   /**
    * v0.23: several pictures in one mipmapped texture (one draw call for the whole meadow). Each sits on a
@@ -988,6 +1041,7 @@ export class Image2D extends Node2D {
   }
   setTexture(key, frame) {
     if (key !== this.texture.key) {
+      this._use(key); // v0.23a
       this.texture.key = key;
       this._useMaterial();
     }
@@ -995,6 +1049,21 @@ export class Image2D extends Node2D {
     this.uvDirty = true;
     this._dirty();
     return this;
+  }
+  /** v0.23a: keep the stage's list of images per texture key (see _setTexture). */
+  _use(key) {
+    const users = this.stage.users,
+      old = this.texture.key;
+    if (old != null) users.get(old)?.delete(this);
+    if (key != null) {
+      let set = users.get(key);
+      if (!set) users.set(key, (set = new Set()));
+      set.add(this);
+    }
+  }
+  destroy() {
+    this._use(null); // v0.23a
+    super.destroy();
   }
   setFrame(frame) {
     this.frame.name = frame;
@@ -1061,7 +1130,10 @@ export class Image2D extends Node2D {
       return this;
     }
     if (!b || b.hinge !== hinge || b.dx !== dx || b.sy !== sy) {
-      this.bend = { hinge, dx, sy };
+      const n = (this.bend = this._bend ||= {}); // v0.23a: one object per image (design variants bend every figure each frame)
+      n.hinge = hinge;
+      n.dx = dx;
+      n.sy = sy;
       this.uvDirty = true;
       this._dirty();
     }
