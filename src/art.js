@@ -1,6 +1,8 @@
 /** Generated art (Higgsfield, GPT Image 2.5) and the mapping from catalog entries to art keys. */
-import { ART_SETS, UI_ICONS } from "./art-sets.js";
-import { currentDesign } from "./design.js";
+// v0.23n: design variants removed: no toy/pet art sets, only the original look
+const ART_SETS = {},
+  UI_ICONS = new Set(),
+  currentDesign = () => "original";
 const BASE_ART = {
   // v0.23a (creep graphic overhaul): the bestiary figures of the original design (stills; walking creeps use ANIM_MANIFEST)
   "creep-n-abomination": { w: 234, h: 145, footY: 141 },
@@ -279,7 +281,7 @@ export const ART_MANIFEST = Object.freeze({
  * v0.23: version key on every art URL (figures, animations, icons): raise it whenever pictures in
  * assets/art, assets/anim, assets/art-toy or assets/art-pets change, so browsers fetch the new ones (see the README).
  */
-export const ART_VERSION = "v023m";
+export const ART_VERSION = "v023n";
 // ---- art sets of the Circle Tower Wars designs ------------------------------------------------------
 // Sonnenwiese and Bonbon draw every figure as a round toy ("toy"), Pfotenwelt as a cute animal ("pets").
 // A set holds one picture per figure; level variants (-v1..-v3, -l1, -l2) share their base figure there.

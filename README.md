@@ -46,11 +46,4 @@ When publishing a new version, renew all `?v=` keys in `index.html` and `APP_VER
   `python3 -m fontTools.ttLib.woff2 compress` (same names); they are declared at the top of `style.css`.
 - Music: `ffmpeg -i in.mp3 -map_metadata 0 -c:a libmp3lame -b:a 96k out.mp3`.
 
-## Design variants (Circle Tower Wars)
-
-Options › Graphic › Design switches between four looks. **Original** (this game's look) stays the default and is
-untouched. The three new looks carry the name *Circle Tower Wars*: **Meadow** (Sonnenwiese) and **Candy** (Bonbon)
-draw every tower and creep as a round toy figure, **Paws** (Pfotenwelt) as cute animals (kittens shoot, dogs guard, owls cast, critters
-attack). Each figure moves its own way. Rules, balance and online play are the same in all four.
-See [DESIGNS.md](DESIGNS.md) for the files involved and how to remove the variants again.
 

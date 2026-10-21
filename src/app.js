@@ -130,7 +130,10 @@ import {
   owlRange, // v0.23: Watcher Owl shows its total range
 } from "./simulation.js";
 import { mountArena, artFor } from "./arena.js";
-import { designRow, setDesign, currentDesign } from "./design.js"; // design variants (Original, Sonnenwiese, Bonbon, Pfotenwelt)
+// v0.23n: design variants (Meadow, Candy, Paws / Circle Tower Wars) removed; only the original look remains
+const designRow = () => "",
+  setDesign = () => {},
+  currentDesign = () => "original";
 import { artUrl, iconUrl, ELEMENT_ICON, ART_MANIFEST, registerTowerArt, TEAM_COLORS, recolorTeam, setPropUrl, activeArtSet, uiArt, useArtSet, artSetFor, ART_VERSION, CREEP_PORTRAIT } from "./art.js";
 import { createSoundtrack } from "./soundtrack.js";
 import { createSfx, haptic } from "./sfx.js";
@@ -154,7 +157,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.23m",
+const APP_VERSION = "0.23n",
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "21.10.2026";
 // v0.18: the version also stands in the page title (browser tab and the artifact window in chats)

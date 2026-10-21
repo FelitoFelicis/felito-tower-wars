@@ -10,7 +10,11 @@ function topFour(def) {
   return TOP_FOUR.get(def.id);
 }
 import { ART_MANIFEST, ANIM_MANIFEST, animUrl, artFor, artUrl, towerTier, TEAM_COLORS, CLOTH_COLORS, recolorTeam, activeArtSet, artSetFor, useArtSet, setArtKey, setArtMeta, setPropUrl, SET_ART } from "./art.js";
-import { towerIdle, towerAttack, towerAttackStyle, creepGait } from "./motion.js";
+// v0.23n: design variants removed: no per-figure motion profiles (motion.js) any more
+const towerIdle = () => ({ lean: 0, stretch: 1 }),
+  towerAttack = () => null,
+  towerAttackStyle = () => null,
+  creepGait = () => null;
 /** v0.22n2: mix a colour towards another (0 = black, 0xffffff = white) by k. */
 const metalTint = (hex, to, k) => {
   const ch = (c, sh) => ((c >> sh) & 255) * (1 - k) + ((to >> sh) & 255) * k;
@@ -18,7 +22,10 @@ const metalTint = (hex, to, k) => {
 };
 import { t } from "./i18n.js";
 import { Stage, BLEND, TINT, hsvToColor } from "./b2d.js";
-import { boardPalette, currentDesign, boardProps } from "./design.js";
+// v0.23n: only the original board (design.js removed)
+const boardPalette = () => null,
+  currentDesign = () => "original",
+  boardProps = () => null;
 
 export { artFor, artUrl };
 
