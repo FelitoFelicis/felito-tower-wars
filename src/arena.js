@@ -24,6 +24,53 @@ export { artFor, artUrl };
 
 const NO_PATH = []; // v0.23
 const ANIM_KEY = {}; // v0.23: art key -> "anim:" + key, built once
+/** v0.23b: Options › Gameplay › Tiles: "checkers" (lighter and darker fields, default), "grid" (plain grid), "none" (no grid lines). */
+let tileMode = "checkers";
+/**
+ * v0.23f/i: a corner of a creep's path walked as a curve: a quadratic Bézier from r before the corner (x1, y1)
+ * to r after it (from x0 → x1 to x1 → x2). `p` (the creep's point) is moved onto the curve when it lies within r
+ * of the corner, either coming up to it (`ahead`) or just past it. Returns true when p was moved.
+ */
+/** v0.23g: a fixed 0..1 value per creep (its own corner radius); kept beside the creep, not in the game state. */
+const VARY = new WeakMap();
+function varyOf(c) {
+  let v = VARY.get(c);
+  if (v === undefined) VARY.set(c, (v = (((parseInt(String(c.id).replace(/\D/g, ""), 10) || 0) * 2654435761) >>> 0) / 4294967296));
+  return v;
+}
+/** v0.23i: a node of a creep's path (-1 = the node it came from), or null. */
+function pathNode(c, k) {
+  const n = k >= 0 ? c.path[k] : k === -1 ? c.prevNode : null;
+  return n && Number.isFinite(n.x) ? n : null;
+}
+function cornerTo(x0, y0, x1, y1, x2, y2, p, cell, vary, ahead) {
+  let ix = x1 - x0,
+    iy = y1 - y0,
+    jx = x2 - x1,
+    jy = y2 - y1;
+  const li = Math.hypot(ix, iy),
+    lj = Math.hypot(jx, jy);
+  if (li < 1e-6 || lj < 1e-6) return false;
+  ix /= li;
+  iy /= li;
+  jx /= lj;
+  jy /= lj;
+  if (ix * jx + iy * jy > 0.94) return false; // straight on (< 20°)
+  const r = Math.min(cell * (0.3 + 0.32 * vary), li / 2, lj / 2), // v0.23g: every creep its own radius
+    d = ahead ? Math.hypot(x1 - p.x, y1 - p.y) : Math.hypot(p.x - x1, p.y - y1);
+  if (d >= r) return false;
+  const t = ahead ? (r - d) / (2 * r) : 0.5 + d / (2 * r),
+    u = 1 - t,
+    ex = x1 - ix * r,
+    ey = y1 - iy * r,
+    xx = x1 + jx * r,
+    xy = y1 + jy * r;
+  p.x = u * u * ex + 2 * u * t * x1 + t * t * xx;
+  p.y = u * u * ey + 2 * u * t * y1 + t * t * xy;
+  return true;
+}
+const byDepth = (p, q) => p.depth - q.depth; // v0.23i
+const DEATH_KEY = {}; // v0.23a (creep graphic overhaul): art key -> "anim:" + key + "-death" (or null), built once
 const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
 const lerp = (a, b, t) => a + (b - a) * t;
 const FONT = "Lilita One, DM Sans, system-ui, sans-serif";
@@ -482,6 +529,11 @@ export function mountArena({
         sheet = activeArtSet() ? null : ANIM_MANIFEST[want],
         animTex = sheet ? this.need((ANIM_KEY[want] ||= "anim:" + want), colorId) : null,
         tex = animTex || this.need(want, colorId);
+      // v0.23a (creep graphic overhaul): the death sheet comes along once the walk is there
+      if (animTex && sheet.dirs) {
+        const dk = DEATH_KEY[want] !== undefined ? DEATH_KEY[want] : (DEATH_KEY[want] = ANIM_MANIFEST[want + "-death"] ? "anim:" + want + "-death" : null);
+        if (dk) this.need(dk, colorId, false);
+      }
       L.hide = false;
       if (tex) {
         this.waiting.delete(unitKey);
@@ -541,6 +593,68 @@ export function mountArena({
         this.need(key, color, false);
         if (ANIM_MANIFEST[key] && !activeArtSet()) this.need("anim:" + key, color, false); // v0.23a: art sets have no frame animations
       }
+      // v0.23b: the creeps every player can send now, in that player's colour (a bought boss moves its buyer to the
+      // next tier at once, so that tier loads right away): the standing picture first, then the walk sheet
+      const game = getState();
+      if (!game?.players) return;
+      for (const pl of game.players) {
+        if (!pl || pl.out) continue;
+        const pc = colorOf(pl.id);
+        for (const item of catalog.sends || []) {
+          if (!item.playable || item.tier !== pl.tier) continue;
+          const key = artFor(item);
+          if (!ART_MANIFEST[key]) continue;
+          this.need(key, pc, false);
+          if (ANIM_MANIFEST[key] && !activeArtSet()) this.need("anim:" + key, pc, false);
+        }
+      }
+    }
+    /**
+     * v0.23a (creep graphic overhaul): a killed creep with a death sheet stays where it fell and plays its
+     * six death frames (flyers sink to the ground meanwhile), lies still for a moment and fades. Creeps that
+     * break through or leave the screen simply vanish as before.
+     */
+    settleDeaths(view, time) {
+      this.dying ||= [];
+      for (const [key, s] of this.gone) {
+        const art = s.getData("art"),
+          dk = art && DEATH_KEY[art],
+          meta = dk && ANIM_MANIFEST[dk.slice(5)],
+          killedAt = this.killed?.get(key),
+          tex = meta && killedAt !== undefined && time - killedAt <= 600 ? this.need(dk, s.getData("team"), false, false) : null;
+        if (!tex) {
+          s.destroy();
+          continue;
+        }
+        const lift = s.getData("lift") || 0,
+          shown = s.getData("show") ?? s.getData("dir") ?? 0,
+          sx = Math.abs(s.sx) * (shown >= 1 && shown <= 3 ? -1 : 1), // right-facing creeps fall the mirrored way
+          sy = Math.abs(s.sy);
+        s.setBatched(false); // v0.23i: the fall is drawn by the figure itself
+        s.setBend(0);
+        s.setTintMode(TINT.MULTIPLY).clearTint();
+        s.setTexture(tex, 0).setOrigin(meta.footX / meta.fw, meta.footY / meta.fh).setScale(sx, sy).setRotation(0).setAlpha(1);
+        s.setVisible(true).setDepth(lift > 2 ? 4190 + Math.floor(s.y + lift) : this.fallenDepth(s.y + lift)); // v0.23e: fallen creeps sort with towers too
+        this.dying.push({ s, view, start: time, meta, tex, groundY: s.y + lift, lift });
+      }
+      this.gone.length = 0;
+      if (this.killed?.size > 64) for (const [k, t] of this.killed) if (time - t > 2000) this.killed.delete(k);
+      if (!this.dying.length) return;
+      this.dying = this.dying.filter((d) => {
+        const el = time - d.start,
+          play = d.meta.ms * d.meta.frames,
+          hold = 900,
+          fade = 500;
+        if (d.view !== view || el > play + hold + fade || d.s.destroyed) {
+          d.s.destroy();
+          return false;
+        }
+        this.showFrame(d.s, d.tex, Math.min(d.meta.frames - 1, Math.floor(el / d.meta.ms)));
+        const fall = clamp(el / (d.meta.ms * 4), 0, 1);
+        d.s.setPosition(d.s.x, d.groundY - d.lift * (1 - fall * fall));
+        d.s.setAlpha(el > play + hold ? 1 - (el - play - hold) / fade : 1);
+        return true;
+      });
     }
     /** Switch a sprite to the given sheet frame without resetting it every draw. */
     showFrame(sprite, tex, frame) {
@@ -807,6 +921,121 @@ export function mountArena({
       this.scrollVel = v;
       if (y !== this.scrollY) this.setScroll(y);
     }
+    /**
+     * v0.23f: where a ground creep is drawn. Near a corner of its path the creep follows a curve (a quadratic
+     * Bézier from r before the corner to r after it), so it does not turn on the spot. Display only; the
+     * simulation keeps the exact path, towers aim at the real position (at most a few pixels apart).
+     */
+    roundedPoint(c, cell, z) {
+      // v0.23i: the board geometry comes from the caller (it was computed anew for every point), no closures
+      const L = z.left,
+        T = z.top,
+        W = z.bw,
+        H = z.bh,
+        raw = { x: L + c.x * W, y: T + c.y * H };
+      if (c.flying || c.knock || !Array.isArray(c.path) || !c.path.length) return raw;
+      const ox = c.ox || 0,
+        oy = c.oy || 0,
+        i = c.pathIndex,
+        vary = varyOf(c), // 0..1, fixed per creep
+        P = pathNode(c, i - 1),
+        N = pathNode(c, i);
+      if (!P || !N) return raw;
+      // coming up to the next node N (corner P → N → A), or just past the node P behind (corner Q → P → N)
+      const A = pathNode(c, i + 1);
+      if (A && cornerTo(L + (P.x + ox) * W, T + (P.y + oy) * H, L + (N.x + ox) * W, T + (N.y + oy) * H, L + (A.x + ox) * W, T + (A.y + oy) * H, raw, cell, vary, true)) return raw;
+      const Q = pathNode(c, i - 2);
+      if (Q) cornerTo(L + (Q.x + ox) * W, T + (Q.y + oy) * H, L + (P.x + ox) * W, T + (P.y + oy) * H, L + (N.x + ox) * W, T + (N.y + oy) * H, raw, cell, vary, false);
+      return raw;
+    }
+    /** v0.23i: "view:c:id", built once per creep and view. */
+    creepKey(view, id) {
+      const keys = (this._ckeys ||= new Map());
+      let byView = keys.get(view);
+      if (!byView) keys.set(view, (byView = new Map()));
+      let k = byView.get(id);
+      if (k === undefined) {
+        if (byView.size > 2000) byView.clear();
+        byView.set(id, (k = `${view}:c:${id}`));
+      }
+      return k;
+    }
+    /**
+     * v0.23g: creeps packed into a blob ease apart a little (display only): each creep is pushed away from the
+     * creeps closer than ~0.36 fields, up to a fifth of a field, and the push follows smoothly (~0.3 s).
+     */
+    spreadCreeps(list, view, cell, time, z) {
+      // v0.23i: reuses its points, grid cells and offsets from frame to frame (no strings or arrays per creep)
+      const R = cell * 0.36,
+        offs = ((this.spreadOff ||= new Map()).get(view) || (this.spreadOff.set(view, new Map()), this.spreadOff.get(view))),
+        at = (this.spreadAt ||= new Map()),
+        dt = Math.min(100, time - (at.get(view) ?? time)),
+        pts = (this._spreadPts ||= []),
+        grid = (this._spreadGrid ||= new Map()),
+        kk = 1 - Math.exp(-dt / 300),
+        cap = cell * 0.2;
+      at.set(view, time);
+      for (const cellList of grid.values()) cellList.length = 0;
+      let n = 0;
+      for (const c of list) {
+        if (c.hp <= 0) continue;
+        const e = pts[n] || (pts[n] = { c: null, x: 0, y: 0, fly: false, gx: 0, gy: 0 });
+        n++;
+        e.c = c;
+        e.x = z.left + c.x * z.bw;
+        e.y = z.top + c.y * z.bh;
+        e.fly = !!c.flying;
+        e.gx = Math.floor(e.x / R);
+        e.gy = Math.floor(e.y / R);
+        const k = e.gx * 65536 + e.gy;
+        let cl = grid.get(k);
+        if (!cl) grid.set(k, (cl = []));
+        cl.push(e);
+      }
+      for (let m = 0; m < n; m++) {
+        const e = pts[m];
+        let fx = 0,
+          fy = 0;
+        for (let ix = e.gx - 1; ix <= e.gx + 1; ix++)
+          for (let iy = e.gy - 1; iy <= e.gy + 1; iy++) {
+            const cl = grid.get(ix * 65536 + iy);
+            if (!cl) continue;
+            for (const o of cl) {
+              if (o === e || o.fly !== e.fly) continue;
+              let dx = e.x - o.x,
+                dy = e.y - o.y,
+                d = Math.hypot(dx, dy);
+              if (d >= R) continue;
+              if (d < 0.01) {
+                // exactly on top of each other: split by id
+                dx = varyOf(e.c) < varyOf(o.c) ? -1 : 1;
+                dy = 0;
+                d = 1;
+              }
+              const w = (R - d) / R;
+              fx += (dx / d) * w;
+              fy += (dy / d) * w;
+            }
+          }
+        let tx = fx * cell * 0.12,
+          ty = fy * cell * 0.12;
+        const l = Math.hypot(tx, ty);
+        if (l > cap) {
+          tx *= cap / l;
+          ty *= cap / l;
+        }
+        let o = offs.get(e.c.id);
+        if (!o) offs.set(e.c.id, (o = { x: 0, y: 0, seen: 0 }));
+        o.x += (tx - o.x) * kk;
+        o.y += (ty - o.y) * kk;
+        o.seen = time;
+      }
+      // forget creeps that are gone (now and then)
+      if (offs.size > n + 64) for (const [id, o] of offs) if (o.seen !== time) offs.delete(id);
+      for (let m = 0; m < n; m++) pts[m].c = null; // do not keep creeps alive
+      if (grid.size > 4096) grid.clear();
+      return offs;
+    }
     point(x, y) {
       const z = this.geometry();
       return { x: z.left + x * z.bw, y: z.top + y * z.bh };
@@ -952,16 +1181,26 @@ export function mountArena({
         mb.quad(z.left + (x + 0.5) * cell, z.top + (y + 0.5) * cell, rect.w * sx, rect.h * sy, 0.5, 0.5, (Math.floor(r * 4) * 90 * Math.PI) / 180, hash(y, x, 5) > 0.5, [0xe9f1df, 0xdfe9d3, 0xf2f6e8, 0xe4edd9][Math.floor(hash(x, y, 2) * 4)], 1, rect.uv);
       }
       tufts.forEach(prop);
+      // v0.23b: checkers: every other field a little darker, the others a little lighter (under the path tiles)
+      if (tileMode === "checkers") {
+        const ft = this.flatTiles;
+        for (let y = 0; y < z.logicalRows; y++)
+          for (let x = 0; x < z.logicalCols; x++) {
+            if ((x + y) & 1) ft.fillStyle(0x000000, 0.13);
+            else ft.fillStyle(0xffffff, 0.05);
+            ft.fillRect(z.left + x * cell, z.top + y * cell, cell, cell);
+          }
+      }
       // Grout between tiles.
       const gr = this.grout;
       gr.clear();
-      for (let i = 0; i <= z.logicalCols; i++) {
+      if (tileMode !== "none") for (let i = 0; i <= z.logicalCols; i++) {
         gr.lineStyle(2, 0x1b2a1c, 0.55);
         gr.lineBetween(z.left + i * cell, z.top, z.left + i * cell, z.top + z.bh);
         gr.lineStyle(1, 0xd8f0b0, 0.12);
         gr.lineBetween(z.left + i * cell + 1.5, z.top, z.left + i * cell + 1.5, z.top + z.bh);
       }
-      for (let j = 0; j <= z.logicalRows; j++) {
+      if (tileMode !== "none") for (let j = 0; j <= z.logicalRows; j++) {
         gr.lineStyle(2, 0x1b2a1c, 0.55);
         gr.lineBetween(z.left, z.top + j * cell, z.left + z.bw, z.top + j * cell);
         gr.lineStyle(1, 0xd8f0b0, 0.12);
@@ -1070,7 +1309,7 @@ export function mountArena({
         }
       const gr = this.grout;
       gr.clear();
-      gr.lineStyle(1, P.grid[0], P.grid[1]);
+      gr.lineStyle(1, P.grid[0], tileMode === "none" ? 0 : P.grid[1]); // v0.23b: Tiles › No grid
       for (let i = 1; i < z.logicalCols; i++) gr.lineBetween(z.left + i * cell, z.top, z.left + i * cell, z.top + z.bh);
       for (let j = 1; j < z.logicalRows; j++) gr.lineBetween(z.left, z.top + j * cell, z.left + z.bw, z.top + j * cell);
       this.drawStrips(z);
@@ -1353,7 +1592,8 @@ export function mountArena({
               tx: to.x,
               ty: to.y - cell * 0.2,
               t: 0,
-              dur: clamp(d / (cell * 10), 0.07, 0.34),
+              // v0.23b: arrows fly 30 % faster
+              dur: clamp(d / (cell * 10), 0.07, 0.34) / (/arrow/i.test(def?.fields?.ua1m || "") || def?.attackType === "pierce" ? 1.3 : 1),
               ...style,
               arc: style.splash ? cell * 0.5 : 0,
             });
@@ -1489,6 +1729,7 @@ export function mountArena({
             this.floatText(q.x, q.y - cell * 0.45, `+${n} EXP`, "#d2b0ff", 15, 44, 1.2);
           }
         } else if (e.type === "kill" && e.player === view) {
+          (this.killed ||= new Map()).set(`${view}:c:${e.creepId}`, time); // v0.23a (creep graphic overhaul): death animation
           const q = this.point(e.x, e.y),
             def = catalog.byId[e.id],
             big = !!def?.bossTier;
@@ -1623,11 +1864,11 @@ export function mountArena({
         glow.fillStyle(0xf4ffc8, a);
         glow.fillCircle(x, y, 1.4);
       }
-      // ---- v0.10p: Lava Floor (v0.10q: 6th row). v0.22i1: looks like its perk tile (dark basalt plates on
+      // ---- v0.10p: Lava Floor (v0.10q: 6th row; v0.23k: random tiles). v0.22i1: looks like its perk tile (dark basalt plates on
       // glowing lava, bright cracks and bubbles) and lies under every field of the row, towers included
+      // v0.23k: on the player's lava tiles (random fields) instead of the whole 6th row
       if ((player.perks?.hellfire || 0) > 0) {
-        const y = HELLFIRE.row;
-        for (let col = 0; col < z.logicalCols; col++) {
+        for (const [col, y] of player.lava || []) {
           const x0 = z.left + col * cell,
             y0 = z.top + y * cell,
             flick = 0.5 + 0.5 * Math.sin(time * 0.003 + col * 1.7),
@@ -2017,15 +2258,18 @@ export function mountArena({
         }
       this.drawPerkFx(game, view, z, time, g, glow); // v0.12: Pillar of Fire, Monsun
       // ---- creeps (v0.12: and Arcane Golems walking up the lane)
-      for (const c of player.golems?.length ? [...player.creeps, ...player.golems] : player.creeps) {
+      const walkers = player.golems?.length ? [...player.creeps, ...player.golems] : player.creeps,
+        apart = this.spreadCreeps(walkers, view, cell, time, z); // v0.23g: packed groups ease apart (display only)
+      for (const c of walkers) {
         if (c.hp <= 0) continue;
         const def = catalog.byId[c.typeId || c.unitId || c.defId || c.type];
         if (!def) continue;
-        const key = `${view}:c:${c.id}`,
+        const key = this.creepKey(view, c.id), // v0.23i: the key string is made once per creep
           phase0 = parseInt(String(c.id).replace(/\D/g, ""), 10) || 0,
-          raw = this.point(c.x, c.y),
+          raw = this.roundedPoint(c, cell, z), // v0.23f: corners of the path are walked as a curve (display only)
           // Render-only spread so a group reads as several units, not one blob.
-          q = { x: raw.x + ((((phase0 * 37) % 7) - 3) / 3) * cell * 0.14, y: raw.y + ((((phase0 * 53) % 5) - 2) / 2) * cell * 0.1 },
+          push = apart.get(c.id),
+          q = { x: raw.x + ((((phase0 * 37) % 7) - 3) / 3) * cell * 0.14 + (push?.x || 0), y: raw.y + ((((phase0 * 53) % 5) - 2) / 2) * cell * 0.1 + (push?.y || 0) },
           // v0.14: creeps wear their sender's colour (team blue in the art moved to that colour)
           teamId = c.owner >= 0 ? colorOf(c.owner) : "neutral"; // v0.15: neutral creeps wear brown; v0.17c: the Arcane Golem too wears its owner's colour
         alive.add(key);
@@ -2049,8 +2293,8 @@ export function mountArena({
         const boss = !!(def.bossTier || c.waveBoss),
           flying = !!(c.flying ?? def.flying),
           neutral = c.owner < 0,
-          height = cell * (boss ? 1.3 * (c.waveBoss ? 1 : tierGrowth(def.tier || (def.bossTier || 2) - 1)) : (flying ? 0.82 : 0.78) * (neutral ? 1 : creepSize(catalog, def.id))) * (c.golem ? 1 + 0.07 * ((c.level || 1) - 1) : 1), // v0.17c: the Arcane Golem grows 7 % per perk level
-          s = (height / m.h) * (1 - 0.12 * (c.shrink || 0)),
+          height = cell * (boss ? 1.3 * (c.waveBoss ? 1 : tierGrowth(def.tier || (def.bossTier || 2) - 1)) : (flying ? 0.82 : 0.78) * creepSize(catalog, def.id)) * (c.golem ? 1 + 0.07 * ((c.level || 1) - 1) : 1), // v0.17c: the Arcane Golem grows 7 % per perk level
+          s = (height / (walk?.figH ? (walk.figS || walk.figH) * 1.04 : m.h)) * (walk?.scale || 1) * (1 - 0.12 * (c.shrink || 0)), // v0.23j: walk.scale for figures that read too large // v0.23a: 8-way walks are scaled by their own figure size (wide figures a bit smaller)
           step = time * 0.016 + phase0;
         // design variants: each monster walks its own way (motion.js); its clock runs with its pace and stops when stunned
         let gait = null;
@@ -2067,6 +2311,39 @@ export function mountArena({
         const dx = q.x - (sprite.getData("px") ?? q.x);
         if (Math.abs(dx) > 0.35) sprite.setData("face", dx < 0 ? -1 : 1);
         sprite.setData("px", q.x);
+        sprite.setData("lift", lift).setData("art", artKey).setData("team", teamId); // v0.23a: for the death animation
+        if (walk?.dirs) {
+          // v0.23a (creep graphic overhaul): 8-way walk. The heading follows a smoothed screen velocity and only
+          // turns once it is clearly in the next sector, so corners do not flicker between two views.
+          const px = sprite.getData("wx") ?? raw.x,
+            py = sprite.getData("wy") ?? raw.y,
+            ddx = raw.x - px,
+            ddy = raw.y - py,
+            moved = Math.hypot(ddx, ddy);
+          sprite.setData("wx", raw.x).setData("wy", raw.y);
+          if (moved < cell * 2) {
+            // steps follow the ground: one full cycle (two steps) per ~0.6 figure heights walked
+            sprite.setData("wd", (sprite.getData("wd") ?? phase0 * 0.37) + moved);
+            // time-based smoothing (~0.25 s), so a corner in the path is taken as a curve
+            const kk = 1 - Math.exp(-Math.min(100, time - (sprite.getData("vt") ?? time)) / 250),
+              vx = (sprite.getData("vx") ?? ddx) * (1 - kk) + ddx * kk,
+              vy = (sprite.getData("vy") ?? ddy) * (1 - kk) + ddy * kk;
+            sprite.setData("vt", time).setData("vx", vx).setData("vy", vy);
+            if (Math.hypot(vx, vy) > cell * 0.002) {
+              const ang = Math.atan2(vy, vx),
+                cur = sprite.getData("dir"),
+                k = ((Math.round(ang / (Math.PI / 4)) % 8) + 8) % 8,
+                next = (10 - k) % 8;
+              let turn = cur === undefined;
+              if (!turn && next !== cur) {
+                const curAng = (((10 - cur) % 8) * Math.PI) / 4,
+                  off = Math.abs(Math.atan2(Math.sin(ang - curAng), Math.cos(ang - curAng)));
+                turn = off > Math.PI / 8 + 0.14; // ~8° past the sector edge
+              }
+              if (turn && next !== cur) sprite.setData("dir", next);
+            }
+          }
+        }
         if (c.hp < (sprite.getData("hp") ?? c.hp) - 0.01 && time - (sprite.getData("flashAt") || 0) > 170)
           sprite.setData("flashAt", time).setData("hit", time + 55);
         sprite.setData("hp", c.hp);
@@ -2080,7 +2357,21 @@ export function mountArena({
             last = sprite.getData("wt") ?? time,
             clock = (sprite.getData("wc") ?? phase0 * 97) + Math.min(100, time - last) * rate;
           sprite.setData("wt", time).setData("wc", clock);
-          this.showFrame(sprite, skin, Math.floor(clock / walk.ms) % walk.frames);
+          if (walk.dirs) {
+            // v0.23a: the cycle is driven by the distance walked (feet match the ground speed; a stopped or
+            // stunned creep freezes mid-step). Turns play out through each view in between, one every 130 ms.
+            const stride = Math.max(4, height * 0.6), // v0.23f: 0.85 → 0.6 figure heights per cycle (no moonwalking)
+              pos = (((((sprite.getData("wd") ?? 0) / stride) * walk.frames) % walk.frames) + walk.frames) % walk.frames,
+              dir = sprite.getData("dir") ?? 0;
+            let shown = sprite.getData("show") ?? dir;
+            if (shown !== dir && time - (sprite.getData("showAt") ?? -1e9) >= 130) {
+              const diff = ((dir - shown + 12) % 8) - 4; // shortest way round, -4..3
+              shown = (shown + (diff >= 0 ? 1 : -1) + 8) % 8;
+              sprite.setData("showAt", time);
+            }
+            sprite.setData("show", shown);
+            this.showFrame(sprite, skin, shown * walk.frames + Math.floor(pos));
+          } else this.showFrame(sprite, skin, Math.floor(clock / walk.ms) % walk.frames);
         } else if (sprite.texture.key !== skin) sprite.setTexture(skin);
         if ((sprite.getData("hit") || 0) > time) sprite.setTint(0xffffff).setTintMode(TINT.FILL);
         else {
@@ -2100,15 +2391,18 @@ export function mountArena({
           // v0.21z: Enraged Meat Golem: 10 % larger; while it growls it swells once, smoothly
           growl = c.enrageUntil > game.time ? Math.sin(Math.PI * clamp(1 - (c.enrageUntil - game.time) / 1.2, 0, 1)) : 0,
           rage = c.enraged ? 1.1 + 0.1 * growl : 1;
-        const face = sprite.getData("face") === -1 ? -1 : 1;
+        const face = sprite.getData("face") === -1 && !walk?.dirs ? -1 : 1; // v0.23a: 8-way walks have their own views, no mirroring
+        const ground = !flying && !gait && artKey.startsWith("creep-n-"); // v0.23b: bestiary figures of the original design
         if (gait) sprite.setBend(m.footY / m.h, gait.lean * face * m.h * 0.12, 1);
         else sprite.setBend(0);
         sprite
-          .setOrigin(walk ? (m.w / 2 + walk.ox) / walk.fw : 0.5, walk ? (m.footY + walk.oy) / walk.fh : m.footY / m.h)
-          .setPosition(q.x, q.y + cell * 0.18 - lift)
+          .setOrigin(walk ? (walk.footX ?? m.w / 2 + walk.ox) / walk.fw : 0.5, walk ? (walk.footY ?? m.footY + walk.oy) / walk.fh : m.footY / m.h)
+          .setPosition(q.x, q.y + (ground ? cell * 0.2 + height * 0.04 : cell * 0.18) - lift) // v0.23b: ground creeps stand in their shadow, feet slightly sunk
           .setScale(s * rage * face * (c.buff === "fat" ? 1.42 : 1) * (c.spiritWolf ? 1.08 : 1) * (gait ? gait.sx : 1), s * rage * flap * (c.buff === "fat" ? 1.06 : 1) * (c.spiritWolf ? 1.08 : 1) * (gait ? gait.sy : 1)) // v0.15: fat quest creeps; v0.19a1: Spirit Wolves a little larger
           .setRotation(gait ? gait.rot * face : flying || walk ? 0 : Math.sin(step) * 0.07)
-          .setDepth(3000 + Math.floor(q.y) + (flying ? 1200 : 0)); // creeps always draw in front of towers
+          // v0.23e: the board is seen from the bottom: ground creeps sort with the towers by where their feet are
+          // (lower on the board = in front); flyers stay above everything on the ground
+          .setDepth(flying ? 4200 + Math.floor(q.y) : 100.5 + Math.floor(q.y + cell * 0.2));
         if (gait) g.fillStyle(0x2d5a1c, flying ? 0.14 : 0.2); // design variants: a softer, green-tinted shadow on the light meadow
         else g.fillStyle(0x06120e, flying ? 0.22 : 0.32);
         g.fillEllipse(q.x, q.y + cell * 0.2, cell * (boss ? 0.8 : 0.48), cell * (boss ? 0.28 : 0.17));
@@ -2255,7 +2549,10 @@ export function mountArena({
           const hb = this.hpBars,
             bar = boss ? cell * 0.95 : cell * 0.55 * hpBarScale(def), // v0.19h1: weak creeps get shorter bars
             barH = boss ? 6 : 4,
-            barY = q.y + cell * 0.18 - lift - height - 6;
+            // v0.23l: just above the head of the figure as drawn (its own size and scale), not above the nominal
+            // creep height (wide or scaled figures had their bar far above them)
+            figTop = gait ? q.y + cell * 0.18 - lift - height : sprite.y - Math.abs(sprite.sy) * (walk?.figH ? walk.figH : (m.footY ?? m.h) * 0.92),
+            barY = Math.min(figTop, q.y + cell * 0.18 - lift - height * 0.45) - barH - 4;
           // v0.17q: heavy creeps carry an iron frame, bosses a gold frame
           // v0.22n2: a sent boss's frame is metal in its owner's colour (neutral wave bosses stay gold)
           const frame = boss ? "gold" : c.heavy || isHeavy(def) ? "iron" : null,
@@ -2290,16 +2587,82 @@ export function mountArena({
           hb.fillRoundedRect(q.x - bar / 2, barY, Math.max(1, bar * ratio), barH, 2);
         }
       }
+      this.batchCreeps(view, z, game.grid.rows, cell, alive); // v0.23i: creeps drawn in a few batches instead of one call each
+      this.gone ||= [];
       for (const [key, s] of this.units)
         if (!alive.has(key)) {
-          s.destroy();
+          // v0.23a (creep graphic overhaul): creeps with a death sheet wait for this frame's kill events
+          if (s.getData("art") && DEATH_KEY[s.getData("art")] && !activeArtSet()) this.gone.push([key, s]);
+          else s.destroy();
           this.units.delete(key);
         }
       for (const key of this.waiting.keys()) if (!alive.has(key)) this.waiting.delete(key); // v0.23
       this.consumeEvents(game, view, own, catalog, z, time);
+      this.settleDeaths(view, time);
       this.drawFx(game, player, dt, cell);
       this.drawPip(game, view, own, z, catalog, time);
       this.drawVignette(z, dt);
+    }
+    /**
+     * v0.23i: the creeps of the board are drawn as sprite batches: one per texture and per board row, so a 200-creep
+     * wave costs a few dozen draw calls instead of 200. Each row band starts at the towers of that row: creeps
+     * whose feet are below those towers draw in front of them and behind the towers of the next row (the same
+     * order as before); inside a batch the creeps are sorted by their feet. Flyers share one band above everything
+     * on the ground. Design variants (bending figures) keep drawing one by one.
+     */
+    /**
+     * v0.23l: depth of a fallen ground creep: behind every living creep of its board row (the living ones of a row
+     * are drawn together, see batchCreeps), in front of the towers of that row, behind everything further down.
+     */
+    fallenDepth(feet) {
+      if (!this._bandH || activeArtSet()) return 100.25 + Math.floor(feet);
+      return 100.4 + Math.floor(this._bandTop + Math.floor((feet - this._bandTop) / this._bandH) * this._bandH);
+    }
+    batchCreeps(view, z, rows, cell, alive) {
+      // pool: texture key -> (band depth -> { batch, items, used }); everything is reused from frame to frame
+      const pool = (this.creepBatches ||= new Map()),
+        uv = (this._batchUv ||= [0, 0, 0, 0]),
+        stage = this.stage,
+        set = activeArtSet(),
+        top = z.top + (0.5 / rows) * z.bh + cell * 0.1, // feet line of the first tower row
+        rowH = z.bh / rows;
+      this._bandTop = top; // v0.23l: for fallenDepth
+      this._bandH = rowH;
+      for (const bands of pool.values()) for (const g of bands.values()) g.items.length = 0;
+      for (const key of alive) {
+        if (key.indexOf(":c:") < 0) continue;
+        const s = this.units.get(key);
+        if (!s) continue;
+        const ok = !set && !s.bend && s.visible && s.alpha > 0 && s.blend === BLEND.NORMAL && stage.hasTexture(s.texture.key);
+        s.setBatched(ok);
+        if (!ok) continue;
+        const air = s.depth >= 4000,
+          depth = air ? 4200.5 : 100.5 + Math.floor(top + Math.floor((s.depth - 100.5 - top) / rowH) * rowH);
+        let bands = pool.get(s.texture.key);
+        if (!bands) pool.set(s.texture.key, (bands = new Map()));
+        let g = bands.get(depth);
+        if (!g) bands.set(depth, (g = { batch: null, items: [] }));
+        g.items.push(s);
+      }
+      for (const [tex, bands] of pool) {
+        for (const [depth, g] of bands) {
+          if (!g.items.length) {
+            g.batch?.destroy();
+            bands.delete(depth);
+            continue;
+          }
+          const b = (g.batch ||= stage.sprites(tex).setDepth(depth)),
+            t = stage.textures.get(tex);
+          b.clear();
+          if (g.items.length > 1) g.items.sort(byDepth);
+          for (const s of g.items) {
+            stage._uv(tex, s.frame.name, uv);
+            const tint = (Math.round(s.tint[0] * 255) << 16) | (Math.round(s.tint[1] * 255) << 8) | Math.round(s.tint[2] * 255);
+            b.quad(s.x, s.y, t.fw * s.sx, t.fh * s.sy, s.ox, s.oy, s.rot, s.flipX, tint, s.alpha, uv, s.fill);
+          }
+        }
+        if (!bands.size) pool.delete(tex);
+      }
     }
     /** Phase of the running attack (0..1) or null (same timing as attackPose). */
     attackPhase(def, sprite, time) {
@@ -3076,6 +3439,13 @@ export function mountArena({
     /** v0.13: Options › Graphic */
     setPopups(value) {
       Object.assign(popups, value);
+    },
+    /** v0.23b: Options › Gameplay › Tiles */
+    setTiles(mode) {
+      if (mode === tileMode) return;
+      tileMode = mode;
+      const sc = scene();
+      if (sc) sc.terrainKey = "";
     },
     destroy() {
       resize.disconnect();

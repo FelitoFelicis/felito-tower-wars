@@ -2,6 +2,88 @@
 import { ART_SETS, UI_ICONS } from "./art-sets.js";
 import { currentDesign } from "./design.js";
 const BASE_ART = {
+  // v0.23a (creep graphic overhaul): the bestiary figures of the original design (stills; walking creeps use ANIM_MANIFEST)
+  "creep-n-abomination": { w: 234, h: 145, footY: 141 },
+  "creep-n-acid-slime": { w: 153, h: 110, footY: 106 },
+  "creep-n-arcane-golem": { w: 107, h: 85, footY: 80 },
+  "creep-n-armored-boar": { w: 152, h: 111, footY: 106 },
+  "creep-n-armored-boar-fel": { w: 194, h: 138, footY: 134 },
+  "creep-n-bat": { w: 182, h: 81, footY: 76 },
+  "creep-n-boar": { w: 159, h: 124, footY: 120 },
+  "creep-n-bomber": { w: 141, h: 120, footY: 116 },
+  "creep-n-bone-knight": { w: 151, h: 140, footY: 136 },
+  "creep-n-brute": { w: 210, h: 137, footY: 133 },
+  "creep-n-brute-brown": { w: 210, h: 137, footY: 133 },
+  "creep-n-burrower": { w: 200, h: 118, footY: 114 },
+  "creep-n-crystal-worm": { w: 176, h: 117, footY: 113 },
+  "creep-n-crystal-worm-green": { w: 176, h: 117, footY: 113 },
+  "creep-n-demon-hound": { w: 125, h: 92, footY: 87 },
+  "creep-n-demon-lord": { w: 255, h: 145, footY: 141 },
+  "creep-n-demon-lord-fel": { w: 255, h: 145, footY: 141 },
+  "creep-n-desert-wyrm": { w: 244, h: 158, footY: 154 },
+  "creep-n-dire-wolf": { w: 177, h: 147, footY: 143 },
+  "creep-n-fire-imp": { w: 160, h: 135, footY: 131 },
+  "creep-n-fire-imp-fel": { w: 160, h: 135, footY: 131 },
+  "creep-n-flying-machine": { w: 144, h: 104, footY: 99 },
+  "creep-n-flying-sheep": { w: 132, h: 91, footY: 86 },
+  "creep-n-forest-golem": { w: 185, h: 140, footY: 136 },
+  "creep-n-forest-golem-autumn": { w: 185, h: 140, footY: 136 },
+  "creep-n-forest-troll": { w: 95, h: 105, footY: 100 },
+  "creep-n-frost-dragon": { w: 271, h: 148, footY: 144 },
+  "creep-n-ghoul": { w: 172, h: 128, footY: 124 },
+  "creep-n-ghoul-green": { w: 172, h: 128, footY: 124 },
+  "creep-n-giant-bat": { w: 268, h: 142, footY: 138 },
+  "creep-n-gnoll": { w: 104, h: 98, footY: 97 }, // v0.23d: new gnoll sheet
+  "creep-n-horse": { w: 113, h: 102, footY: 101 }, // v0.23d: hay pony
+  "creep-n-goblin": { w: 125, h: 89, footY: 84 },
+  "creep-n-grunt": { w: 130, h: 103, footY: 98 },
+  "creep-n-harpy": { w: 203, h: 134, footY: 130 },
+  "creep-n-ice-imp": { w: 143, h: 137, footY: 133 },
+  "creep-n-ice-imp-violet": { w: 143, h: 137, footY: 133 },
+  "creep-n-ice-slime": { w: 145, h: 107, footY: 103 },
+  "creep-n-imp": { w: 159, h: 134, footY: 130 },
+  "creep-n-imp-void": { w: 159, h: 134, footY: 130 },
+  "creep-n-infernal-golem": { w: 121, h: 93, footY: 88 },
+  "creep-n-inferno-dragon": { w: 222, h: 154, footY: 150 },
+  "creep-n-lava-golem": { w: 198, h: 136, footY: 132 },
+  "creep-n-lava-worm": { w: 211, h: 120, footY: 116 },
+  "creep-n-lich-king": { w: 212, h: 169, footY: 165 },
+  "creep-n-meat-golem": { w: 124, h: 96, footY: 91 },
+  "creep-n-mountain-golem": { w: 142, h: 106, footY: 101 },
+  "creep-n-mud-golem": { w: 137, h: 97, footY: 92 },
+  "creep-n-necromancer": { w: 129, h: 108, footY: 103 },
+  "creep-n-ogre": { w: 183, h: 140, footY: 136 },
+  "creep-n-orc": { w: 162, h: 137, footY: 133 },
+  "creep-n-orc-berserker": { w: 181, h: 136, footY: 132 },
+  "creep-n-orc-berserker-violet": { w: 181, h: 136, footY: 132 },
+  "creep-n-orc-shadow": { w: 162, h: 137, footY: 133 },
+  "creep-n-plague-zombie": { w: 171, h: 131, footY: 127 },
+  "creep-n-raider": { w: 138, h: 107, footY: 102 },
+  "creep-n-rock-golem": { w: 140, h: 102, footY: 97 },
+  "creep-n-sand-worm": { w: 148, h: 103, footY: 99 },
+  "creep-n-satyr": { w: 107, h: 106, footY: 101 },
+  "creep-n-sea-kraken": { w: 251, h: 173, footY: 169 },
+  "creep-n-shade": { w: 147, h: 99, footY: 94 },
+  "creep-n-shaman": { w: 116, h: 101, footY: 96 },
+  "creep-n-siege-golem": { w: 120, h: 102, footY: 97 },
+  "creep-n-skeleton": { w: 155, h: 127, footY: 123 },
+  "creep-n-skeleton-archer": { w: 142, h: 128, footY: 124 },
+  "creep-n-skeleton-mage": { w: 158, h: 136, footY: 132 },
+  "creep-n-skeleton-mage-green": { w: 158, h: 136, footY: 132 },
+  "creep-n-sky-raider": { w: 172, h: 133, footY: 129 },
+  "creep-n-slime": { w: 138, h: 95, footY: 91 },
+  "creep-n-spawn-spider": { w: 129, h: 83, footY: 78 },
+  "creep-n-spearman": { w: 136, h: 136, footY: 132 },
+  "creep-n-spiked-slime": { w: 156, h: 103, footY: 99 },
+  "creep-n-spiked-slime-violet": { w: 156, h: 103, footY: 99 },
+  "creep-n-spiritwolf": { w: 132, h: 97, footY: 92 },
+  "creep-n-stone-titan": { w: 225, h: 148, footY: 144 },
+  "creep-n-storm-imp": { w: 157, h: 135, footY: 131 },
+  "creep-n-troll": { w: 177, h: 141, footY: 137 },
+  "creep-n-troll-brown": { w: 177, h: 141, footY: 137 },
+  "creep-n-void-dragon": { w: 258, h: 162, footY: 158 },
+  "creep-n-wolf": { w: 146, h: 124, footY: 120 },
+  "creep-n-zombie": { w: 106, h: 95, footY: 90 },
   "creep-alchemist": { w: 350, h: 400, footY: 384 },
   "creep-bat-rider": { w: 400, h: 387, footY: 371 },
   "creep-black-dragon": { w: 400, h: 352, footY: 336 },
@@ -197,7 +279,7 @@ export const ART_MANIFEST = Object.freeze({
  * v0.23: version key on every art URL (figures, animations, icons): raise it whenever pictures in
  * assets/art, assets/anim, assets/art-toy or assets/art-pets change, so browsers fetch the new ones (see the README).
  */
-export const ART_VERSION = "v023a";
+export const ART_VERSION = "v023m";
 // ---- art sets of the Circle Tower Wars designs ------------------------------------------------------
 // Sonnenwiese and Bonbon draw every figure as a round toy ("toy"), Pfotenwelt as a cute animal ("pets").
 // A set holds one picture per figure; level variants (-v1..-v3, -l1, -l2) share their base figure there.
@@ -241,6 +323,87 @@ export const ANIM_MANIFEST = Object.freeze({
   "tower-guard-l1": { kind: "attack", frames: 10, cols: 5, fw: 380, fh: 420, ox: 40, oy: 20, ms: 45, start: 2 },
   "tower-guard-l2": { kind: "attack", frames: 10, cols: 5, fw: 380, fh: 420, ox: 40, oy: 20, ms: 45, start: 2 },
   "creep-skeleton": { kind: "walk", frames: 8, cols: 4, fw: 444, fh: 412, ox: 24, oy: 12, ms: 80 },
+  // v0.23a (creep graphic overhaul): 8-way walks (rows: front, front-right, right, back-right, back, back-left,
+  // left, front-left; 6 frames each, foot point footX/footY, figure height figH, size figS = max(figH, width / 1.4)) and 6-frame deaths (key + "-death")
+  "creep-n-arcane-golem": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 124, fh: 95, footX: 62, footY: 91, figH: 79, ms: 95, figS: 79 },
+  "creep-n-arcane-golem-death": { kind: "death", frames: 6, cols: 6, fw: 240, fh: 175, footX: 120, footY: 171, ms: 110 },
+  "creep-n-bat": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 208, fh: 85, footX: 104, footY: 81, figH: 73, ms: 95, figS: 125 },
+  "creep-n-bat-death": { kind: "death", frames: 6, cols: 6, fw: 234, fh: 119, footX: 117, footY: 115, ms: 110 },
+  "creep-n-armored-boar": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 178, fh: 125, footX: 89, footY: 121, figH: 105, ms: 95, figS: 105 },
+  "creep-n-demon-hound": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 180, fh: 105, footX: 90, footY: 101, figH: 83, ms: 95, figS: 92 },
+  "creep-n-demon-hound-death": { kind: "death", frames: 6, cols: 6, fw: 238, fh: 145, footX: 119, footY: 141, ms: 110 },
+  "creep-n-flying-machine": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 162, fh: 109, footX: 81, footY: 105, figH: 86, ms: 95, figS: 92 },
+  "creep-n-flying-machine-death": { kind: "death", frames: 6, cols: 6, fw: 232, fh: 202, footX: 116, footY: 198, ms: 110 },
+  "creep-n-flying-sheep": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 170, fh: 104, footX: 85, footY: 100, figH: 85, ms: 95, figS: 97, scale: 0.8 }, // v0.23j: smaller
+  "creep-n-flying-sheep-death": { kind: "death", frames: 6, cols: 6, fw: 200, fh: 119, footX: 100, footY: 115, ms: 110 },
+  "creep-n-forest-troll": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 126, fh: 113, footX: 63, footY: 109, figH: 95, ms: 95, figS: 95 },
+  "creep-n-forest-troll-death": { kind: "death", frames: 6, cols: 6, fw: 264, fh: 166, footX: 132, footY: 162, ms: 110 },
+  "creep-n-gnoll": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 145, fh: 117, footX: 72, footY: 113, figH: 95, ms: 95, figS: 95 },
+  "creep-n-gnoll-death": { kind: "death", frames: 6, cols: 6, fw: 160, fh: 152, footX: 80, footY: 148, ms: 110 },
+  // v0.23d: hay pony: four poses per direction (stand, walk, run, walk) and seven death frames
+  "creep-n-horse": { kind: "walk", dirs: 8, frames: 4, cols: 4, fw: 146, fh: 112, footX: 73, footY: 108, figH: 95, ms: 120, figS: 95 },
+  "creep-n-horse-death": { kind: "death", frames: 7, cols: 7, fw: 149, fh: 109, footX: 74, footY: 105, ms: 105 },
+  "creep-n-goblin": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 146, fh: 93, footX: 73, footY: 89, figH: 81, ms: 95, figS: 81 },
+  "creep-n-goblin-death": { kind: "death", frames: 6, cols: 6, fw: 216, fh: 103, footX: 108, footY: 99, ms: 110 },
+  "creep-n-grunt": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 138, fh: 110, footX: 69, footY: 106, figH: 97, ms: 95, figS: 97 },
+  "creep-n-grunt-death": { kind: "death", frames: 6, cols: 6, fw: 180, fh: 130, footX: 90, footY: 126, ms: 110 },
+  "creep-n-infernal-golem": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 134, fh: 96, footX: 67, footY: 92, figH: 81, ms: 95, figS: 81 },
+  "creep-n-infernal-golem-death": { kind: "death", frames: 6, cols: 6, fw: 198, fh: 172, footX: 99, footY: 168, ms: 110 },
+  "creep-n-meat-golem": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 142, fh: 115, footX: 71, footY: 111, figH: 92, ms: 95, figS: 92 },
+  "creep-n-meat-golem-death": { kind: "death", frames: 6, cols: 6, fw: 226, fh: 141, footX: 113, footY: 137, ms: 110 },
+  "creep-n-mountain-golem": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 156, fh: 111, footX: 78, footY: 107, figH: 99, ms: 95, figS: 99 },
+  "creep-n-mountain-golem-death": { kind: "death", frames: 6, cols: 6, fw: 216, fh: 115, footX: 108, footY: 111, ms: 110 },
+  "creep-n-mud-golem": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 154, fh: 106, footX: 77, footY: 102, figH: 92, ms: 95, figS: 92 },
+  "creep-n-mud-golem-death": { kind: "death", frames: 6, cols: 6, fw: 226, fh: 125, footX: 113, footY: 121, ms: 110 },
+  "creep-n-necromancer": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 160, fh: 113, footX: 80, footY: 109, figH: 96, ms: 95, figS: 96 },
+  "creep-n-necromancer-death": { kind: "death", frames: 6, cols: 6, fw: 210, fh: 141, footX: 105, footY: 137, ms: 110 },
+  "creep-n-raider": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 176, fh: 110, footX: 88, footY: 106, figH: 94, ms: 95, figS: 97, scale: 0.8 }, // v0.23j: smaller
+  "creep-n-raider-death": { kind: "death", frames: 6, cols: 6, fw: 210, fh: 136, footX: 105, footY: 132, ms: 110 },
+  "creep-n-rock-golem": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 152, fh: 107, footX: 76, footY: 103, figH: 93, ms: 95, figS: 93 },
+  "creep-n-rock-golem-death": { kind: "death", frames: 6, cols: 6, fw: 200, fh: 132, footX: 100, footY: 128, ms: 110 },
+  "creep-n-satyr": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 132, fh: 117, footX: 66, footY: 113, figH: 102, ms: 95, figS: 102 },
+  "creep-n-satyr-death": { kind: "death", frames: 6, cols: 6, fw: 192, fh: 134, footX: 96, footY: 130, ms: 110 },
+  "creep-n-shade": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 172, fh: 105, footX: 86, footY: 101, figH: 92, ms: 95, figS: 98 },
+  "creep-n-shade-death": { kind: "death", frames: 6, cols: 6, fw: 178, fh: 137, footX: 89, footY: 133, ms: 110 },
+  "creep-n-shaman": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 132, fh: 104, footX: 66, footY: 100, figH: 91, ms: 95, figS: 91 },
+  "creep-n-shaman-death": { kind: "death", frames: 6, cols: 6, fw: 226, fh: 154, footX: 113, footY: 150, ms: 110 },
+  "creep-n-siege-golem": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 142, fh: 111, footX: 71, footY: 107, figH: 94, ms: 95, figS: 94 },
+  "creep-n-siege-golem-death": { kind: "death", frames: 6, cols: 6, fw: 236, fh: 134, footX: 118, footY: 130, ms: 110 },
+  "creep-n-spawn-spider": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 152, fh: 99, footX: 76, footY: 95, figH: 74, ms: 95, figS: 91 },
+  "creep-n-spawn-spider-death": { kind: "death", frames: 6, cols: 6, fw: 168, fh: 128, footX: 84, footY: 124, ms: 110 },
+  "creep-n-spiritwolf": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 196, fh: 108, footX: 98, footY: 104, figH: 85, ms: 95, figS: 93 },
+  "creep-n-spiritwolf-death": { kind: "death", frames: 6, cols: 6, fw: 248, fh: 173, footX: 124, footY: 169, ms: 110 },
+  "creep-n-zombie": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 116, fh: 101, footX: 58, footY: 97, figH: 87, ms: 95, figS: 87 },
+  "creep-n-zombie-death": { kind: "death", frames: 6, cols: 6, fw: 176, fh: 97, footX: 88, footY: 93, ms: 110 },
+  "creep-n-wolf": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 254, fh: 166, footX: 127, footY: 160, figH: 138, figS: 138, ms: 95 },
+  "creep-n-skeleton": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 190, fh: 151, footX: 95, footY: 145, figH: 133, figS: 133, ms: 95, scale: 0.82 }, // v0.23j: smaller
+});
+/** v0.23a (creep graphic overhaul): painted head portraits for the send buttons, by the creep's art key (original design). */
+export const CREEP_PORTRAIT = Object.freeze({
+  "creep-n-arcane-golem": "creep-p-arcane-golem",
+  "creep-n-bat": "creep-p-bat",
+  "creep-n-demon-hound": "creep-p-demon-hound",
+  "creep-n-flying-machine": "creep-p-flying-machine",
+  "creep-n-flying-sheep": "creep-p-flying-sheep",
+  "creep-n-forest-troll": "creep-p-forest-troll",
+  "creep-n-gnoll": "creep-p-gnoll",
+  "creep-n-horse": "creep-p-horse",
+  "creep-n-goblin": "creep-p-goblin",
+  "creep-n-grunt": "creep-p-grunt",
+  "creep-n-infernal-golem": "creep-p-infernal-golem",
+  "creep-n-meat-golem": "creep-p-meat-golem",
+  "creep-n-mountain-golem": "creep-p-mountain-golem",
+  "creep-n-mud-golem": "creep-p-mud-golem",
+  "creep-n-necromancer": "creep-p-necromancer",
+  "creep-n-raider": "creep-p-raider",
+  "creep-n-rock-golem": "creep-p-rock-golem",
+  "creep-n-satyr": "creep-p-satyr",
+  "creep-n-shade": "creep-p-shade",
+  "creep-n-shaman": "creep-p-shaman",
+  "creep-n-siege-golem": "creep-p-siege-golem",
+  "creep-n-spawn-spider": "creep-p-spawn-spider",
+  "creep-n-spiritwolf": "creep-p-spiritwolf",
+  "creep-n-zombie": "creep-p-zombie",
 });
 export const animUrl = (key) => `assets/anim/${key}.webp?v=${ART_VERSION}`;
 export const TOWER_ART = Object.keys(ART_MANIFEST).filter((k) => k.startsWith("tower-"));
@@ -291,7 +454,80 @@ const RESEARCH_ART = {
   R00D: "creep-wolf",
 };
 /** Monster figures; the first matching name wins. Missing art falls back to the generic set. */
+/** Monster figures of the original design; the first matching name wins. */
 const CREEP_PATTERNS = [
+  // v0.23a (creep graphic overhaul): every creep uses a bestiary figure; a figure shared by two creeps gets a colour variant
+  [/\[murloc\]/i, "creep-n-sea-kraken"], // Naga Siren's death spawns
+  [/flying sheep/i, "creep-n-flying-sheep"],
+  [/flying machine/i, "creep-n-flying-machine"],
+  [/zeppelin/i, "creep-n-giant-bat"],
+  [/shade/i, "creep-n-shade"],
+  [/bat rider/i, "creep-n-bat"],
+  [/void walker/i, "creep-n-imp-void"],
+  [/frost wyrm/i, "creep-n-frost-dragon"],
+  [/gryphon/i, "creep-n-inferno-dragon"],
+  [/black dragon/i, "creep-n-void-dragon"],
+  [/^wisp$|\bwisp\b/i, "creep-n-ice-imp"],
+  [/rock golem/i, "creep-n-rock-golem"],
+  [/mud golem/i, "creep-n-mud-golem"],
+  [/arcane golem/i, "creep-n-arcane-golem"],
+  [/siege golem/i, "creep-n-siege-golem"],
+  [/meat golem/i, "creep-n-meat-golem"],
+  [/infernal golem/i, "creep-n-infernal-golem"],
+  [/mountain golem/i, "creep-n-mountain-golem"],
+  [/midfernal|babyfernal|inferno \w*berth|infernal/i, "creep-n-lava-golem"],
+  [/abomination/i, "creep-n-abomination"],
+  [/clockwork goblin/i, "creep-n-bomber"],
+  [/iron maiden/i, "creep-n-bone-knight"],
+  [/horse/i, "creep-n-horse"], // v0.23d: hay pony
+  [/satyr/i, "creep-n-satyr"],
+  [/skeleton mage/i, "creep-n-skeleton-archer"],
+  [/necromancer/i, "creep-n-necromancer"],
+  [/witch doctor/i, "creep-n-skeleton-mage-green"],
+  [/akolyte|acolyte/i, "creep-n-plague-zombie"],
+  [/fel raider/i, "creep-n-armored-boar-fel"],
+  [/raider/i, "creep-n-raider"],
+  [/alchemist/i, "creep-n-bomber"],
+  [/boar|scout/i, "creep-n-armored-boar"],
+  [/centaur/i, "creep-n-spiked-slime"],
+  [/skeleton (grunt|berserker)/i, "creep-n-bone-knight"],
+  [/treant/i, "creep-n-forest-golem"],
+  [/forest troll/i, "creep-n-forest-troll"],
+  [/rouge wizard|rogue wizard/i, "creep-n-fire-imp"],
+    [/spider/i, "creep-n-spawn-spider"],
+  [/grom/i, "creep-n-orc-berserker"],
+  [/zombie/i, "creep-n-zombie"],
+  [/marauder/i, "creep-n-crystal-worm"],
+  [/rouge captain|rogue captain/i, "creep-n-ogre"],
+  [/naga|siren/i, "creep-n-sea-kraken"],
+  [/spiritwalker/i, "creep-n-ice-slime"],
+  [/shaman/i, "creep-n-shaman"],
+  [/cairne|tauren/i, "creep-n-brute-brown"],
+  [/ghoul/i, "creep-n-ghoul"],
+  [/demon hound/i, "creep-n-demon-hound"],
+  [/sasquatch/i, "creep-n-troll-brown"],
+  [/dragonspawn/i, "creep-n-burrower"],
+  [/spellbreaker/i, "creep-n-orc-berserker-violet"],
+  [/warlock/i, "creep-n-fire-imp-fel"],
+  [/demon hunter/i, "creep-n-orc-shadow"],
+  [/scarab/i, "creep-n-sand-worm"],
+  [/faceless/i, "creep-n-crystal-worm-green"],
+  [/dryad/i, "creep-n-forest-golem-autumn"],
+  [/druid/i, "creep-n-spiked-slime-violet"],
+  [/wendigo/i, "creep-n-ice-imp-violet"],
+  [/garithos/i, "creep-n-bone-knight"],
+  [/warden/i, "creep-n-ghoul-green"],
+  [/pit lord/i, "creep-n-demon-lord-fel"],
+  [/spirit ?wolf/i, "creep-n-spiritwolf"],
+  [/wolf/i, "creep-n-wolf"],
+  [/skeleton/i, "creep-n-skeleton"],
+  [/gnoll/i, "creep-n-gnoll"],
+  [/grunt|\borc\b/i, "creep-n-grunt"],
+  [/chaos peon|wichtel|^imp$|\bimp\b/i, "creep-n-imp"],
+  [/peon|goblin|peasant/i, "creep-n-goblin"],
+];
+/** Design variants (art sets): the monster figures the sets know. */
+const SET_CREEP_PATTERNS = [
   [/\[murloc\]/i, "creep-siren", "creep-siren"], // v0.21p: Naga Siren's death spawns look like little Naga Sirens
   [/flying sheep/i, "creep-sheep-fly", "creep-harpy"],
   [/flying machine/i, "creep-gyrocopter", "creep-harpy"],
@@ -394,7 +630,14 @@ function baseArtFor(item) {
   if (item.kind === "research") return RESEARCH_ART[item.id] || ELEMENT_TOWER[item.element] || "tower-hall";
   const name = item.name || "";
   if (item.kind === "send" || item.kind === "unit") {
-    for (const [pattern, art, fallback] of CREEP_PATTERNS) if (pattern.test(name)) return has(art) ? art : fallback || "creep-goblin";
+    if (!artSet) {
+      // v0.23a (creep graphic overhaul): the original design draws the bestiary figures
+      for (const [pattern, art] of CREEP_PATTERNS) if (pattern.test(name) && has(art)) return art;
+      if (item.bossTier) return "creep-n-stone-titan";
+      if (item.flying) return "creep-n-bat";
+      return item.armor > 5 ? "creep-n-bone-knight" : item.hp > 400 ? "creep-n-grunt" : "creep-n-goblin";
+    }
+    for (const [pattern, art, fallback] of SET_CREEP_PATTERNS) if (pattern.test(name)) return has(art) ? art : fallback || "creep-goblin";
     if (item.bossTier) return "creep-golem";
     if (item.flying) return "creep-harpy";
     return item.armor > 5 ? "creep-darkknight" : item.hp > 400 ? "creep-orc" : "creep-goblin";
@@ -434,8 +677,10 @@ const lineName = (name) =>
     .replace(/\|c\w{8}|\|r/g, "")
     .replace(/\s*\[Level \d+\]/i, "")
     .trim();
+let variantEpoch = 0; // v0.23h: bumped when the tower variants are registered (artFor cache)
 export function registerTowerArt(towers) {
   VARIANT_BY_ID.clear();
+  variantEpoch++;
   const groups = new Map();
   for (const t of towers) {
     if (!t?.playable) continue;
@@ -464,8 +709,16 @@ export function registerTowerArt(towers) {
     }
   }
 }
+// v0.23h: the picture of a unit is looked up once per design set (the creep loop asked for it every frame,
+// running dozens of name patterns per creep)
+const ART_FOR_CACHE = new WeakMap();
 export function artFor(item) {
-  return (item && VARIANT_BY_ID.get(item.id)) || baseArtFor(item);
+  if (!item || typeof item !== "object") return (item && VARIANT_BY_ID.get(item.id)) || baseArtFor(item);
+  const hit = ART_FOR_CACHE.get(item);
+  if (hit && hit.set === artSet && hit.v === variantEpoch && hit.name === item.name) return hit.art;
+  const art = VARIANT_BY_ID.get(item.id) || baseArtFor(item);
+  ART_FOR_CACHE.set(item, { set: artSet, v: variantEpoch, name: item.name, art });
+  return art;
 }
 
 /**

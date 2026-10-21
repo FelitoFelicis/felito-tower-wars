@@ -4475,12 +4475,24 @@ dialog.with-flag .modal-header {
 .welcome-row.pvp-row {
   grid-template-columns: 1fr 1fr;
 }
-/* v0.10j: Ranked match greyed out until a leaderboard exists */
-#start-ranked:disabled {
-  filter: grayscale(1) brightness(0.6);
-  opacity: 0.55;
-  cursor: not-allowed;
-  pointer-events: none;
+/* v0.23b: Ranked Match is live: league and rating under the label */
+#start-ranked {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.1;
+}
+#start-ranked small,
+.qm-league {
+  display: block;
+  font-size: 0.68em;
+  opacity: 0.8;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.rank-result b {
+  font-size: 1.15em;
 }
 /* v0.10i: Quick Match spans the full row above the two other modes */
 .welcome-row.pvp-row #start-quick {
@@ -5272,11 +5284,13 @@ dialog.welcome-modal.hard-eyes .welcome-eyes {
   inset: 4%;
   width: 92%;
   height: 92%;
+  scale: 1.1; /* v0.23b: 10 % larger */
   filter: drop-shadow(0 2px 2px #000a);
 }
 .card-lock b {
   position: relative;
-  margin-top: 26%;
+  margin-top: 20%; /* v0.23b: a tad higher in the lock body (was 26 %) */
+  font-size: clamp(15px, 4.8vw, 24px);
   font: 400 clamp(14px, 4.4vw, 22px)/1 var(--font-number);
   color: #3a2404;
   text-shadow: 0 1px 0 #fff3b8;
@@ -7613,3 +7627,142 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
 }
 .book-card img { max-width: 50px; height: 50px; }
 .perk-lab .lab-card img { max-width: 72px; height: 72px; }
+
+/* ---- v0.23a (creep graphic overhaul): original design only (the design variants keep their own cards) ---- */
+
+/* ---- v0.23a (creep graphic overhaul): send buttons in the bestiary scroll style ----------------------------
+   Parchment card, a tan scroll ribbon with dark ink for gold and income, the stock in the
+   square number box of the scrolls; bosses get the red skull ribbon. */
+:root:is(:not([data-design]), [data-design="original"]) .game-shell[data-page="send"] .unit-card[data-kind="send"] {
+  background:
+    radial-gradient(ellipse 70% 62% at 50% 42%, #fbf0d8 0%, #f1dcb2 55%, #dcb87f 100%) !important;
+  border: 2px solid #3b2413;
+  box-shadow:
+    inset 0 0 0 1px #fff4dc,
+    inset 0 0 6px #b68a4f,
+    0 2px 0 #1a0d05;
+}
+:root:is(:not([data-design]), [data-design="original"]) .game-shell[data-page="send"] .unit-card[data-kind="send"] .card-art {
+  background: none;
+}
+:root:is(:not([data-design]), [data-design="original"]) .game-shell[data-page="send"] .unit-card[data-kind="send"] .card-art img {
+  filter: drop-shadow(0 1.5px 1px #3b241366);
+}
+:root:is(:not([data-design]), [data-design="original"]) .game-shell[data-page="send"] .unit-card[data-kind="send"] .card-foot {
+  left: 2px;
+  right: 2px;
+  bottom: 1px;
+  height: 15px;
+  border: 1.5px solid #3b2413;
+  border-radius: 3px;
+  background: linear-gradient(#fdebc8, #f1d4a5 55%, #dcb376);
+  box-shadow:
+    inset 3px 0 0 #c99b5f,
+    inset -3px 0 0 #c99b5f,
+    inset 0 1px 0 #fff6e0;
+}
+:root:is(:not([data-design]), [data-design="original"]) .game-shell[data-page="send"] .unit-card[data-kind="send"] .card-foot .price {
+  color: #2e1a0c;
+  text-shadow: none;
+}
+:root:is(:not([data-design]), [data-design="original"]) .game-shell[data-page="send"] .unit-card[data-kind="send"] .card-note,
+:root:is(:not([data-design]), [data-design="original"]) .game-shell[data-page="send"] .unit-card[data-kind="send"].framed .card-note {
+  color: #17692a;
+  text-shadow: 0 0.5px 0 #fff6e0;
+}
+:root:is(:not([data-design]), [data-design="original"]) .game-shell[data-page="send"] .unit-card[data-kind="send"] .card-note.buffed {
+  color: #0e7f8a;
+}
+:root:is(:not([data-design]), [data-design="original"]) .game-shell[data-page="send"] .unit-card[data-kind="send"] .card-stock {
+  left: 3px;
+  top: 3px;
+  bottom: auto;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 2px;
+  border: 1.5px solid #2a180b;
+  border-radius: 3px;
+  background: linear-gradient(#fdf0d2, #ecd0a0);
+  box-shadow: 0 1px 0 #2a180b66;
+  font: 400 11px/12px var(--font-number);
+  text-align: center;
+  color: #2a180b;
+  text-shadow: none;
+}
+:root:is(:not([data-design]), [data-design="original"]) .game-shell[data-page="send"] .unit-card[data-kind="send"].framed .card-stock {
+  left: 7px;
+  top: 7px;
+  bottom: auto;
+}
+:root:is(:not([data-design]), [data-design="original"]) .game-shell[data-page="send"] .unit-card[data-kind="send"].framed .card-foot {
+  left: 4px;
+  right: 4px;
+  bottom: 5px;
+  height: 15px;
+  border-radius: 3px;
+}
+/* v0.23k: boss cards keep the normal price bar (the red BOSS ribbon is gone) */
+:root:is(:not([data-design]), [data-design="original"]) .game-shell[data-page="send"] .unit-card[data-kind="send"].unaffordable .price,
+:root:is(:not([data-design]), [data-design="original"]) .game-shell[data-page="send"] .unit-card[data-kind="send"].poor .price {
+  color: #a3241c;
+}
+/* v0.22f (v0.23a (creep graphic overhaul)): painted portraits on the send buttons fill the picture area, flat cut at the ribbon */
+:root:is(:not([data-design]), [data-design="original"]) .unit-card[data-kind="send"] .card-art.portrait-art img {
+  inset: 1px 1px 0;
+  width: calc(100% - 2px);
+  height: calc(100% - 1px);
+  object-fit: contain;
+  object-position: 50% 100%;
+}
+:root:is(:not([data-design]), [data-design="original"]) .game-shell[data-page="send"] .unit-card[data-kind="send"] .card-art.portrait-art img {
+  filter: drop-shadow(0 1px 1px #3b241355);
+}
+
+
+/* ---- v0.23b: option rows: the label spans all rows, so a second row of buttons sits under the first one
+   (Design: Candy under Original, Paws under Meadow); a lone button in the second row is centred ---------------- */
+.choice-row > span { grid-row: 1 / span 4; align-self: center; }
+/* v0.23c: Layout: PC alone (centred) in the upper row, the three mobile layouts below */
+.choice-row.layout-row [data-ctl="pc"] { grid-row: 1; grid-column: 3; }
+.choice-row.layout-row [data-ctl]:not([data-ctl="pc"]) { grid-row: 2; }
+/* v0.23c: Graphics: Tiles and Minimap side by side at the bottom */
+.opt-pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+.opt-pair > .secondary-button { width: 100%; min-width: 0; padding-left: 6px; padding-right: 6px; }
+/* v0.23b: player info windows: background 10 % transparent (original design; content stays opaque) */
+:root:is(:not([data-design]), [data-design="original"]) .player-plate.own {
+  background: linear-gradient(180deg, color-mix(in srgb, color-mix(in srgb, var(--own-color) 30%, #0f1b26) 90%, transparent), color-mix(in srgb, color-mix(in srgb, var(--own-color) 12%, #09121a) 90%, transparent) 70%);
+}
+:root:is(:not([data-design]), [data-design="original"]) .player-plate.rival {
+  background: linear-gradient(180deg, color-mix(in srgb, color-mix(in srgb, var(--rival-color) 30%, #1a1216) 90%, transparent), color-mix(in srgb, color-mix(in srgb, var(--rival-color) 12%, #100a0d) 90%, transparent) 70%);
+}
+:root:is(:not([data-design]), [data-design="original"]) .player-plate.rival.multi {
+  background: linear-gradient(180deg, #1d2a36e6, #0e1820e6 70%);
+}
+
+/* v0.23j: recruit number on creep cards: no frame, a larger white number with a black outline */
+:root:is(:not([data-design]), [data-design="original"]) .game-shell[data-page="send"] .unit-card[data-kind="send"] .card-stock {
+  min-width: 0;
+  height: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  font: 400 19px/1 var(--font-number);
+  color: #fff;
+  -webkit-text-stroke: 0;
+  text-shadow:
+    -1.5px -1.5px 0 #000,
+    1.5px -1.5px 0 #000,
+    -1.5px 1.5px 0 #000,
+    1.5px 1.5px 0 #000,
+    0 -1.5px 0 #000,
+    0 1.5px 0 #000,
+    -1.5px 0 0 #000,
+    1.5px 0 0 #000,
+    0 2px 2px #0009;
+}
+/* v0.23j: a locked creep card shows its lock, not the (empty) recruit number behind the chains */
+.game-shell[data-page="send"] .unit-card:has(.card-lock) .card-stock {
+  visibility: hidden;
+}

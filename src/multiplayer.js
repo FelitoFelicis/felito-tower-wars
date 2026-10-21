@@ -1665,8 +1665,10 @@ export async function joinRoom(code, callbacks = {}, dependencies = {}) {
  * starts or is full).
  */
 export const QUICK_SLOTS = 6;
-const lobbyId = (slot) => `felito-qm-p${PROTOCOL_VERSION}-${slot}`;
-export async function findQuickMatch({ signal, onStatus } = {}, dependencies = {}) {
+const lobbyId = (slot, ranked = false) => `felito-${ranked ? "rk" : "qm"}-p${PROTOCOL_VERSION}-${slot}`; // v0.23b: Ranked has its own slots
+/** v0.23b: `ranked`: Ranked Match – same matchmaking as Quick Match, own queue, always 1v1 (one guest per slot). */
+export async function findQuickMatch({ signal, onStatus, ranked = false } = {}, dependencies = {}) {
+  const maxGuests = ranked ? 1 : MAX_GUESTS;
   const PeerClass = await peerClass(dependencies, signal);
   const options = await peerOptions(dependencies);
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -1758,7 +1760,7 @@ export async function findQuickMatch({ signal, onStatus } = {}, dependencies = {
       }, 20000);
       peer.on("connection", async (conn) => {
         const secret = conn.metadata?.qm;
-        if (closed || offers.has(secret) || acks + offers.size >= MAX_GUESTS || !validSecret(secret)) {
+        if (closed || offers.has(secret) || acks + offers.size >= maxGuests || !validSecret(secret)) {
           setTimeout(() => conn.close(), 300);
           return;
         }
@@ -1783,7 +1785,7 @@ export async function findQuickMatch({ signal, onStatus } = {}, dependencies = {
             life = setTimeout(() => slot.close(), 60000);
             setTimeout(() => settle({ role: "host", code, slot }), 250);
           }
-          if (acks >= MAX_GUESTS) setTimeout(() => slot.close(), 600);
+          if (acks >= maxGuests) setTimeout(() => slot.close(), 600);
         };
         const giveUp = setTimeout(() => {
           if (done) return;
@@ -1851,7 +1853,7 @@ export async function findQuickMatch({ signal, onStatus } = {}, dependencies = {
         talk = await lobbyTalk(secret, "g", onOffer);
         if (done) return;
         peer.on("error", () => finish(null));
-        conn = peer.connect(lobbyId(slot), { reliable: true, metadata: { qm: secret } });
+        conn = peer.connect(lobbyId(slot, ranked), { reliable: true, metadata: { qm: secret } });
         conn.on("data", onOffer);
       });
     });
@@ -1860,7 +1862,7 @@ export async function findQuickMatch({ signal, onStatus } = {}, dependencies = {
     tell(round ? "Still searching for an opponent …" : "Searching for an opponent …");
     for (let slot = 0; slot < QUICK_SLOTS; slot++) {
       check();
-      const { peer, result } = await openPeer(lobbyId(slot));
+      const { peer, result } = await openPeer(lobbyId(slot, ranked));
       check();
       if (result === "open") {
         tell("Waiting for an opponent …");

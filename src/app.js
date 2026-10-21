@@ -131,7 +131,7 @@ import {
 } from "./simulation.js";
 import { mountArena, artFor } from "./arena.js";
 import { designRow, setDesign, currentDesign } from "./design.js"; // design variants (Original, Sonnenwiese, Bonbon, Pfotenwelt)
-import { artUrl, iconUrl, ELEMENT_ICON, ART_MANIFEST, registerTowerArt, TEAM_COLORS, recolorTeam, setPropUrl, activeArtSet, uiArt, useArtSet, artSetFor, ART_VERSION } from "./art.js";
+import { artUrl, iconUrl, ELEMENT_ICON, ART_MANIFEST, registerTowerArt, TEAM_COLORS, recolorTeam, setPropUrl, activeArtSet, uiArt, useArtSet, artSetFor, ART_VERSION, CREEP_PORTRAIT } from "./art.js";
 import { createSoundtrack } from "./soundtrack.js";
 import { createSfx, haptic } from "./sfx.js";
 import { t, num, goldText } from "./i18n.js";
@@ -154,7 +154,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.23a",
+const APP_VERSION = "0.23m",
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "21.10.2026";
 // v0.18: the version also stands in the page title (browser tab and the artifact window in chats)
@@ -226,6 +226,7 @@ const MINIMAP_PREF = "felito.minimap",
     ["all", "All"],
   ];
 let minimapMode = ["on", "off", "all"].includes(pref(MINIMAP_PREF, "on")) ? pref(MINIMAP_PREF, "on") : "on";
+const minimapText = () => `${t("Minimap")}: ${t(MINIMAP_CHOICES.find(([m]) => m === minimapMode)[1])}`; // v0.23c: one button that cycles
 const minimapRow = () =>
   `<div class="choice-row minimap-row" role="group" aria-label="${t("Minimap")}"><span>${t("Minimap")}</span>${MINIMAP_CHOICES.map(
     ([m, name]) => `<button type="button" class="choice-button${minimapMode === m ? " active" : ""}" data-mini="${m}" aria-pressed="${minimapMode === m}">${t(name)}</button>`,
@@ -244,6 +245,49 @@ if (aiChoice === "insane" && !hardoUnlocked) aiChoice = "hard";
 let buildPreview = pref(PREVIEW_PREF, "false") === "true";
 // v0.15: Predator view (Gameplay): while sending and watching your target, the view rolls to a new target
 const PREDATOR_PREF = "felito.predator";
+// ---- v0.23b: Ranked Match: rating (Elo, kept on this device) and leagues ----------------------------------------
+const RATING_PREF = "felito.rating";
+const RATING_START = 1000,
+  RATING_K = 32;
+/** Leagues from the lowest up: the minimum rating of each. */
+const LEAGUES = [
+  ["Mud League", 0],
+  ["Wood League", 1200],
+  ["Stone League", 1400],
+  ["Iron League", 1600],
+  ["Gold League", 1800],
+  ["Diamond League", 2000],
+];
+const leagueOf = (r) => LEAGUES.reduce((best, l) => (r >= l[1] ? l : best), LEAGUES[0])[0];
+function readRating() {
+  try {
+    const v = JSON.parse(localStorage.getItem(RATING_PREF) || "null");
+    if (v && Number.isFinite(v.r)) return { r: Math.round(v.r), games: v.games | 0, wins: v.wins | 0 };
+  } catch {}
+  return { r: RATING_START, games: 0, wins: 0 };
+}
+function saveRating(v) {
+  try {
+    localStorage.setItem(RATING_PREF, JSON.stringify(v));
+  } catch {}
+}
+/** Elo after a ranked 1v1: the new rating and the change. */
+function rateMatch(won, foe) {
+  const me = readRating(),
+    exp = 1 / (1 + 10 ** (((Number.isFinite(foe) ? foe : RATING_START) - me.r) / 400)),
+    delta = Math.round(RATING_K * ((won ? 1 : 0) - exp)),
+    next = { r: Math.max(0, me.r + delta), games: me.games + 1, wins: me.wins + (won ? 1 : 0) };
+  saveRating(next);
+  return { before: me.r, after: next.r, delta, league: leagueOf(next.r), up: leagueOf(next.r) !== leagueOf(me.r) && next.r > me.r, down: leagueOf(next.r) !== leagueOf(me.r) && next.r < me.r };
+}
+const isQuickKind = (k = roomKind) => k === "quick" || k === "ranked"; // v0.23b: Ranked works like Quick Match
+const qmTitle = () => t(qmSearch?.ranked || roomKind === "ranked" ? "Ranked Match" : "Quick Match");
+// v0.23b: Options › Gameplay › Tiles (v0.23c: in Graphics, next to Minimap): checkers (default), plain grid, or no grid lines
+const TILES_PREF = "felito.tiles";
+const TILE_MODES = ["checkers", "grid", "none"];
+const TILE_NAMES = { checkers: "Checkboard", grid: "Grid", none: "No Grid" }; // v0.23c: renamed
+let tileMode = TILE_MODES.includes(pref(TILES_PREF, "checkers")) ? pref(TILES_PREF, "checkers") : "checkers";
+const tilesText = () => `${t("Tiles")}: ${t(TILE_NAMES[tileMode])}`;
 let predatorView = pref(PREDATOR_PREF, "false") === "true";
 // v0.15: control scheme (Graphic): "mobile" (touch) or "pc" (mouse and keyboard); default by device
 const CONTROL_PREF = "felito.controls";
@@ -1417,7 +1461,7 @@ const REWORK_HINT = {
 };
 
 // The original names, except for the creeps and buildings renamed in this port.
-const namesEn = { Peon: "Goblin", "Chaos Peon": "Imp", Lumbermill: "EXP Generator", "Skeleton Grunt": "Skeleton Berserker", "Draenai Marauder": "Arcane Marauder" }; // v0.21h: two renames
+const namesEn = { Peon: "Goblin", "Chaos Peon": "Imp", Lumbermill: "EXP Generator", "Skeleton Grunt": "Skeleton Berserker", "Draenai Marauder": "Arcane Marauder" }; // v0.21h: two renames; v0.23d: Horse and Boar Scout keep their names
 function itemName(item) {
   if (researchCopy[item?.id]) return t(researchCopy[item.id][0]);
   if (item?.id === "n00Y" && game && burningTreant(game.players[own])) return t("Burning Treant"); // v0.10w
@@ -2537,7 +2581,7 @@ function welcome() {
   }
   const saved = unusableSave ? null : localStorage.getItem(SAVE);
   showModal(
-    `<div class="welcome-eyes" aria-hidden="true"></div><div class="welcome-mood mood-easy" aria-hidden="true"></div><div class="welcome-mood mood-hard" aria-hidden="true"></div><div class="welcome-mood mood-hard-glow" aria-hidden="true"></div><div class="welcome-art" aria-hidden="true"></div><button class="welcome-options" id="welcome-options" type="button" aria-label="${t("Options")}"><img src="${iconUrl("gear")}" alt=""></button><button class="welcome-options welcome-mute" id="welcome-mute" type="button" aria-pressed="${muted}" aria-label="${t(muted ? "Sound off" : "Sound on")}">${speakerSvg(muted)}</button><span class="app-version">v${APP_VERSION} · ${APP_DATE}${APP_NOTE ? `<small class="app-version-note">${esc(APP_NOTE)}</small>` : ""}</span><img class="welcome-logo" src="${logoUrl()}" alt="${gameName()}">${castMarkup()}<div class="welcome-panel" id="welcome-panel" data-view="home"><div class="welcome-home"><span class="modal-label">${t("Your color")}: <b id="color-name">${colorLabel()}</b></span><div class="color-picker" role="radiogroup" aria-label="${t("Your color")}">${Object.entries(TEAM_COLORS).map(([id, c]) => `<button role="radio" data-color="${id}" aria-checked="${id === colorPick}" aria-label="${t(c.name)}" title="${t(c.name)}" class="${id === colorPick ? "active" : ""}" style="--c:${c.css}"></button>`).join("")}</div><div class="welcome-modes"><button class="primary-button big welcome-mode" data-open="ai">${t("Training")}</button><button class="primary-button big welcome-mode alt" data-open="player"><span class="keep-case">${t("PvP")}</span></button></div></div><section class="welcome-group" data-sub="ai" aria-label="${t("Training")}"><h3 class="welcome-group-title"><button class="welcome-back" type="button" data-back aria-label="${t("Back")}">${t("Back")}</button>${t("Training")}</h3><div class="segmented ai-levels${hardoUnlocked ? " hardo-mode" : ""}" role="radiogroup" aria-label="${t("Difficulty")}">${Object.entries(AI_NAMES).map(([id, name]) => `<button role="radio" data-ai="${id}" aria-checked="${id === aiChoice}" class="${id === aiChoice ? "active" : ""}${id === "insane" ? " hardo-level" : hardoUnlocked ? " hardo-gone" : ""}"${id === "insane" && !hardoUnlocked ? " hidden" : ""}${id !== "insane" && hardoUnlocked ? " disabled" : ""}>${t(name)}</button>`).join("")}<button type="button" class="ai-mixed${aiMixed ? " active" : ""}${hardoUnlocked ? " hardo-gone" : ""}" id="ai-mixed" aria-pressed="${aiMixed}"${hardoUnlocked ? " disabled" : ""} title="${t("Shuffles AI enemies of different difficulties into the match, up to the chosen one")}">${t("Mixed")}</button></div>${hardoUnlocked ? hardoNoteHtml() : ""}<div class="welcome-inline"><span class="modal-label">${t("Neutral waves")}</span><div class="segmented" role="radiogroup" aria-label="${t("Neutral waves")}">${[["on", "On"], ["off", "Off"]].map(([id, name]) => `<button role="radio" data-waves="${id}" aria-checked="${(id === "on") === wavesOn}" class="${(id === "on") === wavesOn ? "active" : ""}">${t(name)}</button>`).join("")}</div></div><span class="modal-label">${t("Number of AI enemies")}</span><div class="segmented ai-count" role="radiogroup" aria-label="${t("Number of AI enemies")}">${hardoUnlocked ? hardoJustHtml() : AI_COUNTS.map((n) => `<button role="radio" data-aicount="${n}" aria-checked="${n === aiCount}" class="${n === aiCount ? "active" : ""}">${n}</button>`).join("")}</div><button class="primary-button big" id="start-training">${t("Start")}</button><button class="secondary-button big campaign-open" id="start-campaign">${t("Campaign")} · ${campaignDone().size}/${MISSIONS.length}</button></section><section class="welcome-group" data-sub="player" aria-label="${t("PvP")}"><h3 class="welcome-group-title"><button class="welcome-back" type="button" data-back aria-label="${t("Back")}">${t("Back")}</button><span class="keep-case">${t("PvP")}</span></h3><label class="modal-label name-label pvp-name" for="player-name">${t("Player name")}</label><div class="name-row"><input id="player-name" class="name-input" maxlength="16" autocomplete="nickname" spellcheck="false" placeholder="${t("Your name")}" value="${esc(playerNameChoice)}"><button type="button" class="icon-pick" id="icon-pick" aria-label="${t("Choose your player icon")}" style="--pc:${iconColor()}"><img src="${iconSrc(iconChoice)}" alt=""></button></div><div class="welcome-row pvp-row"><button class="primary-button" id="start-quick">${t("Quick Match")}</button><button class="secondary-button" id="start-online">${t("Play a friend")}</button><button class="secondary-button" id="start-ranked" disabled aria-disabled="true" title="${t("Ranked matches are coming soon.")}">${t("Ranked match")}</button></div></section></div>`,
+    `<div class="welcome-eyes" aria-hidden="true"></div><div class="welcome-mood mood-easy" aria-hidden="true"></div><div class="welcome-mood mood-hard" aria-hidden="true"></div><div class="welcome-mood mood-hard-glow" aria-hidden="true"></div><div class="welcome-art" aria-hidden="true"></div><button class="welcome-options" id="welcome-options" type="button" aria-label="${t("Options")}"><img src="${iconUrl("gear")}" alt=""></button><button class="welcome-options welcome-mute" id="welcome-mute" type="button" aria-pressed="${muted}" aria-label="${t(muted ? "Sound off" : "Sound on")}">${speakerSvg(muted)}</button><span class="app-version">v${APP_VERSION} · ${APP_DATE}${APP_NOTE ? `<small class="app-version-note">${esc(APP_NOTE)}</small>` : ""}</span><img class="welcome-logo" src="${logoUrl()}" alt="${gameName()}">${castMarkup()}<div class="welcome-panel" id="welcome-panel" data-view="home"><div class="welcome-home"><span class="modal-label">${t("Your color")}: <b id="color-name">${colorLabel()}</b></span><div class="color-picker" role="radiogroup" aria-label="${t("Your color")}">${Object.entries(TEAM_COLORS).map(([id, c]) => `<button role="radio" data-color="${id}" aria-checked="${id === colorPick}" aria-label="${t(c.name)}" title="${t(c.name)}" class="${id === colorPick ? "active" : ""}" style="--c:${c.css}"></button>`).join("")}</div><div class="welcome-modes"><button class="primary-button big welcome-mode" data-open="ai">${t("Training")}</button><button class="primary-button big welcome-mode alt" data-open="player"><span class="keep-case">${t("PvP")}</span></button></div></div><section class="welcome-group" data-sub="ai" aria-label="${t("Training")}"><h3 class="welcome-group-title"><button class="welcome-back" type="button" data-back aria-label="${t("Back")}">${t("Back")}</button>${t("Training")}</h3><div class="segmented ai-levels${hardoUnlocked ? " hardo-mode" : ""}" role="radiogroup" aria-label="${t("Difficulty")}">${Object.entries(AI_NAMES).map(([id, name]) => `<button role="radio" data-ai="${id}" aria-checked="${id === aiChoice}" class="${id === aiChoice ? "active" : ""}${id === "insane" ? " hardo-level" : hardoUnlocked ? " hardo-gone" : ""}"${id === "insane" && !hardoUnlocked ? " hidden" : ""}${id !== "insane" && hardoUnlocked ? " disabled" : ""}>${t(name)}</button>`).join("")}<button type="button" class="ai-mixed${aiMixed ? " active" : ""}${hardoUnlocked ? " hardo-gone" : ""}" id="ai-mixed" aria-pressed="${aiMixed}"${hardoUnlocked ? " disabled" : ""} title="${t("Shuffles AI enemies of different difficulties into the match, up to the chosen one")}">${t("Mixed")}</button></div>${hardoUnlocked ? hardoNoteHtml() : ""}<div class="welcome-inline"><span class="modal-label">${t("Neutral waves")}</span><div class="segmented" role="radiogroup" aria-label="${t("Neutral waves")}">${[["on", "On"], ["off", "Off"]].map(([id, name]) => `<button role="radio" data-waves="${id}" aria-checked="${(id === "on") === wavesOn}" class="${(id === "on") === wavesOn ? "active" : ""}">${t(name)}</button>`).join("")}</div></div><span class="modal-label">${t("Number of AI enemies")}</span><div class="segmented ai-count" role="radiogroup" aria-label="${t("Number of AI enemies")}">${hardoUnlocked ? hardoJustHtml() : AI_COUNTS.map((n) => `<button role="radio" data-aicount="${n}" aria-checked="${n === aiCount}" class="${n === aiCount ? "active" : ""}">${n}</button>`).join("")}</div><button class="primary-button big" id="start-training">${t("Start")}</button><button class="secondary-button big campaign-open" id="start-campaign">${t("Campaign")} · ${campaignDone().size}/${MISSIONS.length}</button></section><section class="welcome-group" data-sub="player" aria-label="${t("PvP")}"><h3 class="welcome-group-title"><button class="welcome-back" type="button" data-back aria-label="${t("Back")}">${t("Back")}</button><span class="keep-case">${t("PvP")}</span></h3><label class="modal-label name-label pvp-name" for="player-name">${t("Player name")}</label><div class="name-row"><input id="player-name" class="name-input" maxlength="16" autocomplete="nickname" spellcheck="false" placeholder="${t("Your name")}" value="${esc(playerNameChoice)}"><button type="button" class="icon-pick" id="icon-pick" aria-label="${t("Choose your player icon")}" style="--pc:${iconColor()}"><img src="${iconSrc(iconChoice)}" alt=""></button></div><div class="welcome-row pvp-row"><button class="primary-button" id="start-quick">${t("Quick Match")}</button><button class="secondary-button" id="start-online">${t("Play a friend")}</button><button class="secondary-button rank-button" id="start-ranked" title="${t("1v1 · rated")}">${t("Ranked match")}<small>${t(leagueOf(readRating().r))} · ${readRating().r}</small></button></div></section></div>`,
     { pauseGame: false, welcome: true },
   );
   $("modal-body")
@@ -2642,10 +2686,10 @@ function welcome() {
   };
   $("modal-body").querySelectorAll("[data-open]").forEach((b) => (b.onclick = () => welcomeView(b.dataset.open)));
   $("modal-body").querySelectorAll("[data-back]").forEach((b) => (b.onclick = () => (hardoUnlocked ? hardoReset() : welcomeView("home")))); // v0.22e: Back ends Hardo mode
-  // Ranked matches (v0.09z): button is in place, matchmaking follows later.
+  // v0.23b: Ranked Match: Quick Match rules, 1v1 only, with a rating and leagues
   $("start-ranked").onclick = () => {
     tone("tap");
-    toast(t("Ranked matches are coming soon."));
+    quickMatch(true);
   };
   if (saved && $("resume-game"))
     $("resume-game").onclick = () => {
@@ -2893,7 +2937,7 @@ function playAgainOnline() {
   welcome();
   document.querySelector('[data-open="player"]')?.click();
   if (kind === "friend") onlineMenu();
-  else quickMatch();
+  else quickMatch(kind === "ranked"); // v0.23b
 }
 /**
  * v0.14: levels for a mixed match. Each AI seat draws a level up to the chosen one; one seat
@@ -3755,14 +3799,21 @@ function fitCardNames(root) {
   for (const el of root.querySelectorAll(".unit-card:not(.up-card) .unit-name"))
     if (el.scrollWidth > el.clientWidth + 1) el.classList.add("long-name");
 }
+/** v0.23a (creep graphic overhaul): send cards show the creep's painted portrait where its sheet has one (original design). */
+function cardArtHtml(item) {
+  const key = artFor(item),
+    portrait = item.kind === "send" && !activeArtSet() ? CREEP_PORTRAIT[key] : null;
+  return portrait ? `<span class="card-art portrait-art"><img src="${towerArtUrl(portrait)}" alt=""></span>` : `<span class="card-art"><img src="${towerArtUrl(key)}" alt=""></span>`;
+}
 function cardMarkup(item) {
   const a = available(game, own, cardAction(item), item.id),
     label = priceLabel(item),
     kindClass = item.kind === "send" ? "card-send" : item.kind === "research" ? "card-research" : "card-tower";
-  return `<button class="unit-card ${kindClass}${item.id === "n00Y" && game && burningTreant(game.players[own]) ? " burning" : ""} ${item.kind === "send" && (item.bossTier || item.flying) ? "framed" : ""} ${selected === item.id && tab === "build" ? "selected" : ""} ${a.ok ? "" : "unaffordable"} ${isPoor(a) ? "poor" : ""}" data-kind="${item.kind}" data-card="${item.id}" aria-label="${esc(itemName(item))}, ${esc(label)} Gold, ${esc(cardHint(item))}${a.ok ? "" : ", " + esc(t(a.reason))}"><span class="unit-name">${esc(itemName(item))}</span><span class="card-art"><img src="${towerArtUrl(artFor(item))}" alt=""></span><span class="card-foot${item.kind === "send" && (label + formatInc(incomeFor(item))).length >= (item.bossTier || item.flying ? 6 : 7) ? " long" : ""}"><span class="price${item.kind === "research" && itemPrice(item).wood ? " wood-price" : ""}${isFreeLabel(label) ? " free" : ""}">${label}</span>${item.kind === "send" ? `<span class="card-note${incomeFor(item) > item.income + 0.004 ? " buffed" : ""}">+${formatInc(incomeFor(item))}</span>` : ""}</span><span class="card-status">${cardStatus(item)}</span>${item.kind === "send" ? `<span class="card-stock">${stockCount(item)}</span>${item.bossTier ? '<i class="frame-boss" aria-hidden="true"></i>' : item.flying ? '<i class="frame-air" aria-hidden="true"></i>' : ""}` : ""}</button>`;
+  return `<button class="unit-card ${kindClass}${item.id === "n00Y" && game && burningTreant(game.players[own]) ? " burning" : ""} ${item.kind === "send" && (item.bossTier || item.flying) ? "framed" : ""} ${selected === item.id && tab === "build" ? "selected" : ""} ${a.ok ? "" : "unaffordable"} ${isPoor(a) ? "poor" : ""}" data-kind="${item.kind}" data-card="${item.id}" aria-label="${esc(itemName(item))}, ${esc(label)} Gold, ${esc(cardHint(item))}${a.ok ? "" : ", " + esc(t(a.reason))}"><span class="unit-name">${esc(itemName(item))}</span>${cardArtHtml(item)}<span class="card-foot${item.kind === "send" && (label + formatInc(incomeFor(item))).length >= (item.bossTier || item.flying ? 6 : 7) ? " long" : ""}"><span class="price${item.kind === "research" && itemPrice(item).wood ? " wood-price" : ""}${isFreeLabel(label) ? " free" : ""}">${label}</span>${item.kind === "send" ? `<span class="card-note${incomeFor(item) > item.income + 0.004 ? " buffed" : ""}">+${formatInc(incomeFor(item))}</span>` : ""}</span><span class="card-status">${cardStatus(item)}</span>${item.kind === "send" ? `<span class="card-stock">${stockCount(item)}</span>${item.bossTier ? '<i class="frame-boss" aria-hidden="true"></i>' : item.flying ? '<i class="frame-air" aria-hidden="true"></i>' : ""}` : ""}</button>`;
 }
 function renderCards() {
   if (!game) return;
+  preloadSendIcons(game.players[own]?.tier || 1); // v0.23b: cheap once loaded (set lookup)
   document.querySelectorAll("[data-tab]").forEach((b) => b.classList.toggle("active", b.dataset.tab === tab));
   $("deck-title").textContent =
     tab === "build"
@@ -4164,7 +4215,7 @@ function questText(id) {
   if (q.kind === "untouchable") return t("No breach for {a}–{b} rounds. Reward: EXP and 2 rewards", { a: UNTOUCHABLE.min, b: UNTOUCHABLE.max });
   if (q.kind === "contract")
     return contractText(q); // v0.19d2: Blood Contract restocks faster instead of a discount, EXP by round
-  return t("Kill {n} waves of {creeps}. Reward: {exp} EXP, {pair} cost {d} less", { n: BANTER.waves, creeps: t(q.plural), exp: BANTER.exp, pair: t(q.pair), d: share(BANTER.discount) });
+  return t("Kill {n} waves of {creeps}. Reward: {exp} EXP, {pair} cost {d} less", { n: BANTER.waves, creeps: t(q.plural), exp: BANTER.exp, pair: t(q.pair), d: share(q.discount ?? BANTER.discount) });
 }
 /** Progress of the running quest, for its tile. */
 function questProgress(p) {
@@ -5076,7 +5127,8 @@ function updateNudge(p) {
     on = tabButton.classList.contains("nudge"),
     // v0.17i: hysteresis, so gold hovering around the threshold no longer switches the marker on and off
     idle = on ? can && sinceAction > 25 && p.gold >= cheapest : can && sinceAction > 25 && p.gold >= cheapest * 2;
-  if (idle !== on) tabButton.classList.toggle("nudge", idle);
+  // v0.23b: no marker, glow or red badge on the Send button any more (also not when a creep unlocks); only the tip text
+  if (on) tabButton.classList.remove("nudge");
   if (idle && tipsEnabled && nudgeShown < 2 && sinceAction > 25 + nudgeShown * 60) {
     nudgeShown++;
     toast("Gold to spare? Send creeps – it raises your income for good.");
@@ -5581,14 +5633,14 @@ function catalogModal({ filter: startFilter = "tower", focus = null, back } = {}
 }
 const RULES_DE = [
   ["Your goal", "Bring your enemy's lives to zero (30 each with 2-3 players, 25 with 4-5, 20 with 6-8). Creeps you send run through the enemy's defence. Survivors cost a life and then run on through the next player's field (in a duel, the same one again)."],
-  ["The economy", "30 gold and a free archer to start. After 10 seconds of warm-up: 20 income, then every 15 seconds. Buying creeps raises your income."],
+  ["The economy", "30 gold to start; your first basic tower costs 10 gold less, the second 5 gold less. After 6 seconds of warm-up: 20 income, then every 15 seconds. Buying creeps raises your income."],
   ["Experience & levels", "The purple bar shows your EXP. Breakthroughs, some creeps and EXP generators give experience. With every level-up you choose one of three rewards from the level button beside the board."],
   ["No juggling", "A new tower may lengthen the way of walking creeps but never force them to turn back. Sold towers open shortcuts only for the next creeps."],
   ["Building & upgrading", "Pick a tower card and tap a field: you see the new path and how many fields longer it gets, a second tap builds. Faster: drag the card straight onto the board. Every row can be built on. Creeps appear at the purple portal strip at the top and break through as soon as they leave the board at the bottom. Towers shape the path; blocking it completely is not allowed. Tap towers to upgrade or sell them. Without enough gold an upgrade is queued and starts by itself."],
   ["Auto-spawn", "Drag a creep card into the frame left of the board: that creep is sent automatically. Tap to switch it off and on, drag it out to clear it."],
   ["Six elements", "Water, fire, storm, earth, arcane and plague. At the start you choose one of three elements; levels 10 and 25 add one more each. All other levels offer upgrades."],
   ["Neutral waves", "From round 3, every two rounds a neutral wave runs through both lanes on top of the creeps sent. Every wave has a trait: swarm, fast, armored, flyers (only anti-air hits), regeneration, magic immune, splitting, mixed, and every tenth is a boss that costs 3 lives. Waves keep getting stronger. A breakthrough costs lives but gives nobody a life. Can be switched on and off in the main menu."],
-  ["Stronger creeps", "Buying a boss unlocks the next tier. Armor, damage types, flyers, restocking and groups shape the duel."],
+  ["Stronger creeps", "Buying a boss unlocks the next tier; your creeps of the old tier still in play lose 20 % speed. Armor, damage types, flyers, restocking and groups shape the duel."],
   ["Current port status", "This is a playable 1v1 development build with extracted original data. The mobile board, the AI and some missing Warcraft base values are new. Not every special spell and JASS trigger works exactly like the original yet. Details are on every card and in the project documentation."],
 ];
 function rulesModal(back = null) {
@@ -5602,7 +5654,7 @@ const onOff = (v) => t(v ? "On" : "Off");
 // v0.13: Audio and Graphic open as sub-menus; music and sound are volume sliders now.
 function settingsButtons() {
   // v0.15: Tips, preview and double tap moved into the Gameplay sub-menu (below Graphic)
-  return `<button class="secondary-button submenu-button" id="menu-audio">${t("Audio")}<i aria-hidden="true">›</i></button><button class="secondary-button submenu-button" id="menu-graphic">${t("Graphic")}<i aria-hidden="true">›</i></button><button class="secondary-button submenu-button" id="menu-gameplay">${t("Gameplay")}<i aria-hidden="true">›</i></button>`;
+  return `<button class="secondary-button submenu-button" id="menu-audio">${t("Audio")}<i aria-hidden="true">›</i></button><button class="secondary-button submenu-button" id="menu-graphic">${t("Graphics")}<i aria-hidden="true">›</i></button><button class="secondary-button submenu-button" id="menu-gameplay">${t("Gameplay")}<i aria-hidden="true">›</i></button>`;
 }
 const DBL_LABELS = { upgrade: "Upgrade", advanced: "Advanced Upgrade", info: "Tower info", off: "Off" };
 const dblText = () => `${t("Double tap on a tower")}: ${t(DBL_LABELS[dblMode])}`;
@@ -5658,7 +5710,7 @@ function audioModal(back) {
 }
 function graphicModal(back) {
   showModal(
-    `${subHeader(t("Graphic"))}<div id="menu-design">${designRow(t)}</div><div id="menu-controls">${controlsRow()}</div><div id="menu-minimap">${minimapRow()}</div><button class="secondary-button" id="menu-popnum">${t("Pop-up numbers")}: ${onOff(popNumbers)}</button><button class="secondary-button" id="menu-popnote">${t("Pop-up notifications")}: ${onOff(popNotes)}</button>`,
+    `${subHeader(t("Graphics"))}<div id="menu-design">${designRow(t)}</div><div id="menu-controls">${controlsRow()}</div><button class="secondary-button" id="menu-popnum">${t("Pop-up numbers")}: ${onOff(popNumbers)}</button><button class="secondary-button" id="menu-popnote">${t("Pop-up notifications")}: ${onOff(popNotes)}</button><div class="opt-pair"><button class="secondary-button" id="menu-tiles">${tilesText()}</button><button class="secondary-button" id="menu-minimap">${minimapText()}</button></div>`, // v0.23c: Tiles and Minimap side by side at the bottom
   );
   $("sub-back").onclick = back;
   $("menu-controls").onclick = (e) => {
@@ -5684,13 +5736,19 @@ function graphicModal(back) {
     applyDesignArt();
     tone("select");
   };
-  $("menu-minimap").onclick = (e) => {
-    const m = e.target.closest?.("[data-mini]")?.dataset.mini;
-    if (!m || m === minimapMode) return;
-    minimapMode = m;
-    savePref(MINIMAP_PREF, m);
-    $("menu-minimap").innerHTML = minimapRow();
+  $("menu-minimap").onclick = () => {
+    const modes = MINIMAP_CHOICES.map(([m]) => m);
+    minimapMode = modes[(modes.indexOf(minimapMode) + 1) % modes.length];
+    savePref(MINIMAP_PREF, minimapMode);
+    $("menu-minimap").textContent = minimapText();
     arena?.refresh?.();
+    tone("select");
+  };
+  $("menu-tiles").onclick = () => {
+    tileMode = TILE_MODES[(TILE_MODES.indexOf(tileMode) + 1) % TILE_MODES.length];
+    savePref(TILES_PREF, tileMode);
+    arena?.setTiles?.(tileMode);
+    $("menu-tiles").textContent = tilesText();
     tone("select");
   };
   $("menu-popnum").onclick = () => {
@@ -5870,7 +5928,7 @@ function qmDialog() {
   if (!q) return;
   q.minimized = false;
   const host = pvpModal(
-    `${modalHeader(t("Quick Match"))}<p class="modal-copy">${t("You'll be paired with the next player who is searching. Minimize this window to play a training match while you wait.")}</p><div id="network-status" class="network-status">${esc(q.status)}</div><div class="qm-presence" id="qm-presence"><span><b id="qm-queue">${q.counts ? Math.max(1, q.counts.queue) : "…"}</b>${t("in the queue")}</span><span><b id="qm-online">${q.counts ? qmOnline(q.counts) : "…"}</b>${t("Players online")}</span></div><div class="qm-actions"><button class="primary-button" id="qm-min">${t("Minimize")}</button><button class="secondary-button" id="qm-cancel">${t("Cancel")}</button></div>`,
+    `${modalHeader(qmTitle())}<p class="modal-copy">${q.ranked ? `${t("1v1 against the next ranked player who is searching.")} <b>${t(leagueOf(readRating().r))} · ${readRating().r}</b>. ` : ""}${t("You'll be paired with the next player who is searching. Minimize this window to play a training match while you wait.")}</p><div id="network-status" class="network-status">${esc(q.status)}</div><div class="qm-presence" id="qm-presence"><span><b id="qm-queue">${q.counts ? Math.max(1, q.counts.queue) : "…"}</b>${t("in the queue")}</span><span><b id="qm-online">${q.counts ? qmOnline(q.counts) : "…"}</b>${t("Players online")}</span></div><div class="qm-actions"><button class="primary-button" id="qm-min">${t("Minimize")}</button><button class="secondary-button" id="qm-cancel">${t("Cancel")}</button></div>`,
   );
   // v0.18g: from the main menu, cancel and minimize return to the PvP page underneath
   const leave = closeModal;
@@ -5921,18 +5979,18 @@ function refreshQmPill() {
   const host = $("modal").open ? $("modal") : document.body;
   if (pill.parentNode !== host) host.appendChild(pill);
   const c = qmSearch.counts,
-    text = `${t("Quick Match")} · ${t("searching …")}${c ? ` · ${t("{n} online", { n: qmOnline(c) })}` : ""}`;
+    text = `${qmTitle()} · ${t("searching …")}${c ? ` · ${t("{n} online", { n: qmOnline(c) })}` : ""}`;
   const span = pill.querySelector(".qm-pill-text");
   if (span.textContent !== text) span.textContent = text;
 }
-async function quickMatch() {
+async function quickMatch(ranked = false) {
   if (qmSearch) return qmDialog();
-  if (!webrtcSupported()) return noWebrtcModal("Quick Match"); // v0.19b1
-  roomKind = "quick"; // v0.19b1
+  if (!webrtcSupported()) return noWebrtcModal(ranked ? "Ranked Match" : "Quick Match"); // v0.19b1
+  roomKind = ranked ? "ranked" : "quick"; // v0.19b1; v0.23b: Ranked
   if (!begun) disconnectRoom();
   const abort = new AbortController(),
     signal = abort.signal;
-  const q = (qmSearch = { abort, status: t("Searching for an opponent …"), counts: null, minimized: false, timer: 0, stopWatch: null });
+  const q = (qmSearch = { abort, ranked, status: t("Searching for an opponent …"), counts: null, minimized: false, timer: 0, stopWatch: null });
   presenceState(presenceBase); // counts as "in the queue" while the search runs
   qmDialog();
   const status = (message) => {
@@ -5957,7 +6015,7 @@ async function quickMatch() {
   q.timer = setInterval(refreshQmPill, 400);
   try {
     const { findQuickMatch } = await import("./multiplayer.js");
-    const match = await findQuickMatch({ signal, onStatus: (s) => status(t(s.message)) });
+    const match = await findQuickMatch({ signal, ranked, onStatus: (s) => status(t(s.message)) });
     if (signal.aborted || qmSearch !== q) return;
     qmSearch = null;
     clearInterval(q.timer);
@@ -5973,7 +6031,7 @@ async function quickMatch() {
       uiPauses.clear();
       $("tower-panel").hidden = true;
     }
-    pvpModal(`${modalHeader(t("Quick Match"))}<div id="network-status" class="network-status">${t("Opponent found! Connecting …")}</div>`); // v0.18f
+    pvpModal(`${modalHeader(qmTitle())}<div id="network-status" class="network-status">${t("Opponent found! Connecting …")}</div>`); // v0.18f
     if (match.role === "host") {
       connectOnline(undefined, match.code); // (closes any old room first)
       qmSlot = match.slot || null; // v0.19: more searchers can join this room until it starts or is full
@@ -5981,14 +6039,14 @@ async function quickMatch() {
       clearTimeout(qmConnectTimer);
       qmConnectTimer = setTimeout(() => {
         qmConnectTimer = 0;
-        if (begun || lobby || roomKind !== "quick" || !room || room.peers().length) return;
+        if (begun || lobby || !isQuickKind() || !room || room.peers().length) return;
         qmRequeue();
       }, QM_CONNECT_MS);
     } else connectOnline(match.code, true);
   } catch (error) {
     if (signal.aborted || qmSearch !== q) return;
     cancelQuickMatch();
-    if (error.code === "browser-incompatible") return noWebrtcModal("Quick Match"); // v0.19b1
+    if (error.code === "browser-incompatible") return noWebrtcModal(ranked ? "Ranked Match" : "Quick Match"); // v0.19b1
     const msg = t("Connection failed:") + " " + error.message;
     if ($("network-status")) $("network-status").textContent = msg;
     else toast(msg);
@@ -5998,10 +6056,11 @@ async function quickMatch() {
 const QM_CONNECT_MS = 20000;
 function qmRequeue() {
   if (begun) return;
+  const ranked = roomKind === "ranked";
   disconnectRoom();
-  roomKind = "quick";
+  roomKind = ranked ? "ranked" : "quick";
   toast("No connection to the other player. Searching again …");
-  quickMatch();
+  quickMatch(ranked);
 }
 function onlineMenu() {
   cancelQuickMatch(); // v0.18a: a room with a friend replaces a running Quick Match search
@@ -6062,7 +6121,7 @@ async function connectOnline(code, preset) {
       // v0.23, host: a guest with this token may take its seat back in the running match
       canRejoin: (token) => begun && !shownResult && game?.winner == null && hostTokens.has(token) && !game.players[hostTokens.get(token)]?.netLeft,
       onStatus: (s) => {
-        if (s.error?.code === "browser-incompatible" && !begun) return noWebrtcModal(roomKind === "quick" ? "Quick Match" : "Play with a friend"); // v0.19b1
+        if (s.error?.code === "browser-incompatible" && !begun) return noWebrtcModal(isQuickKind() ? qmTitle() : "Play with a friend"); // v0.19b1
         status(t(s.message));
         if (s.state === "error" && !begun) {
           if ($("create-room")) $("create-room").disabled = false;
@@ -6087,7 +6146,7 @@ async function connectOnline(code, preset) {
           view = own;
           ensureBackgroundTicker(); // v0.16
         }
-        if (r.role === "guest") r.send({ kind: "ready", faction: chosenFaction, name: playerNameChoice, color: colorPick === "random" ? null : colorPick, icon: iconChoice }); // v0.18a: the picked colour; v0.19c1: icon
+        if (r.role === "guest") r.send({ kind: "ready", faction: chosenFaction, name: playerNameChoice, color: colorPick === "random" ? null : colorPick, icon: iconChoice, rating: readRating().r }); // v0.18a: the picked colour; v0.19c1: icon; v0.23b: rating
       },
       onData: receiveNetwork,
       // v0.19 (host): one guest left; the room and the match go on for the others
@@ -6120,7 +6179,7 @@ async function connectOnline(code, preset) {
             kickedNote = "";
             return;
           }
-          if (roomKind === "quick") return qmRequeue(); // v0.23: the Quick Match link failed: search again
+          if (isQuickKind()) return qmRequeue(); // v0.23: the Quick Match link failed: search again
           if ($("create-room")) $("create-room").disabled = false;
           if ($("join-room")) $("join-room").disabled = false;
           return;
@@ -6146,7 +6205,7 @@ async function connectOnline(code, preset) {
         }
       }
     } else if (code) r = await joinRoom(code, callbacks);
-    else if (preset) r = await createRoom(callbacks, {}, preset);
+    else if (preset) r = await createRoom(callbacks, roomKind === "ranked" ? { maxGuests: 1 } : {}, preset); // v0.23b: Ranked is 1v1
     else
       // v0.19c1: Play a friend: four-digit codes; a code already in use draws a new one
       for (let tries = 0; ; tries++) {
@@ -6166,7 +6225,7 @@ async function connectOnline(code, preset) {
   } catch (error) {
     if (signal.aborted) return;
     // v0.23: a Quick Match that fails to connect goes back to the queue
-    if (roomKind === "quick" && !begun && error.code !== "browser-incompatible" && error.code !== "aborted") return qmRequeue();
+    if (isQuickKind() && !begun && error.code !== "browser-incompatible" && error.code !== "aborted") return qmRequeue();
     status(t("Connection failed:") + " " + error.message);
     if ($("create-room")) $("create-room").disabled = false;
     if ($("join-room")) $("join-room").disabled = false;
@@ -6266,7 +6325,7 @@ function receiveNetwork(message, r, peerId) {
   } else if (message.kind === "lobby" && !begun && isFollower()) {
     // v0.19: the host tells every guest its seat
     if (Number.isInteger(message.you) && message.you > 0 && message.you < LOBBY_MAX) lobbySeat = message.you;
-    if (message.room === "friend" || message.room === "quick") roomKind = message.room; // v0.19b1
+    if (message.room === "friend" || message.room === "quick" || message.room === "ranked") roomKind = message.room; // v0.19b1; v0.23b: ranked
     if (message.opts && typeof message.opts === "object") roomOpts = { waves: message.opts.waves !== false, rotation: message.opts.rotation !== false, mode: message.opts.mode === "teams" ? "teams" : "ffa", gold: message.opts.gold === "own" ? "own" : "shared" }; // v0.20
     if (ROOM_LIVES.includes(message.lives) || TEAM_LIVES.includes(message.lives)) roomLives = message.lives;
     showLobby(message.players, Number(message.left) || lobbyWait(), message.timed !== false); // v0.18a, v0.18b: with Start button and wait time
@@ -6396,7 +6455,7 @@ function newLobby() {
     done: false,
     timed: false,
     go: lobbyGo,
-    entries: [{ peer: null, key: "host", name: playerNameChoice, pick: colorPick === "random" ? null : colorPick, faction: chosenFaction, icon: iconChoice, team: 0 }],
+    entries: [{ peer: null, key: "host", name: playerNameChoice, pick: colorPick === "random" ? null : colorPick, faction: chosenFaction, icon: iconChoice, team: 0, rating: readRating().r }],
     players: [],
   };
 }
@@ -6469,6 +6528,7 @@ function lobbyJoin(peerId, message) {
     pick: TEAM_COLORS[message.color] ? message.color : null,
     faction: catalog.factions.some((f) => f.id === message.faction) ? message.faction : "fire",
     icon: PLAYER_ICONS.includes(message.icon) ? message.icon : "player", // v0.19c1
+    rating: Number.isFinite(message.rating) ? Math.max(0, Math.min(5000, Math.round(message.rating))) : RATING_START, // v0.23b
   };
   if (!lobby) lobby = newLobby();
   const i = lobby.entries.findIndex((e) => e.peer === peerId);
@@ -6534,6 +6594,7 @@ function lobbyColors() {
     picked: e.pick,
     icon: e.icon || null, // v0.19c1
     team: e.team | 0, // v0.20
+    ...(roomKind === "ranked" ? { rating: e.rating ?? RATING_START } : {}), // v0.23b
     ...(e.bot ? { bot: true, level: e.level } : {}),
   }));
 }
@@ -6666,7 +6727,7 @@ function showLobby(players, left = lobbyWait(), timed = true) {
         level = p?.bot ? `<button type="button" class="bot-level" data-botlevel="${i}"${host ? "" : " disabled"}>${esc(t(AI_NAMES[p.level] || "Normal"))}</button>` : "",
         kick = host && i > 0 ? `<button type="button" class="kick-x" data-kick="${i}" aria-label="${t("Remove")}" title="${t("Remove")}">×</button>` : "";
       const drag = lobbyTeams() && (host || i === me) ? " team-drag" : ""; // v0.20: the host drags anyone, a guest only itself
-      return `<div class="qm-player${i === me ? " me" : ""}${p?.bot ? " bot" : ""}${drag}" data-seat="${i}" style="--pc:${css};--ink:${inkFor(css)}"><img class="qm-icon portrait" src="${face}" alt=""><b>${esc(p?.bot ? p.name : cleanName(p?.name) || t("Player {n}", { n: i + 1 }))}${i === me ? ` <small>(${t("You")})</small>` : ""}</b>${level}${kick}</div>`;
+      return `<div class="qm-player${i === me ? " me" : ""}${p?.bot ? " bot" : ""}${drag}" data-seat="${i}" style="--pc:${css};--ink:${inkFor(css)}"><img class="qm-icon portrait" src="${face}" alt=""><b>${esc(p?.bot ? p.name : cleanName(p?.name) || t("Player {n}", { n: i + 1 }))}${i === me ? ` <small>(${t("You")})</small>` : ""}</b>${p?.rating != null ? `<small class="qm-league">${t(leagueOf(p.rating))} · ${p.rating}</small>` : ""}${level}${kick}</div>`;
     })
     ;
 
@@ -6711,8 +6772,8 @@ function showLobby(players, left = lobbyWait(), timed = true) {
     el.textContent = lobby.done
       ? t("The match starts …")
       : lobby.timed === false
-        ? t("Waiting for players ({n}/{m})", { n: players.length, m: LOBBY_MAX })
-        : t("Waiting for players ({n}/{m}) · starts in {s} s", { n: players.length, m: LOBBY_MAX, s: sec });
+        ? t("Waiting for players ({n}/{m})", { n: players.length, m: roomKind === "ranked" ? 2 : LOBBY_MAX })
+        : t("Waiting for players ({n}/{m}) · starts in {s} s", { n: players.length, m: roomKind === "ranked" ? 2 : LOBBY_MAX, s: sec });
   };
   clearInterval(lobbyTick);
   lobbyTick = setInterval(wait, 250);
@@ -6752,6 +6813,7 @@ function startHostedMatch(entries, players) {
     game.players[i].name = players[i].name || `Player ${i + 1}`;
     game.players[i].color = players[i].color;
     game.players[i].icon = e.icon || "player"; // v0.19c1
+    if (roomKind === "ranked") game.players[i].rating = e.rating ?? RATING_START; // v0.23b
     if (e.bot) {
       // v0.19c1: a bot the host added in the friend room
       game.players[i].ai = true;
@@ -6767,6 +6829,7 @@ function startHostedMatch(entries, players) {
       room.sendTo(e.peer, { kind: "rejoin", token });
     }
   });
+  if (roomKind === "ranked" && entries.length === 2) game.ranked = true; // v0.23b: rated 1v1
   warnedWave = 0;
   own = 0;
   view = 0;
@@ -7191,6 +7254,7 @@ function tick(dt) {
         tone("upgrade");
         note(t("Summoned: {name}", { name: itemName(catalog.byId[e.id]) }));
       }
+      if (e.type === "send" && e.player === own && catalog.byId[e.id]?.bossTier) preloadSendIcons(catalog.byId[e.id].bossTier); // v0.23b: next tier's send buttons
       if (e.type === "leak" && e.player === own) {
         tone("leak");
         haptic(70);
@@ -7305,6 +7369,13 @@ function tick(dt) {
               ? t("Tip: build towers in rows so the path gets longer.")
               : t("Tip: tap towers and upgrade them instead of only building new ones.");
     tone(won ? "victory" : "defeat");
+    // v0.23b: a ranked 1v1 changes the rating kept on this device
+    const foe = game.players.find((q) => q.id !== own),
+      rated = game.ranked && game.players.length === 2 && !game.ratedHere ? rateMatch(won, foe?.rating) : null;
+    if (rated) game.ratedHere = true;
+    const rankLine = rated
+      ? `<p class="modal-copy rank-result" style="text-align:center"><b>${rated.delta >= 0 ? "+" : ""}${rated.delta}</b> → ${rated.after} · ${t(rated.league)}${rated.up ? ` · ${t("Promoted!")}` : rated.down ? ` · ${t("Relegated")}` : ""}</p>`
+      : "";
     const summary = matchSummary(me, isFfa() ? (won ? 1 : me.place || 2) : 0),
       // v0.22x2: against Hardo the picture and the quote give way to a fun fact about him
       hardoFact = sessionMode === "training" && hardoGame() ? t(HARDO_FACTS[Math.floor(Math.random() * HARDO_FACTS.length)]).replace(/^Did you know:\s*/, "") : "",
@@ -7313,7 +7384,7 @@ function tick(dt) {
         : `<img class="modal-hero result-hero" src="${artUrl(won ? "tower-archer" : "creep-golem")}" alt=""><h2 class="welcome-title">${won ? t("Your line.<br><span>Your victory.</span>") : t("Well fought.<br><span>Another round?</span>")}</h2>`;
     if (sessionMode !== "online") presenceState("idle");
     showModal(
-      `<div class="result-banner ${won ? "win" : "lose"}">${t(won ? "Victory" : "Defeat")}</div>${hero}${summary.html}<p class="modal-copy" style="text-align:center">${t("Match time")} ${$("match-clock").textContent}${sessionMode === "training" ? ` · ${t("AI")} ${t(AI_NAMES[game.aiLevel] || "Normal")}` : ""}</p>${tip ? `<p class="modal-note result-tip">${tip}</p>` : ""}<div class="result-pair"><button class="secondary-button" id="play-again">${t("Play again")}</button>${sessionMode === "training" && game.aiLevel !== (hardoUnlocked ? "insane" : "hard") && won ? `<button class="secondary-button" id="play-harder">${t("Harder AI")}</button>` : ""}</div><button class="primary-button" id="to-menu">${t("Main menu")}</button>`,
+      `<div class="result-banner ${won ? "win" : "lose"}">${t(won ? "Victory" : "Defeat")}</div>${hero}${rankLine}${summary.html}<p class="modal-copy" style="text-align:center">${t("Match time")} ${$("match-clock").textContent}${sessionMode === "training" ? ` · ${t("AI")} ${t(AI_NAMES[game.aiLevel] || "Normal")}` : ""}</p>${tip ? `<p class="modal-note result-tip">${tip}</p>` : ""}<div class="result-pair"><button class="secondary-button" id="play-again">${t("Play again")}</button>${sessionMode === "training" && game.aiLevel !== (hardoUnlocked ? "insane" : "hard") && won ? `<button class="secondary-button" id="play-harder">${t("Harder AI")}</button>` : ""}</div><button class="primary-button" id="to-menu">${t("Main menu")}</button>`,
       { pauseGame: false },
     );
     summary.wire();
@@ -7447,10 +7518,23 @@ function warmDialogArt() {
   };
   setTimeout(step, 800);
 }
+/** v0.23b: send button pictures of a tier (portraits where there are some), in the player's colour, loaded ahead. */
+const sendIconsLoaded = new Set();
+function preloadSendIcons(tier) {
+  if (!catalog || sendIconsLoaded.has(tier + "|" + colorChoice + "|" + !!activeArtSet())) return;
+  sendIconsLoaded.add(tier + "|" + colorChoice + "|" + !!activeArtSet());
+  for (const x of catalog.sends) {
+    if (!x.playable || x.tier !== tier) continue;
+    const key = artFor(x),
+      pic = (!activeArtSet() && CREEP_PORTRAIT[key]) || key;
+    preloadImage(artUrl(pic), "high").then(() => towerArtUrl(pic, true));
+  }
+}
 async function init() {
   try {
     catalog = await loadContent();
     registerTowerArt(catalog.towers);
+    preloadSendIcons(1); // v0.23b: tier 1 send buttons first
     warmDialogArt();
     game = createGame({ seed: 42, faction: chosenFaction, mode: chosenMode });
     game.paused = true;
@@ -7519,6 +7603,7 @@ async function init() {
       onTick: tick,
       getPrefetch: prefetchArt, // v0.23
     });
+    arena.setTiles?.(tileMode); // v0.23b
     // v0.15: a double tap on Send opens the send cards but keeps your own field in view; the
     // first tap waits a moment before it rolls over to the target's field.
     let sendTapAt = 0,

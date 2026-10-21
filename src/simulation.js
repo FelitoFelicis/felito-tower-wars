@@ -316,15 +316,16 @@ function initialPlayer(id, faction, ai, seats = 2) {
     stats: { sent: 0, kills: 0, leaks: 0, goldEarned: 0, expEarned: 0, built: 0, creeps: 0, spent: {}, incomeLog: [] },
     treantCount: 0,
     ghoulCount: 0,
-    nextAiTick: 0,
+    nextAiTick: id * 3, // v0.23h: bots think on different ticks (no spike when all of them think at once)
     autoSend: null,
     autoMode: "default", // v0.18h
     infernalBossCount: 0,
     bossBought: {},
     paybackRemaining: 0, // v0.09k: no bonus any more; kept for saves
     elementsPurchased: 0,
-    freeArchers: 1, // v0.08c: the first archer is free
-    starterArchers: 1, // v0.18a: that first free archer sells like a bought one (Forest Patrol archers sell for 0)
+    freeArchers: 0, // v0.23b: no free first archer any more (was 1 since v0.08c); Archery perk picks still give one
+    starterArchers: 0,
+    basicBought: 0, // v0.23b: basic towers bought so far (the first two are cheaper)
   };
 }
 
@@ -613,8 +614,15 @@ function meetRequirements(player, requirements) {
 }
 /** v0.19d2: the first EXP generator costs 50 % less while the player owns none. */
 export const FIRST_GEN_DISCOUNT = 0.5;
+/** v0.23b: no free first archer any more; the first basic tower (Archer, Footman, Bombard) costs 10 gold less, the second 5 gold less. */
+export const BASIC_TOWERS = new Set(["h003", "h000", "h02R"]);
+export const BASIC_DISCOUNTS = [10, 5];
 export const firstGenPrice = (p, item) =>
-  item?.id === "h01F" && !p.towers.some((t) => obj(t.typeId)?.support === "lumber") ? Math.ceil(item.cost * (1 - FIRST_GEN_DISCOUNT)) : item?.cost;
+  item?.id === "h01F" && !p.towers.some((t) => obj(t.typeId)?.support === "lumber")
+    ? Math.ceil(item.cost * (1 - FIRST_GEN_DISCOUNT))
+    : BASIC_TOWERS.has(item?.id) && (p.basicBought || 0) < BASIC_DISCOUNTS.length
+      ? Math.max(0, item.cost - BASIC_DISCOUNTS[p.basicBought || 0])
+      : item?.cost;
 export function getPurchaseCost(game, playerIndex, id) {
   const p = game.players[playerIndex],
     item = obj(id);
@@ -656,6 +664,7 @@ export function available(game, playerIndex, type, id, towerId = null, viaPick =
     if (id === "h003" && (p.freeArchers || 0) > 0) cost = { gold: 0, wood: 0 }; // Forest Patrol
     else if (id === "h01F" && (p.freeGens || 0) > 0) cost = { gold: 0, wood: 0 }; // v0.19g1: Novice
     else if (id === "h01F") cost = { gold: firstGenPrice(p, item), wood: 0 }; // v0.19d2: the first EXP generator at half price
+    else if (BASIC_TOWERS.has(id)) cost = { gold: firstGenPrice(p, item), wood: 0 }; // v0.23b: first two basic towers cheaper
   } else if (type === "upgrade") {
     const tower = p.towers.find((t) => t.id === towerId);
     if (!tower) return { ok: false, reason: "Tower not found" };
@@ -733,7 +742,8 @@ export function canBuild(game, playerIndex, gridX, gridY, id = null) {
 export function previewBuild(game, playerIndex, gridX, gridY, id = null) {
   const p = game.players[playerIndex],
     current = Math.max(0, (p?.path?.length || 1) - 1);
-  const check = canBuild(game, playerIndex, gridX, gridY, id);
+  let check = canBuild(game, playerIndex, gridX, gridY, id);
+  if (check.ok && aiCondBlocks(game, p, gridX, gridY, id)) check = { ok: false, reason: "Conditional perk" }; // v0.23b: bots keep the condition
   if (!check.ok) return { ...check, gridX, gridY, path: null, length: current, delta: 0 };
   const path = findPath(game, playerIndex, null, footprintCells(gridX, gridY, id ? footprintOf(id) : 1)) || [];
   const length = Math.max(0, path.length - 1);
@@ -770,11 +780,16 @@ function statsFor(game, player, item) {
   if (!game || !player || !item || typeof player !== "object") return statsForRaw(game, player, item);
   let byItem = STATS_CACHE.get(player);
   if (!byItem) STATS_CACHE.set(player, (byItem = new Map()));
-  const inputs = statsInputs(player, item),
-    hit = byItem.get(item);
-  if (hit && hit.game === game && sameList(hit.inputs, inputs)) return hit.stats;
+  const hit = byItem.get(item);
+  // v0.23h: within one tick (and between two commands) the inputs cannot change: skip building the input list
+  if (hit && hit.game === game && hit.epoch === skillEpoch) return hit.stats;
+  const inputs = statsInputs(player, item);
+  if (hit && hit.game === game && sameList(hit.inputs, inputs)) {
+    hit.epoch = skillEpoch;
+    return hit.stats;
+  }
   const stats = statsForRaw(game, player, item);
-  byItem.set(item, { game, inputs, stats });
+  byItem.set(item, { game, inputs, stats, epoch: skillEpoch });
   return stats;
 }
 function statsForRaw(game, player, item) {
@@ -885,6 +900,9 @@ function statsForRaw(game, player, item) {
     if (archerLine().has(item.id)) {
       if (!RANGE_KEEP.test(nameOf(item))) stats.range -= ARCHER_RANGE_CUT * cu;
     } else if (lineSet("h02R").has(item.id)) stats.range -= BOMBARD_RANGE_CUT * cu;
+    // v0.23b: the Archer tower itself (levels 1–6) reaches 3.5 fields (Watcher Owl still adds on top)
+    if (item.shortName === "Archer" && (item.level || 1) <= 6)
+      stats.range = ARCHER_RANGE * cu + (perkLevel(player, "owl") ? owlRange(perkLevel(player, "owl")) * cu : 0);
   }
   return stats;
 }
@@ -973,7 +991,7 @@ export const PERKS = Object.freeze({
   novice: { name: "Novice", max: 5, text: "EXP +{novice}. Next EXP generator free", detail: "Increases EXP gain +{novice}. Next EXP generator is free" }, // v0.22m2: 15 / 30 / 45 / 60 / 75 %, every level one free level 1 EXP generator
   volley: { name: "Arrow Volley", max: 5, text: "Arrows rain on an area dealing {volleyDmg} damage each" }, // v0.20e: shorter tooltip
   wings: { name: "Wings of War", max: 10, element: "storm", text: "Flyers +{wingsHp} HP, +{wingsSpeed} speed, +{wingsInc} income", detail: "Flying creeps +{wingsHp} HP, +{wingsSpeed} speed, +{wingsInc} income" }, // v0.10p
-  hellfire: { name: "Lava Floor", max: 10, element: "fire", text: "Ground creeps in row 6 burn for {hellfire} damage/s", detail: "Ground creeps in your 6th row burn for {hellfire} damage per second" }, // v0.10p, v0.16g
+  hellfire: { name: "Lava Floor", max: 10, element: "fire", text: "Ground creeps on lava burn for {hellfire} damage/s", detail: "6 lava tiles appear on random fields of your board (2 in the upper half, 2 in the lower half, 2 anywhere), one more for each level from 2 on. Ground creeps on lava burn for {hellfire} damage per second" }, // v0.23k: random tiles instead of the 6th row // v0.10p, v0.16g
   burst: { name: "Arcane Burst", max: 5, element: "arcane", text: "Active: {burst} damage split in an area", detail: "Active ability: {burst} damage, split among the creeps in an area" }, // v0.10p
   treasure: { name: "Gold Treasure", max: 1, powerup: true, text: "Now +{treasure} gold and +{treasureInc} income", detail: "Instantly +{treasure} gold and +{treasureInc} income" }, // v0.10r; v0.19e2: +20 % gold, +60 income (doubled when far behind)
   voltage: { name: "High Voltage", max: 20, element: "storm", unpopular: 0.5, text: "EXP generators are {voltage} more efficient" }, // v0.10r; v0.19j: tooltip
@@ -991,7 +1009,7 @@ export const PERKS = Object.freeze({
   crowd: { name: "Crowd Control", max: 3, element: "plague", text: "When {crowdMax}+ creeps in field, weakest 3 are culled. Triggers every 5 seconds.", detail: "When {crowdMax} or more creeps are in your field, the 3 weakest are culled, never shielded ones. Triggers every 5 seconds. Each culled creep goes back to its owner as an undead creep of its tier, worth a little income" }, // v0.23: 50 or more, Divine Shield spared, one undead per culled creep // v0.20d: Plague, fewer creeps per level, an undead creep goes back
   pillage: { name: "Pillage", max: 3, text: "Steal {pillage} gold on breakthrough" }, // v0.22m2: 14 / 24 / 30 % of the breached player's gold
   // v0.12: nine new perks
-  lone: { name: "Last Guardians", max: 4, text: "Towers attack {lone} faster with {loneTowers} towers or fewer", detail: "All towers attack {lone} faster while you own {loneTowers} towers or fewer" }, // v0.22g1: 4 levels // v0.20c: no bracket note; v0.16h: back to the v0.13 effect; v0.19g1: was Lone Guardians
+  lone: { name: "Last Guardians", max: 4, text: "Towers attack {lone} faster with {loneTowers} towers or fewer", detail: "All towers attack {lone} faster while you own {loneTowers} towers or fewer. Towers that do not fight count as 1/4, Walls as 1/10." }, // v0.22g1: 4 levels // v0.20c: no bracket note; v0.16h: back to the v0.13 effect; v0.19g1: was Lone Guardians
   manufacture: { name: "Creep Manufacture", max: 3, element: "earth", text: "8th creep {manufacture} cheaper, recruits 15% faster", detail: "8th creep of every tier {manufacture} cheaper, recruits 15% faster" }, // v0.20d: Earth, 8th creep
   synthesizer: { name: "Creep Synthesizer", max: 3, element: "water", text: "4th creep {synthesizer} cheaper, recruits 12% faster", detail: "4th creep of every tier {synthesizer} cheaper, recruits 12% faster" }, // v0.20d
   scholar: { name: "Scholar", max: 10, element: "arcane", text: "Upgrades 2 non-Arcane perks. EXP +{scholar}", detail: "Upgrades 2 of your non-Arcane perks. EXP gain +{scholar}" }, // v0.20d
@@ -1053,7 +1071,7 @@ export const perkExcluded = (id) => [].concat(PERKS[id]?.element || []).filter((
 const ownsElement = (p, el) => !!p.research[FACTIONS.find((f) => f.id === el)?.unlock];
 // ---- v0.12: new perks -------------------------------------------------------------------
 /** Lone Guardians: tower limit and attack speed bonus. */
-export const LONE = { towers: [0, 5, 5, 6, 7], speed: [0, 0.75, 1.25, 1.5, 1.66], wall: 0.1 }; // v0.22g1: 4 levels, 75 / 125 / 150 / 166 %, 6 towers on level 3, 7 on level 4; v0.17n: a Wall counts as 0.1 tower
+export const LONE = { towers: [0, 5, 5, 6, 7], speed: [0, 0.75, 1.25, 1.5, 1.66], wall: 0.1, support: 0.25 }; // v0.23j: non-fighting towers count 0.25 // v0.22g1: 4 levels, 75 / 125 / 150 / 166 %, 6 towers on level 3, 7 on level 4; v0.17n: a Wall counts as 0.1 tower
 const loneLv = (lv) => Math.max(0, Math.min(LONE.speed.length - 1, lv | 0));
 /** v0.22g1: Last Guardians: tower limit and attack speed bonus of a perk level. */
 export const loneTowers = (lv) => LONE.towers[loneLv(lv)];
@@ -1092,7 +1110,9 @@ export function towerPerkBuffs(game, index, id) {
   if (perkLevel(p, "voltage") && item.woodIncome) out.push({ id: "voltage", level: perkLevel(p, "voltage"), text: `+${Math.round(VOLTAGE.bonus * 100 * perkLevel(p, "voltage"))}% EXP` });
   return out;
 }
-export const loneCount = (p) => (p?.towers || []).reduce((n, t) => n + (t.typeId === WALL_ID ? LONE.wall : 1), 0);
+/** v0.23j: what a tower counts for Last Guardians: a Wall 0.1, a tower that does not fight 0.25, every other tower 1. */
+export const loneWeight = (id) => (id === WALL_ID ? LONE.wall : obj(id)?.attacks ? 1 : LONE.support);
+export const loneCount = (p) => (p?.towers || []).reduce((n, t) => n + loneWeight(t.typeId), 0);
 /** v0.13: Watcher Owl (research R00K): extra range of archer-line towers per level, in fields. */
 export const OWL = { range: [0.5, 0.33, 0.25, 0.2, 0.17] }; // v0.19a1: five levels
 export const owlRange = (level) => OWL.range.slice(0, Math.max(0, Math.min(OWL.range.length, level))).reduce((a, b) => a + b, 0);
@@ -1459,6 +1479,60 @@ export function zoneOf(game, p, id) {
   if (id === "tides") return perkLevel(p, "tides") ? { from: rows - TIDES.rows, to: rows, on: !towerInRows(p, rows - TIDES.rows, rows) } : null;
   return null;
 }
+/**
+ * v0.23b: conditionalPerk (internal, never shown in the game): perks whose bonus only holds while a condition is
+ * kept – Last Guardians (few towers), Backup Line (top rows free), Low Tides (bottom rows free). `cost` is how many
+ * towers break the condition (for the next level: `next`), `blocks` whether a new tower there would break it.
+ */
+export const CONDITIONAL_PERKS = {
+  lone: {
+    cost: (game, p, next = 0) => Math.max(0, Math.ceil(loneCount(p) - loneTowers(perkLevel(p, "lone") + next) - 1e-6)),
+    blocks: (game, p, x, y, id) => loneCount(p) + loneWeight(id) > loneTowers(perkLevel(p, "lone")) + 1e-6,
+    offenders: (game, p) => p.towers.filter((t) => t.typeId !== ROCK_ID),
+  },
+  backup: {
+    cost: (game, p) => p.towers.filter((t) => t.typeId !== ROCK_ID && t.gridY < BACKUP.rows).length,
+    blocks: (game, p, x, y) => y < BACKUP.rows,
+    offenders: (game, p) => p.towers.filter((t) => t.typeId !== ROCK_ID && t.gridY < BACKUP.rows),
+  },
+  tides: {
+    cost: (game, p) => p.towers.filter((t) => t.typeId !== ROCK_ID && t.gridY + towerSize(t) > game.grid.rows - TIDES.rows).length,
+    blocks: (game, p, x, y, id) => y + (id ? footprintOf(id) : 1) > game.grid.rows - TIDES.rows,
+    offenders: (game, p) => p.towers.filter((t) => t.typeId !== ROCK_ID && t.gridY + towerSize(t) > game.grid.rows - TIDES.rows),
+  },
+};
+/** Bots: towers they may sell at most to meet a conditionalPerk when picking it. */
+const COND_SELL_MAX = 1;
+/** v0.23b: a bot that keeps a conditionalPerk's condition does not build where it would break it. */
+function aiCondBlocks(game, p, x, y, id) {
+  if (!p?.ai || !p.aiCond || id === ROCK_ID) return false;
+  for (const [pid, keep] of Object.entries(p.aiCond)) if (keep && perkLevel(p, pid) && CONDITIONAL_PERKS[pid]?.blocks(game, p, x, y, id)) return true;
+  return false;
+}
+/**
+ * v0.23b: once a round (or less) a bot decides per owned conditionalPerk whether to keep its condition: it keeps it
+ * unless it is better off breaking it (it lost lives last round while short of defence, or is low on lives). While
+ * keeping it, it sells the few towers that break it (at most COND_SELL_MAX).
+ */
+function aiConditions(game, p) {
+  if (p.aiCondRound === game.round) return;
+  const lost = Math.max(0, (p.aiCondLives ?? p.lives) - p.lives);
+  p.aiCondRound = game.round;
+  p.aiCondLives = p.lives;
+  const out = {};
+  for (const pid of Object.keys(CONDITIONAL_PERKS)) {
+    if (!perkLevel(p, pid)) continue;
+    const c = CONDITIONAL_PERKS[pid],
+      cost = c.cost(game, p),
+      better = lost >= 3 || (lost > 0 && p.lives <= 8) || cost > COND_SELL_MAX + 1;
+    out[pid] = !better;
+    if (out[pid] && cost > 0 && cost <= COND_SELL_MAX && !game.warmup) {
+      const t = c.offenders(game, p).sort((a, b) => (a.totalSpent || 0) - (b.totalSpent || 0))[0];
+      if (t) command(game, { type: "sell", player: p.id, towerId: t.id });
+    }
+  }
+  p.aiCond = out;
+}
 function tickZones(game, p) {
   p.backupOn = !!zoneOf(game, p, "backup")?.on;
   p.tidesOn = !!zoneOf(game, p, "tides")?.on;
@@ -1670,7 +1744,7 @@ export const GOLEM = { discount: 0.25, hp: 0.1 };
 export const WINGS = { hp: 0.06, speed: 0.03, income: 0.1 };
 /** v0.10p: Hellfire (Fire): burning row (0-based, v0.10q: 6th row from the top) and damage per second. */
 // v0.16g: buffed and scaled with the owner's send tier (creep hit points grow steeply per tier)
-export const HELLFIRE = { row: 5, perLevel: 10, base: 5, tierScale: [1, 2.5, 5.5, 12, 25, 50], perPlayerLevel: 0.03 }; // v0.22i1: weaker scaling (was 1 / 3 / 7 / 16 / 35 / 70 and 6 % per player level) // v0.22: less from the send tier (was 1 / 4 / 10 / 25 / 60 / 120)
+export const HELLFIRE = { row: 5, tiles: 6, perLevel: 10, base: 5, tierScale: [1, 2.5, 5.5, 12, 25, 50], perPlayerLevel: 0.03 }; // v0.22i1: weaker scaling (was 1 / 3 / 7 / 16 / 35 / 70 and 6 % per player level) // v0.22: less from the send tier (was 1 / 4 / 10 / 25 / 60 / 120)
 // v0.19b1: Lava Floor (was Hellfire): also +6 % damage per player level
 /** v0.21n: Lava Floor is a little weaker early on: 70 % in round 0, +1.5 % per round, full from round 20. */
 export const hellfireRound = (round) => Math.min(1, 0.7 + 0.015 * Math.max(0, round || 0));
@@ -1704,11 +1778,46 @@ function tickPocks(game, p) {
   emit(game, "skill", { player: p.id, kind: "pocks", x: c.x, y: c.y });
   if (c.hp <= 0) killCreep(game, p, c);
 }
+/**
+ * v0.23k: Lava Floor lies on single tiles of the player's field instead of the 6th row: 6 tiles on level 1
+ * (at least 2 in the upper half, 2 in the lower half, 2 anywhere) and one more for every level from 2 on.
+ * The tiles are drawn once and stay; new levels add tiles.
+ */
+export const lavaTileCount = (level) => (level > 0 ? HELLFIRE.tiles + Math.max(0, level - 1) : 0);
+function growLava(game, p) {
+  const want = lavaTileCount(perkLevel(p, "hellfire")),
+    lava = (p.lava ||= []);
+  if (lava.length >= want) return lava;
+  const { cols, rows } = game.grid,
+    half = Math.floor(rows / 2),
+    taken = new Set(lava.map(([x, y]) => y * cols + x));
+  for (let guard = 0; lava.length < want && guard < 400; guard++) {
+    const n = lava.length,
+      // the first two in the upper half, the next two in the lower half, then anywhere
+      y0 = n < 2 ? 0 : n < 4 ? half : 0,
+      y1 = n < 2 ? half : rows,
+      x = Math.floor(random(game) * cols),
+      y = y0 + Math.floor(random(game) * (y1 - y0));
+    if (taken.has(y * cols + x)) continue;
+    taken.add(y * cols + x);
+    lava.push([x, y]);
+  }
+  return lava;
+}
+export const onLava = (game, p, c) => {
+  if (!p.lava?.length || c.y < 0) return false;
+  const x = Math.floor(c.x * game.grid.cols),
+    y = Math.floor(c.y * game.grid.rows);
+  for (const t of p.lava) if (t[0] === x && t[1] === y) return true;
+  return false;
+};
 function tickHellfire(game, p) {
+  if (!perkLevel(p, "hellfire")) return;
+  growLava(game, p);
   const dps = hellfireDps(p) * hellfireRound(game.round); // v0.21n: weaker in early rounds
   if (!dps) return;
   for (const c of p.creeps) {
-    if (c.dead || c.hp <= 0 || c.flying || c.y < 0 || Math.floor(c.y * game.grid.rows) !== HELLFIRE.row || divineShield(game, c)) continue; // v0.17n: Divine Shield
+    if (c.dead || c.hp <= 0 || c.flying || c.y < 0 || !onLava(game, p, c) || divineShield(game, c)) continue; // v0.17n: Divine Shield
     c.hp -= guardCut(game, c, dps * TICK);
     if (c.hp <= 0) killCreep(game, p, c);
   }
@@ -1736,8 +1845,13 @@ function bossDiscount(p, item, gold) {
   if (perkLevel(p, "synthesizer") && fourthOf(item)) share *= 1 - SYNTHESIZER.discount[Math.min(3, perkLevel(p, "synthesizer")) - 1]; // v0.20d
   if (perkLevel(p, "forge") && sixthOf(item)) share *= 1 - FORGE.discount[Math.min(3, perkLevel(p, "forge")) - 1]; // v0.21c
   if (perkLevel(p, "nobility") && isHeavy(item)) share *= 1 - NOBILITY.discount[Math.min(3, perkLevel(p, "nobility")) - 1]; // v0.12
-  if (p?.questLog) share *= questCostShare(p, item) * (1 - contractShare(p, item, "discount")); // v0.15: banter rewards and penalties; v0.19a1: contracts
-  return share === 1 ? gold : Math.round(gold * share);
+  let up = false;
+  if (p?.questLog) {
+    const q = questCostShare(p, item);
+    up = q < 1; // v0.23b: banter rewards always round up (Goblin 5 → 4, Imp 50 → 40)
+    share *= q * (1 - contractShare(p, item, "discount")); // v0.15: banter rewards and penalties; v0.19a1: contracts
+  }
+  return share === 1 ? gold : up ? Math.ceil(gold * share - 1e-9) : Math.round(gold * share);
 }
 /** v0.10r: undead creeps (Exhumination). */
 export const UNDEAD_SENDS = new Set(["n00R", "n011", "n016", "n019", "n01B", "n01H", "n013", "n01D", "n02N", "n02E"]);
@@ -2053,18 +2167,31 @@ const PERK_OWNED_BEFORE = {};
 const perkAvailable = (o, level, p) => {
   const id = o.type === "perk" ? o.id : o.type;
   // v0.12: some perks sit out the level after they were taken
-  if (o.type === "perk" && PERK_SKIP.has(id) && p?.perkTakenAt?.[id] === level - 1) return false;
+  // v0.23b: every perk now sits out the level after it was taken (skip1); a few still sit out two (PERK_SKIP_LEVELS)
+  if (o.type === "perk" && !PERK_SKIP_LEVELS[id] && p?.perkTakenAt?.[id] === level - 1) return false;
   if (o.type === "perk" && PERK_SKIP_LEVELS[id] && p?.perkTakenAt?.[id] != null && level - p.perkTakenAt[id] <= PERK_SKIP_LEVELS[id]) return false; // v0.20c
   if (parseAvailability(PERK_AVAILABILITY[id] ?? "1+")(level)) return true;
   if (o.type === "perk" && PERK_CONTINUOUS.has(id) && perkLevel(p, id) >= 1 && level >= firstAvailable(PERK_AVAILABILITY[id])) return true; // v0.22j1
   if (o.type === "perk" && PERK_OWNED_BEFORE[id] && !((p?.perkFirstAt?.[id] ?? Infinity) < PERK_OWNED_BEFORE[id])) return false;
   return o.type === "perk" && perkLevel(p, id) >= 1 && !!PERK_AVAILABILITY_OWNED[id] && parseAvailability(PERK_AVAILABILITY_OWNED[id])(level);
 };
+/** v0.23k: with exactly one element owned, its element perks are 10 % more likely to be drawn than neutral perks. */
+export const ELEMENT_PERK_WEIGHT = 1.1;
 function makePick(game, p, kind, noQuest = false, focus = null) {
+  const oneElement = FACTIONS.filter((f) => p.research[f.unlock]).length === 1,
+    weight = (o) => (oneElement && o?.type === "perk" && perkElements(o.id).length ? ELEMENT_PERK_WEIGHT : 1);
+  // weighted draw without putting back (all weights 1: the same as the plain draw before)
   const draw = (list, n) => {
     const pool = list.slice(),
       out = [];
-    while (pool.length && out.length < n) out.push(pool.splice(Math.floor(random(game) * pool.length), 1)[0]);
+    while (pool.length && out.length < n) {
+      let total = 0;
+      for (const o of pool) total += weight(o);
+      let r = random(game) * total,
+        k = 0;
+      while (k < pool.length - 1 && (r -= weight(pool[k])) >= 0) k++;
+      out.push(pool.splice(k, 1)[0]);
+    }
     return out;
   };
   if (kind === "element")
@@ -2160,6 +2287,7 @@ function resolvePick(game, p, index) {
 /** v0.15: the effect of one reward option (from the dialog, or granted by a quest). */
 function applyOption(game, p, option, level) {
   skillEpoch++; // v0.21l: perks or research may change: tower skills are read anew
+  abilityEpoch++; // v0.23i
   const pick = { level };
   if (option.type === "quest") return acceptQuest(game, p, option.id);
   if (option.type === "element") {
@@ -2218,6 +2346,7 @@ function scholarTargets(p) {
 }
 function scholarUpgrade(game, p) {
   skillEpoch++; // v0.21l: perks or research may change: tower skills are read anew
+  abilityEpoch++; // v0.23i
   const list = scholarTargets(p),
     done = [];
   for (let k = 0; k < SCHOLAR.upgrades && list.length; k++) {
@@ -2245,7 +2374,7 @@ function goldPerkOpen(game, p) {
  * makes them dearer. Untouchable asks for a number of rounds without any breach.
  */
 export const QUESTS = Object.freeze({
-  goblin: { name: "Goblin Banter", avail: "2-3", kind: "banter", model: "n00E", creeps: ["n00E", "n00U"], hp: 0.7, plural: "Goblins", pair: "Goblins & Imps" },
+  goblin: { name: "Goblin Banter", avail: "2-3", kind: "banter", model: "n00E", creeps: ["n00E", "n00U"], hp: 0.7, plural: "Goblins", pair: "Goblins & Imps", discount: 0.2 }, // v0.23b: 20 % (rounded up: Goblin 4, Imp 40)
   untouchable: { name: "Untouchable", avail: "6-12", kind: "untouchable" },
   troll: { name: "Troll Banter", avail: "8-12", kind: "banter", model: "n010", creeps: ["n010", "n00F"], hp: 0.8, plural: "Trolls", pair: "Trolls & Witch Doctors" },
   undead: { name: "Undead Banter", avail: "13-18", kind: "banter", model: "n016", creeps: ["n016", "n01D"], hp: 0.85, plural: "Zombies", pair: "Zombies & Ghouls" },
@@ -2258,6 +2387,10 @@ export const QUESTS = Object.freeze({
   unholy: { name: "Unholy Contract", avail: "3+", kind: "contract", rounds: 13, place: 7, share: 0.13, gives: ["hp", "income", "discount"] },
 });
 /** Banter numbers: waves, creeps per wave, buffs, boss, reward and penalty. */
+/** v0.23b: speed loss of a player's creeps of the old tier still in play once the tier boss is bought (true debuff). */
+export const BOSS_TRUE_SLOW = 0.2;
+/** v0.23b: range of the Archer tower, levels 1–6, in fields. */
+export const ARCHER_RANGE = 3.5;
 export const BANTER = {
   delay: 1, // rounds from accepting to the first wave (v0.17b: 1 instead of 2)
   waves: 5,
@@ -2415,7 +2548,7 @@ function questCostShare(p, item) {
   for (const [id, result] of Object.entries(p?.questLog || {})) {
     const q = QUESTS[id];
     if (q?.kind !== "banter" || !q.creeps.includes(item.id)) continue;
-    if (result === "won") share *= 1 - BANTER.discount; // v0.17: a failed banter costs nothing
+    if (result === "won") share *= 1 - (q.discount ?? BANTER.discount); // v0.17: a failed banter costs nothing; v0.23b: own discount per banter
   }
   return share;
 }
@@ -2554,6 +2687,7 @@ function tickVolleys(game) {
   }
 }
 function completeTower(game, p, t) {
+  abilityEpoch++; // v0.23i: a finished tower can fulfil a skill requirement
   if (t.completed) return;
   t.completed = true;
   const item = obj(t.typeId);
@@ -2725,8 +2859,11 @@ export function command(game, input) {
   if (game.teams) teamSync(game); // v0.20
   return result;
 }
+// v0.23i: commands that never change what towers can do (sending creeps, active perk spells, pause)
+const SKILL_NEUTRAL = new Set(["send", "autoSend", "autoMode", "pause", "volley", "burst", "pillar", "monsun"]);
 function runCommand(game, input) {
   skillEpoch++; // v0.21l: perks or research may change: tower skills are read anew
+  if (!SKILL_NEUTRAL.has(input?.type)) abilityEpoch++; // v0.23i
   const type = input.type,
     playerIndex = input.player ?? 0,
     p = game.players[playerIndex];
@@ -2811,6 +2948,7 @@ function runCommand(game, input) {
       gy = input.gridY ?? Math.floor(input.y * game.grid.rows);
     const placement = canBuild(game, playerIndex, gx, gy, id);
     if (!placement.ok) return placement;
+    if (aiCondBlocks(game, p, gx, gy, id)) return { ok: false, reason: "Conditional perk" }; // v0.23b
     const free = id === "h003" && (p.freeArchers || 0) > 0;
     const starter = free && (p.starterArchers || 0) > 0;
     const freeGen = id === "h01F" && (p.freeGens || 0) > 0; // v0.19g1: Novice
@@ -2818,6 +2956,7 @@ function runCommand(game, input) {
     else if (freeGen) p.freeGens--;
     else pay(p, check.cost);
     if (starter) p.starterArchers--;
+    if (!free && BASIC_TOWERS.has(id)) p.basicBought = (p.basicBought || 0) + 1; // v0.23b
     const tower = newTower(game, p, id, gx, gy);
     if (free && !starter) tower.free = true;
     if ((free && !starter) || freeGen) tower.freeValue = item.pointValue || item.cost; // v0.19h1: free archers and EXP generators sell for 10 % of their own value
@@ -2886,6 +3025,13 @@ function runCommand(game, input) {
       p.bossBought = { ...(p.bossBought || {}), [id]: true };
       if (id === "n01T") p.infernalBossCount++;
       if (id !== "n02R") advanceTier(game, p, item.bossTier);
+      // v0.23b: the creeps of the tier left behind that are still in play lose 20 % speed for good (a true
+      // debuff: no perk or ability that softens or shortens debuffs touches it)
+      for (const pl of game.players)
+        for (const c of pl.creeps || []) {
+          const def = obj(c.typeId);
+          if (c.owner === p.id && !c.dead && c.hp > 0 && !c.wave && def && !def.bossTier && def.tier === item.tier) c.trueSlow = Math.max(c.trueSlow || 0, BOSS_TRUE_SLOW);
+        }
     }
     return { ok: true, count: item.spawnIds.length };
   }
@@ -2894,6 +3040,7 @@ function runCommand(game, input) {
 
 function finishResearch(game, p, id) {
   skillEpoch++; // v0.21l: perks or research may change: tower skills are read anew
+  abilityEpoch++; // v0.23i
   p.research[id] = (p.research[id] || 0) + 1;
   const element = FACTIONS.find((f) => f.research === id);
   if (element) {
@@ -3548,11 +3695,15 @@ const VISUAL_ONLY = (a) => (a.baseId === "Aasl" && fval(a, "Slo1", 1) === 0) || 
 const TOWER_SKILLS = new WeakMap();
 // bumped at every tick and every command, so a perk or research change is seen at once
 let skillEpoch = 0;
+// v0.23i: tower skills only change with perks, research or finished towers (commands, finished research,
+// finished buildings), not every tick: their own counter, so the lists are no longer rebuilt every tick
+let abilityEpoch = 0;
 function towerSkills(player, tower) {
   const hit = TOWER_SKILLS.get(tower);
-  if (hit && hit.epoch === skillEpoch && hit.typeId === tower.typeId && hit.player === player) return hit.list;
+  const n = player.towers?.length || 0;
+  if (hit && hit.epoch === abilityEpoch && hit.n === n && hit.typeId === tower.typeId && hit.player === player) return hit.list;
   const list = towerSkillsRaw(player, tower);
-  TOWER_SKILLS.set(tower, { epoch: skillEpoch, typeId: tower.typeId, player, list });
+  TOWER_SKILLS.set(tower, { epoch: abilityEpoch, n, typeId: tower.typeId, player, list });
   return list;
 }
 function towerSkillsRaw(player, tower) {
@@ -3996,9 +4147,25 @@ function attack(game, p, tower, dt, known = null) {
   const canHit = (c) => (c.flying ? item.targets.includes("air") : item.targets.includes("ground")) && (!c.invisible || detected(game, p, c));
   const melee = isMeleeTower(item) && towerSize(tower) === 1,
     inReach = (c) => (melee ? inMeleeReach(game, tower, c) : inRange(game, tower, c, stats.range)); // v0.23: inRange
-  const targets = p.creeps.filter((c) => !c.dead && c.hp > 0 && !divineShield(game, c) && inReach(c) && canHit(c)); // v0.21x: no shots at invulnerable creeps
   const skills = towerSkills(p, tower),
     focus = skills.find((sk) => sk.type === "focus");
+  // v0.23i: most ready towers have nothing in reach: find that out without building the target list
+  if (!(focus && tower.focusId)) {
+    let any = false;
+    for (const c of p.creeps)
+      if (!c.dead && c.hp > 0 && !divineShield(game, c) && inReach(c) && canHit(c)) {
+        any = true;
+        break;
+      }
+    if (!any) {
+      if (focus) tower.focusOut = null;
+      tower.cooldown = 0;
+      tower.focusId = null;
+      tower.focusMult = 1;
+      return;
+    }
+  }
+  const targets = p.creeps.filter((c) => !c.dead && c.hp > 0 && !divineShield(game, c) && inReach(c) && canHit(c)); // v0.21x: no shots at invulnerable creeps
   // v0.22u2: Focus Fire holds a target that just left its range (up to 0.2 tiles further, at most 0.5 s);
   // losing it that way rests the laser like a kill does
   let held = null;
@@ -4025,7 +4192,8 @@ function attack(game, p, tower, dt, known = null) {
   // v0.18b: towers take the weaker creeps they can more likely kill first (no bosses, no heavy
   // creeps while others are in reach), then the one furthest along the path
   // v0.21v: heavy creeps and bosses come last only in the upper half of the field; from halfway on they count like any creep
-  const shy = (c) => (c.progress < HEAVY_SHY && heavyCreep(c) ? 1 : 0);
+  // v0.23k: bosses always come last (towers prefer every other creep in reach, on the whole path)
+  const shy = (c) => (obj(c.typeId)?.bossTier || c.waveBoss ? 2 : c.progress < HEAVY_SHY && heavyCreep(c) ? 1 : 0);
   targets.sort((a, b) => shy(a) - shy(b) || b.progress - a.progress || a.id.localeCompare(b.id));
   // v0.18b: Focus Fire keeps its target while it stays in reach
   const target = held || (focus && tower.focusId && targets.find((c) => c.id === tower.focusId)) || targets[0];
@@ -4440,6 +4608,7 @@ function moveCreep(game, p, c, dt) {
   factor *= 1 - clamp(slow.frost * boots, 0, 0.9);
   factor *= 1 - clamp(slow.other * boots, 0, 0.9);
   factor *= hill * auraSpeed * zone;
+  if (c.trueSlow) factor *= 1 - c.trueSlow; // v0.23b: true debuff (after the tier boss was bought), never softened
   let remaining = clamp(c.speed * factor, 24 * mobility, 1000 * mobility) * dt;
   // v0.19k: Monsun: ground creeps lean into the storm and only creep forward, so the wind really pushes them back
   if (!c.flying && p.monsun && game.time <= p.monsun.until + EPS) remaining *= MONSUN.walk;
@@ -4458,17 +4627,18 @@ function moveCreep(game, p, c, dt) {
       touchdown(game, p, c);
       break;
     }
-    const next = { x: way.x + c.ox, y: way.y + c.oy };
-    const distance = dist(game, c, next);
+    const nx = way.x + c.ox,
+      ny = way.y + c.oy, // v0.23i: no object per step
+      distance = Math.hypot((c.x - nx) * game.grid.cols, (c.y - ny) * game.grid.rows) * game.grid.cellUnits;
     if (distance <= remaining + EPS) {
-      c.x = next.x;
-      c.y = next.y;
+      c.x = nx;
+      c.y = ny;
       c.pathIndex++;
       remaining -= distance;
     } else {
       const factor = remaining / distance;
-      c.x += (next.x - c.x) * factor;
-      c.y += (next.y - c.y) * factor;
+      c.x += (nx - c.x) * factor;
+      c.y += (ny - c.y) * factor;
       remaining = 0;
     }
   }
@@ -4998,9 +5168,13 @@ function aiPick(game, p, persona) {
       if (o.type === "lives") return p.lives < 12 ? 9 : 1 + random(game);
       // v0.12: perks the bot can hardly use rank low
       if (o.type === "perk" && o.id === "fort") return 0.5 + random(game);
-      if (o.type === "perk" && ["quarry", "backup", "tides", "sanction"].includes(o.id)) return 0.8 + random(game); // v0.18h: the bot's mazes rarely fit these
+      // v0.23b: conditionalPerk: only when the condition holds, or holds after selling at most COND_SELL_MAX towers
+      if (o.type === "perk" && CONDITIONAL_PERKS[o.id]) {
+        const cost = CONDITIONAL_PERKS[o.id].cost(game, p, 1);
+        return cost === 0 ? (5 + random(game) * 2) * (persona.researchBias ?? 1) : cost <= COND_SELL_MAX ? 2.5 + random(game) : 0.2 + random(game) * 0.2;
+      }
+      if (o.type === "perk" && ["quarry", "sanction"].includes(o.id)) return 0.8 + random(game); // v0.18h: the bot's mazes rarely fit these
       if (o.type === "quest") return 1 + random(game) * 2; // v0.15: the bot rarely takes quests
-      if (o.type === "perk" && o.id === "lone") return (loneCount(p) <= loneTowers(perkLevel(p, "lone") + 1) + 1e-6 && p.level <= 4 ? 3 : 0.5) + random(game);
       if (o.type === "perk" && o.id === "autoloader") return (6 + random(game) * 2) * (persona.researchBias ?? 1); // v0.22g1: a tower boost like Heavy Weapons
       // v0.21: the former upgrades keep their old weight (tower boosts 6, the rest 4, times the persona's bias)
       // v0.22u2: Hardo skips a line perk for a line it does not build (game 1: Melee Protocol twice, no melee tower)
@@ -5455,8 +5629,8 @@ function typedSteps(game, p, maze, wantAir) {
       item = obj(id),
       ok = available(game, p.id, "build", id);
     if (!item || (!ok.ok && !String(ok.reason || "").includes("more gold"))) return null;
-    if (!canBuild(game, p.id, c.x, c.y, id).ok) return null;
-    const cost = id === "h01F" ? ((p.freeGens || 0) > 0 ? 0 : firstGenPrice(p, item)) : id === "h003" && (p.freeArchers || 0) > 0 ? 0 : item.cost;
+    if (!canBuild(game, p.id, c.x, c.y, id).ok || aiCondBlocks(game, p, c.x, c.y, id)) return null; // v0.23b
+    const cost = id === "h01F" ? ((p.freeGens || 0) > 0 ? 0 : firstGenPrice(p, item)) : id === "h003" && (p.freeArchers || 0) > 0 ? 0 : firstGenPrice(p, item);
     return { id, value: 1e9, cost, plan: true, run: () => command(game, { type: "build", player: p.id, id, gridX: c.x, gridY: c.y }) };
   };
   const upgradeSteps = [];
@@ -5587,6 +5761,7 @@ function think(game, p) {
     seen = observeEnemy(game, p, persona);
   crowdView = persona.adaptive && persona.humanFoe && game.round >= 10 ? clamp((seen.nRate ?? AI_ADAPT.crowdCount) / AI_ADAPT.crowdCount, 0.4, 1) : 1;
   for (let guard = 12; p.picks.length && guard > 0; guard--) aiPick(game, p, persona); // v0.15: never loop on a refused choice
+  aiConditions(game, p); // v0.23b: conditionalPerk
   // v0.09q: Arrow Volley where the most creeps stand, or on a creep about to break through
   if (perkLevel(p, "volley") && !(p.volleyReady > game.time) && p.creeps.length) {
     const r = VOLLEY.radius * game.grid.cellUnits,
@@ -6221,6 +6396,9 @@ function waveTouchdown(game, p, c) {
   if (p.lives <= 0) defeat(game, p);
 }
 
+const NONE = Object.freeze([]); // v0.23i: shared empty list
+const AURA_SCRATCH_MANA = [],
+  AURA_SCRATCH_REGEN = []; // v0.23i: reused every tick
 function fixedTick(game) {
   fixedTickInner(game);
   if (game.teams) teamSync(game); // v0.20: what this tick changed, for the whole team
@@ -6241,8 +6419,9 @@ function fixedTickInner(game) {
   }
   tickVolleys(game); // v0.09q
   tickPillars(game); // v0.12
-  const pending = game.pendingSpawns.filter((s) => s.time <= game.time + EPS);
-  game.pendingSpawns = game.pendingSpawns.filter((s) => s.time > game.time + EPS);
+  // v0.23i: no new arrays in the (usual) ticks without a spawn due
+  const pending = game.pendingSpawns.length && game.pendingSpawns.some((s) => s.time <= game.time + EPS) ? game.pendingSpawns.filter((s) => s.time <= game.time + EPS) : NONE;
+  if (pending.length) game.pendingSpawns = game.pendingSpawns.filter((s) => s.time > game.time + EPS);
   for (const s of pending) {
     const c = spawnCreep(game, s.owner, s.id, s, s.lane ?? null);
     if (c) {
@@ -6285,9 +6464,11 @@ function fixedTickInner(game) {
       q.remaining -= TICK;
       if (q.remaining <= EPS) finishResearch(game, p, q.id);
     }
-    p.researchQueue = p.researchQueue.filter((q) => q.remaining > EPS);
-    const manaAuras = [],
-      regenAuras = [];
+    if (p.researchQueue.length) p.researchQueue = p.researchQueue.filter((q) => q.remaining > EPS); // v0.23i
+    const manaAuras = AURA_SCRATCH_MANA,
+      regenAuras = AURA_SCRATCH_REGEN;
+    manaAuras.length = 0;
+    regenAuras.length = 0;
     for (const t of p.towers)
       if (!(t.buildRemaining > 0))
         for (const sk of towerSkills(p, t)) {

@@ -29,12 +29,12 @@ export const FACTIONS = [
   { id: "plague", name: "Plague", color: "#a9de7e", research: "R00P", unlock: "R01F" },
 ];
 export const RULES = {
-  initialGold: 30, // v0.08c: 40 → 30, plus one free archer
+  initialGold: 30, // v0.08c: 40 → 30; v0.23b: no free archer, the first two basic towers are cheaper
   initialIncome: 20,
   initialLumber: 0,
   initialLives: 30,
   incomeInterval: 15,
-  warmup: 10, // v0.16: 12 → 10 s
+  warmup: 6, // v0.16: 12 → 10 s; v0.23b: 10 → 8 s; v0.23f: 8 → 6 s
   suddenDeathRound: 120,
   suddenDeathFloor: 5,
   touchdownWood: 15,
@@ -597,7 +597,7 @@ const ABILITY_PATCH = {
  * v0.21m: the names this port gave its units, written over the Warcraft names in the catalog itself, so every
  * text (cards, tooltips, card book, messages, neutral waves) uses them: Peon → Goblin, Chaos Peon → Imp, …
  */
-export const UNIT_NAMES = Object.freeze({ Peon: "Goblin", "Chaos Peon": "Imp", Lumbermill: "EXP Generator", "Skeleton Grunt": "Skeleton Berserker", "Draenai Marauder": "Arcane Marauder" });
+export const UNIT_NAMES = Object.freeze({ Peon: "Goblin", "Chaos Peon": "Imp", Lumbermill: "EXP Generator", "Skeleton Grunt": "Skeleton Berserker", "Draenai Marauder": "Arcane Marauder" }); // v0.23a: Boar Scout → Boar; v0.23c: Horse → Boar; v0.23d: tier 1 is the Horse again, tier 2 stays Boar Scout
 const unitName = (short) => UNIT_NAMES[short] || short;
 const renameFull = (full) => {
   const short = full.replace(/^\[[^\]]+\]\s*/, "").replace(/\s*\[[^\]]+\]/g, "");

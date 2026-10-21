@@ -1182,8 +1182,25 @@ export class Image2D extends Node2D {
     }
     return this;
   }
+  /** v0.23i: drawn by a sprite batch instead (creeps): the own mesh stays hidden and is not updated. */
+  setBatched(on) {
+    on = !!on;
+    if (this.batched !== on) {
+      this.batched = on;
+      if (!on) {
+        this.uvDirty = true;
+        this.colorDirty = true;
+      }
+      this._dirty();
+    }
+    return this;
+  }
   _flush() {
     if (this.destroyed) return;
+    if (this.batched) {
+      this.mesh.isVisible = false;
+      return;
+    }
     const t = this.stage.textures.get(this.texture.key),
       fw = t ? t.fw : 1,
       fh = t ? t.fh : 1,
