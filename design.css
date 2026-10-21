@@ -706,3 +706,23 @@
 :root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .tt-node small {
   color: var(--d-text);
 }
+
+/* ---- v0.22zk2: readable labels on top of the art --------------------------------------------- */
+/* Card names sit over the figure: white letters with the design's dark outline, like the prices. */
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) :is(.unit-name, .up-title) {
+  color: #fff;
+  text-shadow: var(--d-outline);
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .auto-slot-empty {
+  color: var(--d-text);
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) :is(.plate-exp b, .plate-exp .plate-tier, .plate-exp .plate-tier b) {
+  color: var(--d-text);
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .match-time {
+  color: #fff;
+  text-shadow: var(--d-outline);
+}
+:root:is([data-design="sonne"], [data-design="bonbon"], [data-design="pets"]) .submenu-button i {
+  color: #fff;
+}
