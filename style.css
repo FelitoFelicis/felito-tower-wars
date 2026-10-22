@@ -8492,3 +8492,13 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
   height: 18px;
   accent-color: #e8a312;
 }
+
+/* ---- v0.24l ------------------------------------------------------------------------------------ */
+/* main menu: "Add to Home Screen" button beside the speaker button (hidden inside the installed app) */
+.welcome-options.welcome-install {
+  left: 106px;
+}
+.welcome-install svg {
+  width: 26px;
+  height: 26px;
+}
