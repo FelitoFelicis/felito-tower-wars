@@ -164,7 +164,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.24b",
+const APP_VERSION = "0.24c",
   APP_BRANCH = "F", // v0.23q: author marker (F = Felix, S = Steven) and branch text, shown behind the version; APP_VERSION stays plain for online matches (VersionPublishingRules.md)
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "22.10.2026";
@@ -326,6 +326,9 @@ function settleRanked(g, me, won) {
   saveRating(stake.before);
   return rateMatch(won, stake.foe ?? foe);
 }
+/** v0.24c: this player searched Quick Match and was paired into a ranked player's room: the match counts for the
+ * other player only; here it is unrated (no stake, no rating change). */
+let qmCrossed = false;
 const isQuickKind = (k = roomKind) => k === "quick" || k === "ranked"; // v0.23b: Ranked works like Quick Match
 const qmTitle = () => t(qmSearch?.ranked || roomKind === "ranked" ? "Ranked Match" : "Quick Match");
 // v0.23b: Options › Gameplay › Tiles (v0.23c: in Graphics, next to Minimap): checkers (default), plain grid, or no grid lines
@@ -2686,7 +2689,7 @@ function welcome() {
   }
   const saved = unusableSave ? null : localStorage.getItem(SAVE);
   showModal(
-    `<div class="welcome-eyes" aria-hidden="true"></div><div class="welcome-mood mood-easy" aria-hidden="true"></div><div class="welcome-mood mood-hard" aria-hidden="true"></div><div class="welcome-mood mood-hard-glow" aria-hidden="true"></div><div class="welcome-art" aria-hidden="true"></div><button class="welcome-options" id="welcome-options" type="button" aria-label="${t("Options")}"><img src="${iconUrl("gear")}" alt=""></button><button class="welcome-options welcome-mute" id="welcome-mute" type="button" aria-pressed="${muted}" aria-label="${t(muted ? "Sound off" : "Sound on")}">${speakerSvg(muted)}</button><span class="app-version">v${APP_VERSION}${APP_BRANCH} · ${APP_DATE}${APP_NOTE ? `<small class="app-version-note">${esc(APP_NOTE)}</small>` : ""}</span><img class="welcome-logo" src="${logoUrl()}" alt="${gameName()}">${castMarkup()}<div class="welcome-panel" id="welcome-panel" data-view="home"><div class="welcome-home"><span class="modal-label">${t("Your color")}: <b id="color-name">${colorLabel()}</b></span><div class="color-picker" role="radiogroup" aria-label="${t("Your color")}">${Object.entries(TEAM_COLORS).map(([id, c]) => `<button role="radio" data-color="${id}" aria-checked="${id === colorPick}" aria-label="${t(c.name)}" title="${t(c.name)}" class="${id === colorPick ? "active" : ""}" style="--c:${c.css}"></button>`).join("")}</div><div class="welcome-modes"><button class="primary-button big welcome-mode" data-open="ai">${t("Training")}</button><button class="primary-button big welcome-mode alt" data-open="player"><span class="keep-case">${t("PvP")}</span></button></div></div><section class="welcome-group" data-sub="ai" aria-label="${t("Training")}"><h3 class="welcome-group-title"><button class="welcome-back" type="button" data-back aria-label="${t("Back")}">${t("Back")}</button>${t("Training")}</h3><div class="segmented ai-levels${hardoUnlocked ? " hardo-mode" : ""}" role="radiogroup" aria-label="${t("Difficulty")}">${Object.entries(AI_NAMES).map(([id, name]) => `<button role="radio" data-ai="${id}" aria-checked="${id === aiChoice}" class="${id === aiChoice ? "active" : ""}${id === "insane" ? " hardo-level" : hardoUnlocked ? " hardo-gone" : ""}"${id === "insane" && !hardoUnlocked ? " hidden" : ""}${id !== "insane" && hardoUnlocked ? " disabled" : ""}>${t(name)}</button>`).join("")}<button type="button" class="ai-mixed${aiMixed ? " active" : ""}${hardoUnlocked ? " hardo-gone" : ""}" id="ai-mixed" aria-pressed="${aiMixed}"${hardoUnlocked ? " disabled" : ""} title="${t("Shuffles AI enemies of different difficulties into the match, up to the chosen one")}">${t("Mixed")}</button></div>${hardoUnlocked ? hardoNoteHtml() : ""}<div class="welcome-inline"><span class="modal-label">${t("Neutral waves")}</span><div class="segmented" role="radiogroup" aria-label="${t("Neutral waves")}">${[["on", "On"], ["off", "Off"]].map(([id, name]) => `<button role="radio" data-waves="${id}" aria-checked="${(id === "on") === wavesOn}" class="${(id === "on") === wavesOn ? "active" : ""}">${t(name)}</button>`).join("")}</div></div><span class="modal-label">${t("Number of AI enemies")}</span><div class="segmented ai-count" role="radiogroup" aria-label="${t("Number of AI enemies")}">${hardoUnlocked ? hardoJustHtml() : AI_COUNTS.map((n) => `<button role="radio" data-aicount="${n}" aria-checked="${n === aiCount}" class="${n === aiCount ? "active" : ""}">${n}</button>`).join("")}</div><button class="primary-button big" id="start-training">${t("Start")}</button><button class="secondary-button big campaign-open" id="start-campaign">${t("Campaign")} · ${campaignDone().size}/${MISSIONS.length}</button></section><section class="welcome-group" data-sub="player" aria-label="${t("PvP")}"><h3 class="welcome-group-title"><button class="welcome-back" type="button" data-back aria-label="${t("Back")}">${t("Back")}</button><span class="keep-case">${t("PvP")}</span></h3><label class="modal-label name-label pvp-name" for="player-name">${t("Player name")}</label><div class="name-row"><input id="player-name" class="name-input" maxlength="16" autocomplete="nickname" spellcheck="false" placeholder="${t("Your name")}" value="${esc(playerNameChoice)}"><button type="button" class="icon-pick" id="icon-pick" aria-label="${t("Choose your player icon")}" style="--pc:${iconColor()}"><img src="${iconSrc(iconChoice)}" alt=""></button></div><div class="welcome-row pvp-row"><button class="primary-button rank-button" id="start-ranked" title="${t("1v1 · rated")}">${t("Ranked match")}<small>${t(leagueOf(readRating().r))} · ${readRating().r}</small></button><button class="secondary-button" id="start-online">${t("Play a friend")}</button><button class="secondary-button" id="start-quick">${t("Quick Match")}</button></div></section></div>`,
+    `<div class="welcome-eyes" aria-hidden="true"></div><div class="welcome-mood mood-easy" aria-hidden="true"></div><div class="welcome-mood mood-hard" aria-hidden="true"></div><div class="welcome-mood mood-hard-glow" aria-hidden="true"></div><div class="welcome-art" aria-hidden="true"></div><button class="welcome-options" id="welcome-options" type="button" aria-label="${t("Options")}"><img src="${iconUrl("gear")}" alt=""></button><button class="welcome-options welcome-mute" id="welcome-mute" type="button" aria-pressed="${muted}" aria-label="${t(muted ? "Sound off" : "Sound on")}">${speakerSvg(muted)}</button><span class="app-version">v${APP_VERSION}${APP_BRANCH} · ${APP_DATE}${APP_NOTE ? `<small class="app-version-note">${esc(APP_NOTE)}</small>` : ""}</span><img class="welcome-logo" src="${logoUrl()}" alt="${gameName()}">${castMarkup()}<div class="welcome-panel" id="welcome-panel" data-view="home"><div class="welcome-home"><span class="modal-label">${t("Your color")}: <b id="color-name">${colorLabel()}</b></span><div class="color-picker" role="radiogroup" aria-label="${t("Your color")}">${Object.entries(TEAM_COLORS).map(([id, c]) => `<button role="radio" data-color="${id}" aria-checked="${id === colorPick}" aria-label="${t(c.name)}" title="${t(c.name)}" class="${id === colorPick ? "active" : ""}" style="--c:${c.css}"></button>`).join("")}</div><div class="welcome-modes"><button class="primary-button big welcome-mode" data-open="player"><span class="keep-case">${t("PvP")}</span></button><button class="primary-button big welcome-mode alt" data-open="ai">${t("Training")}</button></div></div><section class="welcome-group" data-sub="ai" aria-label="${t("Training")}"><h3 class="welcome-group-title"><button class="welcome-back" type="button" data-back aria-label="${t("Back")}">${t("Back")}</button>${t("Training")}</h3><div class="segmented ai-levels${hardoUnlocked ? " hardo-mode" : ""}" role="radiogroup" aria-label="${t("Difficulty")}">${Object.entries(AI_NAMES).map(([id, name]) => `<button role="radio" data-ai="${id}" aria-checked="${id === aiChoice}" class="${id === aiChoice ? "active" : ""}${id === "insane" ? " hardo-level" : hardoUnlocked ? " hardo-gone" : ""}"${id === "insane" && !hardoUnlocked ? " hidden" : ""}${id !== "insane" && hardoUnlocked ? " disabled" : ""}>${t(name)}</button>`).join("")}<button type="button" class="ai-mixed${aiMixed ? " active" : ""}${hardoUnlocked ? " hardo-gone" : ""}" id="ai-mixed" aria-pressed="${aiMixed}"${hardoUnlocked ? " disabled" : ""} title="${t("Shuffles AI enemies of different difficulties into the match, up to the chosen one")}">${t("Mixed")}</button></div>${hardoUnlocked ? hardoNoteHtml() : ""}<div class="welcome-inline"><span class="modal-label">${t("Neutral waves")}</span><div class="segmented" role="radiogroup" aria-label="${t("Neutral waves")}">${[["on", "On"], ["off", "Off"]].map(([id, name]) => `<button role="radio" data-waves="${id}" aria-checked="${(id === "on") === wavesOn}" class="${(id === "on") === wavesOn ? "active" : ""}">${t(name)}</button>`).join("")}</div></div><span class="modal-label">${t("Number of AI enemies")}</span><div class="segmented ai-count" role="radiogroup" aria-label="${t("Number of AI enemies")}">${hardoUnlocked ? hardoJustHtml() : AI_COUNTS.map((n) => `<button role="radio" data-aicount="${n}" aria-checked="${n === aiCount}" class="${n === aiCount ? "active" : ""}">${n}</button>`).join("")}</div><button class="primary-button big" id="start-training">${t("Start")}</button><button class="secondary-button big campaign-open" id="start-campaign">${t("Campaign")} · ${campaignDone().size}/${MISSIONS.length}</button></section><section class="welcome-group" data-sub="player" aria-label="${t("PvP")}"><h3 class="welcome-group-title"><button class="welcome-back" type="button" data-back aria-label="${t("Back")}">${t("Back")}</button><span class="keep-case">${t("PvP")}</span></h3><label class="modal-label name-label pvp-name" for="player-name">${t("Player name")}</label><div class="name-row"><input id="player-name" class="name-input" maxlength="16" autocomplete="nickname" spellcheck="false" placeholder="${t("Your name")}" value="${esc(playerNameChoice)}"><button type="button" class="icon-pick" id="icon-pick" aria-label="${t("Choose your player icon")}" style="--pc:${iconColor()}"><img src="${iconSrc(iconChoice)}" alt=""></button></div><div class="welcome-row pvp-row"><button class="primary-button rank-button" id="start-ranked" title="${t("1v1 · rated")}">${t("Ranked match")}<small>${t(leagueOf(readRating().r))} · ${readRating().r}</small></button><button class="secondary-button" id="start-quick">${t("Quick Match")}</button><button class="secondary-button" id="start-online">${t("Play a friend")}</button></div></section></div>`,
     { pauseGame: false, welcome: true },
   );
   $("modal-body")
@@ -2974,6 +2977,8 @@ function wireIncomeChart(box, log) {
   hit.onpointermove = show;
   hit.onpointerdown = show;
 }
+/** v0.24c: the match time in the result dialog's top right corner, with the hourglass of the in-game menu. */
+const resultClock = () => `<div class="menu-clock result-clock" title="${t("Match time")}"><img src="${iconUrl("hourglass")}" alt=""><b>${$("match-clock").textContent}</b></div>`;
 function ownKnockedOut(place) {
   if (shownResult) return;
   shownResult = true;
@@ -2985,7 +2990,7 @@ function ownKnockedOut(place) {
     summary = matchSummary(me, place);
   // v0.18b: place in the summary tiles; Keep watching and Play again side by side in blue, Main menu gold
   showModal(
-    `<div class="result-banner lose">${t("Defeat")}</div><img class="modal-hero result-hero" src="${artUrl("creep-golem")}" alt="">${summary.html}<div class="result-pair"><button class="secondary-button" id="ko-watch">${t("Keep watching")}</button>${room ? "" : `<button class="secondary-button" id="ko-again">${t("Play again")}</button>`}</div><button class="primary-button" id="ko-menu">${t("Main menu")}</button>`,
+    `${resultClock()}<div class="result-banner lose">${t("Defeat")}</div><img class="modal-hero result-hero" src="${artUrl("creep-golem")}" alt="">${summary.html}<div class="result-pair"><button class="secondary-button" id="ko-watch">${t("Keep watching")}</button>${room ? "" : `<button class="secondary-button" id="ko-again">${t("Play again")}</button>`}</div><button class="primary-button" id="ko-menu">${t("Main menu")}</button>`,
     { pauseGame: false },
   );
   summary.wire();
@@ -3036,7 +3041,7 @@ function noWebrtcModal(title) {
 }
 /** v0.19b1: Play again after a PvP match: a new Quick Match search, or the friend-room dialog again. */
 function playAgainOnline() {
-  const kind = roomKind;
+  const kind = qmCrossed ? "quick" : roomKind; // v0.24c
   disconnectRoom();
   begun = false;
   welcome();
@@ -6203,6 +6208,7 @@ function refreshQmPill() {
 }
 async function quickMatch(ranked = false) {
   if (qmSearch) return qmDialog();
+  qmCrossed = false; // v0.24c
   if (!webrtcSupported()) return noWebrtcModal(ranked ? "Ranked Match" : "Quick Match"); // v0.19b1
   roomKind = ranked ? "ranked" : "quick"; // v0.19b1; v0.23b: Ranked
   if (!begun) disconnectRoom();
@@ -6240,6 +6246,7 @@ async function quickMatch(ranked = false) {
     q.stopWatch?.();
     refreshQmPill();
     presenceState("pvp");
+    qmCrossed = !ranked && match.queue === "ranked"; // v0.24c: paired across queues after 5 s
     sfx.play("matchFound"); // v0.15: notification sound when a Quick Match finds a player
     haptic([60, 40, 60]);
     if (begun) {
@@ -6274,14 +6281,15 @@ async function quickMatch(ranked = false) {
 const QM_CONNECT_MS = 20000;
 function qmRequeue() {
   if (begun) return;
-  const ranked = roomKind === "ranked";
+  const ranked = roomKind === "ranked" && !qmCrossed; // v0.24c: back to the queue this player chose
   disconnectRoom();
   roomKind = ranked ? "ranked" : "quick";
   toast("No connection to the other player. Searching again …");
   quickMatch(ranked);
 }
 function onlineMenu() {
-  cancelQuickMatch(); // v0.18a: a room with a friend replaces a running Quick Match search
+  cancelQuickMatch();
+  qmCrossed = false; // v0.24c // v0.18a: a room with a friend replaces a running Quick Match search
   if (!webrtcSupported()) return noWebrtcModal("Play with a friend"); // v0.19b1
   showModal(
     `${modalHeader(t("Play with a friend"))}<p class="modal-copy">${t("One player opens a room. Up to five friends enter the same code. Each defends their own arena.")}</p><button class="primary-button" id="create-room">${t("Open a room →")}</button><button class="danger-button" id="cancel-room" type="button" hidden>${t("Cancel room")}</button><label for="room-input" class="modal-label">${t("ROOM CODE")}</label><input id="room-input" maxlength="4" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="0000"><button class="secondary-button" id="join-room">${t("Join room")}</button><div id="network-status" class="network-status">${t("Ready for a direct duel.")}</div><p class="modal-note">${t("Internet required. The connection runs directly over WebRTC; PeerJS brokers the contact. If a network blocks direct connections, the game switches to a relay server after a few seconds.")}</p>`,
@@ -7582,7 +7590,7 @@ function tick(dt) {
     saveTime = 0;
     if (begun && !room && game.running) saveLocal();
   }
-  if (begun && game.ranked && game.running && game.winner == null) stakeRanked(game, own); // v0.24b
+  if (begun && game.ranked && !qmCrossed && game.running && game.winner == null) stakeRanked(game, own); // v0.24b
   if (begun && game.winner !== null && game.winner !== undefined && !shownResult) {
     shownResult = true;
     if (!room) localStorage.removeItem(SAVE);
@@ -7602,11 +7610,13 @@ function tick(dt) {
     tone(won ? "victory" : "defeat");
     // v0.23b: a ranked 1v1 changes the rating kept on this device
     const foe = game.players.find((q) => q.id !== own),
-      rated = game.ranked && game.players.length === 2 && !game.ratedHere ? settleRanked(game, own, won) : null; // v0.24b: settles the stake
+      rated = game.ranked && !qmCrossed && game.players.length === 2 && !game.ratedHere ? settleRanked(game, own, won) : null; // v0.24b: settles the stake
     if (rated) game.ratedHere = true;
     const rankLine = rated
       ? `<p class="modal-copy rank-result" style="text-align:center"><b>${rated.delta >= 0 ? "+" : ""}${rated.delta}</b> → ${rated.after} · ${t(rated.league)}${rated.up ? ` · ${t("Promoted!")}` : rated.down ? ` · ${t("Relegated")}` : ""}</p>`
-      : "";
+      : game.ranked && qmCrossed
+        ? `<p class="modal-copy rank-result" style="text-align:center">${t("Unrated for you · joined from Quick Match")}</p>`
+        : "";
     const summary = matchSummary(me, isFfa() ? (won ? 1 : me.place || 2) : 0),
       // v0.22x2: against Hardo the picture and the quote give way to a fun fact about him
       hardoFact = sessionMode === "training" && hardoGame() ? t(HARDO_FACTS[Math.floor(Math.random() * HARDO_FACTS.length)]).replace(/^Did you know:\s*/, "") : "",
@@ -7615,7 +7625,7 @@ function tick(dt) {
         : `<img class="modal-hero result-hero" src="${artUrl(won ? "tower-archer" : "creep-golem")}" alt=""><h2 class="welcome-title">${won ? t("Your line.<br><span>Your victory.</span>") : t("Well fought.<br><span>Another round?</span>")}</h2>`;
     if (sessionMode !== "online") presenceState("idle");
     showModal(
-      `<div class="result-banner ${won ? "win" : "lose"}">${t(won ? "Victory" : "Defeat")}</div>${hero}${rankLine}${summary.html}<p class="modal-copy" style="text-align:center">${t("Match time")} ${$("match-clock").textContent}${sessionMode === "training" ? ` · ${t("AI")} ${t(AI_NAMES[game.aiLevel] || "Normal")}` : ""}</p>${tip ? `<p class="modal-note result-tip">${tip}</p>` : ""}<div class="result-pair"><button class="secondary-button" id="play-again">${t("Play again")}</button>${sessionMode === "training" && game.aiLevel !== (hardoUnlocked ? "insane" : "hard") && won ? `<button class="secondary-button" id="play-harder">${t("Harder AI")}</button>` : ""}</div><button class="primary-button" id="to-menu">${t("Main menu")}</button>`,
+      `${resultClock()}<div class="result-banner ${won ? "win" : "lose"}">${t(won ? "Victory" : "Defeat")}</div>${hero}${rankLine}${summary.html}${sessionMode === "training" ? `<p class="modal-copy" style="text-align:center">${t("AI")} ${t(AI_NAMES[game.aiLevel] || "Normal")}</p>` : ""}${tip ? `<p class="modal-note result-tip">${tip}</p>` : ""}<div class="result-pair"><button class="secondary-button" id="play-again">${t("Play again")}</button>${sessionMode === "training" && game.aiLevel !== (hardoUnlocked ? "insane" : "hard") && won ? `<button class="secondary-button" id="play-harder">${t("Harder AI")}</button>` : ""}</div><button class="primary-button" id="to-menu">${t("Main menu")}</button>`,
       { pauseGame: false },
     );
     summary.wire();

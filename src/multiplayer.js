@@ -1676,9 +1676,14 @@ export async function joinRoom(code, callbacks = {}, dependencies = {}) {
  */
 export const QUICK_SLOTS = 6;
 const lobbyId = (slot, ranked = false) => `felito-${ranked ? "rk" : "qm"}-p${PROTOCOL_VERSION}-${slot}`; // v0.23b: Ranked has its own slots
-/** v0.23b: `ranked`: Ranked Match – same matchmaking as Quick Match, own queue, always 1v1 (one guest per slot). */
+/** v0.23b: `ranked`: Ranked Match – same matchmaking as Quick Match, own queue, always 1v1 (one guest per slot).
+ * v0.24c: a Quick Match searcher who has waited CROSS_QUEUE_MS without a partner also asks the Ranked slots and joins
+ * a waiting ranked player (result `queue: "ranked"`). Only Quick searchers cross, so two waiters never ask each other. */
+export const CROSS_QUEUE_MS = 5000;
 export async function findQuickMatch({ signal, onStatus, ranked = false } = {}, dependencies = {}) {
-  const maxGuests = ranked ? 1 : MAX_GUESTS;
+  const maxGuests = ranked ? 1 : MAX_GUESTS,
+    startedAt = Date.now(),
+    cross = !ranked && dependencies.crossQueue !== false;
   const PeerClass = await peerClass(dependencies, signal);
   const options = await peerOptions(dependencies);
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -1728,6 +1733,8 @@ export async function findQuickMatch({ signal, onStatus, ranked = false } = {}, 
       let acks = 0,
         settled = false,
         closed = false,
+        crossed = false, // v0.24c: this waiter joined a ranked player instead
+        crossTimer = 0,
         life = null;
       const stop = () => {
         try {
@@ -1743,6 +1750,7 @@ export async function findQuickMatch({ signal, onStatus, ranked = false } = {}, 
           if (closed) return;
           closed = true;
           clearTimeout(rescan);
+          clearTimeout(crossTimer);
           clearTimeout(life);
           for (const o of offers.values()) o.end();
           offers.clear();
@@ -1753,6 +1761,7 @@ export async function findQuickMatch({ signal, onStatus, ranked = false } = {}, 
         if (settled) return;
         settled = true;
         clearTimeout(rescan);
+        clearTimeout(crossTimer);
         signal?.removeEventListener("abort", abort);
         if (err) {
           reject(err);
@@ -1768,9 +1777,29 @@ export async function findQuickMatch({ signal, onStatus, ranked = false } = {}, 
       const rescan = setTimeout(() => {
         if (!acks && !offers.size) settle(null);
       }, 20000);
+      // v0.24c: nobody joined within CROSS_QUEUE_MS of the search start: look for a waiting ranked player too
+      const free = () => !settled && !closed && !crossed && !acks && !offers.size;
+      const probe = async () => {
+        while (free()) {
+          for (let s = 0; s < QUICK_SLOTS && free(); s++) {
+            const { peer: p, result } = await openPeer(lobbyId(s, true));
+            try {
+              p.destroy();
+            } catch {}
+            if (result !== "unavailable-id" || !free()) continue;
+            const code = await askSlot(s, true, () => free() && (crossed = true));
+            if (code) {
+              settle({ role: "guest", code, queue: "ranked" });
+              return slot.close();
+            }
+          }
+          await wait(2000 + Math.random() * 1000);
+        }
+      };
+      if (cross) crossTimer = setTimeout(probe, Math.max(0, startedAt + CROSS_QUEUE_MS - Date.now()));
       peer.on("connection", async (conn) => {
         const secret = conn.metadata?.qm;
-        if (closed || offers.has(secret) || acks + offers.size >= maxGuests || !validSecret(secret)) {
+        if (closed || crossed || offers.has(secret) || acks + offers.size >= maxGuests || !validSecret(secret)) {
           setTimeout(() => conn.close(), 300);
           return;
         }
@@ -1787,7 +1816,7 @@ export async function findQuickMatch({ signal, onStatus, ranked = false } = {}, 
         };
         offers.set(secret, o);
         const take = (msg) => {
-          if (done || closed || msg?.protocol !== PROTOCOL || msg.kind !== "qm-ack" || msg.code !== code) return;
+          if (done || closed || crossed || msg?.protocol !== PROTOCOL || msg.kind !== "qm-ack" || msg.code !== code) return;
           o.end();
           offers.delete(secret);
           acks++;
@@ -1821,7 +1850,7 @@ export async function findQuickMatch({ signal, onStatus, ranked = false } = {}, 
       });
     });
   // Asks a waiting slot for a match; resolves the room code or null.
-  const askSlot = (slot) =>
+  const askSlot = (slot, queueRanked = ranked, mayTake = () => true) =>
     new Promise((resolve) => {
       openPeer().then(async ({ peer, result }) => {
         let done = false,
@@ -1852,6 +1881,7 @@ export async function findQuickMatch({ signal, onStatus, ranked = false } = {}, 
             code = normalizeRoomCode(msg.code);
           } catch {}
           if (!code) return;
+          if (!mayTake()) return finish(null); // v0.24c: the cross-queue ask lost the race against an own guest
           const ack = { protocol: PROTOCOL, kind: "qm-ack", code };
           talk?.send(ack);
           talk?.send(ack);
@@ -1863,7 +1893,7 @@ export async function findQuickMatch({ signal, onStatus, ranked = false } = {}, 
         talk = await lobbyTalk(secret, "g", onOffer);
         if (done) return;
         peer.on("error", () => finish(null));
-        conn = peer.connect(lobbyId(slot, ranked), { reliable: true, metadata: { qm: secret } });
+        conn = peer.connect(lobbyId(slot, queueRanked), { reliable: true, metadata: { qm: secret } });
         conn.on("data", onOffer);
       });
     });
