@@ -3824,6 +3824,8 @@ function unitAbilities(unit) {
 // Aura sources never change per unit type, so their fields are read once and cached.
 const AURA_KINDS = new Set(["AOae", "AHad", "AEar", "ACat", "AUau"]);
 const AURA_CACHE = new Map();
+// v0.24n: Trueshot Aura of the Trueshot Tower levels 3–6: +10 / 20 / 33 / 50 % damage (map values were 5 / 12 / 22 / 36 %)
+const TRUESHOT_BONUS = { h01W: 0.1, h01D: 0.2, h019: 0.33, h01E: 0.5 };
 let auraCatalog = null;
 function aurasOf(unit) {
   if (unit.wave) return [];
@@ -3846,7 +3848,7 @@ function aurasOf(unit) {
           air: targets.includes("air"),
           ground: targets.includes("ground"),
           airFactor: a.airFactor ?? 1, // v0.17p: Speed Aura: flyers get half the bonus
-          only: /Trueshot/i.test(name) ? "ranged" : /Skirmish/i.test(name) ? "melee" : null, // v0.17p
+          only: /Trueshot/i.test(name) ? "archer" : /Skirmish/i.test(name) ? "melee" : null, // v0.17p; v0.24n: Trueshot only for the Archer-Line
           friend: targets.includes("friend"),
           self: targets.includes("self"),
           enemies: targets.includes("enemies"),
@@ -3854,7 +3856,7 @@ function aurasOf(unit) {
           oae1: a.baseId === "AOae" ? fval(a, "Oae1", level) : 0,
           oae2: a.baseId === "AOae" ? fval(a, "Oae2", level) : 0,
           had1: a.baseId === "AHad" ? fval(a, "Had1", level) : 0,
-          ear1: a.baseId === "AEar" || a.baseId === "ACat" ? fval(a, "Ear1", level) : 0,
+          ear1: TRUESHOT_BONUS[unit.typeId] ?? (a.baseId === "AEar" || a.baseId === "ACat" ? fval(a, "Ear1", level) : 0), // v0.24n
           uau1: a.baseId === "AUau" ? fval(a, "Uau1", level) : 0,
           uau2: a.baseId === "AUau" ? fval(a, "Uau2", level) : 0,
         };
@@ -3879,12 +3881,13 @@ function auraSources(game, p) {
   return hit.list;
 }
 // v0.24m: auras of towers reach the towers on the neighbouring fields only (straight and diagonal, measured from
-// the footprint, so a 2×2 hall reaches the 12 fields around it); auras on creeps keep their radius.
+// the footprint); auras on creeps keep their radius. v0.24n: halls (2×2, also the two-element towers) reach one
+// field further, i.e. two rings of fields around them.
 const isTowerUnit = (u) => u.size !== undefined && obj(u.typeId)?.kind === "tower";
 function neighbourTowers(game, a, b) {
   const dx = Math.abs(a.x - b.x) * game.grid.cols,
     dy = Math.abs(a.y - b.y) * game.grid.rows,
-    reach = ((a.size || 1) + (b.size || 1)) / 2 + 0.01;
+    reach = ((a.size || 1) + (b.size || 1)) / 2 + ((a.size || 1) > 1 ? 1 : 0) + 0.01; // a = the aura's source
   return dx <= reach && dy <= reach;
 }
 function auraAt(game, target, owner, units) {
@@ -3914,10 +3917,11 @@ function auraAt(game, target, owner, units) {
       const fly = !!target.flying;
       if (a.air !== a.ground && (fly ? !a.air : !a.ground)) continue; // v0.17p: air-only / ground-only auras
       if (a.only) {
-        // v0.17p: Trueshot Aura only for ranged towers, Skirmish Aura only for melee towers
+        // v0.17p: Skirmish Aura only for melee towers; v0.24n: Trueshot Aura only for Archer-Line towers
         const it = obj(target.typeId);
-        if (!it?.attacks || (a.only === "melee") !== isMeleeTower(it)) continue;
-        if (a.only === "ranged" && a.ear1 > 0) trueshot = true;
+        if (!it?.attacks) continue;
+        if (a.only === "archer" ? !archerLine().has(target.typeId) : !isMeleeTower(it)) continue;
+        if (a.only === "archer" && a.ear1 > 0) trueshot = true;
       }
       if (a.baseId === "AOae") {
         const speed = a.oae1 * (fly ? a.airFactor : 1);
@@ -3930,7 +3934,7 @@ function auraAt(game, target, owner, units) {
         armorUp = Math.max(armorUp, a.had1);
         armorDown = Math.min(armorDown, a.had1);
       }
-      if (a.baseId === "AEar" && a.only === "ranged") trueDamage = Math.max(trueDamage, a.ear1); // v0.23
+      if (a.baseId === "AEar" && a.only === "archer") trueDamage = Math.max(trueDamage, a.ear1); // v0.23
       else if (a.baseId === "AEar" || a.baseId === "ACat") damage = Math.max(damage, a.ear1);
       if (a.baseId === "AUau") {
         speedUp = Math.max(speedUp, a.uau1);

@@ -166,7 +166,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.24m",
+const APP_VERSION = "0.24n",
   APP_BRANCH = "F", // v0.23q: author marker (F = Felix, S = Steven) and branch text, shown behind the version; APP_VERSION stays plain for online matches (VersionPublishingRules.md)
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "23.10.2026";
@@ -1907,7 +1907,7 @@ const ABILITY_DESC = {
   "Flames and Decay": "Burns targets; chance of a flame strike",
   Slow: "Slows the attacks of a tower",
   "Entangle Aura": "Slightly slows ground creeps nearby",
-  "Trueshot Aura": "Ranged towers nearby deal more damage", // v0.17p
+  "Trueshot Aura": "Archer-Line towers nearby deal more damage", // v0.17p; v0.24n: Archer-Line only
   Production: "Generates EXP every 5 seconds",
   Howl: "When creeps come within 1.5 fields: 25% slower and +20% damage from towers for 12 s (cooldown 20 s)", // v0.17p
   "Phoenix Fire": "Burns creeps around the tower: 350 damage per second to ground and air", // v0.17p
