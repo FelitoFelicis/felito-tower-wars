@@ -4510,8 +4510,8 @@ dialog.with-flag .modal-header {
 .rank-result b {
   font-size: 1.15em;
 }
-/* v0.10i: Quick Match spans the full row above the two other modes */
-.welcome-row.pvp-row #start-quick {
+/* v0.10i: the top mode spans the full row above the two others (v0.24b: Ranked Match, was Quick Match) */
+.welcome-row.pvp-row #start-ranked {
   grid-column: 1 / -1;
 }
 
@@ -7801,8 +7801,8 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
    (Design: Candy under Original, Paws under Meadow); a lone button in the second row is centred ---------------- */
 .choice-row > span { grid-row: 1 / span 4; align-self: center; }
 /* v0.23c: Layout: PC alone (centred) in the upper row, the three mobile layouts below */
-.choice-row.layout-row [data-ctl="pc"] { grid-row: 1; grid-column: 3; }
-.choice-row.layout-row [data-ctl]:not([data-ctl="pc"]) { grid-row: 2; }
+.choice-row.layout-row [data-ctl="pc"] { grid-row: 1; grid-column: 2; }
+.choice-row.layout-row [data-ctl]:not([data-ctl="pc"]):not([data-ctl="wide"]) { grid-row: 2; } /* v0.24b: Desktop Wide stays in the top row */
 /* v0.23c: Graphics: Tiles and Minimap side by side at the bottom */
 .opt-pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
 .opt-pair > .secondary-button { width: 100%; min-width: 0; padding-left: 6px; padding-right: 6px; }
@@ -7929,3 +7929,211 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
 .game-shell[data-page="build"]:has(.cards.grid-build:not(.upgrade-mode)) .deck-arrow {
   display: none !important;
 }
+
+/* ---- v0.24b: tower blueprint cards ---------------------------------------------------------------------------
+   Names are never cut: they wrap between words onto a second row and shrink only as far as needed (fitCardNames).
+   The cards wear the parchment look of the creep cards: same card, border and tan ribbon with dark ink. */
+.game-shell[data-page="build"] :is(#cards, .sheet-cards) .unit-card:not(.up-card) .unit-name {
+  white-space: normal;
+  overflow: hidden;
+  text-overflow: clip;
+  overflow-wrap: normal;
+  word-break: keep-all;
+  hyphens: manual;
+  line-height: 1.05;
+  padding-left: 2px;
+  padding-right: 2px;
+}
+:root:is(:not([data-design]), [data-design="original"]) .game-shell[data-page="build"] :is(#cards, .sheet-cards) .unit-card[data-kind="tower"]:not(.up-card) {
+  background: radial-gradient(ellipse 70% 62% at 50% 42%, #fbf0d8 0%, #f1dcb2 55%, #dcb87f 100%) !important;
+  border: 2px solid #3b2413;
+  box-shadow:
+    inset 0 0 0 1px #fff4dc,
+    inset 0 0 6px #b68a4f,
+    0 2px 0 #1a0d05;
+}
+:root:is(:not([data-design]), [data-design="original"]) .game-shell[data-page="build"] :is(#cards, .sheet-cards) .unit-card[data-kind="tower"]:not(.up-card).selected {
+  border-color: #ffd34a;
+  box-shadow:
+    inset 0 0 0 1px #fff4dc,
+    inset 0 0 6px #b68a4f,
+    0 0 0 2px #6b4a0a,
+    0 0 14px #ffcf4a90;
+}
+:root:is(:not([data-design]), [data-design="original"]) .game-shell[data-page="build"] :is(#cards, .sheet-cards) .unit-card[data-kind="tower"]:not(.up-card) .card-art {
+  background: none;
+}
+:root:is(:not([data-design]), [data-design="original"]) .game-shell[data-page="build"] :is(#cards, .sheet-cards) .unit-card[data-kind="tower"]:not(.up-card) .card-art img {
+  filter: drop-shadow(0 1.5px 1px #3b241366);
+}
+:root:is(:not([data-design]), [data-design="original"]) .game-shell[data-page="build"] :is(#cards, .sheet-cards) .unit-card[data-kind="tower"]:not(.up-card) .unit-name {
+  color: #2e1a0c;
+  text-shadow: 0 1px 0 #fff4dc;
+}
+:root:is(:not([data-design]), [data-design="original"]) .game-shell[data-page="build"] :is(#cards, .sheet-cards) .unit-card[data-kind="tower"]:not(.up-card) .card-foot {
+  left: 2px;
+  right: 2px;
+  bottom: 1px;
+  height: 17px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid #3b2413;
+  border-radius: 3px;
+  background: linear-gradient(#fdebc8, #f1d4a5 55%, #dcb376);
+  box-shadow:
+    inset 3px 0 0 #c99b5f,
+    inset -3px 0 0 #c99b5f,
+    inset 0 1px 0 #fff6e0;
+}
+:root:is(:not([data-design]), [data-design="original"]) .game-shell[data-page="build"] :is(#cards, .sheet-cards) .unit-card[data-kind="tower"]:not(.up-card) .card-foot .price {
+  font-size: 14px;
+  line-height: 1;
+  color: #2e1a0c;
+  text-shadow: none;
+}
+:root:is(:not([data-design]), [data-design="original"]) .game-shell[data-page="build"] :is(#cards, .sheet-cards) .unit-card[data-kind="tower"]:not(.up-card) .card-foot .price::before {
+  width: 13px;
+  height: 13px;
+}
+:root:is(:not([data-design]), [data-design="original"]) .game-shell[data-page="build"] :is(#cards, .sheet-cards) .unit-card[data-kind="tower"]:not(.up-card):is(.unaffordable, .poor) .card-foot .price {
+  color: #a3241c;
+}
+
+/* ---- v0.24b: Desktop Wide ---------------------------------------------------------------------------------------
+   The desktop version across the screen: player info windows stacked in a column on the left, the cards (Build and
+   Send) with the Build/Send bar in a column on the right, the board in the middle using the full height. */
+.choice-row.layout-row [data-ctl="wide"] { grid-row: 1; grid-column: 3; }
+:root.layout-wide {
+  --wide-left: clamp(220px, 19vw, 290px);
+  --wide-right: clamp(300px, 26vw, 400px);
+}
+:root.layout-wide .game-shell {
+  width: min(100%, 1680px);
+}
+:root.layout-wide #arena {
+  left: var(--wide-left);
+  right: var(--wide-right);
+}
+/* left column: own plate, round, enemy plate(s) from top to bottom */
+:root.layout-wide .mini-hud {
+  inset: 0 auto 0 0;
+  width: var(--wide-left);
+  padding: 12px 10px;
+  background: linear-gradient(90deg, #0510159e, #05101566);
+  border-right: 1px solid #ffffff10;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+:root.layout-wide .game-header {
+  grid-template-columns: minmax(0, 1fr) !important; /* also with several enemies or allies (their :has() rules) */
+  gap: 12px;
+}
+:root.layout-wide .game-header .round-plate {
+  order: -1;
+  justify-self: center;
+}
+:root.layout-wide .game-header .player-plate {
+  height: auto;
+  min-height: 64px;
+}
+:root.layout-wide .game-header .player-plate.rival {
+  order: 1;
+}
+:root.layout-wide .wave-chip {
+  position: static;
+  margin: 12px auto 0;
+}
+/* right column: the cards above the Build/Send bar */
+:root.layout-wide .command-deck {
+  left: auto;
+  right: 0;
+  top: 0;
+  width: var(--wide-right);
+  height: auto !important;
+  padding: 12px 10px 8px;
+  justify-content: flex-end;
+  background: linear-gradient(270deg, #0a1822f2, #0a1822d9);
+  border-left: 1px solid #ffffff10;
+}
+:root.layout-wide .bottom-nav {
+  left: auto;
+  right: 0;
+  width: var(--wide-right);
+}
+:root.layout-wide .command-deck .cards-wrap {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+:root.layout-wide .command-deck .cards,
+:root.layout-wide .game-shell[data-page="build"] .cards.grid-build:not(.upgrade-mode) {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-flow: row;
+  align-content: end;
+  gap: 8px;
+  height: auto !important;
+  max-height: 100%;
+  padding: 2px;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+:root.layout-wide .command-deck .cards > .unit-card {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  height: auto !important;
+  aspect-ratio: 1;
+  flex: none;
+}
+:root.layout-wide .deck-arrow {
+  display: none !important;
+}
+/* Desktop Wide: the auto-spawn slot and the send tier on top of the card column */
+:root.layout-wide .command-deck .side-dock {
+  position: static;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin: 0 0 6px;
+  padding: 8px;
+  border-radius: 12px;
+  background: #07131b99;
+}
+:root.layout-wide .command-deck .side-dock .side-label {
+  font-size: 12px;
+}
+:root.layout-wide .command-deck .side-dock .tier-badge {
+  font-size: 13px;
+  padding: 4px 9px;
+}
+/* Desktop Wide: the info windows a bit larger in their column */
+:root.layout-wide .game-header {
+  zoom: 1.25;
+}
+/* Desktop Wide: several enemies stack one below the other in their window */
+:root.layout-wide .player-plate.rival.multi {
+  height: auto;
+}
+:root.layout-wide .enemy-stack {
+  grid-auto-flow: row;
+  grid-auto-columns: auto;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 5px;
+  height: auto;
+}
+:root.layout-wide .enemy-stack .enemy-cell {
+  grid-template-columns: auto 1fr auto;
+  grid-template-rows: auto auto;
+  align-items: center;
+  column-gap: 8px;
+  padding: 4px 8px;
+}
+:root.layout-wide .enemy-stack .enemy-cell .ec-top { grid-column: 1; grid-row: 1 / 3; }
+:root.layout-wide .enemy-stack .enemy-cell .ec-gold { grid-column: 2; grid-row: 1; }
+:root.layout-wide .enemy-stack .enemy-cell .ec-inc { grid-column: 2; grid-row: 2; }
+:root.layout-wide .enemy-stack .enemy-cell .ec-level { grid-column: 3; grid-row: 1 / 3; align-self: center; }

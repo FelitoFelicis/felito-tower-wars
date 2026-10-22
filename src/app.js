@@ -164,7 +164,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.24a",
+const APP_VERSION = "0.24b",
   APP_BRANCH = "F", // v0.23q: author marker (F = Felix, S = Steven) and branch text, shown behind the version; APP_VERSION stays plain for online matches (VersionPublishingRules.md)
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "22.10.2026";
@@ -291,6 +291,41 @@ function rateMatch(won, foe) {
   saveRating(next);
   return { before: me.r, after: next.r, delta, league: leagueOf(next.r), up: leagueOf(next.r) !== leagueOf(me.r) && next.r > me.r, down: leagueOf(next.r) !== leagueOf(me.r) && next.r < me.r };
 }
+/**
+ * v0.24b: a ranked 1v1 counts as a loss the moment it starts (the stake); a win at the end replaces it. So a player
+ * who loses, leaves early or closes the game always loses the rating points for that match.
+ */
+const RATING_STAKE_PREF = "felito.rating.stake";
+const rankedKey = (g) => `${g.seed}|${g.players.map((q) => q.name).join("|")}`;
+function readStake() {
+  try {
+    return JSON.parse(localStorage.getItem(RATING_STAKE_PREF) || "null");
+  } catch {
+    return null;
+  }
+}
+function writeStake(v) {
+  try {
+    if (v) localStorage.setItem(RATING_STAKE_PREF, JSON.stringify(v));
+    else localStorage.removeItem(RATING_STAKE_PREF);
+  } catch {}
+}
+function stakeRanked(g, me) {
+  if (!g?.ranked || g.players.length !== 2 || readStake()?.key === rankedKey(g)) return;
+  const foe = g.players.find((q) => q.id !== me),
+    before = readRating();
+  rateMatch(false, foe?.rating);
+  writeStake({ key: rankedKey(g), before, foe: foe?.rating });
+}
+/** The rating change of a finished ranked 1v1: a win undoes the stake and counts the win instead. */
+function settleRanked(g, me, won) {
+  const stake = readStake(),
+    foe = g.players.find((q) => q.id !== me)?.rating;
+  if (stake?.key !== rankedKey(g)) return rateMatch(won, foe);
+  writeStake(null);
+  saveRating(stake.before);
+  return rateMatch(won, stake.foe ?? foe);
+}
 const isQuickKind = (k = roomKind) => k === "quick" || k === "ranked"; // v0.23b: Ranked works like Quick Match
 const qmTitle = () => t(qmSearch?.ranked || roomKind === "ranked" ? "Ranked Match" : "Quick Match");
 // v0.23b: Options › Gameplay › Tiles (v0.23c: in Graphics, next to Minimap): checkers (default), plain grid, or no grid lines
@@ -322,15 +357,20 @@ const recommendedControls = () => {
   }
 };
 let controlMode = ["mobile", "pc"].includes(pref(CONTROL_PREF, "")) ? pref(CONTROL_PREF, "") : recommendedControls();
-/** v0.17g: one "Layout" row: PC, Mobile Default (layout A), Mobile Zoomed (layout B); the fitting one says "(recommended)". */
+/** v0.17g: one "Layout" row: Desktop (was "PC"), Mobile Default (layout A), Mobile Zoomed (layout B); the fitting one says "(recommended)". */
+// v0.24b: "Desktop Wide": the desktop version across the whole screen width: player info windows stacked on the
+// left, the cards (Build and Send) on the right, the board in the middle as tall as the screen
+const DESKTOP_LAYOUT_PREF = "felito.desktopLayout";
+let desktopWide = pref(DESKTOP_LAYOUT_PREF, "") === "wide";
 const LAYOUT_CHOICES = [
-  ["pc", "PC"],
+  ["pc", "Desktop"],
+  ["wide", "Desktop Wide"],
   ["mobile", "Mobile Default"],
   ["zoomed", "Mobile Zoomed"],
   ["full", "Mobile Max"], // the board fills the whole screen and scrolls under the buttons (layout F)
 ];
 const layoutChoice = () =>
-  controlMode === "pc" ? "pc" : mobileLayout === "F" ? "full" : mobileLayout === "B" || mobileLayout === "B2" ? "zoomed" : "mobile";
+  controlMode === "pc" ? (desktopWide ? "wide" : "pc") : mobileLayout === "F" ? "full" : mobileLayout === "B" || mobileLayout === "B2" ? "zoomed" : "mobile";
 const controlsRow = () =>
   `<div class="choice-row layout-row" role="group" aria-label="${t("Layout")}"><span>${t("Layout")}</span>${LAYOUT_CHOICES.map(
     ([m, name]) =>
@@ -350,6 +390,7 @@ function applyControlMode() {
     b = controlMode === "mobile" && (mobileLayout === "B" || mobileLayout === "B2"),
     full = controlMode === "mobile" && mobileLayout === "F";
   root.classList.toggle("pc-controls", controlMode === "pc");
+  root.classList.toggle("layout-wide", controlMode === "pc" && desktopWide); // v0.24b
   root.classList.toggle("layout-b2", controlMode === "mobile" && mobileLayout === "B2");
   if (root.classList.contains("layout-b") !== b || root.classList.contains("layout-full") !== full) {
     root.classList.toggle("layout-b", b);
@@ -2244,7 +2285,22 @@ function applyStaticTexts() {
 applyStaticTexts();
 /** v0.19d2: a player name in a notification, shown in that player's colour (see toast). */
 const nameTag = (name, css) => "\u0001" + (css || "#ffffff") + "\u0002" + name + "\u0003";
-const seatTag = (i) => nameTag(seatName(i), TEAM_COLORS[seatColors()[i]]?.css);
+/**
+ * v0.24b: the name of a player in banners and notifications: an AI by its difficulty ("AI · Easy", plus its colour
+ * when another AI of the same difficulty plays), Hardo and mission enemies by name, people by their name.
+ */
+function bannerName(i) {
+  const q = game?.players[i];
+  if (!q || i === own) return seatName(i);
+  const level = q.aiLevel || game.aiLevel;
+  if (q.ai && level === "insane") return "Hardo";
+  if (q.missionName) return t(q.missionName);
+  const human = sessionMode === "online" && (!q.ai || q.aiTakeover || q.netLeft) && onlineName(q);
+  if (!q.ai || human) return seatName(i);
+  const twin = game.players.some((o) => o !== q && o.id !== own && o.ai && (o.aiLevel || game.aiLevel) === level);
+  return `${t("AI")} · ${t(AI_NAMES[level] || "Normal")}${twin ? ` · ${t(TEAM_COLORS[seatColors()[i]]?.name || "")}` : ""}`;
+}
+const seatTag = (i) => nameTag(bannerName(i), TEAM_COLORS[seatColors()[i]]?.css);
 function toast(message, kind = "", force = false, tip = false) {
   if (!popNotes && !force) return; // v0.13: notifications can be hidden (Options › Graphic)
   const el = $("toast"),
@@ -2630,7 +2686,7 @@ function welcome() {
   }
   const saved = unusableSave ? null : localStorage.getItem(SAVE);
   showModal(
-    `<div class="welcome-eyes" aria-hidden="true"></div><div class="welcome-mood mood-easy" aria-hidden="true"></div><div class="welcome-mood mood-hard" aria-hidden="true"></div><div class="welcome-mood mood-hard-glow" aria-hidden="true"></div><div class="welcome-art" aria-hidden="true"></div><button class="welcome-options" id="welcome-options" type="button" aria-label="${t("Options")}"><img src="${iconUrl("gear")}" alt=""></button><button class="welcome-options welcome-mute" id="welcome-mute" type="button" aria-pressed="${muted}" aria-label="${t(muted ? "Sound off" : "Sound on")}">${speakerSvg(muted)}</button><span class="app-version">v${APP_VERSION}${APP_BRANCH} · ${APP_DATE}${APP_NOTE ? `<small class="app-version-note">${esc(APP_NOTE)}</small>` : ""}</span><img class="welcome-logo" src="${logoUrl()}" alt="${gameName()}">${castMarkup()}<div class="welcome-panel" id="welcome-panel" data-view="home"><div class="welcome-home"><span class="modal-label">${t("Your color")}: <b id="color-name">${colorLabel()}</b></span><div class="color-picker" role="radiogroup" aria-label="${t("Your color")}">${Object.entries(TEAM_COLORS).map(([id, c]) => `<button role="radio" data-color="${id}" aria-checked="${id === colorPick}" aria-label="${t(c.name)}" title="${t(c.name)}" class="${id === colorPick ? "active" : ""}" style="--c:${c.css}"></button>`).join("")}</div><div class="welcome-modes"><button class="primary-button big welcome-mode" data-open="ai">${t("Training")}</button><button class="primary-button big welcome-mode alt" data-open="player"><span class="keep-case">${t("PvP")}</span></button></div></div><section class="welcome-group" data-sub="ai" aria-label="${t("Training")}"><h3 class="welcome-group-title"><button class="welcome-back" type="button" data-back aria-label="${t("Back")}">${t("Back")}</button>${t("Training")}</h3><div class="segmented ai-levels${hardoUnlocked ? " hardo-mode" : ""}" role="radiogroup" aria-label="${t("Difficulty")}">${Object.entries(AI_NAMES).map(([id, name]) => `<button role="radio" data-ai="${id}" aria-checked="${id === aiChoice}" class="${id === aiChoice ? "active" : ""}${id === "insane" ? " hardo-level" : hardoUnlocked ? " hardo-gone" : ""}"${id === "insane" && !hardoUnlocked ? " hidden" : ""}${id !== "insane" && hardoUnlocked ? " disabled" : ""}>${t(name)}</button>`).join("")}<button type="button" class="ai-mixed${aiMixed ? " active" : ""}${hardoUnlocked ? " hardo-gone" : ""}" id="ai-mixed" aria-pressed="${aiMixed}"${hardoUnlocked ? " disabled" : ""} title="${t("Shuffles AI enemies of different difficulties into the match, up to the chosen one")}">${t("Mixed")}</button></div>${hardoUnlocked ? hardoNoteHtml() : ""}<div class="welcome-inline"><span class="modal-label">${t("Neutral waves")}</span><div class="segmented" role="radiogroup" aria-label="${t("Neutral waves")}">${[["on", "On"], ["off", "Off"]].map(([id, name]) => `<button role="radio" data-waves="${id}" aria-checked="${(id === "on") === wavesOn}" class="${(id === "on") === wavesOn ? "active" : ""}">${t(name)}</button>`).join("")}</div></div><span class="modal-label">${t("Number of AI enemies")}</span><div class="segmented ai-count" role="radiogroup" aria-label="${t("Number of AI enemies")}">${hardoUnlocked ? hardoJustHtml() : AI_COUNTS.map((n) => `<button role="radio" data-aicount="${n}" aria-checked="${n === aiCount}" class="${n === aiCount ? "active" : ""}">${n}</button>`).join("")}</div><button class="primary-button big" id="start-training">${t("Start")}</button><button class="secondary-button big campaign-open" id="start-campaign">${t("Campaign")} · ${campaignDone().size}/${MISSIONS.length}</button></section><section class="welcome-group" data-sub="player" aria-label="${t("PvP")}"><h3 class="welcome-group-title"><button class="welcome-back" type="button" data-back aria-label="${t("Back")}">${t("Back")}</button><span class="keep-case">${t("PvP")}</span></h3><label class="modal-label name-label pvp-name" for="player-name">${t("Player name")}</label><div class="name-row"><input id="player-name" class="name-input" maxlength="16" autocomplete="nickname" spellcheck="false" placeholder="${t("Your name")}" value="${esc(playerNameChoice)}"><button type="button" class="icon-pick" id="icon-pick" aria-label="${t("Choose your player icon")}" style="--pc:${iconColor()}"><img src="${iconSrc(iconChoice)}" alt=""></button></div><div class="welcome-row pvp-row"><button class="primary-button" id="start-quick">${t("Quick Match")}</button><button class="secondary-button" id="start-online">${t("Play a friend")}</button><button class="secondary-button rank-button" id="start-ranked" title="${t("1v1 · rated")}">${t("Ranked match")}<small>${t(leagueOf(readRating().r))} · ${readRating().r}</small></button></div></section></div>`,
+    `<div class="welcome-eyes" aria-hidden="true"></div><div class="welcome-mood mood-easy" aria-hidden="true"></div><div class="welcome-mood mood-hard" aria-hidden="true"></div><div class="welcome-mood mood-hard-glow" aria-hidden="true"></div><div class="welcome-art" aria-hidden="true"></div><button class="welcome-options" id="welcome-options" type="button" aria-label="${t("Options")}"><img src="${iconUrl("gear")}" alt=""></button><button class="welcome-options welcome-mute" id="welcome-mute" type="button" aria-pressed="${muted}" aria-label="${t(muted ? "Sound off" : "Sound on")}">${speakerSvg(muted)}</button><span class="app-version">v${APP_VERSION}${APP_BRANCH} · ${APP_DATE}${APP_NOTE ? `<small class="app-version-note">${esc(APP_NOTE)}</small>` : ""}</span><img class="welcome-logo" src="${logoUrl()}" alt="${gameName()}">${castMarkup()}<div class="welcome-panel" id="welcome-panel" data-view="home"><div class="welcome-home"><span class="modal-label">${t("Your color")}: <b id="color-name">${colorLabel()}</b></span><div class="color-picker" role="radiogroup" aria-label="${t("Your color")}">${Object.entries(TEAM_COLORS).map(([id, c]) => `<button role="radio" data-color="${id}" aria-checked="${id === colorPick}" aria-label="${t(c.name)}" title="${t(c.name)}" class="${id === colorPick ? "active" : ""}" style="--c:${c.css}"></button>`).join("")}</div><div class="welcome-modes"><button class="primary-button big welcome-mode" data-open="ai">${t("Training")}</button><button class="primary-button big welcome-mode alt" data-open="player"><span class="keep-case">${t("PvP")}</span></button></div></div><section class="welcome-group" data-sub="ai" aria-label="${t("Training")}"><h3 class="welcome-group-title"><button class="welcome-back" type="button" data-back aria-label="${t("Back")}">${t("Back")}</button>${t("Training")}</h3><div class="segmented ai-levels${hardoUnlocked ? " hardo-mode" : ""}" role="radiogroup" aria-label="${t("Difficulty")}">${Object.entries(AI_NAMES).map(([id, name]) => `<button role="radio" data-ai="${id}" aria-checked="${id === aiChoice}" class="${id === aiChoice ? "active" : ""}${id === "insane" ? " hardo-level" : hardoUnlocked ? " hardo-gone" : ""}"${id === "insane" && !hardoUnlocked ? " hidden" : ""}${id !== "insane" && hardoUnlocked ? " disabled" : ""}>${t(name)}</button>`).join("")}<button type="button" class="ai-mixed${aiMixed ? " active" : ""}${hardoUnlocked ? " hardo-gone" : ""}" id="ai-mixed" aria-pressed="${aiMixed}"${hardoUnlocked ? " disabled" : ""} title="${t("Shuffles AI enemies of different difficulties into the match, up to the chosen one")}">${t("Mixed")}</button></div>${hardoUnlocked ? hardoNoteHtml() : ""}<div class="welcome-inline"><span class="modal-label">${t("Neutral waves")}</span><div class="segmented" role="radiogroup" aria-label="${t("Neutral waves")}">${[["on", "On"], ["off", "Off"]].map(([id, name]) => `<button role="radio" data-waves="${id}" aria-checked="${(id === "on") === wavesOn}" class="${(id === "on") === wavesOn ? "active" : ""}">${t(name)}</button>`).join("")}</div></div><span class="modal-label">${t("Number of AI enemies")}</span><div class="segmented ai-count" role="radiogroup" aria-label="${t("Number of AI enemies")}">${hardoUnlocked ? hardoJustHtml() : AI_COUNTS.map((n) => `<button role="radio" data-aicount="${n}" aria-checked="${n === aiCount}" class="${n === aiCount ? "active" : ""}">${n}</button>`).join("")}</div><button class="primary-button big" id="start-training">${t("Start")}</button><button class="secondary-button big campaign-open" id="start-campaign">${t("Campaign")} · ${campaignDone().size}/${MISSIONS.length}</button></section><section class="welcome-group" data-sub="player" aria-label="${t("PvP")}"><h3 class="welcome-group-title"><button class="welcome-back" type="button" data-back aria-label="${t("Back")}">${t("Back")}</button><span class="keep-case">${t("PvP")}</span></h3><label class="modal-label name-label pvp-name" for="player-name">${t("Player name")}</label><div class="name-row"><input id="player-name" class="name-input" maxlength="16" autocomplete="nickname" spellcheck="false" placeholder="${t("Your name")}" value="${esc(playerNameChoice)}"><button type="button" class="icon-pick" id="icon-pick" aria-label="${t("Choose your player icon")}" style="--pc:${iconColor()}"><img src="${iconSrc(iconChoice)}" alt=""></button></div><div class="welcome-row pvp-row"><button class="primary-button rank-button" id="start-ranked" title="${t("1v1 · rated")}">${t("Ranked match")}<small>${t(leagueOf(readRating().r))} · ${readRating().r}</small></button><button class="secondary-button" id="start-online">${t("Play a friend")}</button><button class="secondary-button" id="start-quick">${t("Quick Match")}</button></div></section></div>`,
     { pauseGame: false, welcome: true },
   );
   $("modal-body")
@@ -3843,11 +3899,30 @@ function fitPrices(root) {
   }
   for (const foot of open) foot.style.setProperty("--pz", 1);
 }
-/** v0.10zd: names that do not fit on one row in the larger size drop back to the small size. */
+/**
+ * v0.24b: blueprint names are never cut: one row where the name fits, else its words wrap onto a second row
+ * (never inside a word), and the font only shrinks as far as needed for that (was: "EXP GENERA…").
+ */
 function fitCardNames(root) {
   if (tab !== "build") return;
-  for (const el of root.querySelectorAll(".unit-card:not(.up-card) .unit-name"))
-    if (el.scrollWidth > el.clientWidth + 1) el.classList.add("long-name");
+  for (const el of root.querySelectorAll(".unit-card:not(.up-card) .unit-name")) {
+    el.classList.remove("long-name", "two-rows");
+    el.style.fontSize = "";
+    if (!el.clientWidth) continue;
+    const cs = getComputedStyle(el),
+      pad = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom),
+      rows = el.textContent.trim().split(/\s+/).length > 1 ? 2 : 1;
+    let size = parseFloat(cs.fontSize);
+    const fits = () => {
+      const line = size * 1.05;
+      return el.scrollWidth <= el.clientWidth + 1 && el.getBoundingClientRect().height - pad <= line * rows + 1;
+    };
+    while (!fits() && size > 7) {
+      size -= 0.5;
+      el.style.fontSize = size + "px";
+    }
+    el.classList.toggle("two-rows", el.getBoundingClientRect().height - pad > size * 1.6);
+  }
 }
 /** v0.23a (creep graphic overhaul): send cards show the creep's painted portrait where its sheet has one (original design). */
 function cardArtHtml(item) {
@@ -4347,7 +4422,7 @@ function optionName(o) {
 function playerName(q) {
   if (q.id === own) return myName();
   if (q.ai && (q.aiLevel || game.aiLevel) === "insane") return "Hardo"; // v0.22w2: Hardo by name in every banner
-  if (isFfa()) return seatName(q.id);
+  if (isFfa()) return bannerName(q.id); // v0.24b: an AI by its difficulty, not its colour
   if (sessionMode === "training" || (q.ai && !q.aiTakeover && sessionMode !== "online")) return `${t("AI")} · ${t(AI_NAMES[q.aiLevel || game.aiLevel] || "Normal")}`; // v0.22w2: AI never "Player 2"
   if (sessionMode === "online") return onlineName(q) || t("Enemy");
   return t(q.id === 0 ? "Player 1" : "Player 2");
@@ -4485,13 +4560,23 @@ function refreshLevelButton(p) {
       bottom = Math.min(z.top + z.bh, cardsTop > 0 ? cardsTop - 6 : Infinity), // v0.09: no exit strip
       dockTop = Math.round(bottom - (dock.offsetHeight || size + 34)) + "px",
       top = Math.round(z.side.y + 14) + "px";
-    if (z.col) placeColumn(z, dock, size);
+    // v0.24b: Desktop Wide: the auto-spawn slot and the tier sit in the card column on the right
+    const wide = document.documentElement.classList.contains("layout-wide"),
+      home = wide ? document.querySelector(".command-deck") : $("arena");
+    if (home && dock.parentNode !== home) {
+      if (wide) home.insertBefore(dock, home.firstChild);
+      else home.insertBefore(dock, $("level-button"));
+      dock.removeAttribute("style");
+    }
+    if (wide) {
+      if (dock.style.getPropertyValue("--slot") !== "64px") dock.style.setProperty("--slot", "64px");
+    } else if (z.col) placeColumn(z, dock, size);
     else if (z.full) {
       // Mobile Max: the auto slot floats in the bottom-left corner, right above the cards
       const fullTop = Math.round(cardsTopInArena() - 8 - (dock.offsetHeight || size + 34)) + "px";
       if (dock.style.left !== x || dock.style.top !== fullTop) Object.assign(dock.style, { left: x, top: fullTop, width: size + "px" });
     } else if (dock.style.left !== x || dock.style.top !== dockTop) Object.assign(dock.style, { left: x, top: dockTop, width: size + "px" });
-    if (dock.style.getPropertyValue("--slot") !== size + "px") dock.style.setProperty("--slot", size + "px");
+    if (!wide && dock.style.getPropertyValue("--slot") !== size + "px") dock.style.setProperty("--slot", size + "px");
     if (btn.style.left !== x) btn.style.left = x;
     if (btn.style.top !== top) btn.style.top = top;
     if (btn.style.getPropertyValue("--slot") !== size + "px") btn.style.setProperty("--slot", size + "px");
@@ -5777,15 +5862,18 @@ function graphicModal(back) {
   $("menu-controls").onclick = (e) => {
     const m = e.target.closest?.("[data-ctl]")?.dataset.ctl;
     if (!m || m === layoutChoice()) return;
-    controlMode = m === "pc" ? "pc" : "mobile";
-    if (m !== "pc") {
+    controlMode = m === "pc" || m === "wide" ? "pc" : "mobile";
+    if (controlMode === "pc") {
+      desktopWide = m === "wide"; // v0.24b
+      savePref(DESKTOP_LAYOUT_PREF, desktopWide ? "wide" : "");
+    } else {
       mobileLayout = m === "zoomed" ? "B" : m === "full" ? "F" : "A";
       savePref(MOBILE_LAYOUT_PREF, mobileLayout);
     }
     savePref(CONTROL_PREF, controlMode);
     applyControlMode();
     $("menu-controls").innerHTML = controlsRow();
-    toast(controlMode === "pc" ? "PC version: mouse hover shows tips, mouse wheel and arrow keys switch fields, B / S switch Build and Send." : "Mobile version: touch controls, tips only in help mode.");
+    toast(controlMode === "pc" ? "Desktop version: mouse hover shows tips, mouse wheel and arrow keys switch fields, B / S switch Build and Send." : "Mobile version: touch controls, tips only in help mode.");
     tone("select");
   };
   // Design variants: Original (default), Sonnenwiese, Bonbon, Pfotenwelt. Only the look changes; board, figures and icons follow at once.
@@ -7494,6 +7582,7 @@ function tick(dt) {
     saveTime = 0;
     if (begun && !room && game.running) saveLocal();
   }
+  if (begun && game.ranked && game.running && game.winner == null) stakeRanked(game, own); // v0.24b
   if (begun && game.winner !== null && game.winner !== undefined && !shownResult) {
     shownResult = true;
     if (!room) localStorage.removeItem(SAVE);
@@ -7513,7 +7602,7 @@ function tick(dt) {
     tone(won ? "victory" : "defeat");
     // v0.23b: a ranked 1v1 changes the rating kept on this device
     const foe = game.players.find((q) => q.id !== own),
-      rated = game.ranked && game.players.length === 2 && !game.ratedHere ? rateMatch(won, foe?.rating) : null;
+      rated = game.ranked && game.players.length === 2 && !game.ratedHere ? settleRanked(game, own, won) : null; // v0.24b: settles the stake
     if (rated) game.ratedHere = true;
     const rankLine = rated
       ? `<p class="modal-copy rank-result" style="text-align:center"><b>${rated.delta >= 0 ? "+" : ""}${rated.delta}</b> → ${rated.after} · ${t(rated.league)}${rated.up ? ` · ${t("Promoted!")}` : rated.down ? ` · ${t("Relegated")}` : ""}</p>`

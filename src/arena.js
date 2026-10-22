@@ -374,6 +374,11 @@ export function mountArena({
       // Mobile Max: the send buttons rise above the deck; the board may scroll up to their top edge
       cards = layoutFull() ? document.getElementById("cards")?.getBoundingClientRect() : null,
       dockTop = dock ? Math.min(dock.top, cards && cards.height > 0 ? cards.top - 8 : Infinity) : null;
+    // v0.24b: Desktop Wide: the HUD and the cards sit beside the board, so it may use the full height
+    if (document.documentElement.classList.contains("layout-wide")) {
+      insets = { top: 4, bottom: 4 };
+      return;
+    }
     insets = {
       top: hud ? Math.max(0, hud.bottom - box.top) : 84,
       bottom: dockTop !== null ? Math.max(0, box.bottom - dockTop) : 172,
@@ -2344,7 +2349,7 @@ export function mountArena({
         }
         const level = t.level || def.level || 1;
         // v0.12: walls (v0.17: and rocks) carry no level badge
-        if (!def.perkUnit && def.id !== "hROK") this.levelBadge(level, cx - tc * 0.36, cy + tc * 0.2, Math.floor(cy) + 101, BADGE_COLORS[def.element] || BADGE_COLORS.neutral);
+        if (!def.perkUnit && def.id !== "hROK") this.levelBadge(level, cx - tc * 0.36, cy + tc * 0.2, Math.floor(cy) + 100.25, BADGE_COLORS[def.element] || BADGE_COLORS.neutral); // v0.24b: just above its own tower, behind creeps walking in front (their row band sorts at +100.5; was +101, in front of them)
       }
       for (const [depth, b] of this.badgeBatches)
         if (!b.used) {
