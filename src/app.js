@@ -164,7 +164,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.24e",
+const APP_VERSION = "0.24f",
   APP_BRANCH = "F", // v0.23q: author marker (F = Felix, S = Steven) and branch text, shown behind the version; APP_VERSION stays plain for online matches (VersionPublishingRules.md)
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "22.10.2026";
@@ -470,12 +470,23 @@ const MOBILE_LAYOUT_PREF = "felito.mobileLayout";
 // Only an option; Mobile Default (A) stays the default.
 const MOBILE_LAYOUTS = ["A", "B", "B2", "F"];
 let mobileLayout = MOBILE_LAYOUTS.includes(pref(MOBILE_LAYOUT_PREF, "A")) ? pref(MOBILE_LAYOUT_PREF, "A") : "A";
+/** v0.24f: Desktop Wide shows the send cards (top) and the build cards (bottom) at the same time. */
+const wideDeck = () => controlMode === "pc" && desktopWide;
+const deckCard = (id) => document.querySelector(`#cards [data-card="${id}"], #cards-send [data-card="${id}"]`);
 function applyControlMode() {
   const root = document.documentElement,
     b = controlMode === "mobile" && (mobileLayout === "B" || mobileLayout === "B2"),
     full = controlMode === "mobile" && mobileLayout === "F";
   root.classList.toggle("pc-controls", controlMode === "pc");
   root.classList.toggle("layout-wide", controlMode === "pc" && desktopWide); // v0.24b
+  try {
+    // v0.24f: the Send tab is not needed in Desktop Wide (both decks are on screen)
+    if (typeof game !== "undefined" && game && begun && wideDeck() && tab === "send") setPage("build", { scroll: false });
+    else if (typeof game !== "undefined" && game && begun) {
+      deckSignature = "";
+      renderCards();
+    }
+  } catch {}
   root.classList.toggle("layout-b2", controlMode === "mobile" && mobileLayout === "B2");
   if (root.classList.contains("layout-b") !== b || root.classList.contains("layout-full") !== full) {
     root.classList.toggle("layout-b", b);
@@ -1723,6 +1734,16 @@ function setUiPause(reason, value) {
 }
 function setPage(next, { scroll = true, stayOwn = false } = {}) {
   if (!["build", "send", "research"].includes(next)) return;
+  if (next === "send" && wideDeck() && game) {
+    // v0.24f: Desktop Wide has both decks on screen: "Send" (S key) only switches between your board and the enemy's
+    view = view === own && !stayOwn ? rivalIndex() : own;
+    selectedTower = null;
+    pending = null;
+    $("tower-panel").hidden = true;
+    refreshUI();
+    arena?.refresh();
+    return;
+  }
   tab = next;
   view = next === "send" && !stayOwn ? rivalIndex() : own; // v0.15: a double tap on Send stays on your field
   predatorLast = view !== own ? view : null;
@@ -3665,7 +3686,7 @@ function sendFx(id, count, auto = false) {
   const n = (entry && now - entry.t <= SEND_COUNT_RESET ? entry.n : 0) + 1; // presses, not creeps
   sendCounts.set(key, { n, t: now });
   // auto-spawns count up over the auto slot left of the board
-  const card = auto ? $("auto-slot") : $("cards")?.querySelector(`[data-card="${id}"]`);
+  const card = auto ? $("auto-slot") : deckCard(id);
   if (!card || card.offsetParent === null) return;
   card.classList.remove("sent-pulse");
   void card.offsetWidth;
@@ -4066,14 +4087,58 @@ function renderCards() {
       if (tab === "build") b.addEventListener("pointerdown", startCardDrag);
       if (tab === "send") b.addEventListener("pointerdown", startSendHold);
     });
-  if (sendHold) $("cards").querySelector(`[data-card="${sendHold.id}"]`)?.classList.add("holding");
+  if (sendHold) deckCard(sendHold.id)?.classList.add("holding");
   $("deck-tip").hidden = tab !== "build";
   $("deck-tip").textContent = "Elementhalle →";
   $("deck-expand").hidden = true; // v0.10j: the "All" handle is gone; swipe or use the arrows
   $("deck-count").textContent = t("All {n}", { n: list.length });
   if (!$("deck-sheet").hidden) renderSheet(list);
   requestAnimationFrame(updateDeckArrows);
+  renderSendDeck(); // v0.24f
   refreshAutoSend();
+}
+/** v0.24f: Desktop Wide: the send cards of the current tier above the build cards. */
+let sendDeckSignature = "";
+function sendDeckSig() {
+  const old = tab;
+  tab = "send";
+  try {
+    return deckSig();
+  } finally {
+    tab = old;
+  }
+}
+function renderSendDeck() {
+  const box = $("cards-send");
+  if (!box) return;
+  if (!wideDeck() || !game) {
+    if (box.innerHTML) box.innerHTML = "";
+    sendDeckSignature = "";
+    return;
+  }
+  const old = tab;
+  tab = "send";
+  try {
+    const list = deckItems(),
+      tierSize = catalog.sends.filter((x) => x.playable && x.tier === game.players[own].tier).length;
+    sendDeckSignature = deckSig();
+    box.classList.toggle("five", tierSize > 0 && tierSize <= 10);
+    box.innerHTML = list.map(cardMarkup).join("");
+  } finally {
+    tab = old;
+  }
+  fitCardNames(box);
+  fitPrices(box);
+  box.querySelectorAll("[data-card]").forEach((b) => {
+    b.onclick = () => {
+      if (performance.now() < suppressClickUntil) return;
+      selectCard(b.dataset.card);
+    };
+    b.addEventListener("pointerdown", startSendHold);
+  });
+  if (sendHold) deckCard(sendHold.id)?.classList.add("holding");
+  const title = $("wd-send-title");
+  if (title) title.textContent = t("Send · Tier {n}", { n: game.players[own].tier });
 }
 // ---- Deck navigation: swipe strip with arrows, and an "All" sheet with every card ----
 function updateDeckArrows() {
@@ -4137,7 +4202,12 @@ function closeSheet() {
 function selectCard(id) {
   const item = catalog.byId[id];
   if (!item) return;
-  if (tab === "build") {
+  if (item.kind === "send") {
+    // v0.24f: by the card's kind (Desktop Wide shows send cards while the Build tab is open)
+    lastSendCards[own] = id;
+    dispatch({ type: "send", id });
+    refreshAutoSend();
+  } else if (tab === "build") {
     if (selected === id && !drag) {
       selected = null;
       pending = null;
@@ -4797,6 +4867,14 @@ function refreshUI() {
   setText($("gold-income"), incomeOf(p));
   setText($("own-gold"), resourceNumber(goldShown(p.gold)));
   setText($("own-income"), incomeOf(p));
+  if (wideDeck()) {
+    // v0.24f: Desktop Wide: your gold, income and EXP on top of the left column
+    setText($("ws-gold"), format(Math.floor(goldShown(p.gold))));
+    setText($("ws-income"), incomeOf(p));
+    setText($("ws-level"), p.level);
+    setText($("ws-exp"), `${format(Math.floor(p.exp))} / ${format(Math.max(1, Math.round(p.expNext)))} EXP`);
+    setStyle($("ws-exp-fill"), "width", `${Math.min(100, (100 * p.exp) / Math.max(1, p.expNext))}%`);
+  }
   setText($("rival-gold"), resourceNumber(goldShown(enemy.gold)));
   setText($("rival-income"), incomeOf(enemy));
   for (const [prefix, pl] of [["own", p], ["rival", enemy]]) {
@@ -4874,7 +4952,8 @@ function refreshUI() {
           ? t("Pick a tower below")
           : "");
   if (deckSig() !== deckSignature) renderCards();
-  document.querySelectorAll("#cards [data-card], #sheet-cards [data-card]").forEach((b) => {
+  else if (wideDeck() && sendDeckSig() !== sendDeckSignature) renderSendDeck(); // v0.24f
+  document.querySelectorAll("#cards [data-card], #sheet-cards [data-card], #cards-send [data-card]").forEach((b) => {
     const item = catalog.byId[b.dataset.card],
       a = available(game, own, cardAction(item), item.id),
       label = priceLabel(item);
@@ -5074,7 +5153,7 @@ const SEND_HOLD_RATE = 15,
 // auto-spawn slot. The same pointer logic lets you drag the slot's creep out to clear it.
 let sendPress = null;
 function startSendHold(e) {
-  if (tab !== "send" || (e.button ?? 0) > 0 || !begun) return;
+  if ((tab !== "send" && !wideDeck()) || (e.button ?? 0) > 0 || !begun) return;
   const id = e.currentTarget.dataset.card;
   stopSendHold();
   e.preventDefault();
@@ -5084,9 +5163,9 @@ function startSendHold(e) {
   sendHold.timer = setTimeout(() => {
     if (!sendHold || sendPress?.mode !== "tap") return;
     sendPress.mode = "hold";
-    $("cards").querySelector(`[data-card="${id}"]`)?.classList.add("holding");
+    deckCard(id)?.classList.add("holding");
     const fire = () => {
-      if (!sendHold || tab !== "send" || !begun) return stopSendHold();
+      if (!sendHold || (tab !== "send" && !wideDeck()) || !begun) return stopSendHold();
       if (!available(game, own, "send", sendHold.id).ok) return;
       lastSendCards[own] = sendHold.id;
       dispatch({ type: "send", id: sendHold.id }, { quiet: true });
@@ -5126,7 +5205,7 @@ document.addEventListener(
       sp.mode = "drag";
       clearTimeout(sendHold?.timer);
       clearInterval(sendHold?.interval);
-      document.querySelectorAll("#cards .holding").forEach((b) => b.classList.remove("holding"));
+      document.querySelectorAll("#cards .holding, #cards-send .holding").forEach((b) => b.classList.remove("holding"));
       const ghost = $("drag-ghost");
       ghost.src = towerArtUrl(artFor(catalog.byId[sp.id]));
       ghost.hidden = false;
@@ -5192,7 +5271,7 @@ function stopSendHold(e) {
   clearInterval(sendHold.interval);
   sendHold = null;
   suppressClickUntil = performance.now() + 60;
-  document.querySelectorAll("#cards .holding").forEach((b) => b.classList.remove("holding"));
+  document.querySelectorAll("#cards .holding, #cards-send .holding").forEach((b) => b.classList.remove("holding"));
   refreshAutoSend();
 }
 document.addEventListener("pointerup", stopSendHold);
