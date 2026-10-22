@@ -97,6 +97,7 @@ import {
   BLOOD_ACHIEVEMENTS,
   PILLAR,
   AGOLEM,
+  bankRate,
   MONSUN,
   pillarDamage,
   golemHp,
@@ -164,10 +165,10 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.24h",
+const APP_VERSION = "0.24i",
   APP_BRANCH = "F", // v0.23q: author marker (F = Felix, S = Steven) and branch text, shown behind the version; APP_VERSION stays plain for online matches (VersionPublishingRules.md)
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
-  APP_DATE = "22.10.2026";
+  APP_DATE = "23.10.2026";
 // v0.18: the version also stands in the page title (browser tab and the artifact window in chats)
 try {
   document.title = `${currentDesign() === "original" ? "Felito" : "Circle"} Tower Wars · v${APP_VERSION}${APP_BRANCH}`; // design variants: the new looks are called Circle Tower Wars
@@ -1617,7 +1618,7 @@ const REWORK_HINT = {
   R00D: () => t("1 Spirit Wolf per round, stronger every level. It gives income"), // v0.21k
   R00C: (lv) => t("All towers attack speed +{v}", { v: pctOf(FRENZY * lv) }),
   R001: (lv) => t("Creep HP +{a}, creep income +{b}", { a: pctOf(HEALING.hp * lv), b: pctOf(HEALING.income * lv) }), // v0.20c
-  R006: (lv) => t("{v} interest on your gold at the start of each round", { v: pctOf(BANK.rate * lv) }),
+  R006: (lv) => t("{v} interest on your gold at the start of each round", { v: pctOf(bankRate(lv)) }), // v0.24i
   R00X: (lv) => t("Creep HP +{a}, speed +{b} (flyers half)", { a: pctOf(MIND.hp * lv), b: pctOf(MIND.speed * lv) }), // v0.23: flyers half
   R00W: (lv) => t("Creep Speed +{v}", { v: pctOf(TAILWIND.speed * lv) }),
   R00U: (lv) => t("Creep HP +{a}, income +{b}", { a: pctOf(CREEP_ARMOR.hp * lv), b: pctOf(CREEP_ARMOR.income * lv) }),
@@ -4381,7 +4382,7 @@ const perkVars = (level, q, lv, next) => {
     lone: pctOf(loneSpeed(Math.min(5, lv))), // v0.23v: 75 / 100 / 120 / 133 / 150 % (v0.22g1: 4 levels)
     loneTowers: loneTowers(Math.min(5, lv)),
     heavy: pctOf(HEAVY_WEAPONS * lv),
-    bank: pctOf(BANK.rate * lv),
+    bank: pctOf(bankRate(lv)), // v0.24i
     frenzy: pctOf(FRENZY * lv),
     wolves: lv,
     firearrows: pctOf(FIRE_ARROWS * lv),

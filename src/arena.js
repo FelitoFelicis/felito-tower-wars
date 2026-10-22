@@ -2700,18 +2700,7 @@ export function mountArena({
           g.lineStyle(2, 0xd8a8ff, 0.8);
           g.strokeEllipse(q.x, q.y + cell * 0.2, cell * 0.8, cell * 0.28);
         }
-        if (c.spiritWolf) {
-          // v0.19a1: Spirit Wolves: a soft arcane veil with slowly glittering sparks (calm, never flickering)
-          const cy = q.y + cell * 0.18 - lift - height * 0.45;
-          glow.fillStyle(0xd88aff, 0.18);
-          glow.fillEllipse(q.x, cy, height * 0.95, height * 0.9);
-          for (let k = 0; k < 4; k++) {
-            const a = phase0 * 1.3 + k * 1.57 + time * 0.0012,
-              tw = 0.5 + 0.5 * Math.sin(time * 0.0035 + k * 1.7 + phase0);
-            glow.fillStyle(0xfff0ff, 0.3 + 0.45 * tw);
-            glow.fillCircle(q.x + Math.cos(a) * height * 0.33, cy + Math.sin(a) * height * 0.3, Math.max(1.5, height * (0.022 + 0.02 * tw)));
-          }
-        }
+        // v0.24i: Spirit Wolves no longer wear the arcane veil sphere (their violet tint stays)
         // v0.17: no ring under neutral creeps any more; their grey clothes set them apart
         // Health bar only once a creep has lost health; drawn on top of everything on the board.
         const ratio = clamp(c.hp / (c.maxHp || def.hp), 0, 1);

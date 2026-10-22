@@ -643,6 +643,9 @@ export const TOWER_DAMAGE_BUFF = {
   h03A: 0.075, // Bird Hunter level 4: 135 → 146
   h03B: 0.1, // Bird Hunter level 5: 375 → 413
   h03N: 0.1, // Bird Hunter level 6: 900 → 990
+  // v0.24i: Ogre Tower line +8 %, plain Footman line from level 2 +12 %
+  h05A: 0.08, h033: 0.08, h034: 0.08, h03I: 0.08,
+  h02U: 0.12, h02V: 0.12, h035: 0.12, h036: 0.12, h03J: 0.12,
 };
 function applyTowerDamageBuff(byId) {
   for (const [id, pct] of Object.entries(TOWER_DAMAGE_BUFF)) {
@@ -675,7 +678,7 @@ export const CREEP_TUNING = {
   n019: { cost: 2000, hp: 2100, income: 40 }, // v0.22o2: Shade 1200 → 2000 gold, hit points with it 1250 → 2100; v0.22p2: income 24 → 40
   // v0.23zb: Shieldbearer → Siege Ogre: one per purchase (heavy) with double hit points and bounty, armor 3, no Divine Shield;
   // plants a Siege Plank once (simulation.js SIEGE_OGRE)
-  n01G: { name: "[34] Siege Ogre", shortName: "Siege Ogre", count: 1, hp: 16000, armor: 3, bountyBase: 718, abilities: ["A08S", "A01A"] }, // v0.22o2: was Spiritwalker → Shieldbearer
+  n01G: { name: "[34] Siege Ogre", shortName: "Siege Ogre", count: 1, hp: 16000, armor: 3, bountyBase: 718, abilities: ["A08S", "A01A"], stockMax: 2, stockRegen: 17 }, // v0.22o2: was Spiritwalker → Shieldbearer; v0.24i: stock 5 → 2, restock 15 → 17 s
   n00L: { speed: 375 }, // Wolf: 25 % faster, 300 → 375 (v0.08d)
   n00S: { speed: 420, stockRegen: 13, income: 8 }, // Raider: 25 % faster (v0.07b); restock 12 → 13 s (v0.17o); income 9 → 8 (v0.17q)
   n012: { name: "[21] Giant Bat", shortName: "Giant Bat" }, // v0.23zq: the Zeppelin is the Giant Bat

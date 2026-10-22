@@ -1049,7 +1049,7 @@ export const PERKS = Object.freeze({
   medicine: { name: "Creep Medicine", max: 20, element: "water", text: "Creep HP +{medHp}, creep income +{medInc}" },
   melee: { name: "Melee Protocol", max: 20, element: "water", text: "Melee attack speed +{melee}" },
   heavy: { name: "Heavy Weapons", max: 20, element: "earth", text: "Footman-Line and Bombard-Line +{heavy} damage" },
-  bank: { name: "Magic Bank", max: 10, element: "arcane", text: "{bank} interest per round", detail: "{bank} interest on your gold at the start of each round" },
+  bank: { name: "Magic Bank", max: 3, element: "arcane", text: "{bank} interest per round", detail: "{bank} interest on your gold at the start of each round" },
   frenzy: { name: "Unholy Frenzy", max: 20, element: "plague", text: "All towers attack speed +{frenzy}" },
   wolves: { name: "Spirit Wolves", max: 10, element: "arcane", text: "1 Spirit Wolf per round, stronger every level. It gives income" }, // v0.21k: one wolf per round
   firearrows: { name: "Fire Arrows", max: 20, element: "fire", text: "Archer-Line +{firearrows} damage" }, // v0.21c: tooltip
@@ -1149,7 +1149,9 @@ export const PILLAR_DAMAGE_TIER = [1, 5, 12.5, 31, 75, 150]; // v0.22: Pillar of
 export const pillarDamage = (p, level = perkLevel(p, "pillar")) =>
   Math.round((12 + 10 * level) * PILLAR_DAMAGE_TIER[Math.max(1, Math.min(PILLAR_TIER.length, p?.tier || 1)) - 1] * (1 + 0.05 * (p?.level || 1)));
 /** Arcane Golem (Arcane): cooldown, knock-back in fields and hit point loss per collision by level. */
-export const AGOLEM = { cooldown: 50, knock: [1, 1.25, 1.5, 1.75, 2], loss: [0.01, 0.009, 0.008, 0.0075, 0.007], heavy: 3, damage: 10, reach: 0.45 };
+// v0.24i: 2 % of its hit points per creep pushed back at every level (was 1 % → 0.7 %); the creep takes the matching damage
+// (10 × that loss, as before); knock-back at level 1 −10 % (1 → 0.9 fields)
+export const AGOLEM = { cooldown: 50, knock: [0.9, 1.25, 1.5, 1.75, 2], loss: [0.02, 0.02, 0.02, 0.02, 0.02], heavy: 3, damage: 10, reach: 0.45 };
 export const golemHp = (p, level = perkLevel(p, "agolem")) => Math.round(level * (p?.tier || 1) * (400 * ((p?.level || 1) * 0.2) + 1));
 /** Monsun (Storm): cooldown, duration by level, lightning interval; push in fields per second (before the arena's 45 %). */
 export const MONSUN = { cooldown: 45, // v0.19j: +5 s
@@ -1158,7 +1160,7 @@ export const monsunForce = (p, level = perkLevel(p, "monsun")) => 0.48 + level *
 export const monsunDamage = (p, level = perkLevel(p, "monsun")) => 30 + 20 * level * (p?.tier || 1);
 /** Perks that skip the next level once taken. */
 /** v0.20c: perks that sit out more than one level after a pick (Supergrowth: two). */
-const PERK_SKIP_LEVELS = { supergrowth: 2, hellfire: 2, frostbolt: 2, clones: 2, infested: 2, lone: 2 }; // v0.23zi: Spartans skip 2 // v0.23w: Frost Bolt, Clones // v0.21x: Lava Floor skips 2
+const PERK_SKIP_LEVELS = { supergrowth: 2, hellfire: 2, frostbolt: 2, clones: 2, infested: 2, lone: 2, bank: 3 }; // v0.24i: Magic Bank skips 3 // v0.23zi: Spartans skip 2 // v0.23w: Frost Bolt, Clones // v0.21x: Lava Floor skips 2
 const PERK_SKIP = new Set(["pillar", "agolem", "monsun", "slave", "guardian", "mind", "tailwind", "carmor", "owl", "autoloader", "hills"]); // v0.22g1: Autoloader // v0.19a1: Mind Control, Tailwind, Creep Armor, Watcher Owl
 /**
  * v0.19a1: reworked level-up upgrades (research perks). Their effects live here instead of the map
@@ -1184,13 +1186,19 @@ export const FRENZY = 0.02;
 export const LEADERSHIP = 0.1;
 export const HEALING = { hp: 0.05, income: 0.02 };
 export const BANK = { rate: 0.05, cap: 50000 };
+/** v0.24i: Magic Bank interest by perk level: 5 % at level 1, each further level adds 5 % − level × 1 % (8 %, 10 %). */
+export const bankRate = (level) => {
+  let r = level > 0 ? BANK.rate : 0;
+  for (let k = 2; k <= level; k++) r += Math.max(0, 0.05 - 0.01 * k);
+  return r;
+};
 export const MIND = { hp: 0.1, speed: 0.1, air: 0.5 };
 export const TAILWIND = { speed: 0.1 };
 export const CREEP_ARMOR = { hp: 0.08, income: 0.015 };
 /** Spirit Wolves: one wolf per level and round; -25 % income in the first 15 rounds; buffs by perk level, player level and tier; 300 % more magic damage taken. */
 /** v0.19d2: Spirit Wolf HP by round: 40 % before round 5, 60 % in 5–10, 80 % in 11–15, full from 16, +0.2 % per round from round 40. */
 export const wolfRoundHp = (round) => (round < 5 ? 0.4 : round <= 10 ? 0.6 : round <= 15 ? 0.8 : round >= 40 ? 1 + 0.002 * (round - 39) : 1);
-export const WOLVES = { ids: ["n01Z", "n020", "n024", "n035", "n02T", "n01K"], early: 15, earlyIncome: 0.75, hp: 4, hpPerLevel: 0.4, hpPerTier: 200, speed: 0.02, speedPerLevel: 0.004, speedPerTier: 0.03, magic: 3, tierIncome: [0, 2, 4, 8, 16, 32] };
+export const WOLVES = { hpScale: 0.75, ids: ["n01Z", "n020", "n024", "n035", "n02T", "n01K"], early: 15, earlyIncome: 0.75, hp: 4, hpPerLevel: 0.4, hpPerTier: 200, speed: 0.02, speedPerLevel: 0.004, speedPerTier: 0.03, magic: 3, tierIncome: [0, 2, 4, 8, 16, 32] };
 /** v0.19b1: income of one Spirit Wolf: tier part (0 / 2 / 4 / 8 / 16 / 32) plus perk level part (2, 4, 8 … 1024). */
 // v0.21i: halved (WOLVES_INCOME); the night test showed Spirit Wolves far ahead of every other perk
 export const WOLVES_INCOME = 0.5;
@@ -4221,7 +4229,7 @@ const CANNON_CORE = 0.35, // cells
   CANNON_RING_FACTOR = 0.25, // v0.17a: outer ring 50 % -> 25 %
   BOMBARD_RADIUS = 0.9; // v0.17b: the outer splash radius of the whole Bombard line is 10 % smaller
 export const MAGIC_CHARGE_SECONDS = 8;
-export const MAGIC_EMPOWER = 4;
+export const MAGIC_EMPOWER = 5; // v0.24i: Arcane Missile (the empowered bolt) 4× → 5× damage
 const POISON_MAX_STACKS = 8,
   POISON_SLOW_PER_STACK = 0.03,
   POISON_SLOW_CAP = 0.18;
@@ -5064,7 +5072,7 @@ function spawnSpiritWolves(game, p, level) {
     const wolf = spawnCreep(game, p.id, id);
     if (!wolf) break;
     Object.assign(wolf, { summoned: true, spiritWolf: true, magicVuln: WOLVES.magic, hpMul: hpMul * roundHp, speedMul });
-    wolf.maxHp = wolf.maxHp * hpMul * roundHp + hpFlat;
+    wolf.maxHp = (wolf.maxHp * hpMul * roundHp + hpFlat) * WOLVES.hpScale; // v0.24i: −25 % hit points
     wolf.hp = wolf.maxHp;
     wolf.hpFlat = hpFlat;
     wolf.speed *= speedMul;
@@ -5116,7 +5124,7 @@ function incomeTick(game) {
     // v0.19a1: Magic Bank: 5 % interest per level on the idle gold at the start of the round (at most 50k)
     const bank = perkLevel(p, "bank"); // v0.21: a perk now
     if (bank) {
-      const interest = Math.min(BANK.cap, Math.floor(Math.max(0, p.gold) * BANK.rate * bank));
+      const interest = Math.min(BANK.cap, Math.floor(Math.max(0, p.gold) * bankRate(bank))); // v0.24i
       if (interest > 0) {
         p.gold += interest;
         p.stats.goldEarned += interest;
@@ -5257,7 +5265,7 @@ const AI_STYLE = {
     fixed: { smartPerks: 2, airEval: 1, airAura: 0.6, airLearn: 1, splashTop: 1 }, // v0.21v: data-based perk and element picks (see PERK_EDGE); v0.22g: air evaluation, aura escort, learns from air waves
     vsHuman: { waveTiming: 8, saveMore: 2, adaptive: 1, speedAware: 1 }, // v0.21v: against a human: pushes wait for the neutral wave, more saved-up waves; v0.22z2: and Hard reads the human's style like Hardo
     ranges: {
-      greed: [1.7, 2.3],
+      greed: [1.8, 2.4], // v0.24i (was 1.7–2.3)
       splash: [1.4, 2.0],
       push: [0, 0.05],
       expGen: [0.5, 1.2],
