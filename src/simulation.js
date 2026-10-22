@@ -153,7 +153,7 @@ const PATH_DX = [0, -1, 1, 0],
 let pathWalls = new Uint8Array(0),
   pathPrev = new Int32Array(0),
   pathQueue = new Int32Array(0);
-export function findPath(game, playerIndex = 0, start = null, extra = null) {
+export function findPath(game, playerIndex = 0, start = null, extra = null, withPlanks = false) {
   const player = game.players[playerIndex],
     { cols, rows } = game.grid,
     size = (rows + 2) * cols; // keys of rows -1 … rows
@@ -171,7 +171,9 @@ export function findPath(game, playerIndex = 0, start = null, extra = null) {
     const k = square(game, x, y);
     if (k >= 0 && k < size && Number.isInteger(k)) walls[k] = 1;
   };
-  const planks = !extra && player.planks?.length ? player.planks : null; // v0.23zb: Siege Planks open their tower for walking (never for build checks)
+  // v0.23zb: Siege Planks open their tower for walking (never for build checks); v0.24h: only for routes that ask for
+  // them (creeps next to a plank), so the field path and every other creep keep their way
+  const planks = !withPlanks || extra ? null : Array.isArray(withPlanks) ? withPlanks : player.planks?.length ? player.planks : null; // an array: only these planks
   for (const t of player.towers) {
     const n = towerSize(t);
     if (planks && n === 1 && planks.some((pl) => pl.x === t.gridX && pl.y === t.gridY)) continue;
@@ -272,12 +274,14 @@ function repath(game, player) {
  * and then it skips that cell's centre if it has already passed it.
  */
 function creepPathFrom(game, playerId, creep) {
-  const heading = creep.path?.[creep.pathIndex];
+  const heading = creep.path?.[creep.pathIndex],
+    own = creep.plankRoute ? game.players[playerId]?.planks?.find((pl) => plankKey(pl) === creep.plankRoute) : null,
+    planks = own ? [own] : false; // v0.24h: a creep on its way over a plank keeps that one plank (only that one)
   if (heading && Number.isInteger(heading.gridX)) {
-    const tail = findPath(game, playerId, { x: heading.gridX, y: heading.gridY });
+    const tail = findPath(game, playerId, { x: heading.gridX, y: heading.gridY }, null, planks);
     if (tail && tail.length) return tail;
   }
-  const path = findPath(game, playerId, gridAt(game, creep)) || [];
+  const path = findPath(game, playerId, gridAt(game, creep), null, planks) || [];
   if (path.length > 1) {
     const { cols, rows } = game.grid,
       a = path[0],
@@ -1833,29 +1837,119 @@ function tickInfested(game, p) {
  * creeps walk over that tower one at a time (the tower keeps shooting). Without its plank the ogre walks 25 % faster
  * but loses its armor.
  */
-export const SIEGE_OGRE = { id: "n01G", plant: 1.2, last: 30, minSave: 3, speed: 1.25 };
-function siegeOgre(game, p, c) {
+export const SIEGE_OGRE = { id: "n01G", plant: 1.2, last: 30, minSave: 3, speed: 1.25, carry: 0.8, reach: 0.62, queue: 4, joinSave: 2 }; // v0.24h: carry, reach, queue, joinSave
+const plankKey = (pl) => pl.x + "," + pl.y;
+const plankAt = (p, x, y) => p.planks?.find((pl) => pl.x === x && pl.y === y) || null;
+/** v0.24h: a route crosses a plank straight along it (in and out on the plank's axis), never round a corner. */
+function alongPlank(pl, dir, before, after) {
+  if (!before || !after) return false;
+  return dir === "h"
+    ? before.gridY === pl.y && after.gridY === pl.y && Math.abs(before.gridX - pl.x) === 1 && after.gridX === 2 * pl.x - before.gridX
+    : before.gridX === pl.x && after.gridX === pl.x && Math.abs(before.gridY - pl.y) === 1 && after.gridY === 2 * pl.y - before.gridY;
+}
+/** v0.24h: creeps routed over a plank that have not crossed it yet (the one on it included). */
+function plankQueue(p, pl) {
+  const key = plankKey(pl);
+  let n = 0;
+  for (const o of p.creeps) {
+    if (o.plankRoute !== key || o.dead || o.hp <= 0) continue;
+    for (let i = Math.max(0, o.pathIndex - 1); i < o.path.length; i++)
+      if (o.path[i].gridX === pl.x && o.path[i].gridY === pl.y) {
+        n++;
+        break;
+      }
+  }
+  return n;
+}
+/**
+ * v0.24h: a ground creep that stands next to a Siege Plank (8 neighbouring fields) takes it when that saves at least
+ * `joinSave` fields and fewer than `queue` creeps are already on their way over it. Only these creeps ever re-route
+ * for a plank; the field path and all other creeps keep their way (no masses waiting behind a plank).
+ */
+function joinPlank(game, p, c, gx, gy, force = false) {
+  if (c.flying || c.plankRoute || !p.planks?.length) return false;
+  for (const pl of p.planks) {
+    if (Math.abs(pl.x - gx) > 1 || Math.abs(pl.y - gy) > 1 || (pl.x === gx && pl.y === gy)) continue;
+    if (game.time + EPS >= pl.until || plankQueue(p, pl) >= SIEGE_OGRE.queue) continue;
+    const full = findPath(game, p.id, { x: gx, y: gy }, null, [pl]);
+    if (!full || full.length < 2) continue;
+    const way = full.slice(1),
+      over = way.findIndex((n) => n.gridX === pl.x && n.gridY === pl.y);
+    if (over < 0 || over > 1) continue; // the plank must be the next field or the one after
+    if (!alongPlank(pl, pl.dir, over ? way[over - 1] : { gridX: gx, gridY: gy }, way[over + 1])) continue; // walks along the plank
+    const left = c.path.length - c.pathIndex;
+    if (!force && way.length > left - SIEGE_OGRE.joinSave) continue;
+    c.prevNode = behindOf(c);
+    c.path = way;
+    c.pathIndex = 0;
+    c.plankRoute = plankKey(pl);
+    return true;
+  }
+  return false;
+}
+function siegeOgre(game, p, c, remaining) {
+  if (c.planting?.approach) {
+    // v0.24h: the ogre first walks right up to the tower before it lays the plank down
+    const t = c.planting,
+      tower = p.towers.some((o) => o.gridX === t.x && o.gridY === t.y && towerSize(o) === 1);
+    if (!tower || plankAt(p, t.x, t.y)) {
+      c.planting = null; // the tower went (or got a plank): back onto its way
+      return 0;
+    }
+    const tx = (t.x + 0.5 - t.dx * SIEGE_OGRE.reach) / game.grid.cols,
+      ty = (t.y + 0.5 - t.dy * SIEGE_OGRE.reach) / game.grid.rows,
+      dist = Math.hypot((c.x - tx) * game.grid.cols, (c.y - ty) * game.grid.rows) * game.grid.cellUnits;
+    if (dist > remaining + EPS) {
+      const f = remaining / dist;
+      c.x += (tx - c.x) * f;
+      c.y += (ty - c.y) * f;
+      return -1;
+    }
+    c.x = tx;
+    c.y = ty;
+    t.approach = false;
+    t.start = game.time;
+    t.until = game.time + SIEGE_OGRE.plant;
+    emit(game, "plankStart", { player: p.id, creepId: c.id, x: c.x, y: c.y });
+    return -1;
+  }
   if (c.planting) {
-    if (game.time + EPS < c.planting.until) return true;
+    if (game.time + EPS < c.planting.until) return -1;
     const t = c.planting;
     c.planting = null;
     c.planted = true;
     c.speed *= SIEGE_OGRE.speed;
     c.baseSpeed = (c.baseSpeed || c.speed) * SIEGE_OGRE.speed;
     c.armor = 0;
-    if (p.towers.some((o) => o.gridX === t.x && o.gridY === t.y && towerSize(o) === 1)) {
-      (p.planks ||= []).push({ x: t.x, y: t.y, until: game.time + SIEGE_OGRE.last, busy: null, dir: t.dir });
-      emit(game, "plank", { player: p.id, x: (t.x + 0.5) / game.grid.cols, y: (t.y + 0.5) / game.grid.rows, gx: t.x, gy: t.y, owner: c.owner });
-      repath(game, p);
+    if (p.towers.some((o) => o.gridX === t.x && o.gridY === t.y && towerSize(o) === 1) && !plankAt(p, t.x, t.y)) {
+      const pl = { x: t.x, y: t.y, until: game.time + SIEGE_OGRE.last, busy: null, dir: t.dir };
+      (p.planks ||= []).push(pl);
+      emit(game, "plank", { player: p.id, x: (t.x + 0.5) / game.grid.cols, y: (t.y + 0.5) / game.grid.rows, gx: t.x, gy: t.y, owner: c.owner, dir: t.dir });
+      // v0.24h: no general re-route: the ogre crosses its plank, creeps on the neighbouring fields may follow
+      const way = findPath(game, p.id, { x: t.x, y: t.y }, null, [pl]);
+      if (way?.length) {
+        c.prevNode = behindOf(c);
+        c.path = way;
+        c.pathIndex = 0;
+        c.plankRoute = plankKey(pl);
+      }
+      const cols = game.grid.cols,
+        rows = game.grid.rows;
+      for (const o of p.creeps)
+        if (o !== c && !o.flying && !o.dead && o.y >= 0) joinPlank(game, p, o, Math.min(cols - 1, Math.max(0, Math.floor(o.x * cols))), Math.floor(o.y * rows));
+    } else {
+      // no plank after all: back onto the way from where the ogre stands
+      c.path = creepPathFrom(game, p.id, c);
+      c.pathIndex = 0;
     }
-    return false;
+    return 0;
   }
-  if (c.planted || c.y < 0 || c.ogreChecked === c.pathIndex) return false;
+  if (c.planted || c.y < 0 || c.ogreChecked === c.pathIndex) return 0;
   c.ogreChecked = c.pathIndex;
   const { cols, rows } = game.grid,
     gx = Math.min(cols - 1, Math.max(0, Math.floor(c.x * cols))),
     gy = Math.floor(c.y * rows);
-  if (gy < 0 || gy >= rows) return false;
+  if (gy < 0 || gy >= rows) return 0;
   const left = c.path.length - c.pathIndex;
   let best = null;
   for (const [dx, dy] of [[0, 1], [-1, 0], [1, 0]]) {
@@ -1865,29 +1959,39 @@ function siegeOgre(game, p, c) {
     const t = p.towers.find((o) => o.gridX === x && o.gridY === y && towerSize(o) === 1);
     if (!t || p.planks?.some((pl) => pl.x === x && pl.y === y)) continue;
     // the way from that tower's field to the exit if it could be crossed
-    const list = (p.planks ||= []);
-    list.push({ x, y, until: 0, busy: null });
-    const way = findPath(game, p.id, { x, y });
-    list.pop();
+    const way = findPath(game, p.id, { x, y }, null, [{ x, y }]); // v0.24h: only this candidate plank
     if (!way) continue;
+    if (!alongPlank({ x, y }, dy ? "v" : "h", { gridX: gx, gridY: gy }, way[1])) continue; // v0.24h: straight over it, so the plank lies the way creeps walk
     const save = left - (way.length + 1);
-    if (save >= SIEGE_OGRE.minSave && (!best || save > best.save)) best = { x, y, save, dir: dy ? "v" : "h" };
+    if (save >= SIEGE_OGRE.minSave && (!best || save > best.save)) best = { x, y, save, dx, dy, dir: dy ? "v" : "h" };
   }
-  if (!best) return false;
-  c.planting = { x: best.x, y: best.y, dir: best.dir, until: game.time + SIEGE_OGRE.plant, start: game.time };
-  emit(game, "plankStart", { player: p.id, creepId: c.id, x: c.x, y: c.y });
-  return true;
+  if (!best) return 0;
+  // v0.24h: first the walk up to the tower (see above), then 1.2 s of planting
+  c.planting = { x: best.x, y: best.y, dx: best.dx, dy: best.dy, dir: best.dir, approach: true, until: 0, start: game.time }; // until is set once it stands at the tower
+  return siegeOgre(game, p, c, remaining);
 }
 /** v0.23zb: Siege Planks end after 30 s (or when their tower is gone), but never under a creep that is crossing. */
 function tickPlanks(game, p) {
   if (!p.planks?.length) return;
   const before = p.planks.length;
+  const gone = [];
   p.planks = p.planks.filter((pl) => {
     const tower = p.towers.some((o) => o.gridX === pl.x && o.gridY === pl.y && towerSize(o) === 1),
       crossing = pl.busy && p.creeps.some((o) => o.id === pl.busy && !o.dead && o.hp > 0 && Math.floor(o.x * game.grid.cols) === pl.x && Math.floor(o.y * game.grid.rows) === pl.y);
-    return tower && (game.time < pl.until || (crossing && game.time < pl.until + 5));
+    const keep = tower && (game.time < pl.until || (crossing && game.time < pl.until + 5));
+    if (!keep) gone.push(plankKey(pl));
+    return keep;
   });
-  if (p.planks.length !== before) repath(game, p);
+  if (p.planks.length === before) return;
+  // v0.24h: only the creeps that were on their way over a removed plank look for a new way
+  for (const c of p.creeps) {
+    if (!c.plankRoute || !gone.includes(c.plankRoute)) continue;
+    c.plankRoute = null;
+    if (c.flying || c.dead) continue;
+    c.prevNode = behindOf(c);
+    c.path = creepPathFrom(game, p.id, c);
+    c.pathIndex = 0;
+  }
 }
 export const CLONES = { base: 0.1, perLevel: 0.05, hp: 0.5, heavyFrom: 3, bossFrom: 6 };
 export const cloneChance = (level) => (level > 0 ? CLONES.base + CLONES.perLevel * level : 0);
@@ -4890,7 +4994,10 @@ function moveCreep(game, p, c, dt) {
     c.ox = (random(game) - 0.5) * 2 * CREEP_SPREAD / game.grid.cols;
     c.oy = (random(game) - 0.5) * 2 * CREEP_SPREAD / game.grid.rows;
   }
-  if (c.typeId === SIEGE_OGRE.id && !c.flying && siegeOgre(game, p, c)) remaining = 0; // v0.23zb: planting its Siege Plank
+  if (c.typeId === SIEGE_OGRE.id && !c.flying) {
+    if (!c.planted) remaining *= SIEGE_OGRE.carry; // v0.24h: carrying the plank: 20 % slower
+    if (siegeOgre(game, p, c, remaining)) remaining = 0; // v0.23zb: walking up to the tower and planting its Siege Plank
+  }
   while (remaining > EPS && game.running) {
     const way = c.path[c.pathIndex];
     if (way && p.planks?.length && !c.flying) {
@@ -4917,6 +5024,15 @@ function moveCreep(game, p, c, dt) {
       c.y = ny;
       c.pathIndex++;
       remaining -= distance;
+      if (!c.flying && Number.isInteger(way.gridX)) {
+        if (c.plankRoute) {
+          // v0.24h: over the plank and off it again: an ordinary creep from here on
+          let ahead = way.gridX + "," + way.gridY === c.plankRoute;
+          for (let i = c.pathIndex; i < c.path.length && !ahead; i++) ahead = c.path[i].gridX + "," + c.path[i].gridY === c.plankRoute;
+          if (!ahead) c.plankRoute = null;
+        }
+        else if (p.planks?.length && !c.plankRoute) joinPlank(game, p, c, way.gridX, way.gridY); // v0.24h: next to a plank: take it?
+      }
     } else {
       const factor = remaining / distance;
       c.x += (nx - c.x) * factor;

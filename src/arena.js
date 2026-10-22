@@ -424,6 +424,7 @@ export function mountArena({
       this.waiting = new Map(); // v0.23: unit key -> since when its art is loading
       this._look = { art: null, tex: null, anim: null, hide: false };
       this.badgeBatches = new Map(); // v0.23: depth -> level badges of that row, one draw call
+      this.plankGfx = new Map(); // v0.24h: one layer per Siege Plank, sorted right above its tower
       this.badgeNames = {};
       this.flash = 0;
       this.gainFlash = 0;
@@ -2035,12 +2036,19 @@ export function mountArena({
         }
       }
       // ---- v0.23zb: Siege Planks: wooden boards with iron bands laid over a tower; they fade in their last 3 s
+      // v0.24h: each plank has its own layer right above its tower (was the health-bar layer, over every creep), so
+      // creeps crossing it walk on top of it
+      const plankKeys = new Set();
       for (const pl of player.planks || []) {
+        const key = `${player.id}:${pl.x},${pl.y}`;
+        plankKeys.add(key);
+        let hb = this.plankGfx.get(key);
+        if (!hb) this.plankGfx.set(key, (hb = this.stage.graphics()));
+        hb.clear().setDepth(Math.floor(z.top + (pl.y + 0.6) * cell) + 100.3);
         const x0 = z.left + pl.x * cell,
           y0 = z.top + pl.y * cell,
           left = pl.until - game.time,
           a = clamp(left / 3, 0.35, 1),
-          hb = this.hpBars,
           vert = pl.dir !== "h",
           w = vert ? cell * 0.56 : cell * 1.08,
           h = vert ? cell * 1.08 : cell * 0.56,
@@ -2063,6 +2071,11 @@ export function mountArena({
           else hb.fillRect(bx + w * f - 2, by - 1, 4, h + 2);
         }
       }
+      for (const [k, gfx] of this.plankGfx)
+        if (!plankKeys.has(k)) {
+          gfx.destroy();
+          this.plankGfx.delete(k);
+        }
       // ---- v0.18h: Low Tides water (bottom rows) and Backup Line mist (top rows)
       const tides = zoneOf(game, player, "tides");
       if (tides) {
@@ -2396,6 +2409,15 @@ export function mountArena({
       // ---- creeps (v0.12: and Arcane Golems walking up the lane)
       const walkers = player.golems?.length ? [...player.creeps, ...player.golems] : player.creeps,
         apart = this.spreadCreeps(walkers, view, cell, time, z); // v0.23g: packed groups ease apart (display only)
+      // v0.24h: a creep on a Siege Plank walks over its tower: drawn above the tower and the plank
+      const plankRows = player.planks?.length ? player.planks : null,
+        creepDepth = (c, d) => {
+          if (!plankRows) return d;
+          const gx = Math.floor(c.x * z.logicalCols),
+            gy = Math.floor(c.y * z.logicalRows),
+            pl = plankRows.find((k) => k.x === gx && k.y === gy);
+          return pl ? Math.max(d, Math.floor(z.top + (pl.y + 0.6) * cell) + 100.6) : d;
+        };
       for (const c of walkers) {
         if (c.hp <= 0) continue;
         const def = catalog.byId[c.typeId || c.unitId || c.defId || c.type];
@@ -2507,7 +2529,7 @@ export function mountArena({
               sprite.setData("showAt", time);
             }
             sprite.setData("show", shown);
-            if (c.planting && walk.plantRow !== undefined) {
+            if (c.planting && !c.planting.approach && walk.plantRow !== undefined) {
               // v0.23zb: the Siege Ogre lays its plank down
               const k = clamp((game.time - c.planting.start) / Math.max(0.1, c.planting.until - c.planting.start), 0, 0.999);
               this.showFrame(sprite, skin, walk.plantRow * walk.cols + Math.floor(k * walk.plantFrames));
@@ -2550,7 +2572,7 @@ export function mountArena({
           .setRotation(gait ? gait.rot * face : flying || walk ? 0 : Math.sin(step) * 0.07)
           // v0.23e: the board is seen from the bottom: ground creeps sort with the towers by where their feet are
           // (lower on the board = in front); flyers stay above everything on the ground
-          .setDepth(flying ? 4200 + Math.floor(q.y) : 100.5 + Math.floor(q.y + cell * 0.2));
+          .setDepth(flying ? 4200 + Math.floor(q.y) : creepDepth(c, 100.5 + Math.floor(q.y + cell * 0.2)));
         if (gait) g.fillStyle(0x2d5a1c, flying ? 0.14 : 0.2); // design variants: a softer, green-tinted shadow on the light meadow
         else g.fillStyle(0x06120e, flying ? 0.22 : 0.32);
         g.fillEllipse(q.x, q.y + cell * 0.2, cell * (boss ? 0.8 : 0.48), cell * (boss ? 0.28 : 0.17));
