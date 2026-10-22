@@ -8215,3 +8215,32 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
   height: 2em;
   vertical-align: -0.6em;
 }
+
+/* v0.24e: active abilities sit on an open book (the ability book button keeps its own look) */
+.volley-button:not(.ability-book) {
+  border: 0;
+  border-radius: 6px;
+  background: var(--ability-book) center / 100% auto no-repeat !important;
+  box-shadow: none !important;
+  overflow: visible;
+  filter: drop-shadow(0 2px 1px #000b);
+}
+.volley-button:not(.ability-book) img {
+  width: 64%;
+  height: 64%;
+  transform: translateY(-17%);
+  filter: drop-shadow(0 1px 1px #0009);
+}
+.volley-button:not(.ability-book) .volley-cd {
+  inset: 12% 15% 32% 15%;
+  border-radius: 4px;
+}
+.volley-button:not(.ability-book) b {
+  transform: translateY(-17%);
+}
+.volley-button:not(.ability-book).ready {
+  filter: drop-shadow(0 0 3px #ffe27a) drop-shadow(0 2px 1px #000b);
+}
+.volley-button:not(.ability-book).swap-target {
+  filter: drop-shadow(0 0 0 #fff) drop-shadow(0 0 4px #ffd34a);
+}

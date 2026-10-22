@@ -164,7 +164,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.24d",
+const APP_VERSION = "0.24e",
   APP_BRANCH = "F", // v0.23q: author marker (F = Felix, S = Steven) and branch text, shown behind the version; APP_VERSION stays plain for online matches (VersionPublishingRules.md)
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "22.10.2026";
@@ -2415,8 +2415,7 @@ function setTips(on) {
 document.addEventListener("change", (e) => {
   if (!e.target.matches?.("[data-tips-toggle]")) return;
   setTips(e.target.checked);
-  tone("tap");
-  if (!tipsEnabled) toast(t("Tips off (Options › Gameplay)."), "", true);
+  tone("tap"); // v0.24e: no banner when tips are switched off from a tip
 });
 /** v0.16i: the bottom banner always sits on the bottom edge of the playing field, not over its lower third. */
 function placeToast(el = $("toast")) {
@@ -7881,6 +7880,7 @@ function preloadSendIcons(tier) {
 async function init() {
   try {
     catalog = (await Promise.all([loadContent(), loadPacks(), loadMedals()]))[0]; // v0.24a: perk and tower art packs load with the catalog
+    document.documentElement.style.setProperty("--ability-book", `url("${uiArt(`assets/art/ability-book.webp?v=${ART_VERSION}`)}")`); // v0.24e: book behind active abilities
     registerTowerArt(catalog.towers);
     preloadSendIcons(1); // v0.23b: tier 1 send buttons first
     warmDialogArt();
