@@ -141,7 +141,7 @@ import { mountArena, artFor } from "./arena.js";
 const designRow = () => "",
   setDesign = () => {},
   currentDesign = () => "original";
-import { artUrl, iconUrl, ELEMENT_ICON, ART_MANIFEST, registerTowerArt, TEAM_COLORS, recolorTeam, setPropUrl, activeArtSet, uiArt, useArtSet, artSetFor, ART_VERSION, CREEP_PORTRAIT } from "./art.js";
+import { artUrl, iconUrl, ELEMENT_ICON, ART_MANIFEST, registerTowerArt, TEAM_COLORS, recolorTeam, setPropUrl, activeArtSet, uiArt, useArtSet, artSetFor, ART_VERSION, CREEP_PORTRAIT, loadPacks } from "./art.js";
 import { createSoundtrack } from "./soundtrack.js";
 import { createSfx, haptic } from "./sfx.js";
 import { t, num, goldText } from "./i18n.js";
@@ -164,7 +164,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.24",
+const APP_VERSION = "0.24a",
   APP_BRANCH = "F", // v0.23q: author marker (F = Felix, S = Steven) and branch text, shown behind the version; APP_VERSION stays plain for online matches (VersionPublishingRules.md)
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "22.10.2026";
@@ -7674,7 +7674,7 @@ function preloadSendIcons(tier) {
 }
 async function init() {
   try {
-    catalog = await loadContent();
+    catalog = (await Promise.all([loadContent(), loadPacks()]))[0]; // v0.24a: perk and tower art packs load with the catalog
     registerTowerArt(catalog.towers);
     preloadSendIcons(1); // v0.23b: tier 1 send buttons first
     warmDialogArt();
