@@ -592,12 +592,14 @@ const ABILITY_PATCH = {
   A05G: { fields: { aub1: { 1: "Shoots |c00FFFF006|r arrows simultaneously" } } },
   A0D1: { fields: { Ssk3: { 1: 12 } } }, // v0.23: Druid's Scale Armor ignores 12 damage per hit (the value was missing, so it ignored nothing)
   A08K: { fields: { Ssk2: { 1: 3 } } }, // v0.23: Frost Wyrm and Lord Garithos take at least 3 damage per hit (was 1: the value was missing)
+  // v0.23zb: Undoctor (was Witch Doctor): its curse works once per creep, −33 % rate of fire for 60 s (was −30 % for 90 s, again and again)
+  A0D6: { fields: { Slo2: { 1: 0.33 }, adur: { 1: 60 }, aub1: { 1: "Once: decreases a tower's rate of fire\nby |c00FFFF0033%|r for |c00FFFF0060|r seconds" } } },
 };
 /**
  * v0.21m: the names this port gave its units, written over the Warcraft names in the catalog itself, so every
  * text (cards, tooltips, card book, messages, neutral waves) uses them: Peon → Goblin, Chaos Peon → Imp, …
  */
-export const UNIT_NAMES = Object.freeze({ Peon: "Goblin", "Chaos Peon": "Imp", Lumbermill: "EXP Generator", "Skeleton Grunt": "Skeleton Berserker", "Draenai Marauder": "Arcane Marauder" }); // v0.23a: Boar Scout → Boar; v0.23c: Horse → Boar; v0.23d: tier 1 is the Horse again, tier 2 stays Boar Scout
+export const UNIT_NAMES = Object.freeze({ Peon: "Goblin", "Chaos Peon": "Trenchlin", Akolyte: "Goblin Zealot", Dragonspawn: "Crystal Lizard", "Frost Wyrm": "Bone Dragon", "Lord Garithos": "Dark Knight", "Witch Doctor": "Undoctor", "Centaur Warrior": "Satyr", "Forest Troll": "Centaur", "Grom Hellscream": "Bandit Leader", "Fel Raider": "Rouge Knight", Horse: "Pony", "Cairne Bloodhoof": "Minotaurus", Lumbermill: "EXP Generator", "Skeleton Grunt": "Skeleton Berserker", "Draenai Marauder": "Scaleworm", "Siege Golem": "Iron Golem", Abomination: "Zombie Ogre", "Demon Hunter": "Demon Knight", Faceless: "Dark Monk", Spellbreaker: "Witch Hunter", "Void Walker": "Banshee" }); // v0.23a: Boar Scout → Boar; v0.23c: Horse → Boar; v0.23d: tier 1 is the Horse again, tier 2 stays Boar Scout
 const unitName = (short) => UNIT_NAMES[short] || short;
 const renameFull = (full) => {
   const short = full.replace(/^\[[^\]]+\]\s*/, "").replace(/\s*\[[^\]]+\]/g, "");
@@ -671,9 +673,16 @@ export const CREEP_TUNING = {
   n00U: { speed: 182.04 }, // v0.22n2: Imp 0.70 → 0.64 fields/s (game units before the arena's 45 %)
   n00X: { speed: 284.44 }, // v0.22n2: Centaur Warrior 1.01 → 1.00 fields/s
   n019: { cost: 2000, hp: 2100, income: 40 }, // v0.22o2: Shade 1200 → 2000 gold, hit points with it 1250 → 2100; v0.22p2: income 24 → 40
-  n01G: { name: "[34] Shieldbearer", shortName: "Shieldbearer" }, // v0.22o2: Spiritwalker → Shieldbearer (Divine Shield), art.js: shield knight
+  // v0.23zb: Shieldbearer → Siege Ogre: one per purchase (heavy) with double hit points and bounty, armor 3, no Divine Shield;
+  // plants a Siege Plank once (simulation.js SIEGE_OGRE)
+  n01G: { name: "[34] Siege Ogre", shortName: "Siege Ogre", count: 1, hp: 16000, armor: 3, bountyBase: 718, abilities: ["A08S", "A01A"] }, // v0.22o2: was Spiritwalker → Shieldbearer
   n00L: { speed: 375 }, // Wolf: 25 % faster, 300 → 375 (v0.08d)
   n00S: { speed: 420, stockRegen: 13, income: 8 }, // Raider: 25 % faster (v0.07b); restock 12 → 13 s (v0.17o); income 9 → 8 (v0.17q)
+  n012: { name: "[21] Giant Bat", shortName: "Giant Bat" }, // v0.23zq: the Zeppelin is the Giant Bat
+  n025: { name: "[52] Raven", shortName: "Raven" }, // v0.23zo: the Gryphon Rider is the Raven
+  n02Q: { name: "[59] Demon Lord", shortName: "Demon Lord" }, // v0.23zn: the Pit Lord creep is the Demon Lord (the Pit Lord tower keeps its name)
+  n02R: { cost: 150000, hp: 560000 }, // v0.23zm: Mountain Golem 100,000 → 150,000 gold, hit points +40 % (400,000 → 560,000)
+  n01T: { cost: 120000, hp: 108000 }, // v0.23zh: Infernal Golem 60,000 → 120,000 gold, hit points +200 % (36,000 → 108,000)
   n01H: { hp: 46200 }, // Meat Golem: hit points +10 %, 42000 → 46200 (v0.21y); v0.21z: no death spawns, denies its first death and rises enraged (simulation.js ENRAGED_GOLEM)
   n03A: { income: 45, hp: 4320 }, // v0.22zl: hit points +8 %, 4000 → 4320; // v0.21z: Naga Siren earns a low income (1800 gold: 2.5 %)
   n010: { hp: 1300 }, // Forest Troll: hit points −10 %, 1450 → 1300 (v0.16i: broke through 5–8× as often as other tier-2 creeps in self-play)

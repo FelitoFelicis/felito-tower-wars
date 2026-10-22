@@ -76,6 +76,13 @@ import {
   SUPERGROWTH,
   guardShieldHp,
   burstRadius,
+  FROSTBOLT, // v0.23w
+  INFESTED, // v0.23x
+  infestedDamage,
+  infestedCharges,
+  frostboltDamage,
+  frostboltSlowTime,
+  cloneChance,
   treasureGold,
   treasureIncome,
   burningTreant,
@@ -157,12 +164,13 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.23o",
+const APP_VERSION = "0.24",
+  APP_BRANCH = "F", // v0.23q: author marker (F = Felix, S = Steven) and branch text, shown behind the version; APP_VERSION stays plain for online matches (VersionPublishingRules.md)
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
-  APP_DATE = "21.10.2026";
+  APP_DATE = "22.10.2026";
 // v0.18: the version also stands in the page title (browser tab and the artifact window in chats)
 try {
-  document.title = `${currentDesign() === "original" ? "Felito" : "Circle"} Tower Wars · v${APP_VERSION}`; // design variants: the new looks are called Circle Tower Wars
+  document.title = `${currentDesign() === "original" ? "Felito" : "Circle"} Tower Wars · v${APP_VERSION}${APP_BRANCH}`; // design variants: the new looks are called Circle Tower Wars
 } catch {}
 const WAVES_PREF = "felito.waves";
 const COACH_PREF = "felito.coach.v1";
@@ -383,6 +391,8 @@ const NAME_PREF = "felito.playerName";
 const cleanName = (v) => String(v || "").replace(/[<>&"'`\u0000-\u001f]/g, "").replace(/\s+/g, " ").trim().slice(0, 16);
 let playerNameChoice = cleanName(pref(NAME_PREF, ""));
 const myName = () => playerNameChoice || t("You");
+/** v0.23u: gold as shown: whole coins, never "-1" for a rounding remainder like -0.000001 */
+const goldShown = (g) => Math.max(0, Math.floor((g || 0) + 1e-8));
 const COLOR_PREF = "felito.color";
 // v0.18a: colorPick is what the player picked ("random" = none: a free colour is drawn at the start
 // of every match); colorChoice is the colour actually played (online: the one the host assigned).
@@ -589,7 +599,7 @@ function renderEnemyStack(force = false) {
     cell.classList.toggle("target", q.id === target && !q.out);
     cell.classList.toggle("viewing", q.id === view);
     const lives = String(q.lives),
-      gold = q.out ? "–" : resourceNumber(Math.floor(q.gold)),
+      gold = q.out ? "–" : resourceNumber(goldShown(q.gold)),
       inc = q.out ? "" : "+" + resourceNumber(Math.floor(q.income));
     if (cell.querySelector(".ec-lives b").textContent !== lives) cell.querySelector(".ec-lives b").textContent = lives;
     const lvl = String(q.level || 1);
@@ -654,7 +664,7 @@ function renderTeamStack(stack, colors, force) {
   for (const cell of [...stack.querySelectorAll(".team-cell"), ...(allyStack?.querySelectorAll(".team-cell") || [])]) {
     const v = teamValues(Number(cell.dataset.team)),
       lives = String(v.lives),
-      gold = v.out ? "–" : resourceNumber(Math.floor(v.gold)),
+      gold = v.out ? "–" : resourceNumber(goldShown(v.gold)),
       inc = v.out ? "" : "+" + resourceNumber(Math.floor(v.income));
     cell.classList.toggle("out", v.out);
     if (cell.querySelector(".ec-lives b").textContent !== lives) cell.querySelector(".ec-lives b").textContent = lives;
@@ -677,7 +687,7 @@ function teamTip(team) {
     html:
       `<div class="tip-head"><b>${esc(v.list.map((q) => playerLabel(q)).join(", "))}</b>${v.out ? `<span class="tip-level">${esc(t("out"))}</span>` : ""}</div>` +
       row(t("Lives"), String(v.lives)) +
-      row(t("Gold"), v.out ? "–" : resourceNumber(Math.floor(v.gold))) +
+      row(t("Gold"), v.out ? "–" : resourceNumber(goldShown(v.gold))) +
       row(t("Income"), v.out ? "–" : "+" + resourceNumber(Math.floor(v.income)), " tip-inc"),
   };
 }
@@ -746,6 +756,8 @@ function refreshBurst(p, slot) {
 // ---- v0.12: Pillar of Fire (aimed), Arcane Golem and Monsun (at once) -----------------
 const ABILITIES = [
   { id: "pillar", ready: "pillarReady", cooldown: () => PILLAR.cooldown, name: "Pillar of Fire", aim: true, cls: "pillar-button", tip: "Tap your field where the pillar of fire should rise.", help: "Pillar of Fire: tap it, then tap your field. A pillar of fire burns that area (cooldown 75 s)." },
+  { id: "frostbolt", ready: "frostboltReady", cooldown: () => FROSTBOLT.cooldown, name: "Frost Bolt", aim: true, cls: "frostbolt-button", tip: "Tap your field where the frost bolt should strike.", help: "Frost Bolt: tap it, then tap your field. A frost bolt hits that area and slows the creeps (cooldown 40 s)." }, // v0.23w
+  { id: "infested", ready: "infestedReady", cooldown: () => INFESTED.cooldown, name: "Infested Ground", aim: true, cls: "infested-button", tip: "Tap a field of your board to infest it.", help: "Infested Ground: tap it, then tap a field of your board. The field strikes creeps walking over it (cooldown 45 s)." }, // v0.23x
   { id: "agolem", ready: "golemReady", cooldown: () => AGOLEM.cooldown, name: "Arcane Golem", cls: "golem-button", help: "Arcane Golem: a golem walks your path upwards and knocks creeps back, then runs on into the next lane (cooldown 50 s)." },
   { id: "monsun", ready: "monsunReady", cooldown: () => MONSUN.cooldown, name: "Monsun", cls: "monsun-button", help: "Monsun: storm winds push the creeps in your field back while lightning strikes flyers (cooldown 40 s)." },
 ];
@@ -809,7 +821,7 @@ function refreshAbilities(p) {
 // ---- v0.17k: one list for all ability buttons ---------------------------------------------
 // Order is the player's (drag an ability onto another to swap their places); drag an ability onto
 // the board to use it there; in the zoomed mobile layout the ones that do not fit go into a book.
-const ABILITY_IDS = ["volley", "burst", "pillar", "agolem", "monsun"],
+const ABILITY_IDS = ["volley", "burst", "pillar", "frostbolt", "infested", "agolem", "monsun"], // v0.23w: Frost Bolt
   ABILITY_ORDER_PREF = "felito.abilityOrder",
   BOOK_SVG = `<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="bk" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b0532f"/><stop offset="1" stop-color="#5a1f12"/></linearGradient><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff2a8"/><stop offset=".5" stop-color="#e3a72c"/><stop offset="1" stop-color="#8a5a10"/></linearGradient></defs><path d="M10 14q0-5 5-5h37v42H16q-6 0-6 5z" fill="url(#bk)" stroke="#2a0d06" stroke-width="2.5"/><path d="M10 56q0-5 6-5h36v6H16q-6 0-6-1z" fill="#f3e6c4" stroke="#2a0d06" stroke-width="2"/><path d="M15 9v42" stroke="#3a1208" stroke-width="2"/><path d="M47 9v42" stroke="url(#bg)" stroke-width="4"/><circle cx="32" cy="29" r="9" fill="url(#bg)" stroke="#2a0d06" stroke-width="2"/><path d="M32 22l2.4 4.8 5.2.8-3.8 3.7.9 5.2-4.7-2.5-4.7 2.5.9-5.2-3.8-3.7 5.2-.8z" fill="#7a2cd9" stroke="#2a0d06" stroke-width="1"/><circle cx="29.5" cy="26.5" r="1.6" fill="#fff" opacity=".85"/><path d="M20 15h22" stroke="#e7b84a" stroke-width="1.5" opacity=".7"/></svg>`;
 let abilityOrder = (() => {
@@ -1476,7 +1488,7 @@ const REWORK_HINT = {
 };
 
 // The original names, except for the creeps and buildings renamed in this port.
-const namesEn = { Peon: "Goblin", "Chaos Peon": "Imp", Lumbermill: "EXP Generator", "Skeleton Grunt": "Skeleton Berserker", "Draenai Marauder": "Arcane Marauder" }; // v0.21h: two renames; v0.23d: Horse and Boar Scout keep their names
+const namesEn = { Peon: "Goblin", "Chaos Peon": "Trenchlin", Akolyte: "Goblin Zealot", Dragonspawn: "Crystal Lizard", "Frost Wyrm": "Bone Dragon", "Lord Garithos": "Dark Knight", "Witch Doctor": "Undoctor", "Centaur Warrior": "Satyr", "Forest Troll": "Centaur", "Grom Hellscream": "Bandit Leader", "Fel Raider": "Rouge Knight", Horse: "Pony", "Cairne Bloodhoof": "Minotaurus", Lumbermill: "EXP Generator", "Skeleton Grunt": "Skeleton Berserker", "Draenai Marauder": "Scaleworm", "Siege Golem": "Iron Golem", Abomination: "Zombie Ogre", "Demon Hunter": "Demon Knight", Faceless: "Dark Monk", Spellbreaker: "Witch Hunter", "Void Walker": "Banshee" }; // v0.21h: two renames; v0.23d: Horse and Boar Scout keep their names
 function itemName(item) {
   if (researchCopy[item?.id]) return t(researchCopy[item.id][0]);
   if (item?.id === "n00Y" && game && burningTreant(game.players[own])) return t("Burning Treant"); // v0.10w
@@ -1969,7 +1981,7 @@ function playerTip(q) {
     html:
       `<div class="tip-head"><b>${esc(playerLabel(q))}</b>${q.out ? `<span class="tip-level">${esc(t("out"))}</span>` : ""}</div>` +
       row(t("Lives"), String(q.lives)) +
-      row(t("Gold"), q.out ? "–" : resourceNumber(Math.floor(q.gold))) +
+      row(t("Gold"), q.out ? "–" : resourceNumber(goldShown(q.gold))) +
       row(t("Income"), q.out ? "–" : "+" + resourceNumber(Math.floor(q.income)), " tip-inc") +
       row(t("Level"), String(q.level || 1)) +
       row(t("Tier"), String(q.tier || 1)) + // v0.22u2
@@ -1997,6 +2009,8 @@ function abilityTip(id) {
       volley: () => ["Arrows rain on an area", [["Damage", `${format(VOLLEY.bonus + getStats(game, own, "h003").damage)} per arrow`], ["Arrows", `${VOLLEY.perLevel * lv} + ${VOLLEY.perTower} per Archer-Line tower`], ["Radius", fields(VOLLEY.radius)], ["Cooldown", `${volleyCd(lv)} s`]]],
       burst: () => ["Deals damage split among creeps in a radius", [["Damage", format(burstDamage(p, lv))], ["Radius", fields(burstRadius(lv))], ["Cooldown", `${format(abilityCd(p, BURST.cooldown))} s`]]], // v0.23: Sanction Policy's −15 % included
       pillar: () => [`A pillar of fire burns an area for ${PILLAR.duration} s, up to 75% more in its centre`, [["Damage", `${format(pillarDamage(p, lv))} every ${PILLAR.interval} s`], ["Radius", fields(PILLAR.radius)], ["Cooldown", `${format(abilityCd(p, PILLAR.cooldown))} s`]]], // v0.23
+      frostbolt: () => ["A frost bolt hits every creep in an area and slows them by 50%", [["Damage", format(frostboltDamage(p, lv))], ["Slow", `50% for ${frostboltSlowTime(lv)} s`], ["Radius", fields(FROSTBOLT.radius)], ["Cooldown", `${format(abilityCd(p, FROSTBOLT.cooldown))} s`]]], // v0.23w
+      infested: () => [`A field of your board becomes infested ground: every ${INFESTED.every} s it strikes one ground creep on it and slows it for 1 s. At most ${INFESTED.max} fields`, [["Damage", format(infestedDamage(p, lv))], ["Strikes", String(infestedCharges(lv))], ["Cooldown", `${format(abilityCd(p, INFESTED.cooldown))} s`]]], // v0.23x
       agolem: () => {
         const hp = golemHp(p, lv);
         return ["A golem walks your path upwards, knocks creeps back, then moves on to the next lane", [["Damage", `${format(hp * AGOLEM.loss[i] * AGOLEM.damage)} per hit`], ["Radius", fields(AGOLEM.reach)], ["Golem life", format(hp)], ["Cooldown", `${format(abilityCd(p, AGOLEM.cooldown))} s`]]]; // v0.23
@@ -2013,7 +2027,7 @@ function abilityTip(id) {
   };
 }
 function helpText(el) {
-  const abilityId = /^(volley|burst|pillar|agolem|monsun)-button$/.exec(el.id || "")?.[1];
+  const abilityId = /^(volley|burst|pillar|frostbolt|infested|agolem|monsun)-button$/.exec(el.id || "")?.[1];
   if (abilityId && game) return abilityTip(abilityId) || ""; // v0.17q: no use instructions, only the values
   // v0.18b: enemy info windows (4+ players: one cell per enemy; duel: the enemy plate)
   if (game && begun && el.dataset.seat !== undefined && el.classList.contains("enemy-cell")) return playerTip(game.players[Number(el.dataset.seat)]);
@@ -2231,20 +2245,38 @@ applyStaticTexts();
 /** v0.19d2: a player name in a notification, shown in that player's colour (see toast). */
 const nameTag = (name, css) => "\u0001" + (css || "#ffffff") + "\u0002" + name + "\u0003";
 const seatTag = (i) => nameTag(seatName(i), TEAM_COLORS[seatColors()[i]]?.css);
-function toast(message, kind = "", force = false) {
+function toast(message, kind = "", force = false, tip = false) {
   if (!popNotes && !force) return; // v0.13: notifications can be hidden (Options › Graphic)
   const el = $("toast"),
     text = t(message); // literal German messages and simulation reasons translate here
   if (text.includes("\u0001")) el.innerHTML = esc(text).replace(/\u0001([^\u0002]*)\u0002([^\u0003]*)\u0003/g, (_, css, name) => `<b class="toast-name" style="color:${css}">${name}</b>`);
   else el.textContent = text;
+  if (tip) el.insertAdjacentHTML("beforeend", tipToggleHtml()); // v0.23zh: tips carry a small "Tips" checkbox to switch them off
+  el.classList.toggle("tip", tip);
   el.dataset.kind = kind;
   el.classList.remove("show");
   placeToast(el);
   void el.offsetWidth;
   el.classList.add("show");
   clearTimeout(toastTimeout);
-  toastTimeout = setTimeout(() => el.classList.remove("show"), 2200);
+  toastTimeout = setTimeout(() => el.classList.remove("show"), tip ? 3600 : 2200);
 }
+/** v0.23zh: the "Tips" checkbox inside tips (bottom banner and coach box); unticking switches tips off. */
+const tipToggleHtml = () => `<label class="tip-toggle"><input type="checkbox" data-tips-toggle checked><span>${esc(t("Tips"))}</span></label>`;
+function setTips(on) {
+  tipsEnabled = on;
+  savePref(TIPS_PREF, tipsEnabled);
+  if (!tipsEnabled) {
+    $("coach").hidden = true;
+    $("toast").classList.remove("show");
+  }
+}
+document.addEventListener("change", (e) => {
+  if (!e.target.matches?.("[data-tips-toggle]")) return;
+  setTips(e.target.checked);
+  tone("tap");
+  if (!tipsEnabled) toast(t("Tips off (Options › Gameplay)."), "", true);
+});
 /** v0.16i: the bottom banner always sits on the bottom edge of the playing field, not over its lower third. */
 function placeToast(el = $("toast")) {
   const z = arena?.geometry?.(),
@@ -2261,7 +2293,7 @@ function placeToast(el = $("toast")) {
 }
 /** Minor hints go to the bottom banner only while tips are switched on (v0.09). */
 function note(message, kind = "") {
-  if (tipsEnabled) toast(message, kind);
+  if (tipsEnabled) toast(message, kind, false, true);
 }
 let lastToneAt = 0;
 function tone(name = "tap") {
@@ -2388,6 +2420,7 @@ function networkState() {
     ...rest,
     commands: [],
     pendingSpawns: [],
+    sendQueue: [], // v0.23p: the host spawns them; guests only draw
     events: fresh,
     effects: [],
     players: game.players.map(({ aiPersona, aiMaze, ...p }) => ({
@@ -2597,7 +2630,7 @@ function welcome() {
   }
   const saved = unusableSave ? null : localStorage.getItem(SAVE);
   showModal(
-    `<div class="welcome-eyes" aria-hidden="true"></div><div class="welcome-mood mood-easy" aria-hidden="true"></div><div class="welcome-mood mood-hard" aria-hidden="true"></div><div class="welcome-mood mood-hard-glow" aria-hidden="true"></div><div class="welcome-art" aria-hidden="true"></div><button class="welcome-options" id="welcome-options" type="button" aria-label="${t("Options")}"><img src="${iconUrl("gear")}" alt=""></button><button class="welcome-options welcome-mute" id="welcome-mute" type="button" aria-pressed="${muted}" aria-label="${t(muted ? "Sound off" : "Sound on")}">${speakerSvg(muted)}</button><span class="app-version">v${APP_VERSION} · ${APP_DATE}${APP_NOTE ? `<small class="app-version-note">${esc(APP_NOTE)}</small>` : ""}</span><img class="welcome-logo" src="${logoUrl()}" alt="${gameName()}">${castMarkup()}<div class="welcome-panel" id="welcome-panel" data-view="home"><div class="welcome-home"><span class="modal-label">${t("Your color")}: <b id="color-name">${colorLabel()}</b></span><div class="color-picker" role="radiogroup" aria-label="${t("Your color")}">${Object.entries(TEAM_COLORS).map(([id, c]) => `<button role="radio" data-color="${id}" aria-checked="${id === colorPick}" aria-label="${t(c.name)}" title="${t(c.name)}" class="${id === colorPick ? "active" : ""}" style="--c:${c.css}"></button>`).join("")}</div><div class="welcome-modes"><button class="primary-button big welcome-mode" data-open="ai">${t("Training")}</button><button class="primary-button big welcome-mode alt" data-open="player"><span class="keep-case">${t("PvP")}</span></button></div></div><section class="welcome-group" data-sub="ai" aria-label="${t("Training")}"><h3 class="welcome-group-title"><button class="welcome-back" type="button" data-back aria-label="${t("Back")}">${t("Back")}</button>${t("Training")}</h3><div class="segmented ai-levels${hardoUnlocked ? " hardo-mode" : ""}" role="radiogroup" aria-label="${t("Difficulty")}">${Object.entries(AI_NAMES).map(([id, name]) => `<button role="radio" data-ai="${id}" aria-checked="${id === aiChoice}" class="${id === aiChoice ? "active" : ""}${id === "insane" ? " hardo-level" : hardoUnlocked ? " hardo-gone" : ""}"${id === "insane" && !hardoUnlocked ? " hidden" : ""}${id !== "insane" && hardoUnlocked ? " disabled" : ""}>${t(name)}</button>`).join("")}<button type="button" class="ai-mixed${aiMixed ? " active" : ""}${hardoUnlocked ? " hardo-gone" : ""}" id="ai-mixed" aria-pressed="${aiMixed}"${hardoUnlocked ? " disabled" : ""} title="${t("Shuffles AI enemies of different difficulties into the match, up to the chosen one")}">${t("Mixed")}</button></div>${hardoUnlocked ? hardoNoteHtml() : ""}<div class="welcome-inline"><span class="modal-label">${t("Neutral waves")}</span><div class="segmented" role="radiogroup" aria-label="${t("Neutral waves")}">${[["on", "On"], ["off", "Off"]].map(([id, name]) => `<button role="radio" data-waves="${id}" aria-checked="${(id === "on") === wavesOn}" class="${(id === "on") === wavesOn ? "active" : ""}">${t(name)}</button>`).join("")}</div></div><span class="modal-label">${t("Number of AI enemies")}</span><div class="segmented ai-count" role="radiogroup" aria-label="${t("Number of AI enemies")}">${hardoUnlocked ? hardoJustHtml() : AI_COUNTS.map((n) => `<button role="radio" data-aicount="${n}" aria-checked="${n === aiCount}" class="${n === aiCount ? "active" : ""}">${n}</button>`).join("")}</div><button class="primary-button big" id="start-training">${t("Start")}</button><button class="secondary-button big campaign-open" id="start-campaign">${t("Campaign")} · ${campaignDone().size}/${MISSIONS.length}</button></section><section class="welcome-group" data-sub="player" aria-label="${t("PvP")}"><h3 class="welcome-group-title"><button class="welcome-back" type="button" data-back aria-label="${t("Back")}">${t("Back")}</button><span class="keep-case">${t("PvP")}</span></h3><label class="modal-label name-label pvp-name" for="player-name">${t("Player name")}</label><div class="name-row"><input id="player-name" class="name-input" maxlength="16" autocomplete="nickname" spellcheck="false" placeholder="${t("Your name")}" value="${esc(playerNameChoice)}"><button type="button" class="icon-pick" id="icon-pick" aria-label="${t("Choose your player icon")}" style="--pc:${iconColor()}"><img src="${iconSrc(iconChoice)}" alt=""></button></div><div class="welcome-row pvp-row"><button class="primary-button" id="start-quick">${t("Quick Match")}</button><button class="secondary-button" id="start-online">${t("Play a friend")}</button><button class="secondary-button rank-button" id="start-ranked" title="${t("1v1 · rated")}">${t("Ranked match")}<small>${t(leagueOf(readRating().r))} · ${readRating().r}</small></button></div></section></div>`,
+    `<div class="welcome-eyes" aria-hidden="true"></div><div class="welcome-mood mood-easy" aria-hidden="true"></div><div class="welcome-mood mood-hard" aria-hidden="true"></div><div class="welcome-mood mood-hard-glow" aria-hidden="true"></div><div class="welcome-art" aria-hidden="true"></div><button class="welcome-options" id="welcome-options" type="button" aria-label="${t("Options")}"><img src="${iconUrl("gear")}" alt=""></button><button class="welcome-options welcome-mute" id="welcome-mute" type="button" aria-pressed="${muted}" aria-label="${t(muted ? "Sound off" : "Sound on")}">${speakerSvg(muted)}</button><span class="app-version">v${APP_VERSION}${APP_BRANCH} · ${APP_DATE}${APP_NOTE ? `<small class="app-version-note">${esc(APP_NOTE)}</small>` : ""}</span><img class="welcome-logo" src="${logoUrl()}" alt="${gameName()}">${castMarkup()}<div class="welcome-panel" id="welcome-panel" data-view="home"><div class="welcome-home"><span class="modal-label">${t("Your color")}: <b id="color-name">${colorLabel()}</b></span><div class="color-picker" role="radiogroup" aria-label="${t("Your color")}">${Object.entries(TEAM_COLORS).map(([id, c]) => `<button role="radio" data-color="${id}" aria-checked="${id === colorPick}" aria-label="${t(c.name)}" title="${t(c.name)}" class="${id === colorPick ? "active" : ""}" style="--c:${c.css}"></button>`).join("")}</div><div class="welcome-modes"><button class="primary-button big welcome-mode" data-open="ai">${t("Training")}</button><button class="primary-button big welcome-mode alt" data-open="player"><span class="keep-case">${t("PvP")}</span></button></div></div><section class="welcome-group" data-sub="ai" aria-label="${t("Training")}"><h3 class="welcome-group-title"><button class="welcome-back" type="button" data-back aria-label="${t("Back")}">${t("Back")}</button>${t("Training")}</h3><div class="segmented ai-levels${hardoUnlocked ? " hardo-mode" : ""}" role="radiogroup" aria-label="${t("Difficulty")}">${Object.entries(AI_NAMES).map(([id, name]) => `<button role="radio" data-ai="${id}" aria-checked="${id === aiChoice}" class="${id === aiChoice ? "active" : ""}${id === "insane" ? " hardo-level" : hardoUnlocked ? " hardo-gone" : ""}"${id === "insane" && !hardoUnlocked ? " hidden" : ""}${id !== "insane" && hardoUnlocked ? " disabled" : ""}>${t(name)}</button>`).join("")}<button type="button" class="ai-mixed${aiMixed ? " active" : ""}${hardoUnlocked ? " hardo-gone" : ""}" id="ai-mixed" aria-pressed="${aiMixed}"${hardoUnlocked ? " disabled" : ""} title="${t("Shuffles AI enemies of different difficulties into the match, up to the chosen one")}">${t("Mixed")}</button></div>${hardoUnlocked ? hardoNoteHtml() : ""}<div class="welcome-inline"><span class="modal-label">${t("Neutral waves")}</span><div class="segmented" role="radiogroup" aria-label="${t("Neutral waves")}">${[["on", "On"], ["off", "Off"]].map(([id, name]) => `<button role="radio" data-waves="${id}" aria-checked="${(id === "on") === wavesOn}" class="${(id === "on") === wavesOn ? "active" : ""}">${t(name)}</button>`).join("")}</div></div><span class="modal-label">${t("Number of AI enemies")}</span><div class="segmented ai-count" role="radiogroup" aria-label="${t("Number of AI enemies")}">${hardoUnlocked ? hardoJustHtml() : AI_COUNTS.map((n) => `<button role="radio" data-aicount="${n}" aria-checked="${n === aiCount}" class="${n === aiCount ? "active" : ""}">${n}</button>`).join("")}</div><button class="primary-button big" id="start-training">${t("Start")}</button><button class="secondary-button big campaign-open" id="start-campaign">${t("Campaign")} · ${campaignDone().size}/${MISSIONS.length}</button></section><section class="welcome-group" data-sub="player" aria-label="${t("PvP")}"><h3 class="welcome-group-title"><button class="welcome-back" type="button" data-back aria-label="${t("Back")}">${t("Back")}</button><span class="keep-case">${t("PvP")}</span></h3><label class="modal-label name-label pvp-name" for="player-name">${t("Player name")}</label><div class="name-row"><input id="player-name" class="name-input" maxlength="16" autocomplete="nickname" spellcheck="false" placeholder="${t("Your name")}" value="${esc(playerNameChoice)}"><button type="button" class="icon-pick" id="icon-pick" aria-label="${t("Choose your player icon")}" style="--pc:${iconColor()}"><img src="${iconSrc(iconChoice)}" alt=""></button></div><div class="welcome-row pvp-row"><button class="primary-button" id="start-quick">${t("Quick Match")}</button><button class="secondary-button" id="start-online">${t("Play a friend")}</button><button class="secondary-button rank-button" id="start-ranked" title="${t("1v1 · rated")}">${t("Ranked match")}<small>${t(leagueOf(readRating().r))} · ${readRating().r}</small></button></div></section></div>`,
     { pauseGame: false, welcome: true },
   );
   $("modal-body")
@@ -3409,6 +3442,7 @@ function startLocal({ hotseat = false, ffa = false, seats = 4, mission = null } 
   });
   if (!hotseat) game.players[0].icon = iconChoice === "hardo" && hardoGame() ? "player" : iconChoice; // v0.19c1; v0.22za2: never Hardo's own icon against Hardo
   game.training = !hotseat && !mission; // v0.19d2: smaller sell penalty against very easy / easy bots
+  if (game.training && /^felito$/i.test(playerNameChoice || "")) game.incomeRemaining = Math.min(game.incomeRemaining, 1); // v0.23u: Felito's training matches: 1 s warm up
   presenceState("pve");
   rollColor(); // v0.18a: picked colour or a random one
   applyColors();
@@ -3846,6 +3880,7 @@ function renderCards() {
   // v0.22n2: tiers with 10 creeps (two removed) get 5 slightly larger cards per row
   const tierSize = tab === "send" ? catalog.sends.filter((x) => x.playable && x.tier === game.players[own].tier).length : 0;
   $("cards").classList.toggle("five", tab === "send" && tierSize > 0 && tierSize <= 10);
+  $("cards").classList.toggle("grid-build", tab === "build"); // v0.23zi: the build deck is laid out like the send deck (5 per row)
   deckSignature = deckSig();
   $("cards").innerHTML =
     (list.map(cardMarkup).join("") || `<div class="empty-deck">${t("All available upgrades researched.")}</div>`);
@@ -3951,7 +3986,7 @@ function selectCard(id) {
     const a = available(game, own, "build", id);
     // v0.09n: missing gold shows at the placement preview, no extra banner
     if (!drag && !a.ok && !isPoor(a)) toast(a.reason);
-    else if (!drag && tipsEnabled) toast(t("{name} · tap a field or drag the card onto the board", { name: itemName(item) }));
+    else if (!drag && tipsEnabled) toast(t("{name} · tap a field or drag the card onto the board", { name: itemName(item) }), "", false, true);
   } else if (tab === "send") {
     lastSendCards[own] = id;
     dispatch({ type: "send", id });
@@ -3988,6 +4023,9 @@ const PERK_ART = {
   hellfire: () => elPerkArt("hellfire"),
   fireblock: () => elPerkArt("fireblock"),
   burst: () => elPerkArt("burst"),
+  frostbolt: () => uiArt("assets/art/perks/frostbolt.webp?v=v023w"), // v0.23w: icy bolt
+  infested: () => uiArt("assets/art/perks/infested.webp?v=v023x"), // v0.23x: scarred field with green glowing acid
+  clones: () => uiArt("assets/art/perks/clones.webp?v=v023w"), // v0.23w: a goblin and its arcane clone
   pocks: () => elPerkArt("pocks"),
   treasure: () => uiArt("assets/art/perk-treasure.webp?v=v022q2"), // v0.22q2: treasure chest
   voltage: () => elPerkArt("voltage"),
@@ -4100,8 +4138,8 @@ const perkVars = (level, q, lv, next) => {
     medInc: pctOf(HEALING.income * lv),
     melee: pctOf(MELEE_PROTOCOL * lv),
     autoloader: num(AUTOLOADER * 100 * lv, { maximumFractionDigits: 1 }) + "%", // v0.22g1
-    lone: pctOf(loneSpeed(Math.min(4, lv))), // v0.22g1: 75 / 125 / 150 / 166 %
-    loneTowers: loneTowers(Math.min(4, lv)),
+    lone: pctOf(loneSpeed(Math.min(5, lv))), // v0.23v: 75 / 100 / 120 / 133 / 150 % (v0.22g1: 4 levels)
+    loneTowers: loneTowers(Math.min(5, lv)),
     heavy: pctOf(HEAVY_WEAPONS * lv),
     bank: pctOf(BANK.rate * lv),
     frenzy: pctOf(FRENZY * lv),
@@ -4119,6 +4157,13 @@ const perkVars = (level, q, lv, next) => {
     // v0.16g: values of the current (or offered) level instead of "a / b / c" lists
     hellfire: format(Math.round(hellfireDps(q, lv) * hellfireRound(game?.round || 0))), // v0.21n: the value of this round
     burst: format(burstDamage(q, lv)),
+    frostbolt: format(frostboltDamage(q, lv)), // v0.23w
+    frostboltSlow: frostboltSlowTime(lv),
+    infested: format(infestedDamage(q, lv)), // v0.23x
+    infestedEvery: format(INFESTED.every),
+    infestedCharges: infestedCharges(lv),
+    clones: pct(cloneChance(lv)), // v0.23w: 15 % … 60 %
+    clonesExtra: lv >= 6 ? ", heavy and boss creeps too" : lv >= 3 ? ", heavy creeps too" : "",
     boots: num(BOOTS.slow[Math.min(BOOTS.slow.length, lv) - 1] * 100, { maximumFractionDigits: 1 }) + "%", // v0.22: 25 / 35 / 45 / 52.5 / 60 %
     bootsInc: num(BOOTS.income * Math.min(BOOTS.slow.length, lv) * 100, { maximumFractionDigits: 1 }) + "%",
     exhume: pct(EXHUME.discount[l3]),
@@ -4168,7 +4213,7 @@ const perkVars = (level, q, lv, next) => {
 };
 /** v0.19l: cooldown of an active-ability perk ("45 s"), shown in its own line instead of inside the text. */
 const PERK_CD = { volley: (q, next) => volleyCd((q?.perks?.volley || 0) + (next ? 1 : 0) || 1), // v0.21c: 1 s less per level
-  burst: () => BURST.cooldown, pillar: () => PILLAR.cooldown, agolem: () => AGOLEM.cooldown, monsun: () => MONSUN.cooldown };
+  burst: () => BURST.cooldown, pillar: () => PILLAR.cooldown, frostbolt: () => FROSTBOLT.cooldown, infested: () => INFESTED.cooldown, agolem: () => AGOLEM.cooldown, monsun: () => MONSUN.cooldown };
 const perkCd = (id, q = game?.players[own], next = false) => {
   if (!PERK_CD[id]) return "";
   const s = format(abilityCd(q, PERK_CD[id](q, next))),
@@ -4231,7 +4276,7 @@ function questText(id) {
   if (q.kind === "untouchable") return t("No breach for {a}–{b} rounds. Reward: EXP and 2 rewards", { a: UNTOUCHABLE.min, b: UNTOUCHABLE.max });
   if (q.kind === "contract")
     return contractText(q); // v0.19d2: Blood Contract restocks faster instead of a discount, EXP by round
-  return t("Kill {n} waves of {creeps}. Reward: {exp} EXP, {pair} cost {d} less", { n: BANTER.waves, creeps: t(q.plural), exp: BANTER.exp, pair: t(q.pair), d: share(q.discount ?? BANTER.discount) });
+  return t("Kill {n} waves of {creeps}. Reward: {exp} EXP, {pair} cost {d} less", { n: BANTER.waves, creeps: t(q.plural), exp: q.exp ?? BANTER.exp, pair: t(q.pair), d: share(q.discount ?? BANTER.discount) });
 }
 /** Progress of the running quest, for its tile. */
 function questProgress(p) {
@@ -4562,17 +4607,17 @@ function refreshUI() {
     shownRival = enemy.id;
     applyColors();
   }
-  setText($("gold"), resourceNumber(Math.floor(p.gold)));
-  setProp($("gold"), "title", format(Math.floor(p.gold)) + " Gold");
+  setText($("gold"), resourceNumber(goldShown(p.gold)));
+  setProp($("gold"), "title", format(goldShown(p.gold)) + " Gold");
   setText($("income"), "+" + resourceNumber(p.income + (p.incomeDecimal || 0) / 100));
   setProp($("income"), "title", t("+{n} income", { n: format(p.income + (p.incomeDecimal || 0) / 100) }));
   bumpNumber("own-lives", p.lives);
   // whole numbers only (v0.07j); v0.20: in team games what the player gets each round from the shared team income
   const incomeOf = (pl) => "+" + resourceNumber(Math.floor(!game.teams ? pl.income : game.teams.gold === "shared" ? teamIncome(game, pl) : teamIncome(game, pl) / Math.max(1, teamMates(game, pl).length)));
   setText($("gold-income"), incomeOf(p));
-  setText($("own-gold"), resourceNumber(Math.floor(p.gold)));
+  setText($("own-gold"), resourceNumber(goldShown(p.gold)));
   setText($("own-income"), incomeOf(p));
-  setText($("rival-gold"), resourceNumber(Math.floor(enemy.gold)));
+  setText($("rival-gold"), resourceNumber(goldShown(enemy.gold)));
   setText($("rival-income"), incomeOf(enemy));
   for (const [prefix, pl] of [["own", p], ["rival", enemy]]) {
     setStyle($(prefix + "-exp"), "width", `${Math.min(100, (100 * pl.exp) / Math.max(1, pl.expNext))}%`); // v0.21l: only on change
@@ -5147,7 +5192,7 @@ function updateNudge(p) {
   if (on) tabButton.classList.remove("nudge");
   if (idle && tipsEnabled && nudgeShown < 2 && sinceAction > 25 + nudgeShown * 60) {
     nudgeShown++;
-    toast("Gold to spare? Send creeps – it raises your income for good.");
+    toast("Gold to spare? Send creeps – it raises your income for good.", "", false, true);
   }
 }
 
@@ -5180,7 +5225,7 @@ function coach(key) {
   coachSeen.add(key);
   savePref(COACH_PREF, JSON.stringify([...coachSeen]));
   const box = $("coach");
-  box.innerHTML = `<div><b>${esc(t(step.title))}</b><p>${t(step.text)}</p></div><button type="button" id="coach-ok">OK</button>`;
+  box.innerHTML = `<div><b>${esc(t(step.title))}</b><p>${t(step.text)}</p>${tipToggleHtml()}</div><button type="button" id="coach-ok">OK</button>`;
   box.hidden = false;
   box.classList.remove("show");
   void box.offsetWidth;
@@ -5337,7 +5382,7 @@ function techTree(kind) {
     node = (item, ref = false) => {
       const el = elColor(item),
         price = item.kind === "research" ? "" : format(item.cost || 0);
-      return `<button class="tt-node${ref ? " tt-ref" : ""}${el ? " tt-el" : ""}" type="button" data-card="${item.id}"${el ? ` style="--el:${el}"` : ""}>${item.kind === "send" && item.bossTier ? `<span class="tt-boss-art"><img src="${towerArtUrl(artFor(item))}" alt=""><span class="frame-boss" aria-hidden="true"></span></span>` : `<img src="${item.kind === "research" ? researchArt(item) : towerArtUrl(artFor(item))}" alt="">`}<b>${esc(itemName(item))}</b>${item.level > 1 && item.kind !== "send" && item.kind !== "research" ? `<i>Lv ${item.level}</i>` : ""}${price ? `<small><img src="${iconUrl("coin")}" alt="">${price}</small>` : ""}</button>`;
+      return `<button class="tt-node${ref ? " tt-ref" : ""}${el ? " tt-el" : ""}${item.kind === "send" && item.flying && !item.bossTier ? " tt-air" : ""}${item.kind === "send" && item.bossTier ? ` tt-boss tt-boss-${Math.max(1, Math.min(5, item.tier || 1))}` : ""}" type="button" data-card="${item.id}"${el ? ` style="--el:${el}"` : ""}>${item.kind === "send" && item.bossTier ? `<span class="frame-boss" aria-hidden="true"></span>` : ""}<img src="${item.kind === "research" ? researchArt(item) : towerArtUrl(artFor(item))}" alt=""><b>${esc(itemName(item))}</b>${item.level > 1 && item.kind !== "send" && item.kind !== "research" ? `<i>Lv ${item.level}</i>` : ""}${price ? `<small><img src="${iconUrl("coin")}" alt="">${price}</small>` : ""}</button>`;
     },
     arrow = '<span class="tt-arrow" aria-hidden="true">›</span>';
   if (kind === "tower") {
@@ -5393,7 +5438,7 @@ function techTree(kind) {
 /** v0.17b: the Upgrades tab lists only research a player can pick at a level-up (elements have their own section under Perks). */
 const bookResearch = () => catalog.research.filter((r) => r.playable && !RESEARCH_PERKS[r.id] && !catalog.factions.some((f) => f.research === r.id || f.unlock === r.id)); // v0.21: the upgrades are perks now
 // ---- v0.17b: perks, active abilities, powerups, quests and elements in the card book ----------
-const ACTIVE_PERKS = new Set(["volley", "burst", "pillar", "agolem", "monsun"]);
+const ACTIVE_PERKS = new Set(["volley", "burst", "pillar", "frostbolt", "infested", "agolem", "monsun"]); // v0.23w: Frost Bolt
 /**
  * v0.19a1: the Perks tab is sorted by element: Neutral first, then one section per element (with the
  * element frame), Quests last. Inside a section: the element itself, perks, active abilities, powerups.
@@ -5861,9 +5906,7 @@ function gameplayModal(back) {
   );
   $("sub-back").onclick = back;
   $("menu-tips").onclick = () => {
-    tipsEnabled = !tipsEnabled;
-    savePref(TIPS_PREF, tipsEnabled);
-    if (!tipsEnabled) $("coach").hidden = true;
+    setTips(!tipsEnabled);
     $("menu-tips").textContent = `${t("Tips")}: ${onOff(tipsEnabled)}`;
   };
   $("menu-preview").onclick = () => {
@@ -6381,7 +6424,7 @@ function receiveNetwork(message, r, peerId) {
       message.kind === "command" &&
       begun &&
       message.command &&
-      ["build", "send", "upgrade", "sell", "autoSend", "autoHold", "pick", "surrender", "volley", "burst", "pillar", "agolem", "monsun"].includes(message.command.type)
+      ["build", "send", "upgrade", "sell", "autoSend", "autoHold", "pick", "surrender", "volley", "burst", "pillar", "frostbolt", "infested", "agolem", "monsun"].includes(message.command.type)
     ) {
       const c = message.command,
         id = typeof c.id === "string" ? c.id : c.id === null ? null : undefined,
@@ -7340,6 +7383,9 @@ function tick(dt) {
       if (e.type === "burst" && e.player === view) tone("built");
       // v0.12
       if (e.type === "pillar" && e.player === view) tone("pillar");
+      if (e.type === "frostbolt" && e.player === view) tone("frostbolt"); // v0.23w
+      if (e.type === "infested" && e.player === view) tone("infest"); // v0.23x
+      if (e.type === "infestedBurst" && e.player === view) tone("infestBurst");
       if (e.type === "monsun" && e.player === view) tone("monsun");
       if (e.type === "lightning" && e.player === view) tone("thunder");
       if ((e.type === "golem" || e.type === "golemPortal") && e.player === view) tone("golem");
@@ -7577,7 +7623,7 @@ function swapStaticIcons() {
 function applyDesignArt() {
   useArtSet(artSetFor(currentDesign())); // pictures for cards, icons and dialogs; the board follows in switchArt
   swapStaticIcons();
-  document.title = `${gameName()} · v${APP_VERSION}`;
+  document.title = `${gameName()} · v${APP_VERSION}${APP_BRANCH}`;
   for (const img of document.querySelectorAll(".welcome-logo")) {
     img.src = logoUrl();
     img.alt = gameName();
@@ -7691,6 +7737,10 @@ async function init() {
             ? { radius: burstRadius(game.players[own].perks?.burst || 1), arcane: true }
             : aimKind === "pillar"
               ? { radius: PILLAR.radius, fire: true }
+              : aimKind === "frostbolt"
+              ? { radius: FROSTBOLT.radius, ice: true } // v0.23w
+              : aimKind === "infested"
+              ? { radius: 0.5, plague: true, tile: true } // v0.23x: one field
               : { radius: VOLLEY.radius }
           : null,
       onHover: (cell) => {

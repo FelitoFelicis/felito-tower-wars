@@ -171,8 +171,10 @@ export function findPath(game, playerIndex = 0, start = null, extra = null) {
     const k = square(game, x, y);
     if (k >= 0 && k < size && Number.isInteger(k)) walls[k] = 1;
   };
+  const planks = !extra && player.planks?.length ? player.planks : null; // v0.23zb: Siege Planks open their tower for walking (never for build checks)
   for (const t of player.towers) {
     const n = towerSize(t);
+    if (planks && n === 1 && planks.some((pl) => pl.x === t.gridX && pl.y === t.gridY)) continue;
     for (let dy = 0; dy < n; dy++) for (let dx = 0; dx < n; dx++) wall(t.gridX + dx, t.gridY + dy);
   }
   for (const e of Array.isArray(extra) ? extra : extra ? [extra] : []) wall(e.x, e.y);
@@ -386,6 +388,7 @@ export function createGame({
     effects: [],
     commands: [],
     pendingSpawns: [],
+    sendQueue: [], // v0.23p: sent creeps waiting for their lane's spawn slot (see SPAWN_SMOOTH)
     achievements: { tiers: [], halls: 0, hallNextTime: 0 },
     grid: { ...GAME_GRIDS[normalizedMode] },
     rules: { ...RULES },
@@ -983,7 +986,7 @@ export const PERKS = Object.freeze({
   // v0.09q: perk rework (availability in PERK_AVAILABILITY)
   recruit: { name: "Recruitment", max: 10, text: "Creeps recruit {recruit} faster" }, // v0.19h1: tooltip // v0.10i (artifact line), merged in v0.11c
   feudal: { name: "Feudality", max: 10, text: "Creep income +{feudal}" }, // v0.18b: 2 / 3.5 / 5 / 6 / 7 %
-  gunpowder: { name: "Gunpowder", max: 10, text: "Bombard-Line outer splash +{gunpowder} tiles" }, // v0.22g1: only the low-damage outer ring // v0.21u: outer splash radius +0.25/0.45/0.60/0.72/0.82/0.90/0.96/1.00/1.03/1.05 tiles
+  gunpowder: { name: "Blast Expert", max: 10, element: "fire", text: "Bombard-Line outer splash +{gunpowder} tiles" }, // v0.23y: Fire, renamed Blast Expert (was the neutral Gunpowder) // v0.22g1: only the low-damage outer ring // v0.21u: outer splash radius +0.25/0.45/0.60/0.72/0.82/0.90/0.96/1.00/1.03/1.05 tiles
   archery: { name: "Archery", max: 10, text: "Archer-Line +{archery} damage. Next Archer free", detail: "Archer-Line +{archery} damage. Next Archer is free" }, // v0.19h1: 5 / 10 / 15 / 20 / 25 %; v0.20a: every pick makes the next archer free
   militia: { name: "Militia", max: 1, powerup: true, text: "2 free Footman. Footman-Line +1 damage", detail: "Spawn 2 Footman on random fields. Footman-Line +1 damage" }, // v0.22g1: +1 damage // v0.17h: once per player; v0.19e2: powerup
   evolution: { name: "Upgrade Tower", max: 1, powerup: true, text: "Upgrades a random level 1–2 tower and copies it", detail: "Upgrades a random level 1 or 2 tower and summons a copy to a random field" }, // v0.22o2: renamed from Evolution; v0.19g1: level 2 towers first, the copy sells for 10 %
@@ -992,6 +995,9 @@ export const PERKS = Object.freeze({
   volley: { name: "Arrow Volley", max: 5, text: "Arrows rain on an area dealing {volleyDmg} damage each" }, // v0.20e: shorter tooltip
   wings: { name: "Wings of War", max: 10, element: "storm", text: "Flyers +{wingsHp} HP, +{wingsSpeed} speed, +{wingsInc} income", detail: "Flying creeps +{wingsHp} HP, +{wingsSpeed} speed, +{wingsInc} income" }, // v0.10p
   hellfire: { name: "Lava Floor", max: 10, element: "fire", text: "Ground creeps on lava burn for {hellfire} damage/s", detail: "6 lava tiles appear on random fields of your board (2 in the upper half, 2 in the lower half, 2 anywhere), one more for each level from 2 on. Ground creeps on lava burn for {hellfire} damage per second" }, // v0.23k: random tiles instead of the 6th row // v0.10p, v0.16g
+  frostbolt: { name: "Frost Bolt", max: 10, element: "water", text: "Active: frost bolt, {frostbolt} damage, slows 50% for {frostboltSlow} s", detail: "Active ability: a frost bolt hits an area for {frostbolt} damage and slows the creeps hit by 50% for {frostboltSlow} s" }, // v0.23w
+  infested: { name: "Infested Ground", max: 10, element: "plague", text: "Active: infest a field; it strikes a creep on it for {infested} damage every {infestedEvery} s, {infestedCharges} times", detail: "Active ability: a field of your board becomes infested ground. Every {infestedEvery} s it strikes one ground creep on it for {infested} damage and slows it for 1 s, {infestedCharges} times. At most 6 infested fields; a new one replaces the one with the fewest strikes left" }, // v0.23x
+  clones: { name: "Clones", max: 10, element: "arcane", text: "{clones} chance to clone a sent creep{clonesExtra}", detail: "Every creep you send has {clones} chance to bring a clone with 50% HP. Clones give their share of income{clonesExtra}" }, // v0.23w
   burst: { name: "Arcane Burst", max: 5, element: "arcane", text: "Active: {burst} damage split in an area", detail: "Active ability: {burst} damage, split among the creeps in an area" }, // v0.10p
   treasure: { name: "Gold Treasure", max: 1, powerup: true, text: "Now +{treasure} gold and +{treasureInc} income", detail: "Instantly +{treasure} gold and +{treasureInc} income" }, // v0.10r; v0.19e2: +20 % gold, +60 income (doubled when far behind)
   voltage: { name: "High Voltage", max: 20, element: "storm", unpopular: 0.5, text: "EXP generators are {voltage} more efficient" }, // v0.10r; v0.19j: tooltip
@@ -1009,7 +1015,8 @@ export const PERKS = Object.freeze({
   crowd: { name: "Crowd Control", max: 3, element: "plague", text: "When {crowdMax}+ creeps in field, weakest 3 are culled. Triggers every 5 seconds.", detail: "When {crowdMax} or more creeps are in your field, the 3 weakest are culled, never shielded ones. Triggers every 5 seconds. Each culled creep goes back to its owner as an undead creep of its tier, worth a little income" }, // v0.23: 50 or more, Divine Shield spared, one undead per culled creep // v0.20d: Plague, fewer creeps per level, an undead creep goes back
   pillage: { name: "Pillage", max: 3, text: "Steal {pillage} gold on breakthrough" }, // v0.22m2: 14 / 24 / 30 % of the breached player's gold
   // v0.12: nine new perks
-  lone: { name: "Last Guardians", max: 4, text: "Towers attack {lone} faster with {loneTowers} towers or fewer", detail: "All towers attack {lone} faster while you own {loneTowers} towers or fewer. Towers that do not fight count as 1/4, Walls as 1/10." }, // v0.22g1: 4 levels // v0.20c: no bracket note; v0.16h: back to the v0.13 effect; v0.19g1: was Lone Guardians
+  lone: { name: "Spartans", max: 5, // v0.23zi: Last Guardians → Spartans; v0.23v: 5 levels
+    text: "Towers attack {lone} faster with {loneTowers} towers or fewer", detail: "All towers attack {lone} faster while you own {loneTowers} towers or fewer. Towers that do not fight count as 1/4, Walls as 1/10." }, // v0.22g1: 4 levels // v0.20c: no bracket note; v0.16h: back to the v0.13 effect; v0.19g1: was Lone Guardians
   manufacture: { name: "Creep Manufacture", max: 3, element: "earth", text: "8th creep {manufacture} cheaper, recruits 15% faster", detail: "8th creep of every tier {manufacture} cheaper, recruits 15% faster" }, // v0.20d: Earth, 8th creep
   synthesizer: { name: "Creep Synthesizer", max: 3, element: "water", text: "4th creep {synthesizer} cheaper, recruits 12% faster", detail: "4th creep of every tier {synthesizer} cheaper, recruits 12% faster" }, // v0.20d
   scholar: { name: "Scholar", max: 10, element: "arcane", text: "Upgrades 2 non-Arcane perks. EXP +{scholar}", detail: "Upgrades 2 of your non-Arcane perks. EXP gain +{scholar}" }, // v0.20d
@@ -1025,7 +1032,7 @@ export const PERKS = Object.freeze({
   // v0.18h: four new perks; "unpopular" = the share by which the offer chance drops after each refusal
   quarry: { name: "Quarry", max: 1, element: "earth", powerup: true, unpopular: 0.5, text: "+100 gold and 8 stones. Clear them for an Earth perk", detail: "Instantly +100 gold and 8 stones on your field. Clear them all for a random Earth perk" },
   backup: { name: "Backup Line", max: 1, element: "storm", unpopular: 0.5, text: "Ranged towers +30% damage while top 3 rows are empty", detail: "Ranged towers +30% damage while your top 3 rows hold no tower" },
-  tides: { name: "Low Tides", max: 1, element: "water", unpopular: 0.5, text: "Melee towers +50% damage while bottom 4 rows are empty", detail: "Melee towers +50% damage while your bottom 4 rows hold no tower" },
+  tides: { name: "Low Tides", max: 1, element: "water", unpopular: 0.5, text: "Melee towers +50% damage while bottom 3 rows are empty", detail: "Melee towers +50% damage while your bottom 3 rows hold no tower" },
   sanction: { name: "Sanction Policy", max: 1, element: "arcane", text: "Every 2nd creep locked, others +15% income, 1st only +7.5%, cooldowns −15%", detail: "Every 2nd creep locked for 20 rounds, other creeps +15% income, the 1st creep only +7.5%. Abilities cooldown 15% faster permanently" }, // v0.23: the 1st creep's +7.5 % named // v0.19h1: no gold, cooldown 15 % (the tier boss is still locked)
   monsun: { name: "Monsun", max: 5, element: "storm", text: "Active: pushes creeps back for {monsun} s", detail: "Active ability: Push creeps back for {monsun} s, lightning strikes flyers" },
   // v0.21: the former level-up upgrades (Warcraft researches) are ordinary perks now. "element" = needs that
@@ -1071,7 +1078,9 @@ export const perkExcluded = (id) => [].concat(PERKS[id]?.element || []).filter((
 const ownsElement = (p, el) => !!p.research[FACTIONS.find((f) => f.id === el)?.unlock];
 // ---- v0.12: new perks -------------------------------------------------------------------
 /** Lone Guardians: tower limit and attack speed bonus. */
-export const LONE = { towers: [0, 5, 5, 6, 7], speed: [0, 0.75, 1.25, 1.5, 1.66], wall: 0.1, support: 0.25 }; // v0.23j: non-fighting towers count 0.25 // v0.22g1: 4 levels, 75 / 125 / 150 / 166 %, 6 towers on level 3, 7 on level 4; v0.17n: a Wall counts as 0.1 tower
+export const LONE = { towers: [0, 5, 6, 7, 8, 9], // v0.23u: one more tower from level 2 on (5 / 6 / 7 / 8 / 9)
+  speed: [0, 0.75, 1.0, 1.2, 1.33, 1.5], // v0.23v: 5 levels, 75 / 100 / 120 / 133 / 150 %
+  wall: 0.1, support: 0.25 }; // v0.23j: non-fighting towers count 0.25 // v0.22g1: 4 levels, 75 / 125 / 150 / 166 %, 6 towers on level 3, 7 on level 4; v0.17n: a Wall counts as 0.1 tower
 const loneLv = (lv) => Math.max(0, Math.min(LONE.speed.length - 1, lv | 0));
 /** v0.22g1: Last Guardians: tower limit and attack speed bonus of a perk level. */
 export const loneTowers = (lv) => LONE.towers[loneLv(lv)];
@@ -1145,7 +1154,7 @@ export const monsunForce = (p, level = perkLevel(p, "monsun")) => 0.48 + level *
 export const monsunDamage = (p, level = perkLevel(p, "monsun")) => 30 + 20 * level * (p?.tier || 1);
 /** Perks that skip the next level once taken. */
 /** v0.20c: perks that sit out more than one level after a pick (Supergrowth: two). */
-const PERK_SKIP_LEVELS = { supergrowth: 2, hellfire: 2 }; // v0.21x: Lava Floor skips 2
+const PERK_SKIP_LEVELS = { supergrowth: 2, hellfire: 2, frostbolt: 2, clones: 2, infested: 2, lone: 2 }; // v0.23zi: Spartans skip 2 // v0.23w: Frost Bolt, Clones // v0.21x: Lava Floor skips 2
 const PERK_SKIP = new Set(["pillar", "agolem", "monsun", "slave", "guardian", "mind", "tailwind", "carmor", "owl", "autoloader", "hills"]); // v0.22g1: Autoloader // v0.19a1: Mind Control, Tailwind, Creep Armor, Watcher Owl
 /**
  * v0.19a1: reworked level-up upgrades (research perks). Their effects live here instead of the map
@@ -1470,7 +1479,7 @@ function finishQuarry(game, p) {
 const STONE_LOVE = 1.5;
 /** Backup Line (Storm): top rows; Low Tides (Water): bottom rows. Damage bonus and creep speed in the zone. */
 export const BACKUP = { rows: 3, damage: 0.3, slow: 0.1, haste: 0.1 };
-export const TIDES = { rows: 4, damage: 0.5, slow: 0.25, haste: 0.1 };
+export const TIDES = { rows: 3, damage: 0.5, slow: 0.25, haste: 0.1 }; // v0.23zn: Low Tides water rows 4 → 3
 const towerInRows = (p, from, to) => p.towers.some((t) => t.typeId !== ROCK_ID && t.gridY < to && t.gridY + towerSize(t) > from);
 /** Rows of a zone and whether its bonus is on (null = the player has no such perk). */
 export function zoneOf(game, p, id) {
@@ -1754,6 +1763,134 @@ export const hellfireDps = (p, level = perkLevel(p, "hellfire")) =>
 export const BURST = { cooldown: 40, radius: 1.15, radiusPerLevel: 0.1, damage: 450, tier: [1, 4, 10, 25, 60] }; // v0.22: 200 → 450, tier factor 1/2/3/4/5 → 1/4/10/25/60
 export const burstDamage = (p, level = perkLevel(p, "burst")) => level * BURST.damage * BURST.tier[Math.max(1, Math.min(BURST.tier.length, p?.tier || 1)) - 1];
 export const burstRadius = (level) => BURST.radius + BURST.radiusPerLevel * level;
+/**
+ * v0.23w: Frost Bolt (Water, active): an aimed bolt; every creep in the radius takes the full damage and is slowed
+ * by 50 % (a frost debuff) for 3 + 2 × level s. Damage grows with the perk level, the send tier (like Pillar of Fire)
+ * and the player level.
+ */
+export const FROSTBOLT = { cooldown: 40, radius: 1.25, slow: 0.5, base: 60, perLevel: 30, perPlayerLevel: 0.03 };
+export const frostboltDamage = (p, level = perkLevel(p, "frostbolt")) =>
+  level ? Math.round((FROSTBOLT.base + FROSTBOLT.perLevel * level) * PILLAR_DAMAGE_TIER[Math.max(1, Math.min(PILLAR_DAMAGE_TIER.length, p?.tier || 1)) - 1] * (1 + FROSTBOLT.perPlayerLevel * (p?.level || 1))) : 0;
+export const frostboltSlowTime = (level) => 3 + 2 * Math.max(1, level || 1);
+/**
+ * v0.23w: Clones (Arcane): every sent creep has 10 % + 5 % per level chance to bring a clone (50 % HP, drawn a little
+ * see-through in arcane colours). Heavy creeps can be cloned from level 3, bosses from level 6. A clone adds its share
+ * of the card's income (a cloned Goblin of a 2-Goblin card: half the card's income).
+ */
+/**
+ * v0.23x: Infested Ground (Plague, active): an aimed field turns into infested ground. When charged it strikes one ground
+ * creep standing on it (high single-target damage, a 1 s slow), then recharges for 3.33 s; after 2 + level strikes it is
+ * a normal field again. At most 6 such fields per player: a new one replaces the one with the fewest strikes left.
+ */
+export const INFESTED = { cooldown: 45, every: 3.33, max: 6, base: 150, perLevel: 75, perPlayerLevel: 0.04, slow: 0.5, slowTime: 1 };
+export const infestedDamage = (p, level = perkLevel(p, "infested")) =>
+  level ? Math.round((INFESTED.base + INFESTED.perLevel * level) * PILLAR_DAMAGE_TIER[Math.max(1, Math.min(PILLAR_DAMAGE_TIER.length, p?.tier || 1)) - 1] * (1 + INFESTED.perPlayerLevel * (p?.level || 1))) : 0;
+export const infestedCharges = (level) => 2 + Math.max(1, level || 1);
+function placeInfested(game, p, x, y) {
+  const { cols, rows } = game.grid,
+    gx = Math.min(cols - 1, Math.max(0, Math.floor(x * cols))),
+    gy = Math.min(rows - 1, Math.max(0, Math.floor(y * rows))),
+    list = (p.infested ||= []),
+    level = perkLevel(p, "infested");
+  const old = list.findIndex((t) => t.x === gx && t.y === gy);
+  if (old >= 0) list.splice(old, 1); // the same field again: fresh charges
+  if (list.length >= INFESTED.max) {
+    // the one with the fewest strikes left goes (the oldest of those)
+    let k = 0;
+    for (let i = 1; i < list.length; i++) if (list[i].charges < list[k].charges) k = i;
+    list.splice(k, 1);
+  }
+  list.push({ x: gx, y: gy, charges: infestedCharges(level), ready: game.time, damage: infestedDamage(p, level) });
+  p.infestedReady = game.time + abilityCd(p, INFESTED.cooldown);
+  emit(game, "infested", { player: p.id, x: (gx + 0.5) / cols, y: (gy + 0.5) / rows, gx, gy });
+}
+function tickInfested(game, p) {
+  if (!p.infested?.length) return;
+  const { cols, rows } = game.grid;
+  for (const t of p.infested) {
+    if (game.time + EPS < t.ready || t.charges <= 0) continue;
+    let target = null;
+    for (const c of p.creeps)
+      if (!c.dead && c.hp > 0 && !c.flying && c.y >= 0 && !divineShield(game, c) && Math.floor(c.x * cols) === t.x && Math.floor(c.y * rows) === t.y && (!target || c.progress > target.progress)) target = c;
+    if (!target) continue;
+    target.hp -= guardCut(game, target, t.damage * spellResist(target), true);
+    t.charges--;
+    t.ready = game.time + INFESTED.every;
+    emit(game, "infestedBurst", { player: p.id, x: target.x, y: target.y, gx: t.x, gy: t.y, damage: Math.round(t.damage), creepId: target.id });
+    if (target.hp <= 0) killCreep(game, p, target);
+    else {
+      const st = target.statuses.find((o) => o.abilityId === "infested"),
+        dur = negativeDuration(target, INFESTED.slowTime);
+      if (st) st.remaining = Math.max(st.remaining, dur);
+      else target.statuses.push({ abilityId: "infested", remaining: dur, slow: INFESTED.slow, dps: 0, owner: p.id });
+    }
+  }
+  p.infested = p.infested.filter((t) => t.charges > 0);
+}
+/**
+ * v0.23zb: Siege Ogre (Tier 4, was Shieldbearer): once in its life it plants a Siege Plank over a 1×1 tower next to it
+ * when crossing that tower shortens its way by at least 3 fields. Planting takes 1.2 s; the plank lasts 30 s and lets
+ * creeps walk over that tower one at a time (the tower keeps shooting). Without its plank the ogre walks 25 % faster
+ * but loses its armor.
+ */
+export const SIEGE_OGRE = { id: "n01G", plant: 1.2, last: 30, minSave: 3, speed: 1.25 };
+function siegeOgre(game, p, c) {
+  if (c.planting) {
+    if (game.time + EPS < c.planting.until) return true;
+    const t = c.planting;
+    c.planting = null;
+    c.planted = true;
+    c.speed *= SIEGE_OGRE.speed;
+    c.baseSpeed = (c.baseSpeed || c.speed) * SIEGE_OGRE.speed;
+    c.armor = 0;
+    if (p.towers.some((o) => o.gridX === t.x && o.gridY === t.y && towerSize(o) === 1)) {
+      (p.planks ||= []).push({ x: t.x, y: t.y, until: game.time + SIEGE_OGRE.last, busy: null, dir: t.dir });
+      emit(game, "plank", { player: p.id, x: (t.x + 0.5) / game.grid.cols, y: (t.y + 0.5) / game.grid.rows, gx: t.x, gy: t.y, owner: c.owner });
+      repath(game, p);
+    }
+    return false;
+  }
+  if (c.planted || c.y < 0 || c.ogreChecked === c.pathIndex) return false;
+  c.ogreChecked = c.pathIndex;
+  const { cols, rows } = game.grid,
+    gx = Math.min(cols - 1, Math.max(0, Math.floor(c.x * cols))),
+    gy = Math.floor(c.y * rows);
+  if (gy < 0 || gy >= rows) return false;
+  const left = c.path.length - c.pathIndex;
+  let best = null;
+  for (const [dx, dy] of [[0, 1], [-1, 0], [1, 0]]) {
+    const x = gx + dx,
+      y = gy + dy;
+    if (x < 0 || x >= cols || y >= rows) continue;
+    const t = p.towers.find((o) => o.gridX === x && o.gridY === y && towerSize(o) === 1);
+    if (!t || p.planks?.some((pl) => pl.x === x && pl.y === y)) continue;
+    // the way from that tower's field to the exit if it could be crossed
+    const list = (p.planks ||= []);
+    list.push({ x, y, until: 0, busy: null });
+    const way = findPath(game, p.id, { x, y });
+    list.pop();
+    if (!way) continue;
+    const save = left - (way.length + 1);
+    if (save >= SIEGE_OGRE.minSave && (!best || save > best.save)) best = { x, y, save, dir: dy ? "v" : "h" };
+  }
+  if (!best) return false;
+  c.planting = { x: best.x, y: best.y, dir: best.dir, until: game.time + SIEGE_OGRE.plant, start: game.time };
+  emit(game, "plankStart", { player: p.id, creepId: c.id, x: c.x, y: c.y });
+  return true;
+}
+/** v0.23zb: Siege Planks end after 30 s (or when their tower is gone), but never under a creep that is crossing. */
+function tickPlanks(game, p) {
+  if (!p.planks?.length) return;
+  const before = p.planks.length;
+  p.planks = p.planks.filter((pl) => {
+    const tower = p.towers.some((o) => o.gridX === pl.x && o.gridY === pl.y && towerSize(o) === 1),
+      crossing = pl.busy && p.creeps.some((o) => o.id === pl.busy && !o.dead && o.hp > 0 && Math.floor(o.x * game.grid.cols) === pl.x && Math.floor(o.y * game.grid.rows) === pl.y);
+    return tower && (game.time < pl.until || (crossing && game.time < pl.until + 5));
+  });
+  if (p.planks.length !== before) repath(game, p);
+}
+export const CLONES = { base: 0.1, perLevel: 0.05, hp: 0.5, heavyFrom: 3, bossFrom: 6 };
+export const cloneChance = (level) => (level > 0 ? CLONES.base + CLONES.perLevel * level : 0);
 /** v0.10q: Giant's Pocks (Plague), per perk level: share of remaining hp, poison seconds (×3 + 2), slow, dps × tier × 2. */
 export const POCKS = { interval: 4, hpShare: 0.05, slow: 0.03 };
 function tickPocks(game, p) {
@@ -1835,6 +1972,30 @@ function launchBurst(game, p, x, y) {
   }
   p.burstReady = game.time + abilityCd(p, BURST.cooldown);
   emit(game, "burst", { player: p.id, x, y, radius: burstRadius(level), hits: inside.length, damage: Math.round(share) });
+}
+/** v0.23w: Frost Bolt: full damage to every creep in the radius, then a 50 % frost slow (the stronger frost wins). */
+function launchFrostBolt(game, p, x, y) {
+  const level = perkLevel(p, "frostbolt"),
+    r = FROSTBOLT.radius * game.grid.cellUnits,
+    centre = { x, y },
+    inside = p.creeps.filter((c) => !c.dead && c.hp > 0 && !divineShield(game, c) && dist(game, c, centre) <= r),
+    damage = frostboltDamage(p, level),
+    time = frostboltSlowTime(level);
+  for (const c of inside) {
+    c.hp -= guardCut(game, c, damage * spellResist(c), true); // Magic Resistance like the other spells
+    if (c.hp <= 0) {
+      killCreep(game, p, c);
+      continue;
+    }
+    const duration = negativeDuration(c, time),
+      frost = c.statuses.find((st) => st.abilityId === "frost");
+    if (frost) {
+      frost.remaining = Math.max(frost.remaining, duration);
+      frost.slow = Math.max(frost.slow || 0, FROSTBOLT.slow);
+    } else c.statuses.push({ abilityId: "frost", remaining: duration, slow: FROSTBOLT.slow, dps: 0, owner: p.id });
+  }
+  p.frostboltReady = game.time + abilityCd(p, FROSTBOLT.cooldown);
+  emit(game, "frostbolt", { player: p.id, x, y, radius: FROSTBOLT.radius, hits: inside.length, damage: Math.round(damage) });
 }
 function bossDiscount(p, item, gold) {
   if (!item?.isSend) return gold;
@@ -2091,6 +2252,9 @@ export const PERK_AVAILABILITY = {
   wings: "3+",
   hellfire: "2-8", // v0.19b1: Lava Floor; v0.21j: levels 2–8
   burst: "3+",
+  frostbolt: "6+", // v0.23w: skips the next two levels (PERK_SKIP_LEVELS)
+  clones: "6+", // v0.23w: skips the next two levels (PERK_SKIP_LEVELS)
+  infested: "6+", // v0.23x: skips the next two levels (PERK_SKIP_LEVELS)
   pocks: "3+",
   treasure: "6,9", // v0.19k→l: also on level 6
   voltage: "6+", // v0.21b: open from level 6 so level 20 can be reached
@@ -2324,6 +2488,8 @@ function applyOption(game, p, option, level) {
     }
     if (option.id === "volley" && !(p.volleyReady > game.time)) p.volleyReady = game.time;
     if (option.id === "burst" && !(p.burstReady > game.time)) p.burstReady = game.time;
+    if (option.id === "frostbolt" && !(p.frostboltReady > game.time)) p.frostboltReady = game.time; // v0.23w
+    if (option.id === "infested" && !(p.infestedReady > game.time)) p.infestedReady = game.time; // v0.23x
     if (option.id === "treasure") {
       const gold = treasureGold(game);
       p.gold += gold;
@@ -2374,12 +2540,12 @@ function goldPerkOpen(game, p) {
  * makes them dearer. Untouchable asks for a number of rounds without any breach.
  */
 export const QUESTS = Object.freeze({
-  goblin: { name: "Goblin Banter", avail: "2-3", kind: "banter", model: "n00E", creeps: ["n00E", "n00U"], hp: 0.7, plural: "Goblins", pair: "Goblins & Imps", discount: 0.2 }, // v0.23b: 20 % (rounded up: Goblin 4, Imp 40)
+  goblin: { name: "Goblin Banter", avail: "2-3", kind: "banter", model: "n00E", creeps: ["n00E", "n00U"], hp: 0.7, plural: "Goblins", pair: "Goblins & Trenchlins", discount: 0.2, exp: 100 }, // v0.23b: 20 % (rounded up: Goblin 4, Imp 40)
   untouchable: { name: "Untouchable", avail: "6-12", kind: "untouchable" },
-  troll: { name: "Troll Banter", avail: "8-12", kind: "banter", model: "n010", creeps: ["n010", "n00F"], hp: 0.8, plural: "Trolls", pair: "Trolls & Witch Doctors" },
-  undead: { name: "Undead Banter", avail: "13-18", kind: "banter", model: "n016", creeps: ["n016", "n01D"], hp: 0.85, plural: "Zombies", pair: "Zombies & Ghouls" },
-  hound: { name: "Hound Banter", avail: "19-25", kind: "banter", model: "n02L", creeps: ["n02L", "n00L"], hp: 0.9, plural: "Demon Hounds", pair: "Demon Hounds & Wolves" },
-  scarab: { name: "Scarab Banter", avail: "26-35", kind: "banter", model: "n01S", creeps: ["n01S", "n02V"], hp: 0.95, plural: "Scarabs", pair: "Scarabs & Spawn Spiders" },
+  troll: { name: "Troll Banter", avail: "8-12", kind: "banter", model: "n010", creeps: ["n010", "n00F"], hp: 0.8, plural: "Trolls", pair: "Trolls & Witch Doctors", exp: 200 },
+  undead: { name: "Undead Banter", avail: "13-18", kind: "banter", model: "n016", creeps: ["n016", "n01D"], hp: 0.85, plural: "Zombies", pair: "Zombies & Ghouls", exp: 300 },
+  hound: { name: "Hound Banter", avail: "19-25", kind: "banter", model: "n02L", creeps: ["n02L", "n00L"], hp: 0.9, plural: "Demon Hounds", pair: "Demon Hounds & Wolves", exp: 450 },
+  scarab: { name: "Scarab Banter", avail: "26-35", kind: "banter", model: "n01S", creeps: ["n01S", "n02V"], hp: 0.95, plural: "Scarabs", pair: "Scarabs & Spawn Spiders", exp: 600 },
   // v0.19a1: contracts: score a breach within the rounds; the n-th creep of every tier gets the share as HP, income and discount
   // v0.19d2: Blood Contract: the 9th creep, +19 % HP and income and 19 % faster restock (no discount)
   blood: { name: "Blood Contract", avail: "6+", // v0.19l
@@ -2523,7 +2689,7 @@ function finishQuest(game, p, won) {
     gold0 = p.gold,
     income0 = p.income; // v0.17m: gold/income rewards for the quest overlay
   let exp = 0;
-  if (won && q.kind === "banter") exp = BANTER.exp;
+  if (won && q.kind === "banter") exp = q.exp ?? BANTER.exp; // v0.23zh: later banters give more EXP (100 / 200 / 300 / 450 / 600)
   if (won && q.kind === "contract") exp = contractExp(game.round); // v0.19d2
   if (won && q.kind === "contract" && contractGold(game.round) > 0) p.gold += contractGold(game.round); // v0.19l
   if (won && q.kind === "untouchable") {
@@ -2845,6 +3011,7 @@ function bloodCheck(game, sender) {
 }
 function pay(p, cost) {
   p.gold -= cost.gold;
+  if (p.gold < 0 && p.gold > -1e-6) p.gold = 0; // v0.23u: rounding (gold 9.999…, price 10) no longer leaves -0.000001 gold (shown as -1)
 }
 
 /** All human and AI actions use this same validated command entry point. */
@@ -2860,7 +3027,7 @@ export function command(game, input) {
   return result;
 }
 // v0.23i: commands that never change what towers can do (sending creeps, active perk spells, pause)
-const SKILL_NEUTRAL = new Set(["send", "autoSend", "autoMode", "pause", "volley", "burst", "pillar", "monsun"]);
+const SKILL_NEUTRAL = new Set(["send", "autoSend", "autoMode", "pause", "volley", "burst", "pillar", "monsun", "frostbolt", "infested"]);
 function runCommand(game, input) {
   skillEpoch++; // v0.21l: perks or research may change: tower skills are read anew
   if (!SKILL_NEUTRAL.has(input?.type)) abilityEpoch++; // v0.23i
@@ -2907,6 +3074,26 @@ function runCommand(game, input) {
       y = Number(input.y);
     if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || x > 1 || y < -0.1 || y > 1.1) return { ok: false, reason: "Outside the board" };
     launchBurst(game, p, x, y);
+    return { ok: true };
+  }
+  if (type === "infested") {
+    // v0.23x: Infested Ground (aimed at a field)
+    if (!perkLevel(p, "infested")) return { ok: false, reason: "Infested Ground not learned" };
+    if (p.infestedReady > game.time + EPS) return { ok: false, reason: `Infested Ground ready in ${Math.ceil(p.infestedReady - game.time)} s` };
+    const x = Number(input.x),
+      y = Number(input.y);
+    if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || x > 1 || y < 0 || y > 1) return { ok: false, reason: "Outside the board" };
+    placeInfested(game, p, x, y);
+    return { ok: true };
+  }
+  if (type === "frostbolt") {
+    // v0.23w: Frost Bolt (aimed)
+    if (!perkLevel(p, "frostbolt")) return { ok: false, reason: "Frost Bolt not learned" };
+    if (p.frostboltReady > game.time + EPS) return { ok: false, reason: `Frost Bolt ready in ${Math.ceil(p.frostboltReady - game.time)} s` };
+    const x = Number(input.x),
+      y = Number(input.y);
+    if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || x > 1 || y < -0.1 || y > 1.1) return { ok: false, reason: "Outside the board" };
+    launchFrostBolt(game, p, x, y);
     return { ok: true };
   }
   // v0.12: Pillar of Fire (aimed), Arcane Golem and Monsun (instant)
@@ -3010,7 +3197,25 @@ function runCommand(game, input) {
       }
       gainExp(game, p, 1);
     }
-    for (const spawnId of item.spawnIds) spawnCreep(game, p.id, spawnId);
+    // v0.23w: Clones: each creep of the card may bring a clone (heavy creeps from level 3, bosses from level 6)
+    const cloneLv = perkLevel(p, "clones"),
+      cloneOk = cloneLv > 0 && (!item.bossTier || cloneLv >= CLONES.bossFrom) && (item.bossTier || !isHeavy(item) || cloneLv >= CLONES.heavyFrom);
+    let clones = 0;
+    for (const spawnId of item.spawnIds) {
+      sendSpawn(game, p.id, spawnId); // v0.23p: smoothed (was spawnCreep)
+      if (cloneOk && random(game) < cloneChance(cloneLv)) {
+        sendSpawn(game, p.id, spawnId, true);
+        clones++;
+      }
+    }
+    if (clones) {
+      // each clone adds its creep's share of the card's income, in hundredths like the rest
+      const share = Math.round(((base * 100 + decimal) * clones) / Math.max(1, item.spawnIds.length));
+      p.incomeDecimal += share;
+      p.income += Math.trunc(p.incomeDecimal / 100);
+      p.incomeDecimal %= 100;
+      emit(game, "clones", { player: p.id, id, count: clones });
+    }
     p.stats.sent++;
     p.stats.creeps = (p.stats.creeps || 0) + item.spawnIds.length; // v0.14
     collectorCheck(game, p, item); // v0.16
@@ -3219,6 +3424,7 @@ function sellTower(game, p, towerId) {
     const price = t.stonePrice ?? game.mission?.rockCost ?? 40;
     if (p.gold + EPS < price) return { ok: false, reason: `Need ${Math.ceil(price - p.gold)} more gold to ${t.quarry ? "demolish the stone" : "clear the rock"}` };
     p.gold -= price;
+    if (p.gold < 0 && p.gold > -1e-6) p.gold = 0; // v0.23u
     p.towers.splice(i, 1);
     p.path = findPath(game, p.id) || [];
     const exp = t.quarry ? QUARRY.exp[t.stone] || 0 : 0; // v0.22m2
@@ -3254,6 +3460,8 @@ function sellTower(game, p, towerId) {
 
 // ---- v0.18h: auto-send modes --------------------------------------------------------------------
 export const AUTO_MODES = ["default", "eco", "tierup"];
+/** v0.23p: auto spawn and the auto modes try every 4 ticks (0.2 s), 20 % sooner than before (5 ticks, 0.25 s). */
+export const AUTO_EVERY = 4;
 /** Profit of a creep for this player: income per purchase in % of its price (the "Profit" row of the tooltip). */
 export function creepProfit(game, p, id) {
   const item = obj(id),
@@ -3368,7 +3576,7 @@ function defeat(game, p, by = null, surrender = false) {
     emit(game, "victory", { player: winner.id });
   }
 }
-function spawnCreep(game, ownerIndex, id, at = null, lane = null) {
+function spawnCreep(game, ownerIndex, id, at = null, lane = null, noEscort = false) {
   const item = obj(id);
   if (!item || !item.hp) return null;
   const owner = game.players[ownerIndex],
@@ -3409,18 +3617,69 @@ function spawnCreep(game, ownerIndex, id, at = null, lane = null) {
   if (item.mana) creep.mana = item.mana;
   target.creeps.push(creep);
   // BOSS Mob T1-T3: every boss arrives with three escorts (speed +12 / 0 / -12).
-  const escort = BOSS_MOBS[id];
+  const escort = noEscort ? null : BOSS_MOBS[id]; // v0.23w: a cloned boss comes alone
   if (escort && obj(escort))
     [12, 0, -12].forEach((delta, i) =>
       game.pendingSpawns.push({ owner: ownerIndex, lane: target.id, id: escort, time: game.time + 0.1 * (i + 1), x: creep.x, y: creep.y, health: 1, speedDelta: delta }),
     );
   return creep;
 }
+/**
+ * v0.23p: spawn smoothing. A big send (bots, auto spawn, many buys in one tick) no longer creates every creep in
+ * the same tick: each lane takes at most `perTick` sent creeps per tick (20 ticks/s); the rest wait in
+ * game.sendQueue in order and follow in the next ticks (40 creeps: 0.25 s). Gold, income and events stay at the
+ * moment of the send; only the creep itself appears a moment later. Normal play (a few creeps at once) is unchanged.
+ */
+export const SPAWN_SMOOTH = { perTick: 8 };
+function laneSlot(game, lane) {
+  if (game.spawnTickNo !== game.tick) {
+    game.spawnTickNo = game.tick;
+    game.spawnPerLane = {};
+  }
+  const n = game.spawnPerLane[lane] || 0;
+  if (n >= SPAWN_SMOOTH.perTick) return false;
+  game.spawnPerLane[lane] = n + 1;
+  return true;
+}
+/** v0.23p: a creep from a send: at once while its lane has a free slot this tick (and nobody waits), else queued. */
+function sendSpawn(game, ownerIndex, id, clone = false) {
+  const owner = game.players[ownerIndex],
+    target = game.teams ? nextTeamTarget(game, owner) : targetOf(game, ownerIndex);
+  if (!target || target.out || target.id === ownerIndex) return;
+  const lane = target.id;
+  game.sendQueue ||= [];
+  if (!game.sendQueue.some((q) => q.lane === lane) && laneSlot(game, lane)) {
+    const c = spawnCreep(game, ownerIndex, id, null, lane, clone);
+    if (clone) makeClone(c);
+  } else game.sendQueue.push(clone ? { owner: ownerIndex, id, lane, clone: true } : { owner: ownerIndex, id, lane });
+}
+/** v0.23w: a Clones copy: half the health. */
+function makeClone(c) {
+  if (!c) return;
+  c.clone = true;
+  c.maxHp *= CLONES.hp;
+  c.hp = Math.min(c.hp, c.maxHp);
+}
+/** v0.23p: once per tick: queued creeps take the free slots of their lane, in order. */
+function releaseSendQueue(game) {
+  if (!game.sendQueue?.length) return;
+  const keep = [];
+  for (const q of game.sendQueue) {
+    if (!laneSlot(game, q.lane)) {
+      keep.push(q);
+      continue;
+    }
+    const t = game.players[q.lane],
+      c = spawnCreep(game, q.owner, q.id, null, t && !t.out ? q.lane : null, !!q.clone); // a lane that lost meanwhile: the usual target
+    if (q.clone) makeClone(c); // v0.23w
+  }
+  game.sendQueue = keep;
+}
 const BOSS_MOBS = { n00T: "n01U", n01H: "n01X" }; // v0.19k: the Siege Golem (n015) spawns no escorts any more
 /** Divine Shield cycle (Divine Timer): 10 s invulnerable, 20 s open, starting with the shield on spawn (v0.22u2). */
 /** v0.19k: the Siege Golem no longer calls clockwork escorts. */
 const CLOCKWORK_ESCORTS = false;
-const DIVINE = new Set(["n01G", "n015", "n02M", "n02I"]);
+const DIVINE = new Set(["n015", "n02M", "n02I"]); // v0.23zb: the Siege Ogre (was Shieldbearer, n01G) lost its Divine Shield
 export function divineShield(game, c) {
   if (c.wave || !DIVINE.has(c.typeId)) return false;
   const age = game.time - c.bornTick * TICK;
@@ -4413,6 +4672,16 @@ function enrageGolem(game, p, c) {
   c.enrageUntil = game.time + ENRAGED_GOLEM.pause;
   emit(game, "skill", { player: p.id, kind: "enrage", creepId: c.id, x: c.x, y: c.y });
 }
+/**
+ * v0.23v: EXP for a kill: (price of the creep card / creeps it sends) × (0.11 − tier × 0.01), e.g. Goblin 5 / 2 × 0.10 =
+ * 0.25 EXP, Orc 60 × 0.10 = 6. Bosses give none (their buyer already gets EXP); creeps that are no send card give none.
+ */
+export function killExp(item) {
+  if (!item || !item.isSend || item.bossTier || !(item.cost > 0)) return 0;
+  const n = item.spawnIds?.length || 1,
+    tier = item.tier || 1;
+  return Math.max(0, (item.cost / n) * (0.11 - tier * 0.01));
+}
 function killCreep(game, p, c) {
   if (c.dead) return;
   if (c.typeId === ENRAGED_GOLEM.id && !c.enraged) return enrageGolem(game, p, c);
@@ -4435,6 +4704,8 @@ function killCreep(game, p, c) {
     tower.kills++;
     (p.stats.towerKills ||= {})[tower.typeId] = (p.stats.towerKills[tower.typeId] || 0) + 1; // v0.22j1: kills by tower type, sold towers included
   }
+  const exp = killExp(item);
+  if (exp > 0) gainExp(game, p, exp); // v0.23v: a little EXP for every kill
   emit(game, "kill", { player: p.id, id: c.typeId, creepId: c.id, x: c.x, y: c.y, bounty, bonus, wave: c.wave || 0, boss: !!c.waveBoss });
   if (c.wave) waveDeath(game, p, c);
   else deathrattle(game, c);
@@ -4561,7 +4832,7 @@ function moveCreep(game, p, c, dt) {
     aura = auraAt(game, c, game.players[c.owner], auraSources(game, p)); // v0.21l
   c.hp = Math.min(c.maxHp, c.hp + (c.regen + (aura.regen || 0)) * dt);
   c.auraArmor = aura.armor; // v0.17p: armor auras (Corrosive, Napalm, Creep Armor) count for every hit, not only the main target
-  const curse = creepSkills(c).find((sk) => sk.type === "curse");
+  const curse = c.curseUsed ? null : creepSkills(c).find((sk) => sk.type === "curse"); // v0.23zb: the Undoctor curses once
   if (curse && !stunned) {
     c.cooldown = (c.cooldown || 0) - dt;
     if (c.cooldown <= 0) {
@@ -4571,6 +4842,7 @@ function moveCreep(game, p, c, dt) {
       if (tower) {
         tower.curse = { amount: curse.amount, until: game.time + curse.duration };
         c.cooldown = curse.cooldown;
+        c.curseUsed = true;
         emit(game, "skill", { player: p.id, kind: "curse", x: tower.x, y: tower.y, towerId: tower.id });
       }
     }
@@ -4618,8 +4890,18 @@ function moveCreep(game, p, c, dt) {
     c.ox = (random(game) - 0.5) * 2 * CREEP_SPREAD / game.grid.cols;
     c.oy = (random(game) - 0.5) * 2 * CREEP_SPREAD / game.grid.rows;
   }
+  if (c.typeId === SIEGE_OGRE.id && !c.flying && siegeOgre(game, p, c)) remaining = 0; // v0.23zb: planting its Siege Plank
   while (remaining > EPS && game.running) {
     const way = c.path[c.pathIndex];
+    if (way && p.planks?.length && !c.flying) {
+      // v0.23zb: one creep at a time on a Siege Plank; the others wait in front of it
+      const pk = p.planks.find((pl) => pl.x === way.gridX && pl.y === way.gridY);
+      for (const pl of p.planks) if (pl.busy === c.id && pl !== pk) pl.busy = null;
+      if (pk) {
+        if (pk.busy && pk.busy !== c.id && p.creeps.some((o) => o.id === pk.busy && !o.dead && o.hp > 0)) break;
+        pk.busy = c.id;
+      }
+    }
     if (!way) {
       if (airBlock(game, p, c)) break; // v0.20c: flyers first meet the Air Block
       if (waterBlock(game, p, c)) break; // v0.10r
@@ -5795,6 +6077,28 @@ function think(game, p) {
     }
     if (best && (best.n >= 5 || best.c.progress > 0.8)) command(game, { type: "pillar", player: p.id, x: best.c.x, y: best.c.y });
   }
+  if (perkLevel(p, "infested") && !(p.infestedReady > game.time) && p.path?.length > 4) {
+    // v0.23x: Infested Ground on a free field of the own path (its middle third), not one already infested
+    const n = p.path.length,
+      taken = new Set((p.infested || []).map((t) => t.y * game.grid.cols + t.x));
+    for (let k = Math.floor(n / 3); k < Math.floor((2 * n) / 3); k++) {
+      const node = p.path[k];
+      if (!node || node.gridY < 0 || node.gridY >= game.grid.rows || taken.has(node.gridY * game.grid.cols + node.gridX)) continue;
+      command(game, { type: "infested", player: p.id, x: (node.gridX + 0.5) / game.grid.cols, y: (node.gridY + 0.5) / game.grid.rows });
+      break;
+    }
+  }
+  if (perkLevel(p, "frostbolt") && !(p.frostboltReady > game.time) && p.creeps.length) {
+    // v0.23w: Frost Bolt on the biggest group, or on a creep deep in the field
+    const r = FROSTBOLT.radius * game.grid.cellUnits,
+      live = p.creeps.filter((c) => !c.dead && c.hp > 0 && c.owner !== p.id);
+    let best = null;
+    for (const c of live) {
+      const n = live.filter((o) => inRange(game, c, o, r)).length;
+      if (!best || n > best.n) best = { c, n };
+    }
+    if (best && (best.n >= 4 || best.c.progress > 0.75)) command(game, { type: "frostbolt", player: p.id, x: best.c.x, y: best.c.y });
+  }
   if ((perkLevel(p, "agolem") && !(p.golemReady > game.time)) || (perkLevel(p, "monsun") && !(p.monsunReady > game.time))) {
     const live = p.creeps.filter((c) => !c.dead && c.hp > 0),
       ground = live.filter((c) => !c.flying).length,
@@ -6431,6 +6735,7 @@ function fixedTickInner(game) {
       if (s.speedDelta) c.speed = Math.max(1, c.speed + s.speedDelta * movementMultiplier(game));
     }
   }
+  releaseSendQueue(game); // v0.23p
   game.clouds ||= [];
   if (game.waveQueue?.length) {
     const due = game.waveQueue.filter((w) => w.time <= game.time + EPS);
@@ -6456,6 +6761,8 @@ function fixedTickInner(game) {
     tickSummons(game, p); // v0.17q
     tickHellfire(game, p); // v0.10p
     tickPocks(game, p); // v0.10q
+    tickInfested(game, p); // v0.23x
+    tickPlanks(game, p); // v0.23zb
     tickGuardian(game, p); // v0.14
     if (p.quest) checkQuest(game, p); // v0.15
     tickMonsun(game, p); // v0.12
@@ -6524,9 +6831,9 @@ function fixedTickInner(game) {
     if (!game.running) break;
     // v0.08b: auto-spawn uses the creep's current price (no fixed table) and pauses while
     // the player waits for gold for queued pre-builds or upgrades
-    if (p.autoSend && p.autoSendActive !== false && !p.autoHold && game.tick % 5 === 0 && p.gold >= (obj(p.autoSend)?.cost ?? Infinity))
+    if (p.autoSend && p.autoSendActive !== false && !p.autoHold && game.tick % AUTO_EVERY === 0 && p.gold >= (obj(p.autoSend)?.cost ?? Infinity))
       command(game, { type: "send", player: p.id, id: p.autoSend, auto: true });
-    else if (!p.autoSend && (p.autoMode === "eco" || p.autoMode === "tierup") && p.autoSendActive !== false && !p.autoHold && game.tick % 5 === 0) autoModeSend(game, p); // v0.18h
+    else if (!p.autoSend && (p.autoMode === "eco" || p.autoMode === "tierup") && p.autoSendActive !== false && !p.autoHold && game.tick % AUTO_EVERY === 0) autoModeSend(game, p); // v0.18h
     if (p.ai) think(game, p);
   }
   // v0.23: made anew only when an event was added (game.eventId) or its oldest entry left the 0.35 s window (event

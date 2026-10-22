@@ -539,7 +539,7 @@ export function mountArena({
       // v0.23a (creep graphic overhaul): the death sheet comes along once the walk is there
       if (animTex && sheet.dirs) {
         const dk = DEATH_KEY[want] !== undefined ? DEATH_KEY[want] : (DEATH_KEY[want] = ANIM_MANIFEST[want + "-death"] ? "anim:" + want + "-death" : null);
-        if (dk) this.need(dk, colorId, false);
+        if (dk && !ANIM_MANIFEST[dk.slice(5)].in) this.need(dk, colorId, false); // v0.23zb: a death row inside the walk sheet comes with it
       }
       L.hide = false;
       if (tex) {
@@ -628,7 +628,7 @@ export function mountArena({
           dk = art && DEATH_KEY[art],
           meta = dk && ANIM_MANIFEST[dk.slice(5)],
           killedAt = this.killed?.get(key),
-          tex = meta && killedAt !== undefined && time - killedAt <= 600 ? this.need(dk, s.getData("team"), false, false) : null;
+          tex = meta && killedAt !== undefined && time - killedAt <= 600 ? this.need(meta.in ? "anim:" + meta.in : dk, s.getData("team"), false, false) : null; // v0.23zb: `in`: the death row of the walk sheet
         if (!tex) {
           s.destroy();
           continue;
@@ -640,7 +640,7 @@ export function mountArena({
         s.setBatched(false); // v0.23i: the fall is drawn by the figure itself
         s.setBend(0);
         s.setTintMode(TINT.MULTIPLY).clearTint();
-        s.setTexture(tex, 0).setOrigin(meta.footX / meta.fw, meta.footY / meta.fh).setScale(sx, sy).setRotation(0).setAlpha(1);
+        s.setTexture(tex, meta.first || 0).setOrigin(meta.footX / meta.fw, meta.footY / meta.fh).setScale(sx, sy).setRotation(0).setAlpha(1);
         s.setVisible(true).setDepth(lift > 2 ? 4190 + Math.floor(s.y + lift) : this.fallenDepth(s.y + lift)); // v0.23e: fallen creeps sort with towers too
         this.dying.push({ s, view, start: time, meta, tex, groundY: s.y + lift, lift });
       }
@@ -656,7 +656,7 @@ export function mountArena({
           d.s.destroy();
           return false;
         }
-        this.showFrame(d.s, d.tex, Math.min(d.meta.frames - 1, Math.floor(el / d.meta.ms)));
+        this.showFrame(d.s, d.tex, (d.meta.first || 0) + Math.min(d.meta.frames - 1, Math.floor(el / d.meta.ms)));
         const fall = clamp(el / (d.meta.ms * 4), 0, 1);
         d.s.setPosition(d.s.x, d.groundY - d.lift * (1 - fall * fall));
         d.s.setAlpha(el > play + hold ? 1 - (el - play - hold) / fade : 1);
@@ -1693,6 +1693,33 @@ export function mountArena({
             slant = (hash(seq, 7) - 0.65) * cell * 1.3,
             high = cell * (2.3 + hash(seq, 11) * 0.7);
           this.projectiles.push({ x0: to.x + drift + slant, y0: to.y - high, targetId: e.targetId, tx: to.x + drift * 0.2, ty: to.y - cell * 0.15, t: 0, dur: 0.26, color: 0xffe28a, size: 3.6, splash: false, glow: false, arc: 0, arrow: true });
+        } else if (e.type === "plank" && e.player === view) {
+          // v0.23zb: a Siege Plank lands on a tower
+          const q = this.point(e.x, e.y);
+          this.burst(q.x, q.y, 0xc8a070, 12, 70, 2.4, 0.5, 30, false);
+          this.floatText(q.x, q.y - cell * 0.6, t("SIEGE PLANK"), "#e8c890", 13, 34, 1.1);
+        } else if (e.type === "infested" && e.player === view) {
+          // v0.23x: a field turns into infested ground
+          const q = this.point(e.x, e.y);
+          this.ring(q.x, q.y, cell * 0.1, cell * 0.75, 0x7dff3a, 0.8, 4);
+          this.burst(q.x, q.y, 0xb8ff7a, 12, 70, 2.4, 0.5, -20, true);
+          this.floatText(q.x, q.y - cell * 0.6, t("INFESTED"), "#c8ff8a", 13, 34, 1.1);
+        } else if (e.type === "infestedBurst" && e.player === view) {
+          // v0.23x: a strong green beam bursts up from the ground through the creep
+          const q = this.point(e.x, e.y);
+          this.bolts.push({ pts: [{ x: q.x, y: q.y + cell * 0.25 }, { x: q.x, y: q.y - cell * 2.4 }], life: 0.32, max: 0.32, plague: true });
+          this.ring(q.x, q.y + cell * 0.15, cell * 0.1, cell * 0.5, 0x7dff3a, 0.9, 3);
+          this.burst(q.x, q.y - cell * 0.2, 0xc8ff8a, 12, 110, 2.6, 0.45, -60, true);
+          this.floatText(q.x, q.y - cell * 0.7, String(e.damage), "#c8ff8a", 13, 34, 1);
+        } else if (e.type === "frostbolt" && e.player === view) {
+          // v0.23w: Frost Bolt: an icy streak from the upper right, then a frost ring and ice shards over the area
+          const q = this.point(e.x, e.y);
+          this.bolts.push({ pts: [{ x: q.x + cell * 1.6, y: q.y - cell * 3.4 }, { x: q.x, y: q.y - cell * 0.2 }], life: 0.3, max: 0.3, ice: true });
+          this.ring(q.x, q.y, cell * 0.2, cell * e.radius, 0x5ac8ff, 0.9, 5);
+          this.ring(q.x, q.y, cell * 0.1, cell * e.radius * 0.7, 0xe0f8ff, 0.75, 3);
+          this.burst(q.x, q.y - cell * 0.2, 0xcff2ff, 20, 130, 3, 0.6, 20, true);
+          this.burst(q.x, q.y, 0x7ad8ff, 12, 90, 2.4, 0.5, 0, true);
+          if (e.hits) this.floatText(q.x, q.y - cell * 0.6, t("FROST BOLT") + " " + e.damage, "#bfeaff", 14, 38, 1.1);
         } else if (e.type === "burst" && e.player === view) {
           // v0.10p: Arcane Burst: violet shock ring over the whole area
           const q = this.point(e.x, e.y);
@@ -1946,6 +1973,91 @@ export function mountArena({
           }
         }
       }
+      // ---- v0.23x: Infested Ground: scarred earth with acid glowing in the cracks and thin green light rising from them;
+      // spent (recharging) fields go grey; small pips show the strikes left
+      for (const t of player.infested || []) {
+        const x0 = z.left + t.x * cell,
+          y0 = z.top + t.y * cell,
+          h = (n) => hash(t.x, t.y, 70 + n),
+          live = game.time + 1e-6 >= t.ready,
+          charge = live ? 1 : Math.max(0, 1 - (t.ready - game.time) / 3.33),
+          flick = 0.5 + 0.5 * Math.sin(time * 0.006 + t.x * 1.3 + t.y),
+          acid = live ? 0x7dff3a : 0x8a9188,
+          deep = live ? 0x2f7a12 : 0x4a4f48;
+        pl.fillStyle(0x2a2418, 0.9);
+        pl.fillRect(x0 + cell * 0.04, y0 + cell * 0.04, cell * 0.92, cell * 0.92);
+        pl.fillStyle(deep, live ? 0.55 + 0.2 * flick : 0.5);
+        pl.fillEllipse(x0 + cell / 2, y0 + cell / 2, cell * 0.8, cell * 0.62);
+        // scars: jagged cracks from the middle
+        const cx = x0 + cell * (0.45 + 0.1 * h(1)),
+          cy = y0 + cell * (0.45 + 0.1 * h(2)),
+          scars = [];
+        for (let k = 0; k < 5; k++) {
+          const a = (k / 5) * Math.PI * 2 + h(3 + k) * 0.9,
+            len = cell * (0.28 + 0.16 * h(10 + k)),
+            mx = cx + Math.cos(a + 0.35) * len * 0.5,
+            my = cy + Math.sin(a + 0.35) * len * 0.5;
+          scars.push([cx, cy, mx, my, cx + Math.cos(a) * len, cy + Math.sin(a) * len]);
+        }
+        pl.lineStyle(Math.max(2, cell * 0.075), 0x120e08, 0.95);
+        for (const [ax, ay, bx, by, ex, ey] of scars) {
+          pl.lineBetween(ax, ay, bx, by);
+          pl.lineBetween(bx, by, ex, ey);
+        }
+        pl.lineStyle(Math.max(1, cell * 0.03), acid, live ? 0.75 + 0.25 * flick : 0.6);
+        for (const [ax, ay, bx, by, ex, ey] of scars) {
+          pl.lineBetween(ax, ay, bx, by);
+          pl.lineBetween(bx, by, ex, ey);
+        }
+        if (live || charge > 0.6) {
+          // light from below: soft glow and a few thin beams rising from the cracks
+          const k0 = live ? 1 : (charge - 0.6) / 0.4;
+          glow.fillStyle(0x7dff3a, (0.12 + 0.1 * flick) * k0);
+          glow.fillCircle(cx, cy, cell * 0.42);
+          for (let k = 0; k < 4; k++) {
+            const sc = scars[k],
+              bx = sc[2],
+              by = sc[3],
+              hh = cell * (0.35 + 0.35 * (0.5 + 0.5 * Math.sin(time * 0.004 + k * 1.9 + t.x)));
+            glow.fillStyle(0xb8ff7a, (0.22 + 0.15 * flick) * k0);
+            glow.fillRect(bx - cell * 0.012, by - hh, cell * 0.024, hh);
+          }
+        }
+        // strikes left
+        for (let k = 0; k < t.charges; k++) {
+          pl.fillStyle(live ? 0xc8ff8a : 0x9aa098, 0.95);
+          pl.fillCircle(x0 + cell * (0.14 + k * 0.1), y0 + cell * 0.88, Math.max(1.2, cell * 0.03));
+        }
+      }
+      // ---- v0.23zb: Siege Planks: wooden boards with iron bands laid over a tower; they fade in their last 3 s
+      for (const pl of player.planks || []) {
+        const x0 = z.left + pl.x * cell,
+          y0 = z.top + pl.y * cell,
+          left = pl.until - game.time,
+          a = clamp(left / 3, 0.35, 1),
+          hb = this.hpBars,
+          vert = pl.dir !== "h",
+          w = vert ? cell * 0.56 : cell * 1.08,
+          h = vert ? cell * 1.08 : cell * 0.56,
+          cx = x0 + cell / 2,
+          cy = y0 + cell * 0.46,
+          bx = cx - w / 2,
+          by = cy - h / 2;
+        hb.fillStyle(0x2a1a0c, 0.9 * a);
+        hb.fillRoundedRect(bx - 2, by - 2, w + 4, h + 4, 4);
+        hb.fillStyle(0x8a5a2c, a);
+        hb.fillRoundedRect(bx, by, w, h, 3);
+        hb.lineStyle(1.2, 0x4a2c12, 0.9 * a);
+        for (let k = 1; k < 3; k++) {
+          if (vert) hb.lineBetween(bx + (w * k) / 3, by + 2, bx + (w * k) / 3, by + h - 2);
+          else hb.lineBetween(bx + 2, by + (h * k) / 3, bx + w - 2, by + (h * k) / 3);
+        }
+        hb.fillStyle(0x6c727a, a);
+        for (const f of [0.18, 0.82]) {
+          if (vert) hb.fillRect(bx - 1, by + h * f - 2, w + 2, 4);
+          else hb.fillRect(bx + w * f - 2, by - 1, 4, h + 2);
+        }
+      }
       // ---- v0.18h: Low Tides water (bottom rows) and Backup Line mist (top rows)
       const tides = zoneOf(game, player, "tides");
       if (tides) {
@@ -2024,8 +2136,19 @@ export function mountArena({
           px = this.pointer.x,
           py = this.pointer.y,
           pulse = 0.5 + 0.5 * Math.sin(time * 0.01);
-        const ac = aim.arcane ? 0xc07aff : aim.fire ? 0xff7a2a : 0xffd27a,
-          al = aim.arcane ? 0xeacbff : aim.fire ? 0xffc89a : 0xffe7a8; // v0.10p: violet for Arcane Burst, v0.12: orange for Pillar of Fire
+        const ac = aim.arcane ? 0xc07aff : aim.fire ? 0xff7a2a : aim.ice ? 0x5ac8ff : aim.plague ? 0x7dff3a : 0xffd27a,
+          al = aim.arcane ? 0xeacbff : aim.fire ? 0xffc89a : aim.ice ? 0xd8f6ff : aim.plague ? 0xdcffb8 : 0xffe7a8; // v0.23w: ice blue for Frost Bolt; v0.23x: acid green for Infested Ground
+        if (aim.tile) {
+          // v0.23x: Infested Ground aims at one field: the field under the pointer lights up
+          const col = Math.floor((px - z.left) / cell),
+            row = Math.floor((py - z.top) / cell);
+          if (col >= 0 && row >= 0 && col < z.logicalCols && row < game.grid.rows) {
+            g.fillStyle(ac, 0.18 + 0.1 * pulse);
+            g.fillRect(z.left + col * cell, z.top + row * cell, cell, cell);
+            g.lineStyle(2.5, al, 0.9);
+            g.strokeRect(z.left + col * cell + 1, z.top + row * cell + 1, cell - 2, cell - 2);
+          }
+        } else { // v0.10p: violet for Arcane Burst, v0.12: orange for Pillar of Fire
         g.fillStyle(ac, 0.12 + 0.06 * pulse);
         g.fillCircle(px, py, r);
         g.lineStyle(2.5, al, 0.85);
@@ -2033,6 +2156,7 @@ export function mountArena({
         g.lineStyle(1.5, al, 0.6);
         g.lineBetween(px - 8, py, px + 8, py);
         g.lineBetween(px, py - 8, px, py + 8);
+        }
       }
       this.drawQueued(game, view, getQueued(), catalog, z, time);
       this.drawPreview(game, view, preview, catalog, z, time);
@@ -2282,7 +2406,8 @@ export function mountArena({
         alive.add(key);
         let sprite = this.units.get(key);
         // v0.23: a creep whose art is still loading stays out of sight for a moment (it comes out of the portal)
-        const look = this.look(sprite, key, c.art || artFor(def), teamId, "creep", now), // v0.16: c.art (wave 1 boxer goblin)
+        const base = c.art || artFor(def),
+          look = this.look(sprite, key, (c.planted && ANIM_MANIFEST[base]?.bare) || base, teamId, "creep", now), // v0.16: c.art (wave 1 boxer goblin); v0.23zb: the Siege Ogre without its plank
           artKey = look.art,
           m = this.artMeta(look.tex, artKey), // v0.23a: the size data of the picture shown (art sets)
           skin = look.tex,
@@ -2367,7 +2492,7 @@ export function mountArena({
           if (walk.dirs) {
             // v0.23a: the cycle is driven by the distance walked (feet match the ground speed; a stopped or
             // stunned creep freezes mid-step). Turns play out through each view in between, one every 130 ms.
-            const stride = Math.max(4, height * 0.6), // v0.23f: 0.85 → 0.6 figure heights per cycle (no moonwalking)
+            const stride = Math.max(4, height * 0.6 * (walk.stride || 1)), // v0.23f: 0.85 → 0.6 figure heights per cycle (no moonwalking); v0.23r: walk.stride slows single sheets
               pos = (((((sprite.getData("wd") ?? 0) / stride) * walk.frames) % walk.frames) + walk.frames) % walk.frames,
               dir = sprite.getData("dir") ?? 0;
             let shown = sprite.getData("show") ?? dir;
@@ -2377,12 +2502,17 @@ export function mountArena({
               sprite.setData("showAt", time);
             }
             sprite.setData("show", shown);
-            this.showFrame(sprite, skin, shown * walk.frames + Math.floor(pos));
+            if (c.planting && walk.plantRow !== undefined) {
+              // v0.23zb: the Siege Ogre lays its plank down
+              const k = clamp((game.time - c.planting.start) / Math.max(0.1, c.planting.until - c.planting.start), 0, 0.999);
+              this.showFrame(sprite, skin, walk.plantRow * walk.cols + Math.floor(k * walk.plantFrames));
+            } else this.showFrame(sprite, skin, shown * walk.frames + Math.floor(pos));
           } else this.showFrame(sprite, skin, Math.floor(clock / walk.ms) % walk.frames);
         } else if (sprite.texture.key !== skin) sprite.setTexture(skin);
-        if ((sprite.getData("hit") || 0) > time) sprite.setTint(0xffffff).setTintMode(TINT.FILL);
-        else {
+        // v0.23s: no white flash on the figure when hit; the health bar flashes instead (below)
+        {
           sprite.setTintMode(TINT.MULTIPLY);
+          if (!!c.clone !== sprite.getData("clone")) sprite.setData("clone", !!c.clone).setAlpha(c.clone ? 0.85 : 1); // v0.23w: clones 15 % see-through
           if (divineShield(game, c)) sprite.setTint(0xfff2b0);
           else if (statuses.some((st) => st.abilityId === "entangle")) sprite.setTint(0xa8ff9a);
           else if (statuses.some((st) => st.stun)) sprite.setTint(0xfff3a0);
@@ -2392,7 +2522,13 @@ export function mountArena({
           else if (c.enraged) sprite.setTint(0xff8f80); // v0.21z: Enraged Meat Golem
           else if (c.burning) sprite.setTint(0xffa060); // v0.10w: Burning Treant
           else if (c.spiritWolf) sprite.setTint(0xe8d0ff); // v0.19a1: Spirit Wolves
-          else sprite.clearTint();
+          else if (c.clone) {
+            // v0.23w: Clones: a soft arcane shimmer that comes and goes
+            const k = 0.5 + 0.5 * Math.sin(time * 0.004 + phase0),
+              r = Math.round(0xe4 - 0x14 * k),
+              gr = Math.round(0xc8 - 0x30 * k);
+            sprite.setTint((r << 16) | (gr << 8) | 0xff);
+          } else sprite.clearTint();
         }
         const flap = flying && !gait ? 1 + Math.sin(time * 0.03 + phase0) * 0.05 : 1,
           // v0.21z: Enraged Meat Golem: 10 % larger; while it growls it swells once, smoothly
@@ -2592,6 +2728,11 @@ export function mountArena({
           hb.fillRoundedRect(q.x - bar / 2 - 1.5, barY - 1.5, bar + 3, barH + 3, 3);
           hb.fillStyle(ratio > 0.5 ? 0x8ff05a : ratio > 0.25 ? 0xffc75a : 0xff5f52, see);
           hb.fillRoundedRect(q.x - bar / 2, barY, Math.max(1, bar * ratio), barH, 2);
+          // v0.23s: hit flash: a white overlay (25 % transparent) on the bar itself, not on its frame
+          if ((sprite.getData("hit") || 0) > time) {
+            hb.fillStyle(0xffffff, 0.75);
+            hb.fillRoundedRect(q.x - bar / 2, barY, Math.max(1, bar * ratio), barH, 2);
+          }
         }
       }
       this.batchCreeps(view, z, game.grid.rows, cell, alive); // v0.23i: creeps drawn in a few batches instead of one call each
@@ -3069,7 +3210,7 @@ export function mountArena({
           continue;
         }
         const k = b.life / b.max;
-        for (const [w, c, a] of [[b.small ? 7 : 11, 0x8fc8ff, 0.35], [b.small ? 2.5 : 4, 0xfffbe0, 1]]) {
+        for (const [w, c, a] of b.plague ? [[16, 0x5aff1a, 0.45], [6, 0xeaffd0, 1]] : b.ice ? [[14, 0x5ac8ff, 0.4], [5, 0xe8fbff, 1]] : [[b.small ? 7 : 11, 0x8fc8ff, 0.35], [b.small ? 2.5 : 4, 0xfffbe0, 1]]) { // v0.23w: icy Frost Bolt streak
           fa.lineStyle(w, c, a * k);
           fa.beginPath();
           fa.moveTo(b.pts[0].x, b.pts[0].y);

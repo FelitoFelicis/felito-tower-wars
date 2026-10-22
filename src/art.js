@@ -5,111 +5,86 @@ const ART_SETS = {},
   currentDesign = () => "original";
 const BASE_ART = {
   // v0.23a (creep graphic overhaul): the bestiary figures of the original design (stills; walking creeps use ANIM_MANIFEST)
-  "creep-n-abomination": { w: 234, h: 145, footY: 141 },
-  "creep-n-acid-slime": { w: 153, h: 110, footY: 106 },
   "creep-n-arcane-golem": { w: 107, h: 85, footY: 80 },
   "creep-n-armored-boar": { w: 152, h: 111, footY: 106 },
-  "creep-n-armored-boar-fel": { w: 194, h: 138, footY: 134 },
   "creep-n-bat": { w: 182, h: 81, footY: 76 },
-  "creep-n-boar": { w: 159, h: 124, footY: 120 },
   "creep-n-bomber": { w: 141, h: 120, footY: 116 },
   "creep-n-bone-knight": { w: 151, h: 140, footY: 136 },
-  "creep-n-brute": { w: 210, h: 137, footY: 133 },
-  "creep-n-brute-brown": { w: 210, h: 137, footY: 133 },
-  "creep-n-burrower": { w: 200, h: 118, footY: 114 },
-  "creep-n-crystal-worm": { w: 176, h: 117, footY: 113 },
-  "creep-n-crystal-worm-green": { w: 176, h: 117, footY: 113 },
   "creep-n-demon-hound": { w: 125, h: 92, footY: 87 },
-  "creep-n-demon-lord": { w: 255, h: 145, footY: 141 },
-  "creep-n-demon-lord-fel": { w: 255, h: 145, footY: 141 },
-  "creep-n-desert-wyrm": { w: 244, h: 158, footY: 154 },
-  "creep-n-dire-wolf": { w: 177, h: 147, footY: 143 },
   "creep-n-fire-imp": { w: 160, h: 135, footY: 131 },
   "creep-n-fire-imp-fel": { w: 160, h: 135, footY: 131 },
   "creep-n-flying-machine": { w: 144, h: 104, footY: 99 },
-  "creep-n-flying-sheep": { w: 132, h: 91, footY: 86 },
+  "creep-n-flying-sheep": { w: 142, h: 89, footY: 83 }, // v0.23q: new sheet
   "creep-n-forest-golem": { w: 185, h: 140, footY: 136 },
-  "creep-n-forest-golem-autumn": { w: 185, h: 140, footY: 136 },
-  "creep-n-forest-troll": { w: 95, h: 105, footY: 100 },
-  "creep-n-frost-dragon": { w: 271, h: 148, footY: 144 },
   "creep-n-ghoul": { w: 172, h: 128, footY: 124 },
   "creep-n-ghoul-green": { w: 172, h: 128, footY: 124 },
-  "creep-n-giant-bat": { w: 268, h: 142, footY: 138 },
+  "creep-n-giant-bat": { w: 139, h: 67, footY: 67 }, // v0.23zq: Giant Bat (was Zeppelin)
   "creep-n-gnoll": { w: 104, h: 98, footY: 97 }, // v0.23d: new gnoll sheet
-  "creep-n-horse": { w: 113, h: 102, footY: 101 }, // v0.23d: hay pony
-  "creep-n-goblin": { w: 125, h: 89, footY: 84 },
+  "creep-n-horse": { w: 61, h: 94, footY: 90 }, // v0.23ze: Pony (was the hay pony / Horse)
+  "creep-n-goblin": { w: 80, h: 84, footY: 79 }, // v0.23t: new sheet
   "creep-n-grunt": { w: 130, h: 103, footY: 98 },
-  "creep-n-harpy": { w: 203, h: 134, footY: 130 },
   "creep-n-ice-imp": { w: 143, h: 137, footY: 133 },
   "creep-n-ice-imp-violet": { w: 143, h: 137, footY: 133 },
-  "creep-n-ice-slime": { w: 145, h: 107, footY: 103 },
-  "creep-n-imp": { w: 159, h: 134, footY: 130 },
-  "creep-n-imp-void": { w: 159, h: 134, footY: 130 },
+  "creep-n-trenchlin": { w: 73, h: 97, footY: 93 }, // v0.23x: tier 2 Trenchlin (was the Imp)
+  "creep-n-zealot": { w: 71, h: 83, footY: 79 }, // v0.23z: tier 4 Goblin Zealot (was the Akolyte)
+  "creep-n-scarabaeus": { w: 85, h: 74, footY: 67 }, // v0.23zf: tier 5 Scarabaeus
+  "creep-n-witch-hunter": { w: 69, h: 96, footY: 92 }, // v0.23zj: tier 4 Witch Hunter (was Spellbreaker; v0.23zi on the Demon Hunter)
+  "creep-n-demon-knight": { w: 79, h: 93, footY: 89 }, // v0.23zj: tier 4 Demon Knight (was Demon Hunter)
+  "creep-n-dryad": { w: 79, h: 98, footY: 92 }, // v0.23zj: tier 5 Dryad
+  "creep-n-dark-monk": { w: 87, h: 89, footY: 89 }, // v0.23zk: tier 5 Dark Monk (was Faceless)
+  "creep-n-demon-lord": { w: 92, h: 95, footY: 95 }, // v0.23zn: Demon Lord (was Pit Lord)
+  "creep-n-raven": { w: 148, h: 103, footY: 103 }, // v0.23zo: tier 5 Raven (was Gryphon Rider)
+  "creep-n-naga-siren": { w: 100, h: 91, footY: 91 }, // v0.23zp: Naga Siren
+  "creep-n-banshee": { w: 120, h: 92, footY: 92 }, // v0.23zl: Banshee (was Void Walker)
+  "creep-n-druid": { w: 83, h: 94, footY: 90 }, // v0.23zi: tier 5 Druid
+  "creep-n-zombie-ogre": { w: 123, h: 94, footY: 89 }, // v0.23zh: tier 5 Zombie Ogre (was Abomination)
+  "creep-n-minotaurus": { w: 91, h: 80, footY: 76 }, // v0.23zf: tier 3 Minotaurus (was Cairne Bloodhoof)
+  "creep-n-skeleton-berserker": { w: 57, h: 83, footY: 79 }, // v0.23zd: tier 2 Skeleton Berserker
+  "creep-n-scaleworm": { w: 73, h: 79, footY: 75 }, // v0.23zd: tier 3 Scaleworm (was Arcane Marauder)
+  "creep-n-centaur": { w: 91, h: 101, footY: 97 }, // v0.23zc: tier 2 Centaur (was Forest Troll)
+  "creep-n-bandit-leader": { w: 75, h: 90, footY: 86 }, // v0.23zc: tier 2 Bandit Leader (was Grom Hellscream)
+  "creep-n-crystal-lizard": { w: 87, h: 74, footY: 70 }, // v0.23zb: tier 4 Crystal Lizard (was Dragonspawn)
+  "creep-n-bone-dragon": { w: 148, h: 68, footY: 68 }, // v0.23zq: new sheet; // v0.23zb: tier 4 Bone Dragon (was Frost Wyrm)
+  "creep-n-black-dragon": { w: 125, h: 61, footY: 54 }, // v0.23zb: tier 5 Black Dragon
+  "creep-n-rogue-captain": { w: 87, h: 75, footY: 71 }, // v0.23zb: tier 3 Rouge Captain
+  "creep-n-dark-knight": { w: 49, h: 73, footY: 69 }, // v0.23zb: tier 5 Dark Knight (was Lord Garithos)
+  "creep-n-siege-ogre": { w: 76, h: 72, footY: 68 }, // v0.23zb: tier 4 Siege Ogre (was Shieldbearer), row 10: planting the plank
+  "creep-n-siege-ogre-bare": { w: 77, h: 76, footY: 72 }, // v0.23zb: Siege Ogre after its plank is planted
+  "creep-n-undoctor": { w: 76, h: 84, footY: 80 }, // v0.23zb: tier 4 Undoctor (was Witch Doctor)
+  "creep-n-satyr": { w: 73, h: 74, footY: 70 }, // v0.23zb: tier 2 Satyr (was Centaur Warrior)
   "creep-n-infernal-golem": { w: 121, h: 93, footY: 88 },
-  "creep-n-inferno-dragon": { w: 222, h: 154, footY: 150 },
   "creep-n-lava-golem": { w: 198, h: 136, footY: 132 },
-  "creep-n-lava-worm": { w: 211, h: 120, footY: 116 },
-  "creep-n-lich-king": { w: 212, h: 169, footY: 165 },
   "creep-n-meat-golem": { w: 124, h: 96, footY: 91 },
   "creep-n-mountain-golem": { w: 142, h: 106, footY: 101 },
   "creep-n-mud-golem": { w: 137, h: 97, footY: 92 },
   "creep-n-necromancer": { w: 129, h: 108, footY: 103 },
-  "creep-n-ogre": { w: 183, h: 140, footY: 136 },
-  "creep-n-orc": { w: 162, h: 137, footY: 133 },
-  "creep-n-orc-berserker": { w: 181, h: 136, footY: 132 },
-  "creep-n-orc-berserker-violet": { w: 181, h: 136, footY: 132 },
-  "creep-n-orc-shadow": { w: 162, h: 137, footY: 133 },
-  "creep-n-plague-zombie": { w: 171, h: 131, footY: 127 },
   "creep-n-raider": { w: 138, h: 107, footY: 102 },
   "creep-n-rock-golem": { w: 140, h: 102, footY: 97 },
-  "creep-n-sand-worm": { w: 148, h: 103, footY: 99 },
-  "creep-n-satyr": { w: 107, h: 106, footY: 101 },
   "creep-n-sea-kraken": { w: 251, h: 173, footY: 169 },
   "creep-n-shade": { w: 147, h: 99, footY: 94 },
   "creep-n-shaman": { w: 116, h: 101, footY: 96 },
   "creep-n-siege-golem": { w: 120, h: 102, footY: 97 },
   "creep-n-skeleton": { w: 155, h: 127, footY: 123 },
   "creep-n-skeleton-archer": { w: 142, h: 128, footY: 124 },
-  "creep-n-skeleton-mage": { w: 158, h: 136, footY: 132 },
-  "creep-n-skeleton-mage-green": { w: 158, h: 136, footY: 132 },
-  "creep-n-sky-raider": { w: 172, h: 133, footY: 129 },
-  "creep-n-slime": { w: 138, h: 95, footY: 91 },
   "creep-n-spawn-spider": { w: 129, h: 83, footY: 78 },
-  "creep-n-spearman": { w: 136, h: 136, footY: 132 },
-  "creep-n-spiked-slime": { w: 156, h: 103, footY: 99 },
-  "creep-n-spiked-slime-violet": { w: 156, h: 103, footY: 99 },
-  "creep-n-spiritwolf": { w: 132, h: 97, footY: 92 },
+  "creep-n-spiritwolf": { w: 138, h: 72, footY: 72 }, // v0.23zq: Arcane Wolf
   "creep-n-stone-titan": { w: 225, h: 148, footY: 144 },
-  "creep-n-storm-imp": { w: 157, h: 135, footY: 131 },
-  "creep-n-troll": { w: 177, h: 141, footY: 137 },
   "creep-n-troll-brown": { w: 177, h: 141, footY: 137 },
-  "creep-n-void-dragon": { w: 258, h: 162, footY: 158 },
   "creep-n-wolf": { w: 146, h: 124, footY: 120 },
-  "creep-n-zombie": { w: 106, h: 95, footY: 90 },
+  "creep-n-zombie": { w: 69, h: 88, footY: 84 }, // v0.23za: new zombie goblin sheet
   "creep-alchemist": { w: 350, h: 400, footY: 384 },
   "creep-bat-rider": { w: 400, h: 387, footY: 371 },
-  "creep-black-dragon": { w: 400, h: 352, footY: 336 },
   "creep-boar": { w: 298, h: 400, footY: 384 },
   "creep-centaur": { w: 400, h: 395, footY: 379 },
   "creep-darkknight": { w: 394, h: 400, footY: 384 },
   "creep-demon-slayer": { w: 395, h: 400, footY: 384 },
-  "creep-dragonspawn": { w: 400, h: 387, footY: 371 },
   "creep-dryad": { w: 378, h: 400, footY: 384 },
-  "creep-fel-raider": { w: 324, h: 400, footY: 383 },
-  "creep-flesh-golem": { w: 400, h: 395, footY: 379 },
-  "creep-frost-wyrm": { w: 400, h: 329, footY: 311 },
   "creep-ghoul": { w: 363, h: 400, footY: 384 },
   "creep-gnoll": { w: 336, h: 400, footY: 384 },
   "creep-goblin": { w: 356, h: 400, footY: 384 },
-  "creep-wichtel": { w: 356, h: 400, footY: 384 },
   "creep-golem": { w: 378, h: 400, footY: 384 },
-  "creep-gryphon": { w: 400, h: 398, footY: 382 },
-  "creep-gyrocopter": { w: 400, h: 387, footY: 371 },
   "creep-harpy": { w: 400, h: 382, footY: 366 },
-  "creep-hellhound": { w: 326, h: 400, footY: 384 },
-  "creep-horse": { w: 302, h: 400, footY: 384 },
   "creep-infernal": { w: 371, h: 400, footY: 384 },
-  "creep-marauder": { w: 400, h: 372, footY: 356 },
   "creep-minotaur": { w: 400, h: 391, footY: 375 },
   "creep-mountain-golem": { w: 374, h: 400, footY: 384 },
   "creep-necromancer": { w: 385, h: 400, footY: 384 },
@@ -118,8 +93,6 @@ const BASE_ART = {
   "creep-pit-lord": { w: 400, h: 390, footY: 374 },
   "creep-raider": { w: 356, h: 400, footY: 384 },
   "creep-satyr": { w: 317, h: 400, footY: 384 },
-  "creep-scarab": { w: 395, h: 400, footY: 384 },
-  "creep-shade": { w: 400, h: 389, footY: 373 },
   "creep-shaman": { w: 378, h: 400, footY: 384 },
   "creep-sheep-fly": { w: 400, h: 343, footY: 327 },
   "creep-siege-golem": { w: 369, h: 400, footY: 384 },
@@ -128,7 +101,6 @@ const BASE_ART = {
   "creep-spellbreaker": { w: 353, h: 400, footY: 384 },
   "creep-spider": { w: 391, h: 400, footY: 384 },
   "creep-troll": { w: 390, h: 400, footY: 384 },
-  "creep-voidwalker": { w: 396, h: 400, footY: 384 },
   "creep-warlock": { w: 325, h: 400, footY: 384 },
   "creep-wolf": { w: 283, h: 400, footY: 384 },
   "creep-yeti": { w: 396, h: 400, footY: 384 },
@@ -281,7 +253,7 @@ export const ART_MANIFEST = Object.freeze({
  * v0.23: version key on every art URL (figures, animations, icons): raise it whenever pictures in
  * assets/art, assets/anim, assets/art-toy or assets/art-pets change, so browsers fetch the new ones (see the README).
  */
-export const ART_VERSION = "v023n";
+export const ART_VERSION = "v024"; // v0.24: release of the v0.23 creep overhaul; v0.23zr: Banshee and Arcane Wolf cut out cleanly (no white edges or gaps); v0.23zq: Bone Dragon, Arcane Wolf, Giant Bat; v0.23zp: Naga Siren; v0.23zo: Raven; v0.23zn: Demon Lord; v0.23zm: leftover white removed from Necromancer, Meat Golem, Infernal Golem; v0.23zl: Banshee; v0.23zk: Dark Monk (was Faceless); v0.23zj: Demon Knight, Witch Hunter on the Spellbreaker, Dryad; v0.23zi: Witch Hunter, Druid; v0.23zh: Zombie Ogre; v0.23zg: left-over white background removed from creep sheets (holes between arms/legs, light edge halos)
 // ---- art sets of the Circle Tower Wars designs ------------------------------------------------------
 // Sonnenwiese and Bonbon draw every figure as a round toy ("toy"), Pfotenwelt as a cute animal ("pets").
 // A set holds one picture per figure; level variants (-v1..-v3, -l1, -l2) share their base figure there.
@@ -324,7 +296,6 @@ export const ANIM_MANIFEST = Object.freeze({
   "tower-guard": { kind: "attack", frames: 10, cols: 5, fw: 380, fh: 420, ox: 40, oy: 20, ms: 45, start: 2 },
   "tower-guard-l1": { kind: "attack", frames: 10, cols: 5, fw: 380, fh: 420, ox: 40, oy: 20, ms: 45, start: 2 },
   "tower-guard-l2": { kind: "attack", frames: 10, cols: 5, fw: 380, fh: 420, ox: 40, oy: 20, ms: 45, start: 2 },
-  "creep-skeleton": { kind: "walk", frames: 8, cols: 4, fw: 444, fh: 412, ox: 24, oy: 12, ms: 80 },
   // v0.23a (creep graphic overhaul): 8-way walks (rows: front, front-right, right, back-right, back, back-left,
   // left, front-left; 6 frames each, foot point footX/footY, figure height figH, size figS = max(figH, width / 1.4)) and 6-frame deaths (key + "-death")
   "creep-n-arcane-golem": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 124, fh: 95, footX: 62, footY: 91, figH: 79, ms: 95, figS: 79 },
@@ -336,17 +307,69 @@ export const ANIM_MANIFEST = Object.freeze({
   "creep-n-demon-hound-death": { kind: "death", frames: 6, cols: 6, fw: 238, fh: 145, footX: 119, footY: 141, ms: 110 },
   "creep-n-flying-machine": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 162, fh: 109, footX: 81, footY: 105, figH: 86, ms: 95, figS: 92 },
   "creep-n-flying-machine-death": { kind: "death", frames: 6, cols: 6, fw: 232, fh: 202, footX: 116, footY: 198, ms: 110 },
-  "creep-n-flying-sheep": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 170, fh: 104, footX: 85, footY: 100, figH: 85, ms: 95, figS: 97, scale: 0.8 }, // v0.23j: smaller
-  "creep-n-flying-sheep-death": { kind: "death", frames: 6, cols: 6, fw: 200, fh: 119, footX: 100, footY: 115, ms: 110 },
-  "creep-n-forest-troll": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 126, fh: 113, footX: 63, footY: 109, figH: 95, ms: 95, figS: 95 },
-  "creep-n-forest-troll-death": { kind: "death", frames: 6, cols: 6, fw: 264, fh: 166, footX: 132, footY: 162, ms: 110 },
+  "creep-n-flying-sheep": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 154, fh: 97, footX: 77, footY: 87, figH: 83, ms: 95, figS: 95, scale: 0.8, stride: 0.5 }, // v0.23q: new sheet, figS kept at the old on-screen size (v0.23j: smaller); v0.23r: wings beat twice as fast
+  "creep-n-flying-sheep-death": { kind: "death", frames: 6, cols: 6, fw: 126, fh: 103, footX: 63, footY: 84, ms: 110 }, // v0.23q: sneeze, poof, feathers
   "creep-n-gnoll": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 145, fh: 117, footX: 72, footY: 113, figH: 95, ms: 95, figS: 95 },
   "creep-n-gnoll-death": { kind: "death", frames: 6, cols: 6, fw: 160, fh: 152, footX: 80, footY: 148, ms: 110 },
   // v0.23d: hay pony: four poses per direction (stand, walk, run, walk) and seven death frames
-  "creep-n-horse": { kind: "walk", dirs: 8, frames: 4, cols: 4, fw: 146, fh: 112, footX: 73, footY: 108, figH: 95, ms: 120, figS: 95 },
-  "creep-n-horse-death": { kind: "death", frames: 7, cols: 7, fw: 149, fh: 109, footX: 74, footY: 105, ms: 105 },
-  "creep-n-goblin": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 146, fh: 93, footX: 73, footY: 89, figH: 81, ms: 95, figS: 81 },
-  "creep-n-goblin-death": { kind: "death", frames: 6, cols: 6, fw: 216, fh: 103, footX: 108, footY: 99, ms: 110 },
+  "creep-n-horse": { kind: "walk", dirs: 8, frames: 8, cols: 8, fw: 108, fh: 113, footX: 54, footY: 102, figH: 92, ms: 95, figS: 92 }, // v0.23ze: Pony sheet, walk and death in one file
+  "creep-n-horse-death": { kind: "death", in: "creep-n-horse", first: 64, frames: 7, cols: 8, fw: 108, fh: 113, footX: 54, footY: 102, ms: 110 },
+  "creep-n-goblin": { kind: "walk", dirs: 8, frames: 8, cols: 8, fw: 96, fh: 109, footX: 48, footY: 97, figH: 88, ms: 95, figS: 88 }, // v0.23t: new hooded goblin sheet, 8 frames per direction
+  "creep-n-trenchlin": { kind: "walk", dirs: 8, frames: 8, cols: 8, fw: 88, fh: 119, footX: 44, footY: 108, figH: 96, ms: 95, figS: 96 }, // v0.23x: helmeted goblin with a spike, 8 frames per direction
+  "creep-n-trenchlin-death": { kind: "death", frames: 7, cols: 7, fw: 96, fh: 100, footX: 48, footY: 94, ms: 110 }, // v0.23x
+  "creep-n-zealot": { kind: "walk", dirs: 8, frames: 8, cols: 8, fw: 84, fh: 104, footX: 42, footY: 95, figH: 86, ms: 95, figS: 86 }, // v0.23z: hooded goblin zealot, 8 frames per direction
+  "creep-n-zealot-death": { kind: "death", frames: 7, cols: 7, fw: 108, fh: 86, footX: 54, footY: 79, ms: 110 }, // v0.23z
+  "creep-n-crystal-lizard": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 132, fh: 100, footX: 66, footY: 87, figH: 70, ms: 95, figS: 70 }, // v0.23zb: tier 4 Crystal Lizard (was Dragonspawn); one sheet: 8 walk rows, the death row below
+  "creep-n-crystal-lizard-death": { kind: "death", in: "creep-n-crystal-lizard", first: 48, frames: 6, cols: 6, fw: 132, fh: 100, footX: 66, footY: 87, ms: 110 },
+  "creep-n-bone-dragon": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 166, fh: 132, footX: 83, footY: 121, figH: 66, ms: 95, figS: 101 }, // v0.23zq: tier 4 Bone Dragon, new sheet; back-left = mirrored back-right; flight and death in one sheet
+  "creep-n-bone-dragon-death": { kind: "death", in: "creep-n-bone-dragon", first: 48, frames: 6, cols: 6, fw: 166, fh: 132, footX: 83, footY: 121, ms: 110 },
+  "creep-n-black-dragon": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 140, fh: 114, footX: 70, footY: 99, figH: 62, ms: 95, figS: 76 }, // v0.23zb: tier 5 Black Dragon; one sheet: 8 walk rows, the death row below
+  "creep-n-black-dragon-death": { kind: "death", in: "creep-n-black-dragon", first: 48, frames: 6, cols: 6, fw: 140, fh: 114, footX: 70, footY: 99, ms: 110 },
+  "creep-n-rogue-captain": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 142, fh: 118, footX: 71, footY: 100, figH: 74, ms: 95, figS: 74 }, // v0.23zb: tier 3 Rouge Captain; one sheet: 8 walk rows, the death row below
+  "creep-n-rogue-captain-death": { kind: "death", in: "creep-n-rogue-captain", first: 48, frames: 6, cols: 6, fw: 142, fh: 118, footX: 71, footY: 100, ms: 110 },
+  "creep-n-dark-knight": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 136, fh: 119, footX: 68, footY: 110, figH: 70, ms: 95, figS: 70 }, // v0.23zb: tier 5 Dark Knight (was Lord Garithos); one sheet: 8 walk rows, the death row below
+  "creep-n-dark-knight-death": { kind: "death", in: "creep-n-dark-knight", first: 48, frames: 6, cols: 6, fw: 136, fh: 119, footX: 68, footY: 110, ms: 110 },
+  "creep-n-siege-ogre": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 142, fh: 106, footX: 71, footY: 91, figH: 68, ms: 95, figS: 68, plantRow: 9, plantFrames: 6, bare: "creep-n-siege-ogre-bare" }, // v0.23zb: tier 4 Siege Ogre (was Shieldbearer), row 10: planting the plank; one sheet: 8 walk rows, the death row below
+  "creep-n-siege-ogre-death": { kind: "death", in: "creep-n-siege-ogre", first: 48, frames: 6, cols: 6, fw: 142, fh: 106, footX: 71, footY: 91, ms: 110 },
+  "creep-n-siege-ogre-bare": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 128, fh: 111, footX: 64, footY: 99, figH: 75, ms: 95, figS: 75 }, // v0.23zb: Siege Ogre after its plank is planted; one sheet: 8 walk rows, the death row below
+  "creep-n-siege-ogre-bare-death": { kind: "death", in: "creep-n-siege-ogre-bare", first: 48, frames: 6, cols: 6, fw: 128, fh: 111, footX: 64, footY: 99, ms: 110 },
+  "creep-n-undoctor": { kind: "walk", dirs: 8, frames: 8, cols: 8, fw: 110, fh: 106, footX: 55, footY: 96, figH: 87, ms: 95, figS: 87 }, // v0.23zb: tier 4 Undoctor (was Witch Doctor); one sheet: 8 walk rows, the death row below
+  "creep-n-undoctor-death": { kind: "death", in: "creep-n-undoctor", first: 64, frames: 7, cols: 8, fw: 110, fh: 106, footX: 55, footY: 96, ms: 110 },
+  "creep-n-satyr": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 126, fh: 95, footX: 63, footY: 86, figH: 71, ms: 95, figS: 71 }, // v0.23zb: tier 2 Satyr (was Centaur Warrior); one sheet: 8 walk rows, the death row below
+  "creep-n-satyr-death": { kind: "death", in: "creep-n-satyr", first: 48, frames: 6, cols: 6, fw: 126, fh: 95, footX: 63, footY: 86, ms: 110 },
+  "creep-n-centaur": { kind: "walk", dirs: 8, frames: 8, cols: 8, fw: 154, fh: 111, footX: 77, footY: 100, figH: 96, ms: 95, figS: 96 }, // v0.23zc: tier 2 Centaur (was Forest Troll); walk and death in one sheet
+  "creep-n-centaur-death": { kind: "death", in: "creep-n-centaur", first: 64, frames: 7, cols: 8, fw: 154, fh: 111, footX: 77, footY: 100, ms: 110 },
+  "creep-n-bandit-leader": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 136, fh: 129, footX: 68, footY: 116, figH: 83, ms: 95, figS: 83 }, // v0.23zc: tier 2 Bandit Leader (was Grom Hellscream); walk and death in one sheet
+  "creep-n-bandit-leader-death": { kind: "death", in: "creep-n-bandit-leader", first: 48, frames: 6, cols: 6, fw: 136, fh: 129, footX: 68, footY: 116, ms: 110 },
+  "creep-n-skeleton-berserker": { kind: "walk", dirs: 8, frames: 8, cols: 8, fw: 110, fh: 107, footX: 55, footY: 97, figH: 86, ms: 95, figS: 86 }, // v0.23zd: tier 2 Skeleton Berserker; walk and death in one sheet
+  "creep-n-skeleton-berserker-death": { kind: "death", in: "creep-n-skeleton-berserker", first: 64, frames: 7, cols: 8, fw: 110, fh: 107, footX: 55, footY: 97, ms: 110 },
+  "creep-n-scaleworm": { kind: "walk", dirs: 8, frames: 8, cols: 8, fw: 112, fh: 106, footX: 56, footY: 91, figH: 78, ms: 95, figS: 78 }, // v0.23zd: tier 3 Scaleworm (was Arcane Marauder); walk and death in one sheet
+  "creep-n-scaleworm-death": { kind: "death", in: "creep-n-scaleworm", first: 64, frames: 7, cols: 8, fw: 112, fh: 106, footX: 56, footY: 91, ms: 110 },
+  "creep-n-witch-hunter": { kind: "walk", dirs: 8, frames: 8, cols: 8, fw: 172, fh: 112, footX: 86, footY: 101, figH: 92, ms: 95, figS: 92 }, // v0.23zi: tier 4 Witch Hunter (was Demon Hunter); walk and death in one sheet
+  "creep-n-witch-hunter-death": { kind: "death", in: "creep-n-witch-hunter", first: 64, frames: 7, cols: 8, fw: 172, fh: 112, footX: 86, footY: 101, ms: 110 },
+  "creep-n-demon-knight": { kind: "walk", dirs: 8, frames: 8, cols: 8, fw: 166, fh: 105, footX: 83, footY: 95, figH: 90, ms: 95, figS: 90 }, // v0.23zj: tier 4 Demon Knight (was Demon Hunter); walk and death in one sheet
+  "creep-n-demon-knight-death": { kind: "death", in: "creep-n-demon-knight", first: 64, frames: 7, cols: 8, fw: 166, fh: 105, footX: 83, footY: 95, ms: 110 },
+  "creep-n-dryad": { kind: "walk", dirs: 8, frames: 8, cols: 8, fw: 176, fh: 117, footX: 88, footY: 108, figH: 102, ms: 95, figS: 102 }, // v0.23zj: tier 5 Dryad; 7 walk rows on the sheet (back-left = mirrored back-right); walk and death in one sheet
+  "creep-n-dryad-death": { kind: "death", in: "creep-n-dryad", first: 64, frames: 7, cols: 8, fw: 176, fh: 117, footX: 88, footY: 108, ms: 110 },
+  "creep-n-dark-monk": { kind: "walk", dirs: 8, frames: 8, cols: 8, fw: 132, fh: 112, footX: 66, footY: 108, figH: 91, ms: 95, figS: 91 }, // v0.23zk: tier 5 Dark Monk (was Faceless); back-left = mirrored back-right; walk and death in one sheet
+  "creep-n-dark-monk-death": { kind: "death", in: "creep-n-dark-monk", first: 64, frames: 7, cols: 8, fw: 132, fh: 112, footX: 66, footY: 108, ms: 110 },
+  "creep-n-banshee": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 176, fh: 127, footX: 88, footY: 123, figH: 92, ms: 95, figS: 92 }, // v0.23zl: Banshee; front-right, back-right = mirrored front-left, back-left; walk and death in one sheet
+  "creep-n-banshee-death": { kind: "death", in: "creep-n-banshee", first: 48, frames: 6, cols: 6, fw: 176, fh: 127, footX: 88, footY: 123, ms: 110 },
+  "creep-n-demon-lord": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 114, fh: 112, footX: 57, footY: 108, figH: 95, ms: 95, figS: 95 }, // v0.23zn: Demon Lord (was Pit Lord); 6 of the sheet's 8 frames per direction; right = the turned frames of the 3rd row, left/front-left/back-right mirrored
+  "creep-n-demon-lord-death": { kind: "death", frames: 7, cols: 7, fw: 140, fh: 114, footX: 70, footY: 110, ms: 110 },
+  "creep-n-raven": { kind: "walk", dirs: 8, frames: 8, cols: 8, fw: 170, fh: 118, footX: 85, footY: 113, figH: 88, ms: 95, figS: 95 }, // v0.23zo: tier 5 Raven (was Gryphon Rider); back-left = mirrored back-right; flight and death in one sheet
+  "creep-n-raven-death": { kind: "death", in: "creep-n-raven", first: 64, frames: 7, cols: 8, fw: 170, fh: 118, footX: 85, footY: 113, ms: 110 },
+  "creep-n-naga-siren": { kind: "walk", dirs: 8, frames: 8, cols: 8, fw: 172, fh: 137, footX: 86, footY: 133, figH: 91, ms: 95, figS: 91 }, // v0.23zp: Naga Siren; back-left = mirrored back-right; swim and death in one sheet
+  "creep-n-naga-siren-death": { kind: "death", in: "creep-n-naga-siren", first: 64, frames: 7, cols: 8, fw: 172, fh: 137, footX: 86, footY: 133, ms: 110 },
+  "creep-n-druid": { kind: "walk", dirs: 8, frames: 8, cols: 8, fw: 120, fh: 115, footX: 60, footY: 104, figH: 96, ms: 95, figS: 96 }, // v0.23zi: tier 5 Druid (bear cloak); left = mirrored row 3; walk and death in one sheet
+  "creep-n-druid-death": { kind: "death", in: "creep-n-druid", first: 64, frames: 7, cols: 8, fw: 120, fh: 115, footX: 60, footY: 104, ms: 110 },
+  "creep-n-zombie-ogre": { kind: "walk", dirs: 8, frames: 8, cols: 8, fw: 150, fh: 130, footX: 75, footY: 104, figH: 97, ms: 95, figS: 97 }, // v0.23zh: tier 5 Zombie Ogre (was Abomination); 7 walk rows on the sheet (front-right, back-right and left mirrored), walk and death in one sheet
+  "creep-n-zombie-ogre-death": { kind: "death", in: "creep-n-zombie-ogre", first: 64, frames: 6, cols: 8, fw: 150, fh: 130, footX: 75, footY: 104, ms: 110 },
+  "creep-n-minotaurus": { kind: "walk", dirs: 8, frames: 8, cols: 8, fw: 112, fh: 112, footX: 56, footY: 100, figH: 93, ms: 95, figS: 93 }, // v0.23zf: tier 3 Minotaurus (was Cairne Bloodhoof); walk and death in one sheet
+  "creep-n-minotaurus-death": { kind: "death", in: "creep-n-minotaurus", first: 64, frames: 7, cols: 8, fw: 112, fh: 112, footX: 56, footY: 100, ms: 110 },
+  "creep-n-scarabaeus": { kind: "walk", dirs: 8, frames: 8, cols: 8, fw: 104, fh: 94, footX: 52, footY: 74, figH: 73, ms: 95, figS: 73 }, // v0.23zf: tier 5 Scarabaeus; walk and death in one sheet
+  "creep-n-scarabaeus-death": { kind: "death", in: "creep-n-scarabaeus", first: 64, frames: 7, cols: 8, fw: 104, fh: 94, footX: 52, footY: 74, ms: 110 },
+  "creep-n-goblin-death": { kind: "death", frames: 7, cols: 7, fw: 100, fh: 100, footX: 50, footY: 90, ms: 110 }, // v0.23t
   "creep-n-grunt": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 138, fh: 110, footX: 69, footY: 106, figH: 97, ms: 95, figS: 97 },
   "creep-n-grunt-death": { kind: "death", frames: 6, cols: 6, fw: 180, fh: 130, footX: 90, footY: 126, ms: 110 },
   "creep-n-infernal-golem": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 134, fh: 96, footX: 67, footY: 92, figH: 81, ms: 95, figS: 81 },
@@ -363,8 +386,6 @@ export const ANIM_MANIFEST = Object.freeze({
   "creep-n-raider-death": { kind: "death", frames: 6, cols: 6, fw: 210, fh: 136, footX: 105, footY: 132, ms: 110 },
   "creep-n-rock-golem": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 152, fh: 107, footX: 76, footY: 103, figH: 93, ms: 95, figS: 93 },
   "creep-n-rock-golem-death": { kind: "death", frames: 6, cols: 6, fw: 200, fh: 132, footX: 100, footY: 128, ms: 110 },
-  "creep-n-satyr": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 132, fh: 117, footX: 66, footY: 113, figH: 102, ms: 95, figS: 102 },
-  "creep-n-satyr-death": { kind: "death", frames: 6, cols: 6, fw: 192, fh: 134, footX: 96, footY: 130, ms: 110 },
   "creep-n-shade": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 172, fh: 105, footX: 86, footY: 101, figH: 92, ms: 95, figS: 98 },
   "creep-n-shade-death": { kind: "death", frames: 6, cols: 6, fw: 178, fh: 137, footX: 89, footY: 133, ms: 110 },
   "creep-n-shaman": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 132, fh: 104, footX: 66, footY: 100, figH: 91, ms: 95, figS: 91 },
@@ -373,10 +394,12 @@ export const ANIM_MANIFEST = Object.freeze({
   "creep-n-siege-golem-death": { kind: "death", frames: 6, cols: 6, fw: 236, fh: 134, footX: 118, footY: 130, ms: 110 },
   "creep-n-spawn-spider": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 152, fh: 99, footX: 76, footY: 95, figH: 74, ms: 95, figS: 91 },
   "creep-n-spawn-spider-death": { kind: "death", frames: 6, cols: 6, fw: 168, fh: 128, footX: 84, footY: 124, ms: 110 },
-  "creep-n-spiritwolf": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 196, fh: 108, footX: 98, footY: 104, figH: 85, ms: 95, figS: 93 },
-  "creep-n-spiritwolf-death": { kind: "death", frames: 6, cols: 6, fw: 248, fh: 173, footX: 124, footY: 169, ms: 110 },
-  "creep-n-zombie": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 116, fh: 101, footX: 58, footY: 97, figH: 87, ms: 95, figS: 87 },
-  "creep-n-zombie-death": { kind: "death", frames: 6, cols: 6, fw: 176, fh: 97, footX: 88, footY: 93, ms: 110 },
+  "creep-n-spiritwolf": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 172, fh: 120, footX: 86, footY: 112, figH: 78, ms: 95, figS: 78 }, // v0.23zq: Arcane Wolf, new sheet; walk and death in one sheet
+  "creep-n-spiritwolf-death": { kind: "death", in: "creep-n-spiritwolf", first: 48, frames: 6, cols: 6, fw: 172, fh: 120, footX: 86, footY: 112, ms: 110 },
+  "creep-n-giant-bat": { kind: "walk", dirs: 8, frames: 8, cols: 8, fw: 150, fh: 95, footX: 75, footY: 81, figH: 60, ms: 95, figS: 98 }, // v0.23zq: Giant Bat (was Zeppelin); right side = the 3/4 rows, back-left/back-right = back; flight and death in one sheet
+  "creep-n-giant-bat-death": { kind: "death", in: "creep-n-giant-bat", first: 64, frames: 8, cols: 8, fw: 150, fh: 95, footX: 75, footY: 81, ms: 110 },
+  "creep-n-zombie": { kind: "walk", dirs: 8, frames: 8, cols: 8, fw: 82, fh: 108, footX: 41, footY: 100, figH: 93, ms: 95, figS: 93 }, // v0.23za: zombie goblin, 8 frames per direction
+  "creep-n-zombie-death": { kind: "death", frames: 7, cols: 7, fw: 100, fh: 85, footX: 50, footY: 78, ms: 110 }, // v0.23za
   "creep-n-wolf": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 254, fh: 166, footX: 127, footY: 160, figH: 138, figS: 138, ms: 95 },
   "creep-n-skeleton": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 190, fh: 151, footX: 95, footY: 145, figH: 133, figS: 133, ms: 95, scale: 0.82 }, // v0.23j: smaller
 });
@@ -387,10 +410,36 @@ export const CREEP_PORTRAIT = Object.freeze({
   "creep-n-demon-hound": "creep-p-demon-hound",
   "creep-n-flying-machine": "creep-p-flying-machine",
   "creep-n-flying-sheep": "creep-p-flying-sheep",
-  "creep-n-forest-troll": "creep-p-forest-troll",
   "creep-n-gnoll": "creep-p-gnoll",
   "creep-n-horse": "creep-p-horse",
   "creep-n-goblin": "creep-p-goblin",
+  "creep-n-trenchlin": "creep-p-trenchlin", // v0.23x
+  "creep-n-zealot": "creep-p-zealot", // v0.23z
+  "creep-n-witch-hunter": "creep-p-witch-hunter", // v0.23zi
+  "creep-n-druid": "creep-p-druid", // v0.23zi
+  "creep-n-demon-knight": "creep-p-demon-knight", // v0.23zj
+  "creep-n-dryad": "creep-p-dryad", // v0.23zj
+  "creep-n-dark-monk": "creep-p-dark-monk", // v0.23zk
+  "creep-n-banshee": "creep-p-banshee", // v0.23zl
+  "creep-n-demon-lord": "creep-p-demon-lord", // v0.23zn
+  "creep-n-raven": "creep-p-raven", // v0.23zo
+  "creep-n-naga-siren": "creep-p-naga-siren", // v0.23zp
+  "creep-n-giant-bat": "creep-p-giant-bat", // v0.23zq
+  "creep-n-zombie-ogre": "creep-p-zombie-ogre", // v0.23zh
+  "creep-n-minotaurus": "creep-p-minotaurus", // v0.23zf
+  "creep-n-scarabaeus": "creep-p-scarabaeus", // v0.23zf
+  "creep-n-skeleton-berserker": "creep-p-skeleton-berserker", // v0.23zd
+  "creep-n-scaleworm": "creep-p-scaleworm", // v0.23zd
+  "creep-n-centaur": "creep-p-centaur", // v0.23zc
+  "creep-n-bandit-leader": "creep-p-bandit-leader", // v0.23zc
+  "creep-n-crystal-lizard": "creep-p-crystal-lizard",
+  "creep-n-bone-dragon": "creep-p-bone-dragon",
+  "creep-n-black-dragon": "creep-p-black-dragon",
+  "creep-n-rogue-captain": "creep-p-rogue-captain",
+  "creep-n-dark-knight": "creep-p-dark-knight",
+  "creep-n-siege-ogre": "creep-p-siege-ogre",
+  "creep-n-undoctor": "creep-p-undoctor",
+  "creep-n-satyr": "creep-p-satyr",
   "creep-n-grunt": "creep-p-grunt",
   "creep-n-infernal-golem": "creep-p-infernal-golem",
   "creep-n-meat-golem": "creep-p-meat-golem",
@@ -399,7 +448,6 @@ export const CREEP_PORTRAIT = Object.freeze({
   "creep-n-necromancer": "creep-p-necromancer",
   "creep-n-raider": "creep-p-raider",
   "creep-n-rock-golem": "creep-p-rock-golem",
-  "creep-n-satyr": "creep-p-satyr",
   "creep-n-shade": "creep-p-shade",
   "creep-n-shaman": "creep-p-shaman",
   "creep-n-siege-golem": "creep-p-siege-golem",
@@ -460,72 +508,77 @@ const RESEARCH_ART = {
 const CREEP_PATTERNS = [
   // v0.23a (creep graphic overhaul): every creep uses a bestiary figure; a figure shared by two creeps gets a colour variant
   [/\[murloc\]/i, "creep-n-sea-kraken"], // Naga Siren's death spawns
+  [/bone dragon/i, "creep-n-bone-dragon"], // v0.23zb: renamed creeps first, before older patterns
+  [/crystal lizard/i, "creep-n-crystal-lizard"],
+  [/dark knight/i, "creep-n-dark-knight"],
+  [/siege ogre/i, "creep-n-siege-ogre"],
+  [/undoctor/i, "creep-n-undoctor"],
+  [/forest troll|^(\[\d+\] )?centaur$/i, "creep-n-centaur"], // v0.23zc: the Forest Troll is the Centaur
+  [/bandit leader|grom/i, "creep-n-bandit-leader"],
+  [/rouge knight|fel raider/i, "creep-n-dark-knight"], // v0.23zc: the Fel Raider is the Rouge Knight (same figure as the Dark Knight) // v0.23zc: Grom Hellscream is the Bandit Leader
   [/flying sheep/i, "creep-n-flying-sheep"],
   [/flying machine/i, "creep-n-flying-machine"],
-  [/zeppelin/i, "creep-n-giant-bat"],
+  [/giant bat|zeppelin/i, "creep-n-giant-bat"], // v0.23zq: the Zeppelin is the Giant Bat
   [/shade/i, "creep-n-shade"],
   [/bat rider/i, "creep-n-bat"],
-  [/void walker/i, "creep-n-imp-void"],
-  [/frost wyrm/i, "creep-n-frost-dragon"],
-  [/gryphon/i, "creep-n-inferno-dragon"],
-  [/black dragon/i, "creep-n-void-dragon"],
+  [/banshee|void walker/i, "creep-n-banshee"], // v0.23zl: the Void Walker is the Banshee, own graphics
+  [/bone dragon|frost wyrm/i, "creep-n-bone-dragon"], // v0.23zb
+  [/raven|gryphon/i, "creep-n-raven"], // v0.23zo: the Gryphon Rider is the Raven
+  [/black dragon/i, "creep-n-black-dragon"], // v0.23zb
   [/^wisp$|\bwisp\b/i, "creep-n-ice-imp"],
   [/rock golem/i, "creep-n-rock-golem"],
   [/mud golem/i, "creep-n-mud-golem"],
   [/arcane golem/i, "creep-n-arcane-golem"],
-  [/siege golem/i, "creep-n-siege-golem"],
+  [/iron golem|siege golem/i, "creep-n-siege-golem"], // v0.23zh: the Siege Golem is the Iron Golem
   [/meat golem/i, "creep-n-meat-golem"],
   [/infernal golem/i, "creep-n-infernal-golem"],
   [/mountain golem/i, "creep-n-mountain-golem"],
   [/midfernal|babyfernal|inferno \w*berth|infernal/i, "creep-n-lava-golem"],
-  [/abomination/i, "creep-n-abomination"],
+  [/zombie ogre|abomination/i, "creep-n-zombie-ogre"], // v0.23zh: the Abomination is the Zombie Ogre
   [/clockwork goblin/i, "creep-n-bomber"],
   [/iron maiden/i, "creep-n-bone-knight"],
-  [/horse/i, "creep-n-horse"], // v0.23d: hay pony
+  [/pony|horse/i, "creep-n-horse"], // v0.23ze: the Horse is the Pony
   [/satyr/i, "creep-n-satyr"],
   [/skeleton mage/i, "creep-n-skeleton-archer"],
   [/necromancer/i, "creep-n-necromancer"],
-  [/witch doctor/i, "creep-n-skeleton-mage-green"],
-  [/akolyte|acolyte/i, "creep-n-plague-zombie"],
-  [/fel raider/i, "creep-n-armored-boar-fel"],
+  [/undoctor|witch doctor/i, "creep-n-undoctor"], // v0.23zb
+  [/zealot|akolyte|acolyte/i, "creep-n-zealot"], // v0.23z: the tier 4 Akolyte is the Goblin Zealot
   [/raider/i, "creep-n-raider"],
   [/alchemist/i, "creep-n-bomber"],
   [/boar|scout/i, "creep-n-armored-boar"],
-  [/centaur/i, "creep-n-spiked-slime"],
-  [/skeleton (grunt|berserker)/i, "creep-n-bone-knight"],
+  [/centaur warrior/i, "creep-n-satyr"], // v0.23zb: the Centaur Warrior is the Satyr
+  [/skeleton (grunt|berserker)/i, "creep-n-skeleton-berserker"], // v0.23zd
   [/treant/i, "creep-n-forest-golem"],
-  [/forest troll/i, "creep-n-forest-troll"],
   [/rouge wizard|rogue wizard/i, "creep-n-fire-imp"],
     [/spider/i, "creep-n-spawn-spider"],
-  [/grom/i, "creep-n-orc-berserker"],
   [/zombie/i, "creep-n-zombie"],
-  [/marauder/i, "creep-n-crystal-worm"],
-  [/rouge captain|rogue captain/i, "creep-n-ogre"],
-  [/naga|siren/i, "creep-n-sea-kraken"],
-  [/spiritwalker/i, "creep-n-ice-slime"],
+  [/scaleworm|marauder/i, "creep-n-scaleworm"], // v0.23zd: the Arcane Marauder is the Scaleworm
+  [/rouge captain|rogue captain/i, "creep-n-rogue-captain"], // v0.23zb
+  [/naga|siren/i, "creep-n-naga-siren"], // v0.23zp: own graphics (her Murloc spawns keep the Sea Kraken)
+  [/siege ogre|shieldbearer|spiritwalker/i, "creep-n-siege-ogre"], // v0.23zb
   [/shaman/i, "creep-n-shaman"],
-  [/cairne|tauren/i, "creep-n-brute-brown"],
+  [/minotaurus|cairne|tauren/i, "creep-n-minotaurus"], // v0.23zf: Cairne Bloodhoof is the Minotaurus
   [/ghoul/i, "creep-n-ghoul"],
   [/demon hound/i, "creep-n-demon-hound"],
   [/sasquatch/i, "creep-n-troll-brown"],
-  [/dragonspawn/i, "creep-n-burrower"],
-  [/spellbreaker/i, "creep-n-orc-berserker-violet"],
+  [/crystal lizard|dragonspawn/i, "creep-n-crystal-lizard"], // v0.23zb
+  [/demon knight|demon hunter/i, "creep-n-demon-knight"], // v0.23zj: the Demon Hunter is the Demon Knight
   [/warlock/i, "creep-n-fire-imp-fel"],
-  [/demon hunter/i, "creep-n-orc-shadow"],
-  [/scarab/i, "creep-n-sand-worm"],
-  [/faceless/i, "creep-n-crystal-worm-green"],
-  [/dryad/i, "creep-n-forest-golem-autumn"],
-  [/druid/i, "creep-n-spiked-slime-violet"],
+  [/witch hunter|spellbreaker/i, "creep-n-witch-hunter"], // v0.23zj: the Spellbreaker is the Witch Hunter
+  [/scarab/i, "creep-n-scarabaeus"], // v0.23zf
+  [/dark monk|faceless/i, "creep-n-dark-monk"], // v0.23zk: the Faceless is the Dark Monk
+  [/dryad/i, "creep-n-dryad"], // v0.23zj
+  [/druid/i, "creep-n-druid"], // v0.23zi
   [/wendigo/i, "creep-n-ice-imp-violet"],
-  [/garithos/i, "creep-n-bone-knight"],
+  [/dark knight|garithos/i, "creep-n-dark-knight"], // v0.23zb
   [/warden/i, "creep-n-ghoul-green"],
-  [/pit lord/i, "creep-n-demon-lord-fel"],
+  [/demon lord|pit lord/i, "creep-n-demon-lord"], // v0.23zn: the Pit Lord creep is the Demon Lord
   [/spirit ?wolf/i, "creep-n-spiritwolf"],
   [/wolf/i, "creep-n-wolf"],
   [/skeleton/i, "creep-n-skeleton"],
   [/gnoll/i, "creep-n-gnoll"],
   [/grunt|\borc\b/i, "creep-n-grunt"],
-  [/chaos peon|wichtel|^imp$|\bimp\b/i, "creep-n-imp"],
+  [/trenchlin|chaos peon|wichtel|^imp$|\bimp\b/i, "creep-n-trenchlin"], // v0.23x: the tier 2 Imp is the Trenchlin
   [/peon|goblin|peasant/i, "creep-n-goblin"],
 ];
 /** Design variants (art sets): the monster figures the sets know. */
@@ -536,20 +589,20 @@ const SET_CREEP_PATTERNS = [
   [/zeppelin/i, "creep-zeppelin", "creep-harpy"],
   [/shade/i, "creep-shade", "creep-harpy"],
   [/bat rider/i, "creep-bat-rider", "creep-harpy"],
-  [/void walker/i, "creep-voidwalker", "creep-harpy"],
+  [/banshee|void walker/i, "creep-voidwalker", "creep-harpy"],
   [/frost wyrm/i, "creep-frost-wyrm", "creep-harpy"],
-  [/gryphon/i, "creep-gryphon", "creep-harpy"],
+  [/gryphon|raven/i, "creep-gryphon", "creep-harpy"],
   [/black dragon/i, "creep-black-dragon", "creep-harpy"],
   [/rock golem/i, "creep-golem", "creep-golem"],
   [/arcane golem/i, "creep-golem", "creep-golem"], // v0.12
   [/^wisp$/i, "creep-shade", "creep-shade"], // v0.17c: the Treant's Wisp gets art that carries the player colour
-  [/siege golem/i, "creep-siege-golem", "creep-golem"],
-  [/meat golem|abomination/i, "creep-flesh-golem", "creep-ghoul"],
+  [/iron golem|siege golem/i, "creep-siege-golem", "creep-golem"],
+  [/meat golem|zombie ogre|abomination/i, "creep-flesh-golem", "creep-ghoul"],
   [/infernal/i, "creep-infernal", "creep-golem"],
   [/mountain golem/i, "creep-mountain-golem", "creep-golem"],
   [/horse/i, "creep-horse", "creep-boar"],
   [/satyr/i, "creep-satyr", "creep-orc"],
-  [/necromancer|akolyte|skeleton mage/i, "creep-necromancer", "creep-shaman"],
+  [/necromancer|zealot|akolyte|skeleton mage/i, "creep-necromancer", "creep-shaman"],
   [/fel raider/i, "creep-fel-raider", "creep-boar"],
   [/raider/i, "creep-raider", "creep-boar"],
   [/alchemist/i, "creep-alchemist", "creep-shaman"],
@@ -558,7 +611,7 @@ const SET_CREEP_PATTERNS = [
   [/spider|arachnatid/i, "creep-spider", "creep-orc"],
   [/grom|green grunt/i, "creep-orc-warlord", "creep-orc"],
   [/marauder/i, "creep-marauder", "creep-darkknight"],
-  [/demon hunter|warden/i, "creep-demon-slayer", "creep-darkknight"],
+  [/demon knight|demon hunter|warden/i, "creep-demon-slayer", "creep-darkknight"],
   [/siren/i, "creep-siren", "creep-shaman"],
   [/shieldbearer/i, "creep-spellbreaker", "creep-darkknight"], // v0.22o2: the former Spiritwalker carries a shield
   [/cairne|spiritwalker/i, "creep-minotaur", "creep-orc"],
@@ -568,8 +621,8 @@ const SET_CREEP_PATTERNS = [
   [/warlock|rouge wizard|rogue wizard/i, "creep-warlock", "creep-shaman"],
   [/scarab/i, "creep-scarab", "creep-orc"],
   [/dryad|treant/i, "creep-dryad", "creep-goblin"],
-  [/pit lord|faceless/i, "creep-pit-lord", "creep-darkknight"],
-  [/spellbreaker|garithos/i, "creep-spellbreaker", "creep-darkknight"],
+  [/pit lord|demon lord|faceless|dark monk/i, "creep-pit-lord", "creep-darkknight"],
+  [/witch hunter|spellbreaker|garithos/i, "creep-spellbreaker", "creep-darkknight"],
   [/wolf|hound/i, "creep-wolf"],
   [/skeleton/i, "creep-skeleton"],
   [/zombie|ghoul/i, "creep-ghoul"],
@@ -578,7 +631,7 @@ const SET_CREEP_PATTERNS = [
   [/shaman|wizard|witch|mage/i, "creep-shaman"],
   [/knight|captain|hunter/i, "creep-darkknight"],
   [/grunt|orc|ogre|golem/i, "creep-orc"],
-  [/chaos peon|wichtel|^imp$|\bimp\b/i, "creep-wichtel", "creep-goblin"], // v0.21m: Chaos Peon is called Imp
+  [/trenchlin|chaos peon|wichtel|^imp$|\bimp\b/i, "creep-wichtel", "creep-goblin"], // v0.21m: Chaos Peon is called Imp
   [/peon|goblin/i, "creep-goblin"],
 ];
 /** Tower figures by name and level: upgrades change the figure, not just a badge. */

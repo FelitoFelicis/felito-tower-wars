@@ -4148,6 +4148,22 @@ dialog.with-flag .modal-header {
 .monsun-button.ready {
   box-shadow: inset 0 0 0 1.5px #e6f4ff, 0 3px 0 #08121e, 0 0 10px #8ad0ff88;
 }
+/* v0.23x: Infested Ground (acid green) */
+.infested-button {
+  background: radial-gradient(circle at 50% 30%, #4a8a1a, #12280a 75%);
+  box-shadow: inset 0 0 0 1.5px #d4ffa8, 0 3px 0 #081404;
+}
+.infested-button.ready {
+  box-shadow: inset 0 0 0 1.5px #ecffd8, 0 3px 0 #081404, 0 0 10px #8aff4a88;
+}
+/* v0.23w: Frost Bolt (ice blue) */
+.frostbolt-button {
+  background: radial-gradient(circle at 50% 30%, #2f8fc8, #0a2a4a 75%);
+  box-shadow: inset 0 0 0 1.5px #c8f0ff, 0 3px 0 #061420;
+}
+.frostbolt-button.ready {
+  box-shadow: inset 0 0 0 1.5px #e8fbff, 0 3px 0 #061420, 0 0 10px #7ad8ff88;
+}
 .game-shell.volley-aiming #arena canvas {
   cursor: crosshair;
 }
@@ -5456,6 +5472,68 @@ dialog.welcome-modal.hard-eyes .welcome-eyes {
 .tt-node.tt-ref > img { /* v0.22n2: only the picture, not the gold icon in the price */
   width: 26px;
   height: 26px;
+}
+/* v0.23zd: flying creeps in the card book: the little wing appliqué hangs from the bottom rail, below the gold cost */
+.tt-node.tt-air {
+  margin-bottom: 9px;
+  box-shadow: inset 0 0 0 1.5px #8fd3ff;
+}
+.tt-node.tt-air::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: calc(100% - 3px);
+  width: 37px;
+  height: 15px;
+  transform: translateX(-50%);
+  background: center / contain no-repeat;
+  background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2044%2018%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22m%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23ffffff%22/%3E%3Cstop%20offset%3D%22.25%22%20stop-color%3D%22%23cfe6f6%22/%3E%3Cstop%20offset%3D%22.52%22%20stop-color%3D%22%236f98b8%22/%3E%3Cstop%20offset%3D%22.76%22%20stop-color%3D%22%23b3d4ea%22/%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%232b4660%22/%3E%3C/linearGradient%3E%3CradialGradient%20id%3D%22r%22%20cx%3D%22.35%22%20cy%3D%22.3%22%20r%3D%22.85%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23ffffff%22/%3E%3Cstop%20offset%3D%22.35%22%20stop-color%3D%22%239fe2ff%22/%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%231b5d8f%22/%3E%3C/radialGradient%3E%3C/defs%3E%3Cg%20id%3D%22w%22%3E%3Cpath%20d%3D%22M18%2010.5C14%207%209%203.6%202.2%202.6c1.6%201.4%202.4%202.6%202.6%203.7-1.2-.2-2.3-.1-3.4.3%201.8%201%202.9%202.1%203.4%203.3-1%20.1-1.9.5-2.6%201.1%203.8.9%209.2%201.6%2015.8%201.4z%22%20fill%3D%22url%28%23m%29%22%20stroke%3D%22%230e1c2a%22%20stroke-width%3D%221%22%20stroke-linejoin%3D%22round%22/%3E%3Cpath%20d%3D%22M16.5%2010.2C12.5%208.3%209%206.8%205%206.4M16%2011.4c-3.6-.6-7.4-1-10.7-.8%22%20fill%3D%22none%22%20stroke%3D%22%232b4660%22%20stroke-width%3D%22.7%22%20stroke-linecap%3D%22round%22/%3E%3Cpath%20d%3D%22M4.2%203.6C8.4%204.6%2012.4%206.6%2015.6%209%22%20fill%3D%22none%22%20stroke%3D%22%23fff%22%20stroke-opacity%3D%22.7%22%20stroke-width%3D%22.7%22%20stroke-linecap%3D%22round%22/%3E%3C/g%3E%3Cuse%20href%3D%22%23w%22%20transform%3D%22translate%2844%200%29%20scale%28-1%201%29%22/%3E%3Ccircle%20cx%3D%2222%22%20cy%3D%2210%22%20r%3D%225.2%22%20fill%3D%22url%28%23m%29%22%20stroke%3D%22%230e1c2a%22%20stroke-width%3D%221%22/%3E%3Ccircle%20cx%3D%2222%22%20cy%3D%2210%22%20r%3D%222.8%22%20fill%3D%22url%28%23r%29%22%20stroke%3D%22%230e1c2a%22%20stroke-width%3D%22.6%22/%3E%3C/svg%3E");
+  filter: drop-shadow(0 1.5px 1px #000d);
+  pointer-events: none;
+}
+/* v0.23ze: bosses in the card book: a rounded metal boss frame on the card itself, one skull per tier hanging
+   from the bottom rail, like the wing badge of the flyers */
+.tt-node.tt-boss {
+  margin-bottom: 11px;
+  border: 3.5px solid transparent;
+  background:
+    linear-gradient(color-mix(in srgb, var(--el) 22%, #172a38), #0b1822) padding-box,
+    linear-gradient(135deg, #f1f5f8, #8d979f 38%, #c9d1d7 52%, #4d565d 78%, #1e2428) border-box;
+  box-shadow: 0 0 0 1px #0c0f12, inset 0 0 0 1px #0c0f12;
+}
+.tt-node.tt-boss > .frame-boss {
+  inset: auto 0 0;
+  height: 0;
+  border: 0;
+  border-image: none;
+}
+.tt-node.tt-boss > .frame-boss::after {
+  top: 1px;
+  box-sizing: content-box;
+  width: calc(var(--skulls, 1) * 14px);
+  height: 16px;
+  background:
+    url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%225.5%200%2019%2022%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22m%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23f6f9fb%22%2F%3E%3Cstop%20offset%3D%22.22%22%20stop-color%3D%22%23b6c0c7%22%2F%3E%3Cstop%20offset%3D%22.5%22%20stop-color%3D%22%23626c74%22%2F%3E%3Cstop%20offset%3D%22.74%22%20stop-color%3D%22%2399a4ab%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23262c31%22%2F%3E%3C%2FlinearGradient%3E%3CradialGradient%20id%3D%22r%22%20cx%3D%22.35%22%20cy%3D%22.3%22%20r%3D%22.85%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23ffffff%22%2F%3E%3Cstop%20offset%3D%22.4%22%20stop-color%3D%22%23c2cbd1%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%233b4349%22%2F%3E%3C%2FradialGradient%3E%3ClinearGradient%20id%3D%22h%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%220%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23ffffff%22%20stop-opacity%3D%22.9%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23ffffff%22%20stop-opacity%3D%220%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Cpath%20d%3D%22M15%201.2c-4.9%200-8.3%203.3-8.3%207.6%200%202.6%201.2%204.5%203%205.6v3.3c0%201.3%201%202.3%202.3%202.3h6c1.3%200%202.3-1%202.3-2.3v-3.3c1.8-1.1%203-3%203-5.6%200-4.3-3.4-7.6-8.3-7.6z%22%20fill%3D%22url%28%23m%29%22%20stroke%3D%22%230c0f12%22%20stroke-width%3D%221.1%22%2F%3E%3Cpath%20d%3D%22M9.2%206.6c.8-2.5%203-3.9%205.8-3.9%22%20fill%3D%22none%22%20stroke%3D%22url%28%23h%29%22%20stroke-width%3D%221.3%22%20stroke-linecap%3D%22round%22%2F%3E%3Cellipse%20cx%3D%2211.9%22%20cy%3D%229.4%22%20rx%3D%222.3%22%20ry%3D%222.5%22%20fill%3D%22%2314181b%22%2F%3E%3Cellipse%20cx%3D%2218.1%22%20cy%3D%229.4%22%20rx%3D%222.3%22%20ry%3D%222.5%22%20fill%3D%22%2314181b%22%2F%3E%3Cpath%20d%3D%22M10.3%208.4c.6-.9%201.6-1.3%202.6-1.1M16.5%208.4c.6-.9%201.6-1.3%202.6-1.1%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%22.6%22%20opacity%3D%22.6%22%2F%3E%3Cpath%20d%3D%22M11%2011.6c.5.6%201.3.9%202%20.7M17%2011.6c.5.6%201.3.9%202%20.7%22%20fill%3D%22none%22%20stroke%3D%22%23fff%22%20stroke-opacity%3D%22.55%22%20stroke-width%3D%22.6%22%2F%3E%3Cpath%20d%3D%22M15%2011.4l-1.3%202.4h2.6z%22%20fill%3D%22%2314181b%22%2F%3E%3Cpath%20d%3D%22M12.6%2016v3.2M15%2016v3.4M17.4%2016v3.2%22%20stroke%3D%22%2314181b%22%20stroke-width%3D%22.9%22%2F%3E%3C%2Fsvg%3E") center / 14px 16px repeat-x,
+    linear-gradient(#f1f5f8, #8d979f 45%, #3d454b) center / 100% 5px no-repeat;
+  background-clip: content-box, border-box;
+  background-origin: content-box, border-box;
+  background-position: left center, center;
+  padding: 0 4px;
+  border-radius: 3px;
+}
+.tt-node.tt-boss-2 > .frame-boss::after { --skulls: 2; }
+.tt-node.tt-boss-3 > .frame-boss::after { --skulls: 3; }
+.tt-node.tt-boss-4 > .frame-boss::after { --skulls: 4; }
+.tt-node.tt-boss-5 > .frame-boss::after { --skulls: 5; }
+
+/* v0.23zj: from tier 3 on the skulls sit a tad closer together (tighter tile: 12.8 px instead of 14 px) */
+.tt-node:is(.tt-boss-3, .tt-boss-4, .tt-boss-5) > .frame-boss::after {
+  width: calc(var(--skulls, 1) * 12.8px);
+  background:
+    url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%226.2%200%2017.6%2022%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22m%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23f6f9fb%22%2F%3E%3Cstop%20offset%3D%22.22%22%20stop-color%3D%22%23b6c0c7%22%2F%3E%3Cstop%20offset%3D%22.5%22%20stop-color%3D%22%23626c74%22%2F%3E%3Cstop%20offset%3D%22.74%22%20stop-color%3D%22%2399a4ab%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23262c31%22%2F%3E%3C%2FlinearGradient%3E%3CradialGradient%20id%3D%22r%22%20cx%3D%22.35%22%20cy%3D%22.3%22%20r%3D%22.85%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23ffffff%22%2F%3E%3Cstop%20offset%3D%22.4%22%20stop-color%3D%22%23c2cbd1%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%233b4349%22%2F%3E%3C%2FradialGradient%3E%3ClinearGradient%20id%3D%22h%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%220%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23ffffff%22%20stop-opacity%3D%22.9%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23ffffff%22%20stop-opacity%3D%220%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Cpath%20d%3D%22M15%201.2c-4.9%200-8.3%203.3-8.3%207.6%200%202.6%201.2%204.5%203%205.6v3.3c0%201.3%201%202.3%202.3%202.3h6c1.3%200%202.3-1%202.3-2.3v-3.3c1.8-1.1%203-3%203-5.6%200-4.3-3.4-7.6-8.3-7.6z%22%20fill%3D%22url%28%23m%29%22%20stroke%3D%22%230c0f12%22%20stroke-width%3D%221.1%22%2F%3E%3Cpath%20d%3D%22M9.2%206.6c.8-2.5%203-3.9%205.8-3.9%22%20fill%3D%22none%22%20stroke%3D%22url%28%23h%29%22%20stroke-width%3D%221.3%22%20stroke-linecap%3D%22round%22%2F%3E%3Cellipse%20cx%3D%2211.9%22%20cy%3D%229.4%22%20rx%3D%222.3%22%20ry%3D%222.5%22%20fill%3D%22%2314181b%22%2F%3E%3Cellipse%20cx%3D%2218.1%22%20cy%3D%229.4%22%20rx%3D%222.3%22%20ry%3D%222.5%22%20fill%3D%22%2314181b%22%2F%3E%3Cpath%20d%3D%22M10.3%208.4c.6-.9%201.6-1.3%202.6-1.1M16.5%208.4c.6-.9%201.6-1.3%202.6-1.1%22%20fill%3D%22none%22%20stroke%3D%22%23000%22%20stroke-width%3D%22.6%22%20opacity%3D%22.6%22%2F%3E%3Cpath%20d%3D%22M11%2011.6c.5.6%201.3.9%202%20.7M17%2011.6c.5.6%201.3.9%202%20.7%22%20fill%3D%22none%22%20stroke%3D%22%23fff%22%20stroke-opacity%3D%22.55%22%20stroke-width%3D%22.6%22%2F%3E%3Cpath%20d%3D%22M15%2011.4l-1.3%202.4h2.6z%22%20fill%3D%22%2314181b%22%2F%3E%3Cpath%20d%3D%22M12.6%2016v3.2M15%2016v3.4M17.4%2016v3.2%22%20stroke%3D%22%2314181b%22%20stroke-width%3D%22.9%22%2F%3E%3C%2Fsvg%3E") left center / 12.8px 16px repeat-x,
+    linear-gradient(#f1f5f8, #8d979f 45%, #3d454b) center / 100% 5px no-repeat;
+  background-clip: content-box, border-box;
+  background-origin: content-box, border-box;
 }
 .tt-node:hover,
 .tt-node:focus-visible {
@@ -7765,4 +7843,89 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
 /* v0.23j: a locked creep card shows its lock, not the (empty) recruit number behind the chains */
 .game-shell[data-page="send"] .unit-card:has(.card-lock) .card-stock {
   visibility: hidden;
+}
+
+/* v0.23zh: tips carry a small "Tips" checkbox; unticking it switches tips off (also Options › Gameplay) */
+#toast.tip {
+  pointer-events: auto;
+}
+.tip-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 10px;
+  vertical-align: middle;
+  font: 600 11px/1 var(--font-body);
+  color: #cfd8de;
+  cursor: pointer;
+  user-select: none;
+}
+.coach .tip-toggle {
+  margin: 6px 0 0;
+  display: flex;
+}
+.tip-toggle input {
+  appearance: none;
+  -webkit-appearance: none;
+  flex: none;
+  width: 13px;
+  height: 13px;
+  margin: 0;
+  border: 1.5px solid #d9b45a;
+  border-radius: 2px;
+  background: #0a1822;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.tip-toggle input:checked::after {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 1px;
+  background: var(--gold, #ffd34a);
+}
+
+/* v0.23zi: the build deck is laid out like the send deck: square cards, 5 per row, a second row grows upwards */
+.game-shell[data-page="build"] .cards.grid-build:not(.upgrade-mode) {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-auto-flow: row;
+  align-content: end;
+  column-gap: 5px;
+  row-gap: 7px;
+  height: auto;
+  padding: 2px 7px 4px;
+  overflow: visible;
+  scroll-snap-type: none;
+  touch-action: manipulation;
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+.game-shell[data-page="build"] .cards.grid-build:not(.upgrade-mode) .unit-card {
+  flex: none;
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  height: auto;
+  aspect-ratio: 1;
+  align-self: end;
+}
+.game-shell[data-page="build"] .cards.grid-build:not(.upgrade-mode) .unit-card:not(.up-card) .unit-name {
+  font-size: 11px;
+  padding-top: 3px;
+}
+.game-shell[data-page="build"] .cards.grid-build:not(.upgrade-mode) .unit-card:not(.up-card) .unit-name.long-name {
+  font-size: 9px;
+  padding-top: 4px;
+}
+.game-shell[data-page="build"] .cards.grid-build:not(.upgrade-mode) .unit-card:not(.up-card) .card-foot .price {
+  font-size: 15px;
+}
+.game-shell[data-page="build"] .cards.grid-build:not(.upgrade-mode) .unit-card:not(.up-card) .card-foot .price::before {
+  width: 15px;
+  height: 15px;
+}
+.game-shell[data-page="build"]:has(.cards.grid-build:not(.upgrade-mode)) .deck-arrow {
+  display: none !important;
 }

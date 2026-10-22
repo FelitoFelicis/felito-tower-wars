@@ -121,6 +121,23 @@ export function createSfx() {
       tone({ type: "sawtooth", from: 70, to: 48, dur: 1.6, gain: 0.05, delay: 0.45, attack: 0.08 });
       for (let i = 0; i < 9; i++) hiss({ dur: 0.04, gain: 0.05, freq: 2500 + Math.random() * 2500, q: 3, delay: 0.5 + Math.random() * 1.4 });
     },
+    // v0.23w: Frost Bolt — a whistling bolt, then a glassy crack of ice
+    frostbolt: () => {
+      hiss({ dur: 0.35, gain: 0.05, freq: 2200, q: 2, sweep: 0.4 });
+      tone({ type: "sine", from: 1800, to: 900, dur: 0.3, gain: 0.025 });
+      hiss({ dur: 0.12, gain: 0.08, freq: 4200, q: 0.8, delay: 0.3 });
+      for (let i = 0; i < 6; i++) tone({ type: "triangle", from: 2400 + Math.random() * 1800, dur: 0.07, gain: 0.018, delay: 0.32 + i * 0.05 });
+    },
+    // v0.23x: Infested Ground — a wet, acid gurgle as the field turns
+    infest: () => {
+      hiss({ dur: 0.6, gain: 0.05, freq: 300, q: 2.5, sweep: 0.6 });
+      for (let i = 0; i < 5; i++) tone({ type: "sine", from: 180 + Math.random() * 120, to: 90, dur: 0.12, gain: 0.04, delay: i * 0.09 });
+    },
+    // v0.23x: an infested field strikes — a sharp rising zap of green light
+    infestBurst: () => {
+      tone({ type: "sawtooth", from: 220, to: 1400, dur: 0.18, gain: 0.03 });
+      hiss({ dur: 0.25, gain: 0.05, freq: 1800, q: 1.2, sweep: 2.2 });
+    },
     // v0.12: Monsun — rising storm wind
     monsun: () => {
       hiss({ dur: 2.2, gain: 0.07, freq: 300, q: 1.2, sweep: 3.5, attack: 0.3 });
@@ -187,7 +204,7 @@ export function createSfx() {
     victory: () => [523, 659, 784, 1046, 1318].forEach((f, i) => tone({ type: "triangle", from: f, dur: 0.3, gain: 0.05, delay: i * 0.11 })),
     defeat: () => [392, 330, 262, 196].forEach((f, i) => tone({ type: "sine", from: f, dur: 0.35, gain: 0.05, delay: i * 0.16 })),
   };
-  const minGap = { hardo: 3, growl: 0.8, unlock: 0.2, thunder: 0.22, pillar: 1, monsun: 1, golem: 0.5, volley: 0.5, kill: 0.07, tap: 0.03, built: 0.08, income: 0.3, leak: 0.12, bell: 1 };
+  const minGap = { hardo: 3, growl: 0.8, unlock: 0.2, thunder: 0.22, pillar: 1, frostbolt: 0.5, infest: 0.5, infestBurst: 0.15, monsun: 1, golem: 0.5, volley: 0.5, kill: 0.07, tap: 0.03, built: 0.08, income: 0.3, leak: 0.12, bell: 1 };
   return {
     play(name) {
       if (!enabled || !sounds[name]) return;
