@@ -680,14 +680,17 @@ export const CREEP_TUNING = {
   n037: { hp: 2430 }, // Wizard 1500 → 2250; v0.22zl: +8 %, 2430
   n02P: { hp: 90000 }, // Warden: +50 % hit points, 60000 → 90000 (v0.21k)
   n01R: { hp: 30000 }, // Eredar Warlock: +50 % hit points, 20000 → 30000 (v0.21k)
-  n00E: { income: 1, cost: 5, stockMax: 18, bountyBase: 0.85, bountyDice: 0 }, // v0.22h1: bounty 0.85 per Goblin (+70 % over the tier 1 average); // Goblin: income 1.17 → 1 (v0.07g), cost 6 → 5 (v0.07h); peon companion removed (v0.07i); stock 16 → 18 (v0.08b)
+  n00E: { income: 1, cost: 5, stockMax: 18, bountyBase: 0.85, bountyDice: 0, speed: 170.66 }, // v0.24k: 0.64 → 0.60 fields/s; // v0.22h1: bounty 0.85 per Goblin (+70 % over the tier 1 average); // Goblin: income 1.17 → 1 (v0.07g), cost 6 → 5 (v0.07h); peon companion removed (v0.07i); stock 16 → 18 (v0.08b)
   n007: { cost: 10, income: 1.9, bountyBase: 1.5, bountyDice: 0 }, // v0.22h1: bounty 1.5 per Horse (+50 %); // Horse: cost 12 → 10, income 2 → 1.9 (v0.08b)
   n00K: { income: 3.5, bountyBase: 2.6, bountyDice: 0 }, // v0.22h1: bounty 2.6 per Gnoll (+30 %, was 0–5 at random); // Gnoll: income 3 → 3.5 (v0.08d)
   n00M: { hp: 260, speed: 180, stockRegen: 7, count: 1, bountyBase: 11, name: "[06] Orc", shortName: "Orc", abilities: ["A01A", "XA02"] }, // Grunt → Orc (v0.17b): hit points +30 %, 120 → 156 (v0.09s); Siege Resistance 33 % (v0.17b), v0.22za2: Splash Resistance, 260 HP; v0.18e: one Orc per purchase (heavy), hit points 156 → 312, bounty 5+1d1 → 11+1d1 (12 per purchase as before), restocks 1 Goblin; v0.21m: hit points 312 → 300, speed 190 → 180 (−5 %); v0.21p: 280 hit points, restock 6 → 7 s
   n00R: { abilities: ["A01A", "XA01"] }, // Skeleton: Arrow Resistance now 33 % less damage from Archer-Line towers (v0.17b, was: ignores 1 ranged damage)
   n00N: { hp: 185, abilities: ["A01A", "XA03"] }, // Necromancer: hit points 170 → 180 (v0.17f), 185 (v0.21p); Unholy Aura removed, Deathrattle shown (v0.17g)
   n00P: { hp: 85, speed: 138.56, stockRegen: 11 }, // Flying Sheep: hit points 80 → 85, speed 1.06 → 1.08 fields/s (v0.17b); restock 10 → 11 s (v0.17o)
-  n00U: { speed: 182.04 }, // v0.22n2: Imp 0.70 → 0.64 fields/s (game units before the arena's 45 %)
+  n00W: { speed: 227.55, hp: 175 }, // v0.24k: Boar Scout 0.84 → 0.80 fields/s, hit points 180 → 175
+  n016: { hp: 675 }, // v0.24k: Zombie hit points −10 % (750 → 675)
+  n01S: { hp: 6750 }, // v0.24k: Scarabaeus hit points −10 % (7500 → 6750)
+  n00U: { speed: 170.66 }, // v0.22n2: Imp 0.70 → 0.64 fields/s (game units before the arena's 45 %); v0.24k: Trenchlin 0.60 fields/s
   n00X: { speed: 284.44 }, // v0.22n2: Centaur Warrior 1.01 → 1.00 fields/s
   n019: { cost: 2000, hp: 2100, income: 40 }, // v0.22o2: Shade 1200 → 2000 gold, hit points with it 1250 → 2100; v0.22p2: income 24 → 40
   // v0.23zb: Shieldbearer → Siege Ogre: one per purchase (heavy) with double hit points and bounty, armor 3, no Divine Shield;

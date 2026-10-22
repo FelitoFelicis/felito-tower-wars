@@ -5196,7 +5196,7 @@ export const AI_LEVELS = Object.freeze({
     bossDelay: 10,
     lazyUpgrades: true,
   }),
-  normal: Object.freeze({ interval: 20 }),
+  normal: Object.freeze({ interval: 14 }), // v0.24k: 20 → 14
   hard: Object.freeze({ interval: 10, minTowers: 4, towerGrowth: 0.34, upgradeEager: true }),
   insane: Object.freeze({ interval: 5, minTowers: 4, towerGrowth: 0.34, upgradeEager: true }), // v0.22b: adaptive, reads the opponent's style
 });
@@ -5260,7 +5260,9 @@ const AI_SAFETY = { veryEasy: 0.6, easy: 0.85, normal: 1.2, hard: 1.45, insane: 
 const AI_STYLE = {
   veryEasy: { strict: 0.35, noise: 0.8, turtle: 0.6, maxSends: 1, persona: { greed: 0.3, push: 0, bossRound: 2.2, expGen: 0, upgradeBias: 0.5, smartPush: 0 } }, // v0.16k: weaker
   easy: { strict: 0.75, noise: 0.35, persona: { greed: 0.85, push: 0.5, bossRound: 1.3 } },
-  normal: { strict: 1, noise: 0.1, fixed: { airEval: 1, splashTop: 1 } }, // v0.22m2: splashTop: area damage counts most in the top rows // v0.22g: rates the opponent's anti-air before sending flyers
+  // v0.24k: Normal sits between Easy and Hard (100 games: beats Easy 92 %, wins 22 % against Hard; was 80 % / 8 %):
+  // more send greed, less placement noise and data-based perk picks at half Hard's weight
+  normal: { strict: 1, noise: 0.05, fixed: { airEval: 1, splashTop: 1, smartPerks: 1 }, ranges: { greed: [1.4, 2.0] } }, // v0.22m2: splashTop: area damage counts most in the top rows // v0.22g: rates the opponent's anti-air before sending flyers
   // Hard (v0.07m): its own ranges from about 1,000 hard-vs-hard games (two random searches over
   // every trait, then checks: 70 % wins against the old ranges, 54 % against the first draft).
   // Area damage pays on the long template routes; the bot keeps a slim safety margin, sends

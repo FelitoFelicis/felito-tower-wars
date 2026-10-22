@@ -8477,3 +8477,18 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
   height: 34px !important;
   border-width: 2px;
 }
+/* v0.24k: Ranked queue: "Allow an AI opponent" */
+.qm-bots {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 0 4px;
+  font: 600 13px var(--font-body);
+  color: var(--ink);
+  cursor: pointer;
+}
+.qm-bots input {
+  width: 18px;
+  height: 18px;
+  accent-color: #e8a312;
+}

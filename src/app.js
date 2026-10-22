@@ -165,7 +165,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.24j",
+const APP_VERSION = "0.24k",
   APP_BRANCH = "F", // v0.23q: author marker (F = Felix, S = Steven) and branch text, shown behind the version; APP_VERSION stays plain for online matches (VersionPublishingRules.md)
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "23.10.2026";
@@ -282,6 +282,15 @@ const leagueOf = (r) => LEAGUES[leagueIndex(r)][0];
  * Hardo), Silver and Gold Hardo. Platinum, Diamond and Divine only play people (null).
  */
 const RANKED_BOT_MS = 30000;
+// v0.24k: the Ranked queue's "Allow an AI opponent" box (on by default)
+const RANKED_BOTS_PREF = "felito.ranked.bots";
+let rankedBots = (() => {
+  try {
+    return localStorage.getItem(RANKED_BOTS_PREF) !== "false";
+  } catch {
+    return true;
+  }
+})();
 function rankedBotLevel(r) {
   const i = leagueIndex(r);
   if (i >= 7) return null;
@@ -3098,7 +3107,7 @@ function ownKnockedOut(place) {
     summary = matchSummary(me, place);
   // v0.18b: place in the summary tiles; Keep watching and Play again side by side in blue, Main menu gold
   showModal(
-    `${resultClock()}<div class="result-banner lose">${t("Defeat")}</div><img class="modal-hero result-hero" src="${artUrl("creep-golem")}" alt="">${summary.html}<div class="result-pair"><button class="secondary-button" id="ko-watch">${t("Keep watching")}</button>${room ? "" : `<button class="secondary-button" id="ko-again">${t("Play again")}</button>`}</div><button class="primary-button" id="ko-menu">${t("Main menu")}</button>`,
+    `${resultClock()}<div class="result-banner lose">${t("Defeat")}</div>${room ? "" : `<img class="modal-hero result-hero" src="${artUrl("creep-golem")}" alt="">`}${summary.html}<div class="result-pair"><button class="secondary-button" id="ko-watch">${t("Keep watching")}</button>${room ? "" : `<button class="secondary-button" id="ko-again">${t("Play again")}</button>`}</div><button class="primary-button" id="ko-menu">${t("Main menu")}</button>`,
     { pauseGame: false },
   );
   summary.wire();
@@ -6362,7 +6371,11 @@ function qmDialog() {
   if (!q) return;
   q.minimized = false;
   const host = pvpModal(
-    `${modalHeader(qmTitle())}${q.ranked ? `<div class="qm-medal">${medalHtml(readRating().r, iconColor(), "", true)}<b>${t(leagueOf(readRating().r))} · ${readRating().r}</b></div>` : ""}<p class="modal-copy">${q.ranked ? `${t("1v1 against the next ranked player who is searching.")} ${rankedBotLevel(readRating().r) ? `${t("If nobody is found within 30 s, you play a ranked match against an AI opponent.")} ` : ""}` : ""}${t("You'll be paired with the next player who is searching. Minimize this window to play a training match while you wait.")}</p><div id="network-status" class="network-status">${esc(q.status)}</div><div class="qm-presence" id="qm-presence"><span><b id="qm-queue">${q.counts ? Math.max(1, q.counts.queue) : "…"}</b>${t("in the queue")}</span><span><b id="qm-online">${q.counts ? qmOnline(q.counts) : "…"}</b>${t("Players online")}</span></div><div class="qm-actions"><button class="primary-button" id="qm-min">${t("Minimize")}</button><button class="secondary-button" id="qm-cancel">${t("Cancel")}</button></div>`,
+    `${modalHeader(qmTitle())}${q.ranked ? `<div class="qm-medal">${medalHtml(readRating().r, iconColor(), "", true)}<b>${t(leagueOf(readRating().r))} · ${readRating().r}</b></div>` : ""}<p class="modal-copy">${
+      q.ranked
+        ? `${t("You'll be paired with the next free player for a ranked 1v1.")}<br>${rankedBotLevel(readRating().r) ? `${t("If nobody is found within 30 s, you play a ranked match against an AI opponent.")}<br>` : ""}${t("Minimize this window to play a training match while you wait.")}`
+        : t("You'll be paired with the next player who is searching. Minimize this window to play a training match while you wait.")
+    }</p>${q.ranked && rankedBotLevel(readRating().r) ? `<label class="qm-bots"><input type="checkbox" id="qm-bots"${rankedBots ? " checked" : ""}><span>${t("Allow an AI opponent")}</span></label>` : ""}<div id="network-status" class="network-status">${esc(q.status)}</div><div class="qm-presence" id="qm-presence"><span><b id="qm-queue">${q.counts ? Math.max(1, q.counts.queue) : "…"}</b>${t("in the queue")}</span><span><b id="qm-online">${q.counts ? qmOnline(q.counts) : "…"}</b>${t("Players online")}</span></div><div class="qm-actions"><button class="primary-button" id="qm-min">${t("Minimize")}</button><button class="secondary-button" id="qm-cancel">${t("Cancel")}</button></div>`,
   );
   // v0.18g: from the main menu, cancel and minimize return to the PvP page underneath
   const leave = closeModal;
@@ -6371,6 +6384,13 @@ function qmDialog() {
     closeModal();
   };
   $("qm-cancel").onclick = cancel;
+  // v0.24k: Ranked: untick to wait for a real player only (the choice is kept)
+  if ($("qm-bots"))
+    $("qm-bots").onchange = (e) => {
+      rankedBots = e.target.checked;
+      savePref(RANKED_BOTS_PREF, rankedBots);
+      if (rankedBots && q.botDue) q.startBot?.();
+    };
   const x = host.querySelector(".close-modal");
   if (x) x.onclick = cancel;
   $("qm-min").onclick = () => {
@@ -6450,9 +6470,10 @@ async function quickMatch(ranked = false) {
     .catch(() => {});
   q.timer = setInterval(refreshQmPill, 400);
   // v0.24d: Ranked: nobody found within 30 s: a ranked match against an AI of the player's league (not from Platinum up)
-  if (ranked && rankedBotLevel(readRating().r))
-    q.botTimer = setTimeout(() => {
+  if (ranked && rankedBotLevel(readRating().r)) {
+    q.startBot = () => {
       if (qmSearch !== q) return;
+      if (!rankedBots) return void (q.botDue = true); // v0.24k: AI opponents switched off in the queue dialog
       const level = rankedBotLevel(readRating().r);
       if (!level) return;
       cancelQuickMatch();
@@ -6461,7 +6482,9 @@ async function quickMatch(ranked = false) {
       toast(t("No ranked player found. Ranked match against an AI ({level}).", { level: level === "insane" ? "Hardo" : t(AI_NAMES[level] || "Normal") }), "level", true);
       begun = false;
       startLocal({ rankedBot: level });
-    }, RANKED_BOT_MS);
+    };
+    q.botTimer = setTimeout(q.startBot, RANKED_BOT_MS);
+  }
   try {
     const { findQuickMatch } = await import("./multiplayer.js");
     const match = await findQuickMatch({ signal, ranked, onStatus: (s) => status(t(s.message)) });
@@ -7848,7 +7871,9 @@ function tick(dt) {
       hardoFact = sessionMode === "training" && hardoGame() ? t(HARDO_FACTS[Math.floor(Math.random() * HARDO_FACTS.length)]).replace(/^Did you know:\s*/, "") : "",
       hero = hardoFact
         ? `<div class="hardo-fact"><small>${t("Did you know?")}</small><p>${esc(hardoFact.charAt(0).toUpperCase() + hardoFact.slice(1))}</p></div>`
-        : `<img class="modal-hero result-hero" src="${artUrl(won ? "tower-archer" : "creep-golem")}" alt=""><h2 class="welcome-title">${won ? t("Your line.<br><span>Your victory.</span>") : t("Well fought.<br><span>Another round?</span>")}</h2>`;
+        : sessionMode === "online"
+          ? "" // v0.24k: multiplayer results without the creep picture and the "Your line …" quote
+          : `<img class="modal-hero result-hero" src="${artUrl(won ? "tower-archer" : "creep-golem")}" alt=""><h2 class="welcome-title">${won ? t("Your line.<br><span>Your victory.</span>") : t("Well fought.<br><span>Another round?</span>")}</h2>`;
     if (sessionMode !== "online") presenceState("idle");
     showModal(
       `${resultClock()}<div class="result-banner ${won ? "win" : "lose"}">${t(won ? "Victory" : "Defeat")}</div>${hero}${rankLine}${summary.html}${sessionMode === "training" ? `<p class="modal-copy" style="text-align:center">${t("AI")} ${t(AI_NAMES[game.aiLevel] || "Normal")}</p>` : ""}${tip ? `<p class="modal-note result-tip">${tip}</p>` : ""}<div class="result-pair"><button class="secondary-button" id="play-again">${t("Play again")}</button>${sessionMode === "training" && !game.rankedBot && game.aiLevel !== (hardoUnlocked ? "insane" : "hard") && won ? `<button class="secondary-button" id="play-harder">${t("Harder AI")}</button>` : ""}</div><button class="primary-button" id="to-menu">${t("Main menu")}</button>`,
