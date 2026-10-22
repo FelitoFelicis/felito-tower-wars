@@ -3878,6 +3878,15 @@ function auraSources(game, p) {
   }
   return hit.list;
 }
+// v0.24m: auras of towers reach the towers on the neighbouring fields only (straight and diagonal, measured from
+// the footprint, so a 2×2 hall reaches the 12 fields around it); auras on creeps keep their radius.
+const isTowerUnit = (u) => u.size !== undefined && obj(u.typeId)?.kind === "tower";
+function neighbourTowers(game, a, b) {
+  const dx = Math.abs(a.x - b.x) * game.grid.cols,
+    dy = Math.abs(a.y - b.y) * game.grid.rows,
+    reach = ((a.size || 1) + (b.size || 1)) / 2 + 0.01;
+  return dx <= reach && dy <= reach;
+}
 function auraAt(game, target, owner, units) {
   let speedUp = 0,
     speedDown = 0,
@@ -3899,7 +3908,9 @@ function auraAt(game, target, owner, units) {
       if (friendly && !a.friend && !a.self) continue;
       if (!friendly && !a.enemies) continue;
       if (target === source && !a.self) continue;
-      if (a.radius <= 0 || outOfRange(game, source, target, a.radius)) continue; // v0.23: outOfRange
+      if (friendly && target !== source && isTowerUnit(source) && isTowerUnit(target)) {
+        if (!neighbourTowers(game, source, target)) continue; // v0.24m: tower auras on towers: neighbouring fields
+      } else if (a.radius <= 0 || outOfRange(game, source, target, a.radius)) continue; // v0.23: outOfRange
       const fly = !!target.flying;
       if (a.air !== a.ground && (fly ? !a.air : !a.ground)) continue; // v0.17p: air-only / ground-only auras
       if (a.only) {
@@ -3935,6 +3946,21 @@ function auraAt(game, target, owner, units) {
     regen,
     trueshot,
   };
+}
+/** v0.24m: what the auras around a placed tower add (for its tooltip). */
+export function towerAuras(game, playerIndex, towerId) {
+  const p = game?.players?.[playerIndex],
+    tower = p?.towers.find((t) => t.id === towerId);
+  if (!tower) return null;
+  let manaBonus = 0,
+    regenBest = 0;
+  for (const t of p.towers)
+    if (!(t.buildRemaining > 0) && (t === tower || neighbourTowers(game, t, tower)))
+      for (const sk of towerSkills(p, t)) {
+        if (sk.type === "manaAura") manaBonus = Math.max(manaBonus, sk.regen);
+        else if (sk.type === "manaRegenAura") regenBest = Math.max(regenBest, sk.rate);
+      }
+  return { ...auraAt(game, tower, p, auraSources(game, p)), mana: manaBonus, manaRate: regenBest };
 }
 // ---- Passive tower and creep skills (pass 3) -----------------------------------------
 // The map runs most specials through JASS triggers on "unit is attacked" plus dummy
@@ -6938,8 +6964,9 @@ function fixedTickInner(game) {
       // v0.23: the strongest mana / mana-regeneration aura in reach, in plain loops (no arrays per tower and tick)
       let manaBonus = 0,
         regenBest = 0;
-      for (const m of manaAuras) if (m.sk.regen > manaBonus && inRange(game, m.t, t, m.sk.radius)) manaBonus = m.sk.regen;
-      for (const m of regenAuras) if (m.sk.rate > regenBest && inRange(game, m.t, t, m.sk.radius)) regenBest = m.sk.rate;
+      // v0.24m: mana auras also reach only the neighbouring fields (the hall itself included)
+      for (const m of manaAuras) if (m.sk.regen > manaBonus && (m.t === t || neighbourTowers(game, m.t, t))) manaBonus = m.sk.regen;
+      for (const m of regenAuras) if (m.sk.rate > regenBest && (m.t === t || neighbourTowers(game, m.t, t))) regenBest = m.sk.rate;
       const regen = isMagicTower(item) ? stats.mana / MAGIC_CHARGE_SECONDS : item.manaRegen,
         regenRate = 1 + regenBest; // v0.17p
       t.mana = Math.min(stats.mana, t.mana + (regen + manaBonus) * regenRate * TICK);

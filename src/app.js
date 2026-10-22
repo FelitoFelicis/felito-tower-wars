@@ -131,6 +131,7 @@ import {
   baseStats,
   feudalBonus,
   towerPerkBuffs,
+  towerAuras,
   abilityCd,
   AUTO_MODES,
   ULTIMATES, // v0.23: Decay Attack tooltip
@@ -165,7 +166,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.24l",
+const APP_VERSION = "0.24m",
   APP_BRANCH = "F", // v0.23q: author marker (F = Felix, S = Steven) and branch text, shown behind the version; APP_VERSION stays plain for online matches (VersionPublishingRules.md)
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "23.10.2026";
@@ -2088,10 +2089,22 @@ function statTip(item, action, towerId = null, who = own, bare = false) {
         perkBuffRow(item, who),
     };
   } else {
-    const s = getStats(game, who, item.id),
+    const au = action === "info" && towerId ? towerAuras(game, who, towerId) : null, // v0.24m: auras of the neighbouring towers
+      s0 = getStats(game, who, item.id),
+      s = au ? { ...s0, damage: s0.damage * au.damage, cooldown: s0.cooldown / au.attack } : s0,
       b = baseStats(game, who, item.id), // v0.21x: "base → current"
       air = item.targets?.includes("air"),
       ground = item.targets?.includes("ground");
+    if (au) {
+      const pct = (v) => `+${Math.round(v * 100)}%`,
+        parts = [];
+      if (au.damage > 1.0001) parts.push(`${pct(au.damage - 1)} ${t("damage")}`);
+      if (au.attack > 1.0001) parts.push(`${pct(au.attack - 1)} ${t("attack speed")}`);
+      if (au.attack < 0.9999) parts.push(`−${Math.round((1 - au.attack) * 100)}% ${t("attack speed")}`);
+      if (au.mana > 0) parts.push(`+${format(au.mana)} ${t("mana/s")}`);
+      if (au.manaRate > 0) parts.push(`${pct(au.manaRate)} ${t("mana regeneration")}`);
+      if (parts.length) after.push([t("Auras"), parts.join(", "), "aura"]);
+    }
     // v0.17c: "10 → 12" when upgrades raise the damage
     const cu = game.grid.cellUnits,
       ai = attackInfo(game, item.id, game.players[who]); // v0.21u: Gunpowder
@@ -6335,12 +6348,12 @@ function optionsModal() {
   wireSettings(optionsModal);
   $("menu-catalog").onclick = () => catalogModal({ back: optionsModal }); // v0.21z: the card book from the main menu too; v0.22n2: with Back
 }
-// v0.24l: main-menu button for the home-screen app; hidden when the game already runs as that app
+// v0.24l: main-menu button for the home-screen app; hidden when the game already runs as that app (v0.24m: gold, top right)
 function standaloneApp() {
   return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
 }
 function installSvg() {
-  return '<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="2.6" fill="#ffe27a" stroke="#3a2404" stroke-width="1.4"/><path d="M12 7v7.5M8.8 11.6 12 14.8l3.2-3.2" fill="none" stroke="#3a2404" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M10 18.4h4" stroke="#3a2404" stroke-width="1.4" stroke-linecap="round"/></svg>';
+  return '<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="2.6" fill="#fff6dc" stroke="#4a1d04" stroke-width="1.4"/><path d="M12 7v7.5M8.8 11.6 12 14.8l3.2-3.2" fill="none" stroke="#4a1d04" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M10 18.4h4" stroke="#4a1d04" stroke-width="1.4" stroke-linecap="round"/></svg>';
 }
 function installHelp() {
   if (installPrompt) {
