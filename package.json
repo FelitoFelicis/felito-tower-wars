@@ -1,0 +1,14 @@
+{
+  "name": "felito-tower-wars",
+  "private": true,
+  "type": "module",
+  "description": "Felito Tower Wars – build tools only (the game itself needs no build step to run from src/).",
+  "scripts": {
+    "build:css": "node tools/build-css.mjs",
+    "build:js": "node tools/build-js.mjs",
+    "build": "node tools/build-css.mjs && node tools/build-js.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.0"
+  }
+}

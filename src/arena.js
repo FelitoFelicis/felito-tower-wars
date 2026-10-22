@@ -521,8 +521,10 @@ export function mountArena({
         if (!tex) byColor.set(colorId, (tex = key + "#" + colorId));
       }
       if (this.stage.hasTexture(tex) || !ask) return this.stage.hasTexture(tex) ? tex : null;
-      const sheet = key.startsWith("anim:") ? ANIM_MANIFEST[key.slice(5)] : null;
-      this.stage.request(tex, sheet ? animUrl(key.slice(5)) : artUrl(key), {
+      const sheet = key.startsWith("anim:") ? ANIM_MANIFEST[key.slice(5)] : null,
+        url = sheet ? animUrl(key.slice(5)) : artUrl(key);
+      if (url.startsWith("data:image/gif")) return null; // v0.24j: a pack picture before the packs are there: ask again later
+      this.stage.request(tex, url, {
         fw: sheet?.fw || 0,
         fh: sheet?.fh || 0,
         paint: recolor ? (this.painters[colorId] ||= (d) => recolorTeam(d, colorId)) : null,
@@ -3621,6 +3623,26 @@ export function mountArena({
     refresh() {
       measureInsets();
       scene()?.drawTerrain();
+    },
+    /**
+     * v0.24j: frees graphics memory between matches: creep animation sheets and every copy of a picture in a player
+     * colour go (they come back from the browser cache when a match needs them again). Towers and scenery stay.
+     */
+    /** v0.24j: pictures that failed before the art packs were there are asked for again. */
+    retryArt() {
+      stage.failed?.clear();
+    },
+    releaseArt() {
+      const sc = scene();
+      if (!sc || stage.disposed) return 0;
+      let n = 0;
+      for (const key of [...stage.textures.keys()])
+        if (key.startsWith("anim:") || key.includes("#")) {
+          stage.dropTexture(key);
+          n++;
+        }
+      for (const [art, byColor] of sc.skinKeys) for (const [cid, tex] of byColor) if (!stage.hasTexture(tex)) byColor.delete(cid);
+      return n;
     },
     /** Design variants: swap the figures to the chosen design's art set. */
     switchArt() {

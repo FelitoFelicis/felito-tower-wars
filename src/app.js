@@ -142,7 +142,7 @@ import { mountArena, artFor } from "./arena.js";
 const designRow = () => "",
   setDesign = () => {},
   currentDesign = () => "original";
-import { artUrl, iconUrl, ELEMENT_ICON, ART_MANIFEST, registerTowerArt, TEAM_COLORS, recolorTeam, setPropUrl, activeArtSet, uiArt, useArtSet, artSetFor, ART_VERSION, CREEP_PORTRAIT, loadPacks } from "./art.js";
+import { artUrl, iconUrl, ELEMENT_ICON, ART_MANIFEST, registerTowerArt, TEAM_COLORS, recolorTeam, setPropUrl, activeArtSet, uiArt, useArtSet, artSetFor, ART_VERSION, CREEP_PORTRAIT, loadPacks, packsDone, packProgress, onPackProgress, unpack, PACK_PENDING } from "./art.js";
 import { createSoundtrack } from "./soundtrack.js";
 import { createSfx, haptic } from "./sfx.js";
 import { t, num, goldText } from "./i18n.js";
@@ -165,7 +165,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.24i",
+const APP_VERSION = "0.24j",
   APP_BRANCH = "F", // v0.23q: author marker (F = Felix, S = Steven) and branch text, shown behind the version; APP_VERSION stays plain for online matches (VersionPublishingRules.md)
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "23.10.2026";
@@ -897,7 +897,7 @@ const ABILITIES = [
   { id: "frostbolt", ready: "frostboltReady", cooldown: () => FROSTBOLT.cooldown, name: "Frost Bolt", aim: true, cls: "frostbolt-button", tip: "Tap your field where the frost bolt should strike.", help: "Frost Bolt: tap it, then tap your field. A frost bolt hits that area and slows the creeps (cooldown 40 s)." }, // v0.23w
   { id: "infested", ready: "infestedReady", cooldown: () => INFESTED.cooldown, name: "Infested Ground", aim: true, cls: "infested-button", tip: "Tap a field of your board to infest it.", help: "Infested Ground: tap it, then tap a field of your board. The field strikes creeps walking over it (cooldown 45 s)." }, // v0.23x
   { id: "agolem", ready: "golemReady", cooldown: () => AGOLEM.cooldown, name: "Arcane Golem", cls: "golem-button", help: "Arcane Golem: a golem walks your path upwards and knocks creeps back, then runs on into the next lane (cooldown 50 s)." },
-  { id: "monsun", ready: "monsunReady", cooldown: () => MONSUN.cooldown, name: "Monsun", cls: "monsun-button", help: "Monsun: storm winds push the creeps in your field back while lightning strikes flyers (cooldown 40 s)." },
+  { id: "monsun", ready: "monsunReady", cooldown: () => MONSUN.cooldown, name: "Monsun", cls: "monsun-button", help: "Monsun: storm winds push the creeps in your field back while lightning strikes flyers (cooldown 50 s)." },
 ];
 function abilityPress(a) {
   const p = game?.players[own];
@@ -2514,7 +2514,9 @@ const r4 = (v) => (typeof v === "number" ? Math.round(v * 1e4) / 1e4 : v);
 // v0.23: tower deltas. Only these tower fields change while a tower stands; the others (type, position,
 // name, cost, ...) travel only for towers that changed within the last TOWER_KEY states and in a full
 // "key" state about once per second. A guest that misses a tower's fields asks for a key state ("need-key").
-const TOWER_LIVE = new Set(["id", "cooldown", "aimId", "dmg", "kills", "buildRemaining", "completed", "curse"]),
+// v0.24j: fields that change while a tower fights (mana, second weapon, charge, focus, stomp, smoke, hp) travel with every
+// state instead of marking the tower as changed (which resent the whole tower every 120 ms)
+const TOWER_LIVE = new Set(["id", "cooldown", "aimId", "dmg", "kills", "buildRemaining", "completed", "curse", "mana", "cooldown2", "charge", "focusId", "focusMult", "focusOut", "focusStart", "focusLast", "stomp", "smokeUntil", "hp"]),
   TOWER_KEY = 8;
 const towerNet = { game: null, no: 0, keyAt: -TOWER_KEY, force: true, sig: new Map(), seed: null, cache: new Map(), askedAt: 0 };
 function towerDelta(p, t, key, next) {
@@ -2693,6 +2695,7 @@ function showModal(body, { pauseGame = true, welcome = false } = {}) {
   $("modal").classList.remove("with-flag");
   $("modal-body").innerHTML = body;
   if (!$("modal").open) $("modal").showModal();
+  if (document.getElementById("boot-screen")) window.felitoBoot?.(100, t("Ready"));
   document.getElementById("boot-screen")?.remove(); // v0.18b: the boot cover hides the board until the first dialog (main menu) is up
   $("modal-body")
     .querySelectorAll("[data-close]")
@@ -2785,6 +2788,7 @@ function iconModal() {
   }, 250);
 }
 function welcome() {
+  if (!begun) arena?.releaseArt?.(); // v0.24j: back in the menu: free the match's creep sheets and colour copies
   presenceState("idle"); // v0.14
   if (colorPick !== "random" && colorChoice !== colorPick) {
     colorChoice = colorPick; // v0.18a: back from an online match with an assigned colour
@@ -2810,7 +2814,7 @@ function welcome() {
           tone("tap");
         }),
     );
-  if ($("start-hotseat")) $("start-hotseat").onclick = () => startLocal({ hotseat: true });
+  if ($("start-hotseat")) $("start-hotseat").onclick = () => afterPacks(() => startLocal({ hotseat: true }));
   $("modal-body")
     .querySelectorAll("[data-ai]")
     .forEach(
@@ -2882,13 +2886,13 @@ function welcome() {
   $("player-name").onkeydown = (e) => {
     if (e.key === "Enter") $("player-name").blur();
   };
-  $("start-training").onclick = () => (aiCount === 1 ? startLocal() : startLocal({ ffa: true, seats: aiCount + 1 }));
+  $("start-training").onclick = () => afterPacks(() => (aiCount === 1 ? startLocal() : startLocal({ ffa: true, seats: aiCount + 1 }))); // v0.24j
   $("start-campaign").onclick = () => campaignMenu(); // v0.17
   $("welcome-options").onclick = optionsModal;
   $("welcome-mute").onclick = () => toggleMute($("welcome-mute"));
   wolfEyes();
-  $("start-online").onclick = () => onlineMenu();
-  $("start-quick").onclick = () => quickMatch();
+  $("start-online").onclick = () => afterPacks(() => onlineMenu()); // v0.24j
+  $("start-quick").onclick = () => afterPacks(() => quickMatch());
   // Start menu pages (v0.10a): home with colour and the two mode buttons; Vs AI and Vs Player open
   // as their own pages with a back button.
   const welcomeView = (view) => {
@@ -2901,10 +2905,10 @@ function welcome() {
   // v0.23b: Ranked Match: Quick Match rules, 1v1 only, with a rating and leagues
   $("start-ranked").onclick = () => {
     tone("tap");
-    quickMatch(true);
+    afterPacks(() => quickMatch(true));
   };
   if (saved && $("resume-game"))
-    $("resume-game").onclick = () => {
+    $("resume-game").onclick = () => afterPacks(() => {
       try {
         game = restoreGame(saved);
         game.paused = false;
@@ -2923,7 +2927,7 @@ function welcome() {
         toast(t("This save doesn't fit the new arena and stays stored."));
         welcome();
       }
-    };
+    });
 }
 // v0.23: room state that disconnectRoom resets
 let qmConnectTimer = 0, // Quick Match host: no guest within 20 s -> back to the queue
@@ -3383,6 +3387,7 @@ function missionScene(i, step = 0) {
   }
 }
 function startCampaign(i) {
+  if (!packsDone()) return afterPacks(() => startCampaign(i)); // v0.24j
   const m = MISSIONS[i];
   if (!m) return;
   campaignIndex = i;
@@ -3584,8 +3589,35 @@ setCommandHook((g, input, result) => {
   // v0.22f: AI commands are logged too (marked "ai"; a replay skips them, they help the analysis)
   rec.cmds.push(g.players[input.player ?? 0]?.ai ? [g.tick, JSON.parse(JSON.stringify(input)), result?.ok ? 1 : 0, "ai"] : [g.tick, JSON.parse(JSON.stringify(input)), result?.ok ? 1 : 0]);
 });
+/**
+ * v0.24j: a match needs the perk and tower level art packs; while they still load (only in the first seconds after
+ * opening the game) a small loading screen with the percentage shows and the match starts right after.
+ */
+function afterPacks(fn) {
+  if (packsDone()) return fn();
+  let box = $("pack-loader");
+  if (!box) {
+    box = document.createElement("div");
+    box.id = "pack-loader";
+    box.className = "boot-screen pack-loader";
+    box.innerHTML = `<div class="boot-bar" aria-hidden="true"><i></i></div><span>${t("Loading art …")} 0 %</span>`;
+    document.body.appendChild(box);
+  }
+  const show = (p) => {
+    box.querySelector("i").style.width = Math.round(p * 100) + "%";
+    box.querySelector("span").textContent = `${t("Loading art …")} ${Math.round(p * 100)} %`;
+  };
+  show(packProgress());
+  const off = onPackProgress(show);
+  loadPacks().then(() => {
+    off();
+    box.remove();
+    fn();
+  });
+}
 function startLocal({ hotseat = false, ffa = false, seats = 4, mission = null, rankedBot = null } = {}) {
   disconnectRoom();
+  arena?.releaseArt?.(); // v0.24j: the last match's creep sheets and colour copies go
   uiPauses.clear();
   sessionMode = hotseat ? "hotseat" : ffa ? "ffa" : "training";
   own = 0;
@@ -4315,7 +4347,7 @@ const PERK_ART = {
 let perkArtLoaded = false;
 const perkArtKeep = [];
 function preloadPerkArt() {
-  if (perkArtLoaded) return;
+  if (perkArtLoaded || !packsDone()) return; // v0.24j: the icons come from the packs (no single-file requests before)
   perkArtLoaded = true;
   // v0.22u2: every level picture too (Pillage 1–3), and research art
   const urls = new Set();
@@ -5132,9 +5164,17 @@ function currentPreview() {
     return null;
   }
   const anchored = anchorFor(selected, at.gridX, at.gridY),
-    result = previewBuild(game, own, anchored.gridX, anchored.gridY, selected),
+    me = game.players[own],
+    // v0.24j: the arena asks every frame; the preview (two path searches and checks) is worked out again only when
+    // the field, card, maze or gold change, or after 120 ms (creeps walking into the field)
+    key = `${game.seed}|${selected}|${anchored.gridX},${anchored.gridY}|${me.towers.length}|${me.towers[me.towers.length - 1]?.id || ""}|${Math.floor(me.gold)}|${drag ? 1 : 0}|${pending?.ok ? 1 : 0}`,
+    now = performance.now();
+  if (previewCache.key === key && now - previewCache.at < 120) return previewCache.value;
+  const result = previewBuild(game, own, anchored.gridX, anchored.gridY, selected),
     afford = available(game, own, "build", selected);
-  return {
+  previewCache.key = key;
+  previewCache.at = now;
+  return (previewCache.value = {
     ...result,
     ok: result.ok && afford.ok,
     reason: result.ok ? afford.reason : result.reason,
@@ -5142,8 +5182,9 @@ function currentPreview() {
     id: selected,
     size: footprintOf(selected),
     confirm: !drag && !!pending?.ok,
-  };
+  });
 }
+const previewCache = { key: "", at: 0, value: null };
 
 // ---- hold a monster card: send it 15 times per second --------------------------------
 let sendHold = null,
@@ -5419,7 +5460,7 @@ function defeatSplat(id) {
   pop.style.setProperty("--pc", color);
   pop.innerHTML = `<div class="ds-banner" style="--dc:color-mix(in srgb, ${color} 62%, #1a0f0a)">${DEFEAT_BANNER}<b><span class="ds-name">${esc(playerName(q))}</span> ${t("defeated")}</b></div><img class="ds-face" src="${face}" alt="">`;
   $("app")?.appendChild(pop) || document.body.appendChild(pop);
-  setTimeout(() => pop.remove(), 1900);
+  setTimeout(() => pop.remove(), 2000); // v0.24j: 0.1 s longer
   if (id !== own) tone("defeat");
 }
 function hudPop(anchorSelector, text, kind = "gold") {
@@ -7959,11 +8000,31 @@ function preloadSendIcons(tier) {
 }
 async function init() {
   try {
-    catalog = (await Promise.all([loadContent(), loadPacks(), loadMedals()]))[0]; // v0.24a: perk and tower art packs load with the catalog
+    window.felitoBoot?.(50, t("Loading game data …"));
+    // v0.24j: the perk and tower level art packs load in the background (a match waits for them, see afterPacks)
+    loadPacks().then(() => {
+      // pictures already on screen that come from a pack (card book, perk dialogs opened very early) switch over
+      for (const img of document.querySelectorAll('img[src^="assets/art/"], img[src^="data:image/gif"]')) {
+        const src = img.getAttribute("src"),
+          next = unpack(src.startsWith(PACK_PENDING) ? src.slice(PACK_PENDING.length) : src);
+        if (next !== src) img.src = next;
+      }
+      // cards, ability buttons and board pictures asked for before the packs were there are drawn again
+      arena?.retryArt?.();
+      abilityLayoutKey = "";
+      const volleyImg = $("volley-button")?.querySelector("img");
+      if (volleyImg) volleyImg.src = PERK_ART.volley();
+      if (game) {
+        deckSignature = "";
+        renderCards();
+      }
+    });
+    catalog = (await Promise.all([loadContent(), loadMedals()]))[0];
+    window.felitoBoot?.(75, t("Building the arena …"));
     document.documentElement.style.setProperty("--ability-book", `url("${uiArt(`assets/art/ability-book.webp?v=${ART_VERSION}`)}")`); // v0.24e: book behind active abilities
     registerTowerArt(catalog.towers);
     preloadSendIcons(1); // v0.23b: tier 1 send buttons first
-    warmDialogArt();
+    loadPacks().then(() => warmDialogArt()); // v0.24j: perk and level art come from the packs (no single-file requests before)
     game = createGame({ seed: 42, faction: chosenFaction, mode: chosenMode });
     game.paused = true;
     arena = mountArena({

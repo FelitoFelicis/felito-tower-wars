@@ -40,6 +40,7 @@ Every version ends with the initial of the person who made the **last change**:
    - all `?v=` cache keys in `index.html`
    - `ART_VERSION` in `src/art.js` if images changed
    - rebuild `style.min.css` with `node tools/build-css.mjs` if `style.css` changed
+   - rebuild the minified modules with `node tools/build-js.mjs` (needs esbuild: `npm install`) and publish `build/src/<name>.js` under the path `src/<name>.js`; the repo keeps the readable sources in `src/`
 5. If `src/simulation.js` changed: keep it deterministic (randomness only via `random(game)`) and compare two identical bot matches (same hash).
 6. Test the build in the browser.
 7. Commit message starts with the full version, e.g. `v0.23pF: staggered large sends` or `v0.23a (steven graphics) 0.02S: readable menus`.

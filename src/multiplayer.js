@@ -368,7 +368,8 @@ async function openRelayLinks(inbox, onText) {
     if (inboxes.has(topic)) return;
     const chain = { p: Promise.resolve() };
     const accept = frameWindow((bytes) => {
-      chain.p = chain.p.then(() => inflate(bytes)).then((b) => handler(textDec.decode(b))).catch(() => {});
+      chain.p = chain.p.then(() => inflateCapped(bytes, MAX_WIRE_BYTES)) // v0.24j: capped like the direct channel
+      .then((b) => handler(textDec.decode(b))).catch(() => {});
     });
     inboxes.set(topic, accept);
   };
@@ -976,7 +977,15 @@ class Link {
     const kind = frame ? frame.kind : wireKind(raw);
     // guest: rare host messages (results, takeover, rejoin token, lobby) are handled right away; only states
     // are merged. Host: a guest's surplus commands are dropped (the rate limit stays a limit)
-    if (kind !== "state" && kind !== "snap") return this.role === "guest" ? (frame ? this.unzip(frame, true) : this.handle(raw, true)) : undefined;
+    if (kind !== "state" && kind !== "snap") {
+      if (this.role === "guest") return frame ? this.unzip(frame, true) : this.handle(raw, true);
+      // v0.24j, host: a guest's commands over the rate limit wait in a short queue (were dropped without an answer,
+      // so a build or send just vanished); they go through as the limit allows
+      this.heldCommands ||= [];
+      if (this.heldCommands.length >= 64) return netCount("burstDropped");
+      this.heldCommands.push({ raw, frame, size: frame ? frame.bytes.byteLength : raw.length });
+      return this.drainCommands();
+    }
     this.deferred ||= {};
     if (this.deferred[kind]) netCount("burstDropped"); // v0.23o: an older held-back state is replaced
     this.deferred[kind] = { raw, frame };
@@ -992,6 +1001,19 @@ class Link {
           else this.handle(d.raw, true);
         }
       }, 150);
+  }
+  drainCommands() {
+    if (this.commandTimer !== undefined) return;
+    this.commandTimer = this.later(() => {
+      this.commandTimer = undefined;
+      if (this.closed) return;
+      while (this.heldCommands?.length && this.inbound() && this.inboundBytes(this.heldCommands[0].size)) {
+        const h = this.heldCommands.shift();
+        if (h.frame) this.unzip(h.frame);
+        else this.handle(h.raw);
+      }
+      if (this.heldCommands?.length) this.drainCommands();
+    }, 100);
   }
   unzip(frame, stale = false) {
     const isState = this.supersede(frame);

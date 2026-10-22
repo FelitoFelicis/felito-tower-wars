@@ -285,27 +285,70 @@ export const setPropUrl = (set, name) => `assets/art-${set}/${name}.webp?v=${ART
  * original path; unpack() hands that out wherever the code asks for the path, and the plain path otherwise.
  */
 const PACKS = ["assets/packs/perks.json", "assets/packs/towers.json"];
+// v0.24j: about how many bytes each pack has (for the progress bar when the server compresses and sends no length)
+const PACK_BYTES = { "assets/packs/perks.json": 1.93e6, "assets/packs/towers.json": 5.48e6 };
 const packed = new Map();
-let packsLoading = null;
+let packsLoading = null,
+  packsReady = false;
+const packGot = new Map(),
+  packListeners = new Set();
+/** v0.24j: 0..1 share of the packs loaded so far. */
+export const packProgress = () => (packsReady ? 1 : Math.min(0.99, [...packGot.values()].reduce((a, b) => a + b, 0) / PACKS.reduce((a, p) => a + PACK_BYTES[p], 0)));
+export const packsDone = () => packsReady;
+export function onPackProgress(fn) {
+  packListeners.add(fn);
+  return () => packListeners.delete(fn);
+}
+const tellPacks = () => packListeners.forEach((fn) => fn(packProgress()));
+/** Reads a response body with progress (bytes counted per pack). */
+async function readWithProgress(res, pack) {
+  if (!res.body?.getReader) return res.text();
+  const reader = res.body.getReader(),
+    parts = [];
+  let got = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    parts.push(value);
+    got += value.byteLength;
+    packGot.set(pack, got);
+    tellPacks();
+  }
+  return new TextDecoder().decode(await new Blob(parts).arrayBuffer());
+}
+/** v0.24j: loads in the background (the game no longer waits for it at start-up); the base64 entries are decoded by
+ * the browser (a data: URL fetch) instead of a JavaScript byte loop on the main thread. */
 export function loadPacks() {
   return (packsLoading ||= Promise.all(
     PACKS.map(async (pack) => {
       try {
         const res = await fetch(`${pack}?v=${ART_VERSION}`);
         if (!res.ok) throw new Error("HTTP " + res.status);
-        for (const [path, b64] of Object.entries(await res.json())) {
-          const bin = atob(b64),
-            bytes = new Uint8Array(bin.length);
-          for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-          packed.set(path, URL.createObjectURL(new Blob([bytes], { type: "image/webp" })));
-        }
+        const entries = Object.entries(JSON.parse(await readWithProgress(res, pack)));
+        await Promise.all(
+          entries.map(async ([path, b64]) => {
+            const blob = await (await fetch("data:image/webp;base64," + b64)).blob();
+            packed.set(path, URL.createObjectURL(blob));
+          }),
+        );
       } catch (e) {
         console.warn("Art pack not loaded: " + pack, e);
       }
     }),
-  ));
+  ).then(() => {
+    packsReady = true;
+    tellPacks();
+  }));
 }
-export const unpack = (url) => packed.get(String(url).split("?")[0]) || url;
+/** v0.24j: files that only exist inside a pack (perk icons, tower level variants). */
+const PACK_MEMBER = /^assets\/art\/(perks\/[\w-]+|perk-[\w-]+|tower-[\w-]+-[vl]\d+)\.webp$/;
+/** v0.24j: what a pack picture shows until the packs are there: a blank picture that remembers its path (no request,
+ * so no 404 and no error line); pictures on screen swap over when the packs arrive (see app.js). */
+export const PACK_PENDING = "data:image/gif;base64,R0lGODlhAQABAAAAACw=#";
+export const unpack = (url) => {
+  const path = String(url).split("?")[0];
+  return packed.get(path) || (!packsReady && PACK_MEMBER.test(path) ? PACK_PENDING + path : url);
+};
 export const artUrl = (key) => (inSet(key) ? setPropUrl(artSet, baseArtKey(key)) : unpack(`assets/art/${key}.webp?v=${ART_VERSION}`)); // v0.23a: the active art set's picture
 export const iconUrl = (name) => uiArt(`assets/art/icon-${name}.webp?v=${ART_VERSION}`);
 /**
@@ -329,14 +372,14 @@ export const ANIM_MANIFEST = Object.freeze({
   "creep-n-arcane-golem-death": { kind: "death", in: "creep-n-arcane-golem", first: 48, frames: 6, cols: 6, fw: 219, fh: 175, footX: 106, footY: 169, ms: 110 }, // v0.24a: death row inside the walk sheet
   "creep-n-bat": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 238, fh: 119, footX: 119, footY: 113, figH: 73, ms: 95, figS: 125 },
   "creep-n-bat-death": { kind: "death", in: "creep-n-bat", first: 48, frames: 6, cols: 6, fw: 238, fh: 119, footX: 119, footY: 113, ms: 110 }, // v0.24a: death row inside the walk sheet
-  "creep-n-armored-boar": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 178, fh: 125, footX: 89, footY: 121, figH: 105, ms: 95, figS: 105 },
+  "creep-n-armored-boar": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 178, fh: 125, footX: 89, footY: 121, figH: 105, ms: 95, figS: 105, scale: 0.85 }, // v0.24j: 27 % bulkier than its tier
   "creep-n-demon-hound": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 219, fh: 145, footX: 111, footY: 139, figH: 83, ms: 95, figS: 92 },
   "creep-n-demon-hound-death": { kind: "death", in: "creep-n-demon-hound", first: 48, frames: 6, cols: 6, fw: 219, fh: 145, footX: 111, footY: 139, ms: 110 }, // v0.24a: death row inside the walk sheet
-  "creep-n-flying-machine": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 236, fh: 202, footX: 118, footY: 196, figH: 86, ms: 95, figS: 92 },
+  "creep-n-flying-machine": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 236, fh: 202, footX: 118, footY: 196, figH: 86, ms: 95, figS: 92, scale: 0.85 }, // v0.24j: 28 % bulkier than its tier
   "creep-n-flying-machine-death": { kind: "death", in: "creep-n-flying-machine", first: 48, frames: 6, cols: 6, fw: 236, fh: 202, footX: 118, footY: 196, ms: 110 }, // v0.24a: death row inside the walk sheet
   "creep-n-flying-sheep": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 158, fh: 109, footX: 79, footY: 89, figH: 83, ms: 95, figS: 95, scale: 0.8, stride: 0.5 }, // v0.23q: new sheet, figS kept at the old on-screen size (v0.23j: smaller); v0.23r: wings beat twice as fast
   "creep-n-flying-sheep-death": { kind: "death", in: "creep-n-flying-sheep", first: 48, frames: 6, cols: 6, fw: 158, fh: 109, footX: 79, footY: 89, ms: 110 }, // v0.24a: death row inside the walk sheet
-  "creep-n-gnoll": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 156, fh: 149, footX: 77, footY: 143, figH: 95, ms: 95, figS: 95 },
+  "creep-n-gnoll": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 156, fh: 149, footX: 77, footY: 143, figH: 95, ms: 95, figS: 95, scale: 0.88 }, // v0.24j: smaller (bulky figure)
   "creep-n-gnoll-death": { kind: "death", in: "creep-n-gnoll", first: 48, frames: 6, cols: 6, fw: 156, fh: 149, footX: 77, footY: 143, ms: 110 }, // v0.24a: death row inside the walk sheet
   // v0.23d: hay pony: four poses per direction (stand, walk, run, walk) and seven death frames
   "creep-n-horse": { kind: "walk", dirs: 8, frames: 8, cols: 8, fw: 108, fh: 113, footX: 54, footY: 102, figH: 92, ms: 95, figS: 92 }, // v0.23ze: Pony sheet, walk and death in one file
@@ -423,12 +466,12 @@ export const ANIM_MANIFEST = Object.freeze({
   "creep-n-spawn-spider-death": { kind: "death", in: "creep-n-spawn-spider", first: 48, frames: 6, cols: 6, fw: 158, fh: 128, footX: 78, footY: 122, ms: 110 }, // v0.24a: death row inside the walk sheet
   "creep-n-spiritwolf": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 172, fh: 120, footX: 86, footY: 112, figH: 78, ms: 95, figS: 78 }, // v0.23zq: Arcane Wolf, new sheet; walk and death in one sheet
   "creep-n-spiritwolf-death": { kind: "death", in: "creep-n-spiritwolf", first: 48, frames: 6, cols: 6, fw: 172, fh: 120, footX: 86, footY: 112, ms: 110 },
-  "creep-n-giant-bat": { kind: "walk", dirs: 8, frames: 8, cols: 8, fw: 150, fh: 95, footX: 75, footY: 81, figH: 60, ms: 95, figS: 98 }, // v0.23zq: Giant Bat (was Zeppelin); right side = the 3/4 rows, back-left/back-right = back; flight and death in one sheet
+  "creep-n-giant-bat": { kind: "walk", dirs: 8, frames: 8, cols: 8, fw: 150, fh: 95, footX: 75, footY: 81, figH: 60, ms: 95, figS: 98, scale: 1.12 }, // v0.24j: was small for one of the dearest creeps of its tier // v0.23zq: Giant Bat (was Zeppelin); right side = the 3/4 rows, back-left/back-right = back; flight and death in one sheet
   "creep-n-giant-bat-death": { kind: "death", in: "creep-n-giant-bat", first: 64, frames: 8, cols: 8, fw: 150, fh: 95, footX: 75, footY: 81, ms: 110 },
   "creep-n-zombie": { kind: "walk", dirs: 8, frames: 8, cols: 8, fw: 104, fh: 112, footX: 52, footY: 102, figH: 93, ms: 95, figS: 93 }, // v0.23za: zombie goblin, 8 frames per direction
   "creep-n-zombie-death": { kind: "death", in: "creep-n-zombie", first: 64, frames: 7, cols: 8, fw: 104, fh: 112, footX: 52, footY: 102, ms: 110 }, // v0.24a: death row inside the walk sheet
-  "creep-n-wolf": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 254, fh: 166, footX: 127, footY: 160, figH: 138, figS: 138, ms: 95 },
-  "creep-n-skeleton": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 190, fh: 151, footX: 95, footY: 145, figH: 133, figS: 133, ms: 95, scale: 0.82 }, // v0.23j: smaller
+  "creep-n-wolf": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 254, fh: 166, footX: 127, footY: 160, figH: 138, figS: 138, ms: 95, scale: 0.92 }, // v0.24j: 14 % bulkier than its tier
+  "creep-n-skeleton": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 190, fh: 151, footX: 95, footY: 145, figH: 133, figS: 133, ms: 95, scale: 0.92 }, // v0.23j: smaller; v0.24j: 0.82 → 0.92 (was smaller than cheaper creeps)
 });
 /** v0.23a (creep graphic overhaul): painted head portraits for the send buttons, by the creep's art key (original design). */
 export const CREEP_PORTRAIT = Object.freeze({

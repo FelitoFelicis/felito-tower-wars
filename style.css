@@ -6486,7 +6486,7 @@ html.layout-full .game-shell .bottom-nav {
   justify-items: center;
   pointer-events: none;
   transform: translate(-50%, -50%);
-  animation: defeat-splat 1.9s ease-out forwards;
+  animation: defeat-splat 2s ease-out forwards; /* v0.24j: 0.1 s longer on screen (was 1.9 s) */
 }
 .defeat-splat .ds-banner {
   position: relative;
@@ -6531,10 +6531,10 @@ html.layout-full .game-shell .bottom-nav {
 }
 @keyframes defeat-splat {
   0% { opacity: 0; transform: translate(-50%, -62%) scale(1.1); }
-  14% { opacity: 0.7; transform: translate(-50%, -50%) scale(1); }
-  20% { transform: translate(-50%, -49%) rotate(1.5deg); }
-  27% { transform: translate(-50%, -50%) rotate(0); }
-  79% { opacity: 0.7; transform: translate(-50%, -50%); }
+  13.3% { opacity: 0.7; transform: translate(-50%, -50%) scale(1); }
+  19% { transform: translate(-50%, -49%) rotate(1.5deg); }
+  25.7% { transform: translate(-50%, -50%) rotate(0); }
+  80% { opacity: 0.7; transform: translate(-50%, -50%); }
   100% { opacity: 0; transform: translate(-50%, -44%); }
 }
 /* v0.17q: a note line below the version number */
@@ -8354,4 +8354,126 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
   border-radius: 5px;
   background: linear-gradient(90deg, #6fd0ff, #3a8cff);
   transition: width 0.3s;
+}
+/* v0.24j: the send cards in Desktop Wide stay square (the Send page's own card rules size them by the strip height) */
+:root.layout-wide .command-deck #cards-send > .unit-card {
+  aspect-ratio: 1 !important;
+  height: auto !important;
+  width: 100% !important;
+}
+/* v0.24j: Desktop Wide: the enemy windows use the column's height (larger rows, portraits and numbers) */
+:root.layout-wide .game-header .player-plate.rival:not(.multi) {
+  min-height: 116px;
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+:root.layout-wide .game-header .player-plate.rival:not(.multi) .plate-face .portrait {
+  width: 48px;
+  height: 48px;
+}
+:root.layout-wide .game-header .player-plate.rival:not(.multi) .plate-gold b,
+:root.layout-wide .game-header .player-plate.rival:not(.multi) .plate-inc {
+  font-size: 1.15em;
+}
+:root.layout-wide .enemy-stack {
+  gap: 7px;
+}
+:root.layout-wide .enemy-stack .enemy-cell {
+  min-height: 54px;
+  padding: 6px 10px;
+  column-gap: 10px;
+}
+:root.layout-wide .enemy-stack .enemy-cell .portrait {
+  width: 36px;
+  height: 36px;
+}
+:root.layout-wide .enemy-stack .enemy-cell .plate-skull {
+  width: 30px;
+  height: 30px;
+}
+:root.layout-wide .enemy-stack .ec-lives b,
+:root.layout-wide .enemy-stack .ec-gold b {
+  font-size: 16px;
+}
+:root.layout-wide .enemy-stack .ec-inc {
+  font-size: 13px;
+}
+:root.layout-wide .enemy-stack .ec-lives img,
+:root.layout-wide .enemy-stack .ec-gold img {
+  width: 13px;
+  height: 13px;
+}
+/* many enemies: a little tighter so all of them fit */
+:root.layout-wide .enemy-stack[data-count="6"] .enemy-cell,
+:root.layout-wide .enemy-stack[data-count="7"] .enemy-cell {
+  min-height: 46px;
+  padding: 4px 9px;
+}
+/* v0.24j: Desktop Wide: five to seven enemies use the same full rows as up to four (one per row, every value) */
+:root.layout-wide .enemy-stack[data-count="5"],
+:root.layout-wide .enemy-stack[data-count="6"],
+:root.layout-wide .enemy-stack[data-count="7"] {
+  grid-template-columns: minmax(0, 1fr) !important;
+  grid-template-rows: none !important;
+  grid-auto-flow: row;
+}
+:root.layout-wide .enemy-stack[data-count="5"] .enemy-cell,
+:root.layout-wide .enemy-stack[data-count="6"] .enemy-cell,
+:root.layout-wide .enemy-stack[data-count="7"] .enemy-cell {
+  grid-template-columns: auto 1fr auto !important;
+  grid-template-rows: auto auto !important;
+  grid-template-areas: none !important;
+  font-size: inherit;
+}
+:root.layout-wide .enemy-stack[data-count="5"] .ec-top,
+:root.layout-wide .enemy-stack[data-count="6"] .ec-top,
+:root.layout-wide .enemy-stack[data-count="7"] .ec-top {
+  display: grid;
+  grid-auto-flow: column;
+  align-items: center;
+  gap: 4px;
+  grid-column: 1;
+  grid-row: 1 / 3;
+}
+:root.layout-wide .enemy-stack[data-count="5"] .ec-stats,
+:root.layout-wide .enemy-stack[data-count="6"] .ec-stats,
+:root.layout-wide .enemy-stack[data-count="7"] .ec-stats {
+  display: grid;
+}
+:root.layout-wide .enemy-stack[data-count="5"] .ec-face,
+:root.layout-wide .enemy-stack[data-count="6"] .ec-face,
+:root.layout-wide .enemy-stack[data-count="7"] .ec-face,
+:root.layout-wide .enemy-stack[data-count="5"] .ec-lives,
+:root.layout-wide .enemy-stack[data-count="6"] .ec-lives,
+:root.layout-wide .enemy-stack[data-count="7"] .ec-lives {
+  grid-area: auto;
+}
+:root.layout-wide .enemy-stack[data-count="5"] .ec-gold,
+:root.layout-wide .enemy-stack[data-count="6"] .ec-gold,
+:root.layout-wide .enemy-stack[data-count="7"] .ec-gold {
+  grid-area: auto;
+  grid-column: 2;
+  grid-row: 1;
+}
+:root.layout-wide .enemy-stack[data-count="5"] .ec-inc,
+:root.layout-wide .enemy-stack[data-count="6"] .ec-inc,
+:root.layout-wide .enemy-stack[data-count="7"] .ec-inc {
+  display: block;
+  grid-column: 2;
+  grid-row: 2;
+}
+:root.layout-wide .enemy-stack[data-count="5"] .ec-level,
+:root.layout-wide .enemy-stack[data-count="6"] .ec-level,
+:root.layout-wide .enemy-stack[data-count="7"] .ec-level {
+  display: flex;
+  grid-column: 3;
+  grid-row: 1 / 3;
+  align-self: center;
+}
+:root.layout-wide .enemy-stack[data-count="5"] .enemy-cell .portrait,
+:root.layout-wide .enemy-stack[data-count="6"] .enemy-cell .portrait,
+:root.layout-wide .enemy-stack[data-count="7"] .enemy-cell .portrait {
+  width: 34px !important;
+  height: 34px !important;
+  border-width: 2px;
 }

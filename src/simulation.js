@@ -1154,13 +1154,13 @@ export const pillarDamage = (p, level = perkLevel(p, "pillar")) =>
 export const AGOLEM = { cooldown: 50, knock: [0.9, 1.25, 1.5, 1.75, 2], loss: [0.02, 0.02, 0.02, 0.02, 0.02], heavy: 3, damage: 10, reach: 0.45 };
 export const golemHp = (p, level = perkLevel(p, "agolem")) => Math.round(level * (p?.tier || 1) * (400 * ((p?.level || 1) * 0.2) + 1));
 /** Monsun (Storm): cooldown, duration by level, lightning interval; push in fields per second (before the arena's 45 %). */
-export const MONSUN = { cooldown: 45, // v0.19j: +5 s
-  duration: [5, 7, 9, 11, 13], strike: 0.5, groundShare: 0.5, walk: 0.25 }; // v0.19k: ground creeps walk at 25 % in the storm // v0.16g: +1 s per level
+export const MONSUN = { cooldown: 50, // v0.19j: +5 s; v0.24j: 45 → 50 s
+  duration: [5, 6, 7, 8, 9], strike: 0.5, groundShare: 0.5, walk: 0.25 }; // v0.24j: levels 2+ 6 / 7 / 8 / 9 s (was 7 / 9 / 11 / 13); v0.19k: ground creeps walk at 25 % in the storm // v0.16g: +1 s per level
 export const monsunForce = (p, level = perkLevel(p, "monsun")) => 0.48 + level * 0.23 + (p?.tier || 1) * 0.02; // v0.16g: +0.10 per level; v0.19j: a little stronger
 export const monsunDamage = (p, level = perkLevel(p, "monsun")) => 30 + 20 * level * (p?.tier || 1);
 /** Perks that skip the next level once taken. */
 /** v0.20c: perks that sit out more than one level after a pick (Supergrowth: two). */
-const PERK_SKIP_LEVELS = { supergrowth: 2, hellfire: 2, frostbolt: 2, clones: 2, infested: 2, lone: 2, bank: 3 }; // v0.24i: Magic Bank skips 3 // v0.23zi: Spartans skip 2 // v0.23w: Frost Bolt, Clones // v0.21x: Lava Floor skips 2
+const PERK_SKIP_LEVELS = { supergrowth: 2, hellfire: 2, frostbolt: 2, clones: 2, infested: 2, lone: 2, bank: 3, monsun: 2 }; // v0.24j: Monsun skips 2 // v0.24i: Magic Bank skips 3 // v0.23zi: Spartans skip 2 // v0.23w: Frost Bolt, Clones // v0.21x: Lava Floor skips 2
 const PERK_SKIP = new Set(["pillar", "agolem", "monsun", "slave", "guardian", "mind", "tailwind", "carmor", "owl", "autoloader", "hills"]); // v0.22g1: Autoloader // v0.19a1: Mind Control, Tailwind, Creep Armor, Watcher Owl
 /**
  * v0.19a1: reworked level-up upgrades (research perks). Their effects live here instead of the map
@@ -2389,7 +2389,7 @@ export const PERK_AVAILABILITY = {
   pillar: "6+", // v0.24d: from level 6 (was 5)
   fort: "2", // v0.19b1: level 2 only
   agolem: "5+",
-  monsun: "5+",
+  monsun: "6+", // v0.24j: from level 6 (was 5), skips 2 (PERK_SKIP_LEVELS)
   slave: "2+", // v0.14
   guardian: "6+", // v0.14
   quarry: "2-3", // v0.18h; v0.21c: levels 2 and 3
@@ -4001,7 +4001,7 @@ function skillOf(a, level = 1) {
       sk = { type: "detect", radius: fval(a, "aran", level, tipNum(a, level, /Range (\d+)/, 300)) };
       break;
     case "Abof":
-      sk = { type: "disease", dps: fval(a, "Hfs1", level), radius: fval(a, "aare", level, 225), duration: fval(a, "adur", level, 3) };
+      sk = { type: "disease", dps: fval(a, "Hfs1", level) * DISEASE_BUFF, radius: fval(a, "aare", level, 225), duration: fval(a, "adur", level, 3) }; // v0.24j: +40 %
       break;
     case "Amgl":
     case "Aro1":
@@ -4104,10 +4104,11 @@ function nerfClass(c) {
   return "normal";
 }
 /** Nerf Resistance shortens negative effects by 75 % (A02U); v0.22n2: Tier Boss by 50 %. */
-function negativeDuration(c, normal) {
+function negativeDuration(c, normal, hero = null) {
   const cls = nerfClass(c);
   if (cls === "normal") return normal;
-  return cls === "boss" && creepSkills(c).some((sk) => sk.type === "tierBoss") ? normal * TIER_BOSS.shorter : normal * 0.25;
+  if (cls === "boss" && creepSkills(c).some((sk) => sk.type === "tierBoss")) return normal * TIER_BOSS.shorter;
+  return hero != null ? hero : normal * 0.25; // v0.24j: the ability's own hero/boss duration counts when it has one (bash, stomp)
 }
 function detected(game, p, c) {
   return p.towers.some((t) => !(t.buildRemaining > 0) && towerSkills(p, t).some((sk) => sk.type === "detect" && inRange(game, t, c, sk.radius))); // v0.23: inRange
@@ -4230,6 +4231,11 @@ const CANNON_CORE = 0.35, // cells
   BOMBARD_RADIUS = 0.9; // v0.17b: the outer splash radius of the whole Bombard line is 10 % smaller
 export const MAGIC_CHARGE_SECONDS = 8;
 export const MAGIC_EMPOWER = 5; // v0.24i: Arcane Missile (the empowered bolt) 4× → 5× damage
+/** v0.24j: Arcane Missile of the Magic Tower levels 5 and 6: +20 % and +33 % on top. */
+export const MAGIC_EMPOWER_LEVEL = { 5: 1.2, 6: 1.33 };
+export const magicEmpower = (item) => MAGIC_EMPOWER * (MAGIC_EMPOWER_LEVEL[item?.level] || 1);
+/** v0.24j: Disease Launcher +40 % (its attack in content.js, its disease clouds here). */
+export const DISEASE_BUFF = 1.4;
 const POISON_MAX_STACKS = 8,
   POISON_SLOW_PER_STACK = 0.03,
   POISON_SLOW_CAP = 0.18;
@@ -4463,13 +4469,14 @@ function applyOnHit(game, player, tower, target) {
       const duration = negativeDuration(target, fval(ability, "adur", level) || 6),
         dps = Math.max(1, fval(ability, "Spo1", level)),
         stackSlow = fval(ability, "Spo2", level) || POISON_SLOW_PER_STACK;
-      const mine = target.statuses.filter((s) => s.poison && s.abilityId === ability.id);
+      const mine = target.statuses.filter((s) => s.poison && s.stack === "Aspo"); // v0.24j: melee and ranged poison share one pool of stacks
       if (mine.length >= POISON_MAX_STACKS) {
         const oldest = mine.reduce((a, b) => (b.remaining < a.remaining ? b : a));
         target.statuses.splice(target.statuses.indexOf(oldest), 1);
       }
       target.statuses.push({
         abilityId: ability.id,
+        stack: "Aspo",
         poison: true,
         remaining: duration,
         slow: stackSlow,
@@ -4565,7 +4572,7 @@ function attack(game, p, tower, dt, known = null) {
   // v0.21v: heavy creeps and bosses come last only in the upper half of the field; from halfway on they count like any creep
   // v0.23k: bosses always come last (towers prefer every other creep in reach, on the whole path)
   const shy = (c) => (obj(c.typeId)?.bossTier || c.waveBoss ? 2 : c.progress < HEAVY_SHY && heavyCreep(c) ? 1 : 0);
-  targets.sort((a, b) => shy(a) - shy(b) || b.progress - a.progress || a.id.localeCompare(b.id));
+  targets.sort((a, b) => shy(a) - shy(b) || b.progress - a.progress || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   // v0.18b: Focus Fire keeps its target while it stays in reach
   const target = held || (focus && tower.focusId && targets.find((c) => c.id === tower.focusId)) || targets[0];
   tower.aimId = target.id; // v0.21y: the selected tower shows its splash around this creep
@@ -4592,7 +4599,7 @@ function attack(game, p, tower, dt, known = null) {
   const magic = isMagicTower(item);
   let empowered = false;
   if (magic && tower.mana >= stats.mana - EPS && stats.mana > 0) {
-    damage *= MAGIC_EMPOWER;
+    damage *= magicEmpower(item); // v0.24j: stronger on levels 5 and 6
     tower.mana = 0;
     empowered = true;
     emit(game, "skill", { player: p.id, kind: "empower", x: target.x, y: target.y, towerId: tower.id });
@@ -4712,7 +4719,7 @@ function secondWeapon(game, p, tower, item, stats, aura, dt, cursed) {
   if (tower.cooldown2 > 0) return;
   const target = p.creeps
     .filter((c) => !c.dead && c.hp > 0 && !divineShield(game, c) && c.flying && w.targets.includes("air") && inRange(game, tower, c, rangedReach(game, w.range)) && (!c.invisible || detected(game, p, c))) // v0.23: inRange
-    .sort((a, b) => b.progress - a.progress || a.id.localeCompare(b.id))[0];
+    .sort((a, b) => b.progress - a.progress || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))[0];
   if (!target) {
     tower.cooldown2 = 0;
     return;
@@ -4736,7 +4743,7 @@ function crowdControl(game, p) {
   if (alive.length < CROWD.threshold[Math.min(3, level) - 1]) return; // v0.23: at 50 or more creeps (was: more than 50)
   const victims = alive
     .filter((c) => !divineShield(game, c)) // v0.23: creeps under Divine Shield are never culled
-    .sort((a, b) => a.hp - b.hp || a.id.localeCompare(b.id))
+    .sort((a, b) => a.hp - b.hp || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
     .slice(0, CROWD.cull);
   const back = [];
   for (const c of victims) {
@@ -5329,7 +5336,13 @@ function aiPersonality(game, p) {
   // the hard bot rolls inside its own ranges (v0.07m, from hard-vs-hard self-play)
   const ranges = aiTuning === AI_DEFAULTS && AI_STYLE[aiLevel(game, p)]?.ranges ? { ...aiTuning, ...AI_STYLE[aiLevel(game, p)].ranges } : aiTuning;
   p.aiPersona = Object.fromEntries(Object.entries(ranges).map(([k, range]) => [k, roll(range)]));
-  p.aiPersona.elementOrder = FACTIONS.map((f) => f.id).sort(() => random(game) - 0.5);
+  // v0.24j: Fisher–Yates with the game's own dice (a random sort comparator depends on the browser's sort and is biased)
+  const order = FACTIONS.map((f) => f.id);
+  for (let i = order.length - 1; i > 0; i--) {
+    const j = Math.floor(random(game) * (i + 1));
+    [order[i], order[j]] = [order[j], order[i]];
+  }
+  p.aiPersona.elementOrder = order;
   for (const [k, f] of Object.entries(AI_STYLE[aiLevel(game, p)]?.persona || {})) p.aiPersona[k] *= f;
   Object.assign(p.aiPersona, AI_STYLE[aiLevel(game, p)]?.fixed || {}); // v0.21v: fixed traits, no dice roll
   if (p.rules?.persona) Object.assign(p.aiPersona, p.rules.persona); // v0.17: mission personality
@@ -6869,7 +6882,11 @@ function fixedTickInner(game) {
     }
   }
   for (const p of game.players) {
-    if (p.out) continue;
+    if (p.out) {
+      // v0.24j: clouds on a knocked-out lane would never tick down: they go with the lane
+      if (game.clouds?.some((cl) => cl.lane === p.id)) game.clouds = game.clouds.filter((cl) => cl.lane !== p.id);
+      continue;
+    }
     // v0.23: only the sends of the current tier can restock (the others were skipped one by one before); each
     // stock is independent, so the order does not matter
     for (const item of stockTierSends(p.tier)) {

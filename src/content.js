@@ -82,6 +82,18 @@ export function configureContent(data) {
     rawAbilities = mergeObjects(data.abilities);
   // v0.17b: own creep abilities (not in the map data): damage resistance against one tower line
   for (const a of CUSTOM_ABILITIES) rawAbilities.set(a.id, { ...a, fields: { ...a.fields } });
+  // v0.24j: melee poison (Zombie Tower, Death Knight) is the same "Poison Attack" as the ranged poison towers (Poison
+  // Archer): the ranged ability's fields with the melee poison's own numbers (damage, slow, duration per level)
+  {
+    const melee = rawAbilities.get("A08Z"),
+      ranged = rawAbilities.get("A090");
+    if (melee && ranged) {
+      const keep = ["Spo1", "Spo2", "adur", "ahdu", "aub1", "alev"],
+        fields = { ...ranged.fields };
+      for (const k of keep) if (melee.fields[k] !== undefined) fields[k] = melee.fields[k];
+      rawAbilities.set("A08Z", { ...ranged, id: "A08Z", fields });
+    }
+  }
   // v0.17p: ability fixes (field patches, removed and added abilities per unit)
   for (const [id, patch] of Object.entries(ABILITY_PATCH)) {
     const a = rawAbilities.get(id);
@@ -646,6 +658,8 @@ export const TOWER_DAMAGE_BUFF = {
   // v0.24i: Ogre Tower line +8 %, plain Footman line from level 2 +12 %
   h05A: 0.08, h033: 0.08, h034: 0.08, h03I: 0.08,
   h02U: 0.12, h02V: 0.12, h035: 0.12, h036: 0.12, h03J: 0.12,
+  // v0.24j: Disease Launcher +40 % (its disease clouds: simulation.js DISEASE_BUFF)
+  e003: 0.4, e006: 0.4, e008: 0.4, e009: 0.4,
 };
 function applyTowerDamageBuff(byId) {
   for (const [id, pct] of Object.entries(TOWER_DAMAGE_BUFF)) {
@@ -679,6 +693,7 @@ export const CREEP_TUNING = {
   // v0.23zb: Shieldbearer → Siege Ogre: one per purchase (heavy) with double hit points and bounty, armor 3, no Divine Shield;
   // plants a Siege Plank once (simulation.js SIEGE_OGRE)
   n01G: { name: "[34] Siege Ogre", shortName: "Siege Ogre", count: 1, hp: 16000, armor: 3, bountyBase: 718, abilities: ["A08S", "A01A"], stockMax: 2, stockRegen: 17 }, // v0.22o2: was Spiritwalker → Shieldbearer; v0.24i: stock 5 → 2, restock 15 → 17 s
+  n025: { income: 30 }, // v0.24j: Raven earns a little income (0.3 % of its price; flyers pay less than ground creeps)
   n00L: { speed: 375 }, // Wolf: 25 % faster, 300 → 375 (v0.08d)
   n00S: { speed: 420, stockRegen: 13, income: 8 }, // Raider: 25 % faster (v0.07b); restock 12 → 13 s (v0.17o); income 9 → 8 (v0.17q)
   n012: { name: "[21] Giant Bat", shortName: "Giant Bat" }, // v0.23zq: the Zeppelin is the Giant Bat

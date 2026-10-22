@@ -59,6 +59,47 @@ export function minifyCss(css) {
   return out.trim() + "\n";
 }
 
-const min = minifyCss(src);
+/**
+ * v0.24j: Desktop Wide shows the send cards (#cards-send) while the Build page is open. Every card rule written for the
+ * Send page (.game-shell[data-page="send"] .unit-card …, .boss-mark) also gets a copy for that deck, in the same rule
+ * (so inside the same @media). The deck's own grid stays the Desktop Wide one.
+ */
+export function wideSendCards(css) {
+  const PAGE = '.game-shell[data-page="send"] ';
+  const split = (list) => {
+    const parts = [];
+    let depth = 0,
+      start = 0;
+    for (let i = 0; i < list.length; i++) {
+      const c = list[i];
+      if (c === "(") depth++;
+      else if (c === ")") depth--;
+      else if (c === "," && depth === 0) {
+        parts.push(list.slice(start, i));
+        start = i + 1;
+      }
+    }
+    parts.push(list.slice(start));
+    return parts;
+  };
+  let out = "",
+    last = 0;
+  for (let i = 0; i < css.length; i++) {
+    if (css[i] !== "{") continue;
+    let j = i - 1;
+    while (j >= 0 && css[j] !== "}" && css[j] !== "{" && css[j] !== ";") j--;
+    const list = css.slice(j + 1, i);
+    if (list.startsWith("@") || !list.includes(PAGE)) continue;
+    const extra = split(list)
+      .filter((sel) => sel.startsWith(PAGE) && /^(\.unit-card|\.boss-mark)/.test(sel.slice(PAGE.length)))
+      .map((sel) => ":root.layout-wide #cards-send " + sel.slice(PAGE.length));
+    if (!extra.length) continue;
+    out += css.slice(last, i) + "," + extra.join(",");
+    last = i;
+  }
+  return out + css.slice(last);
+}
+
+const min = wideSendCards(minifyCss(src));
 writeFileSync(join(root, "style.min.css"), "/* generated from style.css by tools/build-css.mjs – edit style.css, then run: node tools/build-css.mjs */\n" + min);
 console.log(`style.min.css: ${min.length} bytes (style.css: ${Buffer.byteLength(src)} bytes)`);
