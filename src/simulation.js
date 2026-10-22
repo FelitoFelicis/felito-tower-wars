@@ -2274,7 +2274,7 @@ export const PERK_AVAILABILITY = {
   summon: "2",
   nobility: "2+",
   breeding: "2+",
-  pillar: "5+",
+  pillar: "6+", // v0.24d: from level 6 (was 5)
   fort: "2", // v0.19b1: level 2 only
   agolem: "5+",
   monsun: "5+",
