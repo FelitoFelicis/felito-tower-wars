@@ -8003,7 +8003,7 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
 
 /* ---- v0.24b: tower blueprint cards ---------------------------------------------------------------------------
    Names are never cut: they wrap between words onto a second row and shrink only as far as needed (fitCardNames).
-   The cards wear the parchment look of the creep cards: same card, border and tan ribbon with dark ink. */
+   (v0.24b–v0.25b the cards wore the parchment look of the creep cards; removed in v0.25c.) */
 .game-shell[data-page="build"] :is(#cards, .sheet-cards) .unit-card:not(.up-card) .unit-name {
   white-space: normal;
   overflow: hidden;
@@ -8015,61 +8015,7 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
   padding-left: 2px;
   padding-right: 2px;
 }
-:root:is(:not([data-design]), [data-design="original"]) .game-shell[data-page="build"] :is(#cards, .sheet-cards) .unit-card[data-kind="tower"]:not(.up-card) {
-  background: radial-gradient(ellipse 70% 62% at 50% 42%, #fbf0d8 0%, #f1dcb2 55%, #dcb87f 100%) !important;
-  border: 2px solid #3b2413;
-  box-shadow:
-    inset 0 0 0 1px #fff4dc,
-    inset 0 0 6px #b68a4f,
-    0 2px 0 #1a0d05;
-}
-:root:is(:not([data-design]), [data-design="original"]) .game-shell[data-page="build"] :is(#cards, .sheet-cards) .unit-card[data-kind="tower"]:not(.up-card).selected {
-  border-color: #ffd34a;
-  box-shadow:
-    inset 0 0 0 1px #fff4dc,
-    inset 0 0 6px #b68a4f,
-    0 0 0 2px #6b4a0a,
-    0 0 14px #ffcf4a90;
-}
-:root:is(:not([data-design]), [data-design="original"]) .game-shell[data-page="build"] :is(#cards, .sheet-cards) .unit-card[data-kind="tower"]:not(.up-card) .card-art {
-  background: none;
-}
-:root:is(:not([data-design]), [data-design="original"]) .game-shell[data-page="build"] :is(#cards, .sheet-cards) .unit-card[data-kind="tower"]:not(.up-card) .card-art img {
-  filter: drop-shadow(0 1.5px 1px #3b241366);
-}
-:root:is(:not([data-design]), [data-design="original"]) .game-shell[data-page="build"] :is(#cards, .sheet-cards) .unit-card[data-kind="tower"]:not(.up-card) .unit-name {
-  color: #2e1a0c;
-  text-shadow: 0 1px 0 #fff4dc;
-}
-:root:is(:not([data-design]), [data-design="original"]) .game-shell[data-page="build"] :is(#cards, .sheet-cards) .unit-card[data-kind="tower"]:not(.up-card) .card-foot {
-  left: 2px;
-  right: 2px;
-  bottom: 1px;
-  height: 17px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1.5px solid #3b2413;
-  border-radius: 3px;
-  background: linear-gradient(#fdebc8, #f1d4a5 55%, #dcb376);
-  box-shadow:
-    inset 3px 0 0 #c99b5f,
-    inset -3px 0 0 #c99b5f,
-    inset 0 1px 0 #fff6e0;
-}
-:root:is(:not([data-design]), [data-design="original"]) .game-shell[data-page="build"] :is(#cards, .sheet-cards) .unit-card[data-kind="tower"]:not(.up-card) .card-foot .price {
-  font-size: 14px;
-  line-height: 1;
-  color: #2e1a0c;
-  text-shadow: none;
-}
-:root:is(:not([data-design]), [data-design="original"]) .game-shell[data-page="build"] :is(#cards, .sheet-cards) .unit-card[data-kind="tower"]:not(.up-card) .card-foot .price::before {
-  width: 13px;
-  height: 13px;
-}
-:root:is(:not([data-design]), [data-design="original"]) .game-shell[data-page="build"] :is(#cards, .sheet-cards) .unit-card[data-kind="tower"]:not(.up-card):is(.unaffordable, .poor) .card-foot .price {
-  color: #a3241c;
-}
+/* v0.25c: the parchment look of the tower cards (v0.24b) is gone again: tower cards wear the default card look */
 
 /* ---- v0.24b: Desktop Wide ---------------------------------------------------------------------------------------
    The desktop version across the screen: player info windows stacked in a column on the left, the cards (Build and
