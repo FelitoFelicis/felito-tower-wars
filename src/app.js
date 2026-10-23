@@ -173,7 +173,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.25f",
+const APP_VERSION = "0.25g",
   APP_BRANCH = "F", // v0.23q: author marker (F = Felix, S = Steven) and branch text, shown behind the version; APP_VERSION stays plain for online matches (VersionPublishingRules.md)
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "23.10.2026";
@@ -3238,7 +3238,7 @@ function ownKnockedOut(place) {
   if (rated) game.ratedHere = true;
   // v0.18b: place in the summary tiles; Keep watching and Play again side by side in blue, Main menu gold
   showModal(
-    `${resultClock()}<div class="result-banner lose">${t("Defeat")}</div>${room ? "" : `<img class="modal-hero result-hero" src="${artUrl("creep-golem")}" alt="">`}${rankLineHtml(rated, "ffa")}${summary.html}<div class="result-pair"><button class="secondary-button" id="ko-watch">${t("Keep watching")}</button>${room ? "" : `<button class="secondary-button" id="ko-again">${t("Play again")}</button>`}</div><button class="primary-button" id="ko-menu">${t("Main menu")}</button>`,
+    `${resultClock()}<div class="result-banner lose">${t("Defeat")}</div>${rankLineHtml(rated, "ffa")}${summary.html}<div class="result-pair"><button class="secondary-button" id="ko-watch">${t("Keep watching")}</button>${room ? "" : `<button class="secondary-button" id="ko-again">${t("Play again")}</button>`}</div><button class="primary-button" id="ko-menu">${t("Main menu")}</button>`,
     { pauseGame: false },
   );
   summary.wire();
@@ -4932,7 +4932,7 @@ function refreshLevelButton(p) {
       if (dock.style.left !== x || dock.style.top !== fullTop) Object.assign(dock.style, { left: x, top: fullTop, width: size + "px" });
     } else if (dock.style.left !== x || dock.style.top !== dockTop) Object.assign(dock.style, { left: x, top: dockTop, width: size + "px" });
     if (!wide && dock.style.getPropertyValue("--slot") !== size + "px") dock.style.setProperty("--slot", size + "px");
-    placeWideHud(wide); // v0.25a: Desktop Wide: round timer and level button in the right column
+    placeWideHud(wide, z); // v0.25a: Desktop Wide: round timer and level button (v0.25g: left of the board, top)
     const slot = wide ? "62px" : size + "px";
     if (!wide && btn.style.left !== x) btn.style.left = x;
     if (!wide && btn.style.top !== top) btn.style.top = top;
@@ -4957,12 +4957,20 @@ function refreshLevelButton(p) {
  * v0.25a: Desktop Wide: the round timer and the level button move to the right column, in a row below the
  * 2ndLocalInfoWindow; other layouts get them back in their usual places (header and board).
  */
-function placeWideHud(wide) {
+function placeWideHud(wide, z) {
   const row = $("wide-hud-row"),
     plate = document.querySelector(".round-plate"),
     btn = $("level-button");
   if (!row || !plate || !btn) return;
   if (wide) {
+    // v0.25g: the round timer and below it the level button stand left of the board, at its top
+    if (row.parentNode !== $("arena")) $("arena").appendChild(row);
+    if (z) {
+      const left = Math.round(Math.max(6, z.left - (z.frame || 13) - 12 - row.offsetWidth)) + "px",
+        top = Math.round(Math.max(8, z.top - (z.strip || 0))) + "px";
+      if (row.style.left !== left) row.style.left = left;
+      if (row.style.top !== top) row.style.top = top;
+    }
     if (plate.parentNode !== row) row.appendChild(plate);
     if (btn.parentNode !== row) {
       row.appendChild(btn);
@@ -5905,24 +5913,35 @@ function techTree(kind) {
   if (kind === "tower") {
     const seen = new Set();
     const kids = (item) => (item.upgrades || []).map((id) => catalog.byId[id]).filter(Boolean);
+    // v0.25g: the neutral line runs on in one row from left to right (Lv 1, 2, 3 …); element branches (and further
+    // neutral branches) hang below the tower they grow from, under a down arrow, the nearest one first
+    const neutral = (item) => !elementOf(item?.element);
     const branch = (item) => {
-      const chain = [item];
+      const chain = [item],
+        sides = [];
       seen.add(item.id);
       let last = item;
       for (;;) {
         const next = kids(last);
-        if (next.length !== 1 || seen.has(next[0].id)) break;
-        last = next[0];
-        seen.add(last.id);
-        chain.push(last);
+        if (!next.length) break;
+        const fresh = next.filter((c) => !seen.has(c.id)),
+          main = fresh.find(neutral) || (next.length === 1 ? fresh[0] : null),
+          rest = next.filter((c) => c !== main);
+        if (rest.length) sides.push({ col: chain.length - 1, items: rest });
+        if (!main) break;
+        seen.add(main.id);
+        chain.push(main);
+        last = main;
       }
-      const children = kids(last),
-        sub = children.map((c) => (seen.has(c.id) ? `<div class="tt-branch">${node(c, true)}</div>` : branch(c))).join("");
-      return `<div class="tt-branch"><div class="tt-chain">${chain.map((c) => node(c)).join(arrow)}</div>${sub ? `<div class="tt-children">${sub}</div>` : ""}</div>`;
+      const below = sides
+        .sort((a, b) => b.col - a.col)
+        .map((sd) => `<div class="tt-side" style="--col:${sd.col}"><span class="tt-down" aria-hidden="true">↓</span>${sd.items.map((c) => (seen.has(c.id) ? `<div class="tt-branch">${node(c, true)}</div>` : branch(c))).join("")}</div>`)
+        .join("");
+      return `<div class="tt-branch"><div class="tt-chain">${chain.map((c) => node(c)).join(arrow)}</div>${below}</div>`;
     };
     return TREE_ROOTS.map((id) => catalog.byId[id])
       .filter(Boolean)
-      .map((root) => `<section class="tt-tree"><h3>${esc(itemName(root))}</h3>${branch(root)}</section>`)
+      .map((root) => `<section class="tt-tree tt-towers"><h3>${esc(itemName(root))}</h3>${branch(root)}</section>`)
       .join("");
   }
   if (kind === "send")
@@ -8160,7 +8179,7 @@ function tick(dt) {
         ? `<div class="hardo-fact"><small>${t("Did you know?")}</small><p>${esc(hardoFact.charAt(0).toUpperCase() + hardoFact.slice(1))}</p></div>`
         : sessionMode === "online" || game.rankedBot
           ? "" // v0.24k: multiplayer results without the creep picture and the "Your line …" quote (v0.24p: ranked bot matches too)
-          : `<img class="modal-hero result-hero" src="${artUrl(won ? "tower-archer" : "creep-golem")}" alt=""><h2 class="welcome-title">${won ? t("Your line.<br><span>Your victory.</span>") : t("Well fought.<br><span>Another round?</span>")}</h2>`;
+          : `${won ? `<img class="modal-hero result-hero" src="${artUrl("tower-archer")}" alt="">` : ""}<h2 class="welcome-title">${won ? t("Your line.<br><span>Your victory.</span>") : t("Well fought.<br><span>Another round?</span>")}</h2>`;
     if (sessionMode !== "online") presenceState("menu");
     showModal(
       `${resultClock()}<div class="result-banner ${won ? "win" : "lose"}">${t(won ? "Victory" : "Defeat")}</div>${hero}${rankLine}${summary.html}${sessionMode === "training" ? `<p class="modal-copy" style="text-align:center">${t("AI")} ${t(AI_NAMES[game.aiLevel] || "Normal")}</p>` : ""}${tip ? `<p class="modal-note result-tip">${tip}</p>` : ""}<div class="result-pair"><button class="secondary-button" id="play-again">${t("Play again")}</button>${sessionMode === "training" && !game.rankedBot && game.aiLevel !== (hardoUnlocked ? "insane" : "hard") && won ? `<button class="secondary-button" id="play-harder">${t("Harder AI")}</button>` : ""}</div><button class="primary-button" id="to-menu">${t("Main menu")}</button>`,

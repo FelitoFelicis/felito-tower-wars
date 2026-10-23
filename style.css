@@ -9145,3 +9145,53 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
     0 0 0 1.5px #fff,
     0 1px 3px #000a;
 }
+
+/* ---- v0.25g: tower tech tree: the neutral line in one row, branches below the tower they grow from ---- */
+.tt-towers {
+  --tt-step: 80px; /* one node (64) + gap (2) + arrow (12) + gap (2) */
+  overflow-x: auto !important;
+}
+.tt-towers .tt-chain {
+  flex-wrap: nowrap !important;
+  width: max-content !important;
+  max-width: none !important;
+}
+.tt-towers .tt-arrow {
+  width: 12px;
+  padding: 0;
+  text-align: center;
+}
+.tt-side {
+  position: relative;
+  display: grid;
+  gap: 5px;
+  width: max-content;
+  margin: 0 0 4px calc(var(--col) * var(--tt-step));
+  padding-top: 16px;
+}
+.tt-down {
+  position: absolute;
+  top: -1px;
+  left: 32px;
+  transform: translateX(-50%);
+  font: 800 15px/1 var(--font-display);
+  color: #ffffff66;
+}
+/* ---- v0.25g: Desktop Wide: round timer and level button left of the board at its top; the 2ndLocalInfoWindow keeps
+   the top of the right column; selected tower cards are no longer cut off at the top ---- */
+:root.layout-wide .command-deck .wide-stats {
+  margin: 0 0 auto;
+}
+:root.layout-wide #arena > .wide-hud-row {
+  position: absolute;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+}
+:root.layout-wide .command-deck #cards {
+  padding-top: 8px;
+  margin-top: -6px;
+}
