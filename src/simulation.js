@@ -2,10 +2,12 @@
 import { getCatalog, getResearchCost, FACTIONS, RULES, field, splitIds, cleanText, WALL_ID, GOLEM_ID } from "./content.js";
 
 export const TICK = 0.05;
-export const SAVE_VERSION = 5;
+export const SAVE_VERSION = 6; // v0.24r: growing mazes
 export const ARENA_MOVEMENT_MULTIPLIER = 0.45;
 export const GAME_GRIDS = Object.freeze({
-  arena: Object.freeze({ cols: 6, rows: 9, cellUnits: 128 }),
+  // v0.24r: the arena grid holds the largest maze (21 rows); a player starts with baseRows and every tier
+  // upgrade adds rowsPerTier rows
+  arena: Object.freeze({ cols: 6, rows: 21, cellUnits: 128, baseRows: 9, rowsPerTier: 3 }),
   source: Object.freeze({ cols: 7, rows: 21, cellUnits: 128 }),
 });
 /** The added right-hand column must not move the original entrance/exit lane. */
@@ -22,6 +24,12 @@ export function spawnColumn(game) {
   return Math.floor(random(game) * game.grid.cols);
 }
 const movementMultiplier = (game) => (game.mode === "arena" ? ARENA_MOVEMENT_MULTIPLIER : 1);
+// v0.24r: maze rows per player. baseRows = rows of a fresh maze, laneRows = rows of this player's maze,
+// rowsForTier = rows a maze has at the given tier.
+export const baseRows = (game) => Math.min(game.grid.rows, game.grid.baseRows || game.grid.rows);
+export const laneRows = (game, player) => Math.max(1, Math.min(game.grid.rows, player?.rows || baseRows(game)));
+export const rowsForTier = (game, tier) =>
+  Math.min(game.grid.rows, baseRows(game) + (game.grid.rowsPerTier || 0) * Math.max(0, (tier || 1) - 1));
 /** Shared by local restore and the network snapshot gate; never remaps old cells. */
 export function isCompatibleGameGrid(game) {
   if (typeof game?.mode !== "string" || !Object.hasOwn(GAME_GRIDS, game.mode)) return false;
@@ -69,11 +77,17 @@ function diceRoll(game, base, dice, sides) {
   for (let i = 0; i < Math.max(0, dice); i++) value += 1 + Math.floor(random(game) * Math.max(1, sides));
   return value;
 }
-const pos = (game, x, y) => {
+// v0.24r: `exitRow` is the row of the exit strip (the player's lane length); y stays relative to the full grid
+const pos = (game, x, y, exitRow = game.grid.rows) => {
   const rows = game.grid.rows,
-    cy = y < 0 ? -STRIP / 2 : y >= rows ? rows + STRIP * 0.2 : y + 0.5;
+    cy = y < 0 ? -STRIP / 2 : y >= exitRow ? exitRow + STRIP * 0.2 : y + 0.5;
   return { x: (x + 0.5) / game.grid.cols, y: cy / rows, gridX: x, gridY: y };
 };
+// v0.24r: path progress 0..1 along the player's own lane
+const laneProgress = (game, player, p) =>
+  clamp((p.y * game.grid.rows - 0.5) / Math.max(1, laneRows(game, player) - 1), 0, 1);
+// v0.24r: the exit-strip point below column x of the player's lane
+const exitPos = (game, player, x) => pos(game, x, laneRows(game, player), laneRows(game, player));
 const square = (game, x, y) => (y + 1) * game.grid.cols + x;
 const dist = (game, a, b) =>
   Math.hypot((a.x - b.x) * game.grid.cols, (a.y - b.y) * game.grid.rows) * game.grid.cellUnits;
@@ -155,8 +169,9 @@ let pathWalls = new Uint8Array(0),
   pathQueue = new Int32Array(0);
 export function findPath(game, playerIndex = 0, start = null, extra = null, withPlanks = false) {
   const player = game.players[playerIndex],
-    { cols, rows } = game.grid,
-    size = (rows + 2) * cols; // keys of rows -1 … rows
+    { cols } = game.grid,
+    rows = laneRows(game, player), // v0.24r: the player's own maze length
+    size = (game.grid.rows + 2) * cols; // keys of rows -1 … grid rows
   if (pathWalls.length < size) {
     pathWalls = new Uint8Array(size);
     pathPrev = new Int32Array(size);
@@ -190,7 +205,7 @@ export function findPath(game, playerIndex = 0, start = null, extra = null, with
     return false;
   };
   if (start) {
-    if (begin(start.x, start.y)) return [pos(game, start.x, rows)];
+    if (begin(start.x, start.y)) return [pos(game, start.x, rows, rows)];
   } else for (let x = 0; x < cols; x++) begin(x, -1);
   let endKey = -1;
   for (let i = 0; i < tail && endKey < 0; i++) {
@@ -218,7 +233,7 @@ export function findPath(game, playerIndex = 0, start = null, extra = null, with
   const path = [];
   let k = endKey;
   while (k !== -1) {
-    path.push(pos(game, k % cols, Math.floor(k / cols) - 1));
+    path.push(pos(game, k % cols, Math.floor(k / cols) - 1, rows));
     k = previous[k];
   }
   return path.reverse();
@@ -228,7 +243,8 @@ export function getPath(game, playerIndex = 0) {
 }
 /** Steps to the exit from every node (spawn strip included); -1 = no way out. */
 function exitDistances(game, player, extra = null) {
-  const { cols, rows } = game.grid,
+  const { cols } = game.grid,
+    rows = laneRows(game, player),
     walls = blocked(game, player, extra),
     d = new Int16Array((rows + 1) * cols).fill(-1),
     queue = [];
@@ -702,7 +718,8 @@ export const canUse = available;
 
 export function canBuild(game, playerIndex, gridX, gridY, id = null) {
   const p = game.players[playerIndex],
-    { cols, rows } = game.grid,
+    { cols } = game.grid,
+    rows = laneRows(game, p), // v0.24r: only the player's own maze rows
     size = id ? footprintOf(id) : 1;
   if (
     !p ||
@@ -866,6 +883,8 @@ function statsForRaw(game, player, item) {
     if (pk("melee") && isMeleeTower(item)) attackSpeed += MELEE_PROTOCOL * pk("melee");
     if (pk("autoloader") && isBombardLine(item)) attackSpeed += AUTOLOADER * pk("autoloader"); // v0.22g1
     if (pk("stormfeathers") && archerLine().has(item.id)) attackSpeed += STORMFEATHERS * pk("stormfeathers"); // v0.22h1
+    // v0.24q: Backup Line: Archer-Line attack speed while the top rows stay free of towers
+    if (player.backupOn && pk("backup") && archerLine().has(item.id)) attackSpeed += backupSpeed(pk("backup"));
     if (pk("militia") && footmanLine().has(item.id)) stats.damageBonus += MILITIA_DAMAGE; // v0.22g1
     if (pk("frenzy")) attackSpeed += FRENZY * pk("frenzy");
     if (pk("firearrows") && isArrowUnit(item)) damagePercent += FIRE_ARROWS * pk("firearrows");
@@ -892,11 +911,9 @@ function statsForRaw(game, player, item) {
   if (pk("heavy") && item.isBuildable && item.attacks && (footmanLine().has(item.id) || lineSet("h02R").has(item.id))) damagePercent += HEAVY_WEAPONS * pk("heavy");
   stats.damageMultiplier *= 1 + damagePercent;
   if (perkLevel(player, "archery") && archerLine().has(item.id)) stats.damageMultiplier *= 1 + 0.05 * perkLevel(player, "archery");
-  // v0.18h: Backup Line (ranged) and Low Tides (melee) while their rows stay free of towers
-  if (item.isBuildable && item.attacks) {
-    if (player.backupOn && perkLevel(player, "backup") && !isMeleeTower(item)) stats.damageMultiplier *= 1 + BACKUP.damage;
-    if (player.tidesOn && perkLevel(player, "tides") && isMeleeTower(item)) stats.damageMultiplier *= 1 + TIDES.damage;
-  }
+  // v0.18h: Low Tides (melee) while its rows stay free of towers; v0.24q: damage by level
+  if (item.isBuildable && item.attacks && player.tidesOn && perkLevel(player, "tides") && isMeleeTower(item))
+    stats.damageMultiplier *= 1 + tidesDamage(perkLevel(player, "tides"));
   stats.damage = (stats.damage + stats.damageBonus) * stats.damageMultiplier;
   stats.cooldown /= Math.max(0.1, 1 + attackSpeed);
   stats.speed *= movementMultiplier(game);
@@ -1008,18 +1025,18 @@ export const PERKS = Object.freeze({
   boots: { name: "Red Boots", max: 5, element: "fire", text: "Ground creeps {boots} slow resistance and +{bootsInc} creep income" }, // v0.10r; v0.22: max level 5
   exhume: { name: "Exhumination", max: 3, element: "plague", text: "Undead creeps cost {exhume} less and recruit 10% faster" }, // v0.20c: 10 % faster instead of 20 % slower // v0.10r; v0.19j: tooltip (they still restock 20% slower)
   fireblock: { name: "Fire Block", max: 3, element: "fire", text: "Every {fireBlockCd} s first breach is pushed back {fireBlockBack} fields and explodes 3× for {fireBlock}", detail: "Every {fireBlockCd} s the first breach is pushed back {fireBlockBack} fields and explodes at once: {fireBlock} damage 3 times" }, // v0.19j
-  airblock: { name: "Air Block", max: 3, element: "storm", text: "Every {airBlockCd} s first flying breach is pushed back {airBlockBack} fields, struck for {airBlock} and stunned {airBlockStun} s", detail: "Every {airBlockCd} s the first flying breach is pushed back {airBlockBack} fields, struck by lightning for {airBlock} damage and stunned {airBlockStun} s. Speeds up Monsun by {airBlockMonsun} s" }, // v0.20c
+  airblock: { name: "Air Block", max: 3, element: "storm", text: "Every {airBlockCd} s first flying breach is pushed back {airBlockBack} fields, struck for {airBlock} and stunned {airBlockStun} s", detail: "Every {airBlockCd} s the first flying breach is pushed back {airBlockBack} fields, struck by lightning for {airBlock} damage and stunned {airBlockStun} s. Each block cuts your Monsun cooldown by {airBlockMonsun} s" }, // v0.20c; v0.24s: Monsun cooldown per block
   supergrowth: { name: "Supergrowth", max: 3, element: "earth", text: "Buying strong ground creeps gives their type up to +{growth} HP", detail: "Each purchase of a ground creep from the stronger half of its tier gives that creep type +{growth} HP, less for weaker ones" }, // v0.20f
   waterblock: { name: "Water Block", max: 3, element: "water", text: "Every {blockCd} s first breach is pushed back {blockBack} fields and frozen {blockSlow} slower", detail: "Every {blockCd} s the first breach is pushed back {blockBack} fields (flyers {blockBackAir}) and frozen {blockSlow} slower" }, // v0.10r
   pocks: { name: "Giant's Pocks", max: 5, element: "plague", text: "Every 4 s the strongest creep loses {pocks} HP and is poisoned", detail: "Every 4 s the strongest creep in your field loses {pocks} HP and is poisoned" }, // v0.10q
   permafrost: { name: "Frozen Ground", max: 10, element: "water", text: "Ground creeps {permafrost} slower", detail: "Ground creeps in your field {permafrost} slower" }, // v0.10o; v0.22h1: was Permafrost, 5 % per level
-  hills: { name: "Hill Paths", max: 5, element: "earth", text: "Uphill ground creeps {hills} slower", detail: "Ground creeps walking upwards in your field {hills} slower" }, // v0.22h1
+  hills: { name: "Hill Paths", max: 5, element: "earth", weight: 0.75, text: "Uphill ground creeps {hills} slower", detail: "Ground creeps walking upwards in your field {hills} slower" }, // v0.22h1
   stormfeathers: { name: "Stormfeathers", max: 10, element: "storm", text: "Archer-Line attack speed +{stormfeathers}" }, // v0.22h1: +8 % per level
   golem: { name: "Golem Whisperer", max: 1, element: "earth", text: "Boss creeps 25% cheaper, +10% HP" }, // v0.10n
   crowd: { name: "Crowd Control", max: 3, element: "plague", text: "When {crowdMax}+ creeps in field, weakest 3 are culled. Triggers every 5 seconds.", detail: "When {crowdMax} or more creeps are in your field, the 3 weakest are culled, never shielded ones. Triggers every 5 seconds. Each culled creep goes back to its owner as an undead creep of its tier, worth a little income" }, // v0.23: 50 or more, Divine Shield spared, one undead per culled creep // v0.20d: Plague, fewer creeps per level, an undead creep goes back
   pillage: { name: "Pillage", max: 3, text: "Steal {pillage} gold on breakthrough" }, // v0.22m2: 14 / 24 / 30 % of the breached player's gold
   // v0.12: nine new perks
-  lone: { name: "Spartans", max: 5, // v0.23zi: Last Guardians → Spartans; v0.23v: 5 levels
+  lone: { name: "Spartans", max: 5, element: "storm", // v0.24p: Storm; v0.23zi: Last Guardians → Spartans; v0.23v: 5 levels
     text: "Towers attack {lone} faster with {loneTowers} towers or fewer", detail: "All towers attack {lone} faster while you own {loneTowers} towers or fewer. Towers that do not fight count as 1/4, Walls as 1/10." }, // v0.22g1: 4 levels // v0.20c: no bracket note; v0.16h: back to the v0.13 effect; v0.19g1: was Lone Guardians
   manufacture: { name: "Creep Manufacture", max: 3, element: "earth", text: "8th creep {manufacture} cheaper, recruits 15% faster", detail: "8th creep of every tier {manufacture} cheaper, recruits 15% faster" }, // v0.20d: Earth, 8th creep
   synthesizer: { name: "Creep Synthesizer", max: 3, element: "water", text: "4th creep {synthesizer} cheaper, recruits 12% faster", detail: "4th creep of every tier {synthesizer} cheaper, recruits 12% faster" }, // v0.20d
@@ -1034,9 +1051,9 @@ export const PERKS = Object.freeze({
   slave: { name: "Slave Labour", max: 3, element: "plague", text: "1st creep: +{slaveStock} stock, recruits {slaveSpeed} faster", detail: "1st creep of every tier: +{slaveStock} max stock, recruits {slaveSpeed} faster" },
   guardian: { name: "River Guardian", max: 10, element: "water", text: "Every {guardCd} s your strongest new creep gets a {guardShield} HP shield", detail: "Every {guardCd} s your strongest new creep gets a water shield of {guardShield} HP, magic damage −{guardMagic} while it holds" },
   // v0.18h: four new perks; "unpopular" = the share by which the offer chance drops after each refusal
-  quarry: { name: "Quarry", max: 1, element: "earth", powerup: true, unpopular: 0.5, text: "+100 gold and 8 stones. Clear them for an Earth perk", detail: "Instantly +100 gold and 8 stones on your field. Clear them all for a random Earth perk" },
-  backup: { name: "Backup Line", max: 1, element: "storm", unpopular: 0.5, text: "Ranged towers +30% damage while top 3 rows are empty", detail: "Ranged towers +30% damage while your top 3 rows hold no tower" },
-  tides: { name: "Low Tides", max: 1, element: "water", unpopular: 0.5, text: "Melee towers +50% damage while bottom 3 rows are empty", detail: "Melee towers +50% damage while your bottom 3 rows hold no tower" },
+  quarry: { name: "Quarry", max: 1, element: "earth", powerup: true, unpopular: 0.5, text: "+{quarryGold} gold and 8 stones. Clear them for an Earth perk", detail: "Instantly +{quarryGold} gold and 8 stones on your field. Clear them all for a random Earth perk" }, // v0.24s: gold by round
+  backup: { name: "Backup Line", max: 3, element: "storm", unpopular: 0.5, text: "Archer-Line +{backup} attack speed while top {backupRows} rows are empty", detail: "Archer-Line towers +{backup} attack speed while your top {backupRows} rows hold no tower. Level 3: one mist row less" }, // v0.24q
+  tides: { name: "Low Tides", max: 3, element: "water", unpopular: 0.5, text: "Melee towers +{tides} damage while bottom {tidesRows} rows are empty", detail: "Melee towers +{tides} damage while your bottom {tidesRows} rows hold no tower. Level 3: one water row less" }, // v0.24q
   sanction: { name: "Sanction Policy", max: 1, element: "arcane", text: "Every 2nd creep locked, others +15% income, 1st only +7.5%, cooldowns −15%", detail: "Every 2nd creep locked for 20 rounds, other creeps +15% income, the 1st creep only +7.5%. Abilities cooldown 15% faster permanently" }, // v0.23: the 1st creep's +7.5 % named // v0.19h1: no gold, cooldown 15 % (the tier boss is still locked)
   monsun: { name: "Monsun", max: 5, element: "storm", text: "Active: pushes creeps back for {monsun} s", detail: "Active ability: Push creeps back for {monsun} s, lightning strikes flyers" },
   // v0.21: the former level-up upgrades (Warcraft researches) are ordinary perks now. "element" = needs that
@@ -1118,8 +1135,8 @@ export function towerPerkBuffs(game, index, id) {
   if (perkLevel(p, "gunpowder") && item.isBuildable && item.attacks && (isCannonTower(item) || lineSet("h02R").has(item.id))) out.push({ id: "gunpowder", level: perkLevel(p, "gunpowder"), text: `+${gunpowderTiles(perkLevel(p, "gunpowder"))} tiles splash` });
   if (perkLevel(p, "archery") && archerLine().has(item.id)) out.push({ id: "archery", level: perkLevel(p, "archery"), text: `+${5 * perkLevel(p, "archery")}% damage` });
   if (loneActive(p) && item.isBuildable && item.attacks) out.push({ id: "lone", level: perkLevel(p, "lone"), text: `+${Math.round(loneSpeed(perkLevel(p, "lone")) * 100)}% attack speed` });
-  if (item.isBuildable && item.attacks && p.backupOn && perkLevel(p, "backup") && !isMeleeTower(item)) out.push({ id: "backup", level: 1, text: `+${Math.round(BACKUP.damage * 100)}% damage` }); // v0.18h
-  if (item.isBuildable && item.attacks && p.tidesOn && perkLevel(p, "tides") && isMeleeTower(item)) out.push({ id: "tides", level: 1, text: `+${Math.round(TIDES.damage * 100)}% damage` });
+  if (item.isBuildable && item.attacks && p.backupOn && perkLevel(p, "backup") && archerLine().has(item.id)) out.push({ id: "backup", level: perkLevel(p, "backup"), text: `+${Math.round(backupSpeed(perkLevel(p, "backup")) * 100)}% attack speed` }); // v0.18h; v0.24q: Archer-Line attack speed
+  if (item.isBuildable && item.attacks && p.tidesOn && perkLevel(p, "tides") && isMeleeTower(item)) out.push({ id: "tides", level: perkLevel(p, "tides"), text: `+${Math.round(tidesDamage(perkLevel(p, "tides")) * 100)}% damage` });
   if (perkLevel(p, "voltage") && item.woodIncome) out.push({ id: "voltage", level: perkLevel(p, "voltage"), text: `+${Math.round(VOLTAGE.bonus * 100 * perkLevel(p, "voltage"))}% EXP` });
   return out;
 }
@@ -1160,7 +1177,7 @@ export const monsunForce = (p, level = perkLevel(p, "monsun")) => 0.48 + level *
 export const monsunDamage = (p, level = perkLevel(p, "monsun")) => 30 + 20 * level * (p?.tier || 1);
 /** Perks that skip the next level once taken. */
 /** v0.20c: perks that sit out more than one level after a pick (Supergrowth: two). */
-const PERK_SKIP_LEVELS = { supergrowth: 2, hellfire: 2, frostbolt: 2, clones: 2, infested: 2, lone: 2, bank: 3, monsun: 2 }; // v0.24j: Monsun skips 2 // v0.24i: Magic Bank skips 3 // v0.23zi: Spartans skip 2 // v0.23w: Frost Bolt, Clones // v0.21x: Lava Floor skips 2
+const PERK_SKIP_LEVELS = { backup: 3, tides: 3, supergrowth: 2, hellfire: 2, frostbolt: 2, clones: 2, infested: 2, lone: 2, bank: 3, monsun: 2 }; // v0.24q: Backup Line, Low Tides skip 3 // v0.24j: Monsun skips 2 // v0.24i: Magic Bank skips 3 // v0.23zi: Spartans skip 2 // v0.23w: Frost Bolt, Clones // v0.21x: Lava Floor skips 2
 const PERK_SKIP = new Set(["pillar", "agolem", "monsun", "slave", "guardian", "mind", "tailwind", "carmor", "owl", "autoloader", "hills"]); // v0.22g1: Autoloader // v0.19a1: Mind Control, Tailwind, Creep Armor, Watcher Owl
 /**
  * v0.19a1: reworked level-up upgrades (research perks). Their effects live here instead of the map
@@ -1176,7 +1193,7 @@ export const STORMFEATHERS = 0.08;
 /** v0.22h1: Frozen Ground (was Permafrost): ground creep slow per level. */
 export const FROZEN_GROUND = 0.05;
 /** v0.22h1: Hill Paths: slow of ground creeps on upward path steps, by level. */
-export const HILLS = [0, 0.08, 0.16, 0.24, 0.32, 0.4];
+export const HILLS = [0, 0.1, 0.19, 0.27, 0.34, 0.4]; // v0.24q: +(11 − level) % per level
 /** v0.22g1: Militia: Footman-Line damage once taken. */
 export const MILITIA_DAMAGE = 1;
 /** v0.22j1: Bounty Bonus (towers with the ability): extra bounty per kill. */
@@ -1294,6 +1311,15 @@ const DEATH_PLANS = {
     ["n038", 0.9],
   ],
 };
+/** v0.24s: every creep type that can spawn from the death of `id` (death plans, Spawn Spider & co, spawnOnDeath skills). */
+export function deathSpawnTypes(id) {
+  const out = [],
+    add = (t) => obj(t) && !out.includes(t) && out.push(t);
+  for (const [t] of DEATH_PLANS[id] || []) add(t);
+  if (id === "n03A" || id === "n037") ["n02Z", "n034", "n02Y", "n036", "n037"].forEach(add);
+  for (const sk of creepSkills({ typeId: id })) if (sk.type === "spawnOnDeath") add(sk.id);
+  return out;
+}
 export function hasDeathrattle(id) {
   if (DEATH_PLANS[id] || id === "n03A" || id === "n037") return true;
   return !!obj(id) && creepSkills({ typeId: id }).some((sk) => sk.type === "spawnOnDeath");
@@ -1366,7 +1392,7 @@ function pushBack(game, c, units, p = null) {
     for (const [dx, dy] of [[0, -1], [-1, 0], [1, 0], [0, 1]]) {
       const nx = g.x + dx,
         ny = g.y + dy;
-      if (nx < 0 || nx >= game.grid.cols || ny < -1 || ny > game.grid.rows - 1) continue;
+      if (nx < 0 || nx >= game.grid.cols || ny < -1 || ny > laneRows(game, owner) - 1) continue;
       const v = field[square(game, nx, ny)];
       if (v > here && (!best || v > best.v)) best = { x: nx, y: ny, v };
     }
@@ -1435,7 +1461,7 @@ export const QUARRY = { gold: 100, stones: 8, large: [2, 4], largeOdds: [0.55, 0
 /** Free fields where a stone could stand right now (path stays open), at most `limit`. */
 function freeCells(game, p, limit = Infinity) {
   const out = [];
-  for (let y = 0; y < game.grid.rows && out.length < limit; y++)
+  for (let y = 0; y < laneRows(game, p) && out.length < limit; y++)
     for (let x = 0; x < game.grid.cols && out.length < limit; x++) if (canBuild(game, p.id, x, y, ROCK_ID).ok) out.push([x, y]);
   return out;
 }
@@ -1490,14 +1516,20 @@ function finishQuarry(game, p) {
 /** v0.19b3: the very easy bot takes Quarry 50 % more often than other rewards (it never demolishes stones). */
 const STONE_LOVE = 1.5;
 /** Backup Line (Storm): top rows; Low Tides (Water): bottom rows. Damage bonus and creep speed in the zone. */
-export const BACKUP = { rows: 3, damage: 0.3, slow: 0.1, haste: 0.1 };
-export const TIDES = { rows: 3, damage: 0.5, slow: 0.25, haste: 0.1 }; // v0.23zn: Low Tides water rows 4 → 3
+// v0.24q: both up to level 3; Backup Line gives Archer-Line attack speed, Low Tides melee damage (by level); at
+// level 3 the zone is one row smaller
+export const BACKUP = { rows: 3, speed: [0, 0.25, 0.33, 0.4], slow: 0.1, haste: 0.1 };
+export const TIDES = { rows: 3, damage: [0, 0.4, 0.6, 0.7], slow: 0.25, haste: 0.1 }; // v0.23zn: Low Tides water rows 4 → 3
+export const backupSpeed = (level) => BACKUP.speed[Math.max(0, Math.min(3, level))];
+export const tidesDamage = (level) => TIDES.damage[Math.max(0, Math.min(3, level))];
+export const backupRows = (p) => BACKUP.rows - (perkLevel(p, "backup") >= 3 ? 1 : 0);
+export const tidesRows = (p) => TIDES.rows - (perkLevel(p, "tides") >= 3 ? 1 : 0);
 const towerInRows = (p, from, to) => p.towers.some((t) => t.typeId !== ROCK_ID && t.gridY < to && t.gridY + towerSize(t) > from);
 /** Rows of a zone and whether its bonus is on (null = the player has no such perk). */
 export function zoneOf(game, p, id) {
-  const rows = game.grid.rows;
-  if (id === "backup") return perkLevel(p, "backup") ? { from: 0, to: BACKUP.rows, on: !towerInRows(p, 0, BACKUP.rows) } : null;
-  if (id === "tides") return perkLevel(p, "tides") ? { from: rows - TIDES.rows, to: rows, on: !towerInRows(p, rows - TIDES.rows, rows) } : null;
+  const rows = laneRows(game, p);
+  if (id === "backup") return perkLevel(p, "backup") ? { from: 0, to: backupRows(p), on: !towerInRows(p, 0, backupRows(p)) } : null;
+  if (id === "tides") return perkLevel(p, "tides") ? { from: rows - tidesRows(p), to: rows, on: !towerInRows(p, rows - tidesRows(p), rows) } : null;
   return null;
 }
 /**
@@ -1512,14 +1544,14 @@ export const CONDITIONAL_PERKS = {
     offenders: (game, p) => p.towers.filter((t) => t.typeId !== ROCK_ID),
   },
   backup: {
-    cost: (game, p) => p.towers.filter((t) => t.typeId !== ROCK_ID && t.gridY < BACKUP.rows).length,
-    blocks: (game, p, x, y) => y < BACKUP.rows,
-    offenders: (game, p) => p.towers.filter((t) => t.typeId !== ROCK_ID && t.gridY < BACKUP.rows),
+    cost: (game, p) => p.towers.filter((t) => t.typeId !== ROCK_ID && t.gridY < backupRows(p)).length,
+    blocks: (game, p, x, y) => y < backupRows(p),
+    offenders: (game, p) => p.towers.filter((t) => t.typeId !== ROCK_ID && t.gridY < backupRows(p)),
   },
   tides: {
-    cost: (game, p) => p.towers.filter((t) => t.typeId !== ROCK_ID && t.gridY + towerSize(t) > game.grid.rows - TIDES.rows).length,
-    blocks: (game, p, x, y, id) => y + (id ? footprintOf(id) : 1) > game.grid.rows - TIDES.rows,
-    offenders: (game, p) => p.towers.filter((t) => t.typeId !== ROCK_ID && t.gridY + towerSize(t) > game.grid.rows - TIDES.rows),
+    cost: (game, p) => p.towers.filter((t) => t.typeId !== ROCK_ID && t.gridY + towerSize(t) > laneRows(game, p) - tidesRows(p)).length,
+    blocks: (game, p, x, y, id) => y + (id ? footprintOf(id) : 1) > laneRows(game, p) - tidesRows(p),
+    offenders: (game, p) => p.towers.filter((t) => t.typeId !== ROCK_ID && t.gridY + towerSize(t) > laneRows(game, p) - tidesRows(p)),
   },
 };
 /** Bots: towers they may sell at most to meet a conditionalPerk when picking it. */
@@ -1562,10 +1594,10 @@ function tickZones(game, p) {
 function zoneSpeed(game, p, c) {
   if (!perkLevel(p, "backup") && !perkLevel(p, "tides")) return 1;
   const row = gridAt(game, c).y,
-    rows = game.grid.rows;
+    rows = laneRows(game, p);
   let f = 1;
-  if (perkLevel(p, "backup") && row >= 0 && row < BACKUP.rows) f *= p.backupOn ? 1 - BACKUP.slow : 1 + BACKUP.haste;
-  if (perkLevel(p, "tides") && !c.flying && row >= rows - TIDES.rows && row < rows) f *= p.tidesOn ? 1 - TIDES.slow : 1 + TIDES.haste;
+  if (perkLevel(p, "backup") && row >= 0 && row < backupRows(p)) f *= p.backupOn ? 1 - BACKUP.slow : 1 + BACKUP.haste;
+  if (perkLevel(p, "tides") && !c.flying && row >= rows - tidesRows(p) && row < rows) f *= p.tidesOn ? 1 - TIDES.slow : 1 + TIDES.haste;
   return f;
 }
 /** Sanction Policy (Arcane): gold, lock length in rounds, income bonus, ability cooldown cut. */
@@ -1603,7 +1635,7 @@ function summonTower(game, p) {
   if (!pool.length) return;
   const item = pool[Math.floor(random(game) * pool.length)],
     cells = [];
-  for (let y = 0; y < game.grid.rows; y++) for (let x = 0; x < game.grid.cols; x++) if (canBuild(game, p.id, x, y, item.id).ok) cells.push([x, y]);
+  for (let y = 0; y < laneRows(game, p); y++) for (let x = 0; x < game.grid.cols; x++) if (canBuild(game, p.id, x, y, item.id).ok) cells.push([x, y]);
   if (!cells.length) return;
   const [x, y] = cells[Math.floor(random(game) * cells.length)],
     tower = newTower(game, p, item.id, x, y);
@@ -1801,7 +1833,7 @@ export const infestedCharges = (level) => 2 + Math.max(1, level || 1);
 function placeInfested(game, p, x, y) {
   const { cols, rows } = game.grid,
     gx = Math.min(cols - 1, Math.max(0, Math.floor(x * cols))),
-    gy = Math.min(rows - 1, Math.max(0, Math.floor(y * rows))),
+    gy = Math.min(laneRows(game, p) - 1, Math.max(0, Math.floor(y * rows))),
     list = (p.infested ||= []),
     level = perkLevel(p, "infested");
   const old = list.findIndex((t) => t.x === gx && t.y === gy);
@@ -1957,7 +1989,7 @@ function siegeOgre(game, p, c, remaining) {
   const { cols, rows } = game.grid,
     gx = Math.min(cols - 1, Math.max(0, Math.floor(c.x * cols))),
     gy = Math.floor(c.y * rows);
-  if (gy < 0 || gy >= rows) return 0;
+  if (gy < 0 || gy >= laneRows(game, p)) return 0;
   const left = c.path.length - c.pathIndex;
   let best = null;
   for (const [dx, dy] of [[0, 1], [-1, 0], [1, 0]]) {
@@ -2037,7 +2069,8 @@ function growLava(game, p) {
   const want = lavaTileCount(perkLevel(p, "hellfire")),
     lava = (p.lava ||= []);
   if (lava.length >= want) return lava;
-  const { cols, rows } = game.grid,
+  const { cols } = game.grid,
+    rows = laneRows(game, p),
     half = Math.floor(rows / 2),
     taken = new Set(lava.map(([x, y]) => y * cols + x));
   for (let guard = 0; lava.length < want && guard < 400; guard++) {
@@ -2137,7 +2170,25 @@ export const VOLTAGE = { bonus: 0.5 };
  * on the path just before the exit: 3 pulses in 0.9 s, radius 1.5 fields, up to +75 % in the centre, flyers half.
  * Damage per pulse = (8 + 6 × perk level) × send-tier factor (1 / 4 / 10 / 25 / 60 / 120) × (1 + 5 % per player level).
  */
-export const FIREBLOCK = { cooldown: [12, 9, 6], radius: 1.5, pulses: 3, base: 8, perLevel: 6, scorch: 6, back: 1, backPerLevel: 0.25, radiusPerLevel: 0.12 }; // v0.21m: push back 1 field; v0.21y: +0.25 fields push and +0.12 fields radius per level
+export const FIREBLOCK = { cooldown: [12, 9, 6], radius: 1.5, pulses: 3, delay: 0.3, step: 0.4, base: 8, perLevel: 6, scorch: 6, back: 1, backPerLevel: 0.25, radiusPerLevel: 0.12 }; // v0.21m: push back 1 field; v0.21y: +0.25 fields push and +0.12 fields radius per level; v0.24s: each further pulse `delay` s later and `step` fields further up the path
+/** v0.24s: the point `fields` fields further up `path` (walked backwards from its end, starting at `from`). */
+function pathPointBack(game, path, from, fields) {
+  const { cols, rows } = game.grid;
+  if (!path?.length) return { x: from.x, y: Math.max(0, from.y - fields / rows) };
+  let left = fields,
+    at = { x: from.x, y: from.y };
+  for (let i = path.length - 2; i >= 0 && left > EPS; i--) {
+    const node = path[i],
+      step = Math.hypot((at.x - node.x) * cols, (at.y - node.y) * rows);
+    if (step >= left) {
+      const f = left / Math.max(EPS, step);
+      return { x: at.x + (node.x - at.x) * f, y: at.y + (node.y - at.y) * f };
+    }
+    left -= step;
+    at = { x: node.x, y: node.y };
+  }
+  return at;
+}
 export const fireBlockBack = (level) => FIREBLOCK.back + FIREBLOCK.backPerLevel * level;
 export const fireBlockRadius = (level) => FIREBLOCK.radius + FIREBLOCK.radiusPerLevel * level;
 export const fireBlockDamage = (p, level = Math.min(3, perkLevel(p, "fireblock"))) =>
@@ -2150,24 +2201,30 @@ function fireBlock(game, p, c) {
   // v0.21m: the creep that set it off is pushed back 1 field (no breach), like Water Block
   if (c.flying) {
     const column = gridAt(game, c).x;
-    c.path = [pos(game, column, -1), pos(game, column, game.grid.rows)];
+    c.path = [pos(game, column, -1), exitPos(game, p, column)];
     c.pathIndex = 1;
   } else if (c.path?.length) c.pathIndex = c.path.length;
+  const way = !c.flying && c.path?.length > 1 ? c.path.slice(0, c.path.length - 1) : null;
   knockBack(game, c, fireBlockBack(level) * game.grid.cellUnits, p);
-  (game.pillars ||= []).push({
-    player: p.id,
-    x: spot.x,
-    y: spot.y,
-    radius: fireBlockRadius(level),
-    damage: fireBlockDamage(p, level),
-    small: true,
-    start: game.time,
-    erupt: game.time,
-    end: game.time + FIREBLOCK.pulses * PILLAR.interval,
-    next: game.time,
-    burst: true, // v0.21m: all explosions at once, no delay between them
-    until: game.time + FIREBLOCK.pulses * PILLAR.interval + FIREBLOCK.scorch,
-  });
+  // v0.24s: one pillar per pulse, each FIREBLOCK.delay s later and FIREBLOCK.step fields further up the path
+  for (let i = 0; i < FIREBLOCK.pulses; i++) {
+    const at = i ? pathPointBack(game, way, spot, FIREBLOCK.step * i) : spot,
+      start = game.time + FIREBLOCK.delay * i;
+    (game.pillars ||= []).push({
+      player: p.id,
+      x: at.x,
+      y: at.y,
+      radius: fireBlockRadius(level),
+      damage: fireBlockDamage(p, level),
+      small: true,
+      start,
+      erupt: start,
+      end: start + PILLAR.interval,
+      next: start,
+      burst: i === 0,
+      until: start + PILLAR.interval + FIREBLOCK.scorch,
+    });
+  }
   emit(game, "skill", { player: p.id, kind: "fireblock", x: spot.x, y: spot.y });
   tickPillars(game);
   return true;
@@ -2182,7 +2239,7 @@ export function treasureIncome(game, p) {
   return p && top > 0 && inc(p) < TREASURE.behind * top ? TREASURE.income * 2 : TREASURE.income;
 }
 /** v0.20c: Air Block (Storm): the first flying breach every 15 / 13 / 11 s is struck by lightning, pushed back and stunned. */
-export const AIRBLOCK = { cooldown: [15, 13, 11], back: [3, 5, 7], stun: [2, 3, 4], monsun: [10, 12, 14], base: 25, perLevel: 20 };
+export const AIRBLOCK = { cooldown: [15, 13, 11], back: [3, 5, 7], stun: [2, 3, 4], monsun: [6, 8, 10], base: 25, perLevel: 20 }; // v0.24s: Monsun cooldown cut 6 / 8 / 10 s
 export const airBlockDamage = (p, level = Math.min(3, perkLevel(p, "airblock"))) =>
   Math.round((AIRBLOCK.base + AIRBLOCK.perLevel * Math.max(1, level)) * PILLAR_TIER[Math.max(1, Math.min(PILLAR_TIER.length, p?.tier || 1)) - 1] * (1 + 0.05 * (p?.level || 1)));
 function airBlock(game, p, c) {
@@ -2190,7 +2247,7 @@ function airBlock(game, p, c) {
   if (!level || !c.flying || p.airBlockReady > game.time + EPS) return false;
   p.airBlockReady = game.time + AIRBLOCK.cooldown[level - 1];
   const column = gridAt(game, c).x;
-  c.path = [pos(game, column, -1), pos(game, column, game.grid.rows)];
+  c.path = [pos(game, column, -1), exitPos(game, p, column)];
   c.pathIndex = 1;
   knockBack(game, c, AIRBLOCK.back[level - 1] * game.grid.cellUnits, p);
   c.statuses.push({ abilityId: "stun", remaining: negativeDuration(c, AIRBLOCK.stun[level - 1]), slow: 0, dps: 0, stun: true, owner: p.id });
@@ -2218,7 +2275,7 @@ function waterBlock(game, p, c) {
   // v0.19k: the creep glides back along its path instead of jumping
   if (c.flying) {
     const column = gridAt(game, c).x;
-    c.path = [pos(game, column, -1), pos(game, column, game.grid.rows)];
+    c.path = [pos(game, column, -1), exitPos(game, p, column)];
     c.pathIndex = 1;
   } else if (c.path?.length) c.pathIndex = c.path.length;
   knockBack(game, c, back * game.grid.cellUnits, p);
@@ -2360,7 +2417,7 @@ export const PERK_AVAILABILITY = {
   crowd: "6+",
   golem: "3+",
   permafrost: "3+",
-  hills: "5+", // v0.22h1: skips the next level (PERK_SKIP)
+  hills: "2+", // v0.24q: from level 2; v0.22h1: skips the next level (PERK_SKIP)
   stormfeathers: "2+", // v0.22h1
   wings: "3+",
   hellfire: "2-8", // v0.19b1: Lava Floor; v0.21j: levels 2–8
@@ -2456,7 +2513,8 @@ const perkAvailable = (o, level, p) => {
 export const ELEMENT_PERK_WEIGHT = 1.1;
 function makePick(game, p, kind, noQuest = false, focus = null) {
   const oneElement = FACTIONS.filter((f) => p.research[f.unlock]).length === 1,
-    weight = (o) => (oneElement && o?.type === "perk" && perkElements(o.id).length ? ELEMENT_PERK_WEIGHT : 1);
+    // v0.24q: times the perk's own draft weight (Hill Paths 0.75)
+    weight = (o) => (oneElement && o?.type === "perk" && perkElements(o.id).length ? ELEMENT_PERK_WEIGHT : 1) * (o?.type === "perk" ? (PERKS[o.id]?.weight ?? 1) : 1);
   // weighted draw without putting back (all weights 1: the same as the plain draw before)
   const draw = (list, n) => {
     const pool = list.slice(),
@@ -2587,8 +2645,9 @@ function applyOption(game, p, option, level) {
     if (option.id === "archery") p.freeArchers = (p.freeArchers || 0) + 1; // v0.19h1: was Forest Patrol; v0.20a: every pick, one free archer
     if (option.id === "militia") queueSummon(game, p, "militia"); // v0.17q
     if (option.id === "quarry") {
-      p.gold += QUARRY.gold;
-      p.stats.goldEarned += QUARRY.gold;
+      const gold = quarryGold(pick.level, p, game); // v0.24s: by round
+      p.gold += gold;
+      p.stats.goldEarned += gold;
       queueSummon(game, p, "quarry"); // v0.18h: stones appear after the view moved to the own field
     }
     if (option.id === "sanction") applySanction(game, p); // v0.18h
@@ -2829,6 +2888,8 @@ function questCostShare(p, item) {
   }
   return share;
 }
+/** v0.24s: Quarry gold: round × 10, at least 60, with the round in which the player reached the level it was drafted for. */
+export const quarryGold = (level, p = null, game = null) => Math.max(60, (p?.levelRound?.[level] ?? game?.round ?? 0) * 10);
 /** Gold perk: 40 + 20 × the level of the dialog it was offered in. */
 /** v0.22: Gold perk: round × 5 + 20, with the round in which the player reached that level. */
 export const perkGold = (level, p = null, game = null) => (p?.levelRound?.[level] ?? game?.round ?? 0) * 5 + 20;
@@ -2836,7 +2897,7 @@ export const perkGold = (level, p = null, game = null) => (p?.levelRound?.[level
 function placeMilitia(game, p, count) {
   for (let k = 0; k < count; k++) {
     const cells = [];
-    for (let y = 0; y < game.grid.rows; y++)
+    for (let y = 0; y < laneRows(game, p); y++)
       for (let x = 0; x < game.grid.cols; x++) if (canBuild(game, p.id, x, y, "h000").ok) cells.push([x, y]);
     if (!cells.length) return;
     const [x, y] = cells[Math.floor(random(game) * cells.length)],
@@ -2905,7 +2966,7 @@ function placeCopy(game, p, id) {
   const item = obj(id);
   if (!item) return;
   const cells = [];
-  for (let y = 0; y < game.grid.rows; y++) for (let x = 0; x < game.grid.cols; x++) if (canBuild(game, p.id, x, y, id).ok) cells.push([x, y]);
+  for (let y = 0; y < laneRows(game, p); y++) for (let x = 0; x < game.grid.cols; x++) if (canBuild(game, p.id, x, y, id).ok) cells.push([x, y]);
   if (!cells.length) return;
   const [x, y] = cells[Math.floor(random(game) * cells.length)],
     tower = newTower(game, p, id, x, y);
@@ -3484,6 +3545,20 @@ function advanceTier(game, p, tier) {
     emit(game, "achievement", { player: p.id, achievement: "tier", tier, name: `First to Tier ${tier}`, exp: 75 }); // v0.19d2: named for the notification
   }
   emit(game, "tier", { player: p.id, tier, message: `Tier ${tier} unlocked` });
+  growMaze(game, p, rowsForTier(game, tier)); // v0.24r
+}
+/** v0.24r: the player's maze grows to `rows` rows (never shrinks); paths and flyers' exits move down with it. */
+function growMaze(game, p, rows) {
+  if (rows > laneRows(game, p)) {
+    p.rows = rows;
+    repath(game, p);
+    for (const c of p.creeps) {
+      if (!c.flying || !c.path?.length) continue;
+      const end = c.path[c.path.length - 1];
+      if (Number.isInteger(end?.gridX)) c.path[c.path.length - 1] = exitPos(game, p, end.gridX);
+    }
+    emit(game, "maze", { player: p.id, rows });
+  }
 }
 /**
  * v0.19d2: Training against only very easy bots: no sell penalty (−100 %); against only easy or
@@ -3714,7 +3789,7 @@ function spawnCreep(game, ownerIndex, id, at = null, lane = null, noEscort = fal
     flying: item.flying,
     invisible: (item.abilities || []).some((id) => getCatalog().abilities[id]?.baseId === "Apiv"),
     defenseType: item.defenseType,
-    path: item.flying ? [position, pos(game, column, game.grid.rows)] : findPath(game, target.id, gridAt(game, position)) || [],
+    path: item.flying ? [position, exitPos(game, target, column)] : findPath(game, target.id, gridAt(game, position)) || [],
     pathIndex: 0,
     statuses: [],
     cooldown: 0,
@@ -4112,6 +4187,16 @@ function towerSkillsRaw(player, tower) {
     .filter((sk) => sk && sk.type !== "passive" && (!sk.requires?.length || meetRequirements(player, sk.requires.map((id) => ({ id, level: 1 }))).ok));
 }
 const CREEP_SKILLS = new Map();
+/** v0.24s: a unit type's abilities with name and skill at its own level (for the unit info). */
+export function unitSkillList(id) {
+  const item = obj(id);
+  if (!item?.abilities?.length) return [];
+  return unitAbilities({ typeId: id }).map((a) => ({
+    id: a.id,
+    name: String(field(a.fields, "anam", 0) || a.id),
+    skill: skillOf(a, Math.max(1, item.level || 1)),
+  }));
+}
 function creepSkills(c) {
   if (c.wave) return [];
   const key = c.enraged ? c.typeId + ":enraged" : c.typeId; // v0.21z: the Enraged Meat Golem has its own skills
@@ -4123,7 +4208,7 @@ function creepSkills(c) {
  * v0.22n2: Tier Boss (the tier boss golems): debuffs last 50 % shorter and every tower attack does this much less
  * damage, never below 1. Replaces Scale Armor, Nerf Resistance and Magic Resistance on them.
  */
-export const TIER_BOSS = { shorter: 0.5, push: 0.5, ignore: { n00T: 1, n015: 5, n01H: 10, n01T: 20, n02R: 30 } };
+export const TIER_BOSS = { shorter: 0.5, push: 0.5, slowResist: 0.3, ignore: { n00T: 1, n015: 5, n01H: 10, n01T: 20, n02R: 30 } };
 function nerfClass(c) {
   if (c.waveBoss) return "boss";
   if (c.wave) return "normal";
@@ -4830,11 +4915,13 @@ function creepTierExp(c) {
   const tier = obj(c.typeId)?.tier || 1;
   return 1 + CREEP_TIER_EXP.perTier * Math.max(0, tier - 1);
 }
+/** v0.24p: kill EXP in % of the cost per creep, by tier (tier 5+: 1 %). */
+export const KILL_EXP_PCT = [1.5, 1.4, 1.25, 1.1, 1];
 export function killExp(item) {
   if (!item || !item.isSend || !(item.cost > 0)) return 0; // v0.24oF: tier bosses count too (were 0)
   const n = item.spawnIds?.length || 1, // the cost is split over the creeps one send makes (heavies and bosses: 1)
     tier = item.tier || 1;
-  return Math.max(0, ((item.cost / n) * (1.8 - 0.15 * tier)) / 100); // v0.24oF: (1.8 − 0.15 × tier) % of the cost (was 11 − 1 × tier %)
+  return ((item.cost / n) * KILL_EXP_PCT[Math.min(KILL_EXP_PCT.length, Math.max(1, tier)) - 1]) / 100; // v0.24p: KILL_EXP_PCT % of the cost
 }
 /** v0.24oF: kill EXP of a summoned creep from its health, in brackets: 0.005 per HP up to 1,000, 0.003 per HP from 1,001 to 10,000, 0.0015 per HP above. */
 /** v0.24oF: a Clones copy gives 25 % less kill EXP. */
@@ -4980,7 +5067,7 @@ function touchdown(game, p, c) {
   c.y = start.y;
   c.progress = 0;
   c.maxProgress = 0;
-  c.path = c.flying ? [start, pos(game, column, game.grid.rows)] : findPath(game, lane.id, { x: column, y: -1 }) || [];
+  c.path = c.flying ? [start, exitPos(game, lane, column)] : findPath(game, lane.id, { x: column, y: -1 }) || [];
   c.pathIndex = 0;
   c.prevNode = null;
 }
@@ -5025,18 +5112,18 @@ function moveCreep(game, p, c, dt) {
     pushBack(game, c, step, game.players[c.knock.p] || p);
     c.knock.left -= step;
     if (c.knock.left <= EPS) c.knock = null;
-    c.progress = clamp((c.y - 0.5 / game.grid.rows) / (1 - 1 / game.grid.rows), 0, 1);
+    c.progress = laneProgress(game, p, c);
     return;
   }
   if (stunned) {
-    c.progress = clamp((c.y - 0.5 / game.grid.rows) / (1 - 1 / game.grid.rows), 0, 1);
+    c.progress = laneProgress(game, p, c);
     return;
   }
   // c.speed is already scaled once by statsFor; scale both clamp limits too.
   // This equals clamp(original speed with modifiers,24,1000)*modeMultiplier.
   const mobility = movementMultiplier(game);
   // v0.10r: Red Boots of the sender: ground creeps 25 % less slowed per level
-  const boots = (c.flying || c.owner < 0 ? 1 : bootsResist(game.players[c.owner])) * (1 - (creepSkills(c).find((sk) => sk.type === "slowResist")?.value || 0)); // v0.21k: Slow Resistance
+  const boots = (c.flying || c.owner < 0 ? 1 : bootsResist(game.players[c.owner])) * (1 - (creepSkills(c).find((sk) => sk.type === "slowResist")?.value || 0)) * (creepSkills(c).some((sk) => sk.type === "tierBoss") ? 1 - TIER_BOSS.slowResist : 1); // v0.21k: Slow Resistance; v0.24s: tier bosses 30 %
   const frozen = c.flying ? 1 : 1 - FROZEN_GROUND * perkLevel(p, "permafrost") * boots; // v0.10o: Frozen Ground (was Permafrost) of the defender
   const auraSpeed = aura.speed < 1 ? 1 - (1 - aura.speed) * boots : aura.speed; // v0.17n: Red Boots also soften aura slows
   // v0.18h: Backup Line mist / Low Tides water of the defender (Red Boots soften the slow part)
@@ -5108,13 +5195,37 @@ function moveCreep(game, p, c, dt) {
       remaining = 0;
     }
   }
-  c.progress = clamp((c.y - 0.5 / game.grid.rows) / (1 - 1 / game.grid.rows), 0, 1);
+  c.progress = laneProgress(game, p, c);
   c.maxProgress = Math.max(c.maxProgress, c.progress);
-  const reached = c.flying ? 0 : Math.min(5, Math.floor(c.maxProgress * 6));
-  while (c.crossed < reached) {
-    c.crossed++;
-    if (c.owner >= 0) gainExp(game, game.players[c.owner], creepTierExp(c), "lines"); // v0.24oF: 1 EXP, +10 % per tier above 1
+  scoutExp(game, c);
+}
+/**
+ * v0.24q: ScoutExp: the sender gets EXP while its creep (flyers too) walks down the defender's maze: `line` for every
+ * `lineEvery`-th row reached, and from row `fromLine` on `field` for every new field entered (+`fieldBoost` per
+ * `lineEvery` rows reached). Times the creep-tier bonus.
+ */
+export const SCOUT_EXP = { fromLine: 4, field: 0.3, lineEvery: 8, line: 1, fieldBoost: 0.5 };
+function scoutExp(game, c) {
+  if (c.owner < 0 || c.wave) return;
+  const owner = game.players[c.owner];
+  if (!owner || owner.out) return;
+  const { rows, cols } = game.grid,
+    lane = laneRows(game, game.players[c.defender ?? -1]),
+    row = Math.floor(c.y * rows + 1e-6);
+  if (row < 1) return;
+  const line = Math.min(lane - 1, row),
+    tierBonus = creepTierExp(c);
+  let exp = 0;
+  for (let l = (c.scoutLine || 0) + 1; l <= line; l++) if (l % SCOUT_EXP.lineEvery === 0) exp += SCOUT_EXP.line;
+  if (line > (c.scoutLine || 0)) c.scoutLine = line;
+  if (row >= SCOUT_EXP.fromLine && row < lane) {
+    const key = Math.floor(c.x * cols + 1e-6) * 1000 + row;
+    if (!(c.scoutSeen ||= {})[key]) {
+      c.scoutSeen[key] = 1;
+      exp += SCOUT_EXP.field * (1 + SCOUT_EXP.fieldBoost * Math.floor((c.scoutLine || 0) / SCOUT_EXP.lineEvery));
+    }
   }
+  if (exp > 0) gainExp(game, owner, exp * tierBonus, "scout");
 }
 
 /** v0.19a1: Spirit Wolves: one wolf per round (v0.21k; was one per perk level); each one adds its income for good. */
@@ -5275,7 +5386,7 @@ function waveDefense(game, p) {
     armor = 1 + RULES.armorFactor * info.armor;
   const total = info.hp * info.count * (spec.split ? 1.76 : 1) * armor + alive.reduce((sum, c) => sum + c.hp, 0);
   const speed = (lead?.speed || 240 * (spec.speed || 1)) * movementMultiplier(game),
-    cells = info.flying ? game.grid.rows : Math.max(game.grid.rows, p.path.length),
+    cells = info.flying ? laneRows(game, p) : Math.max(laneRows(game, p), p.path.length),
     crossing = (cells * game.grid.cellUnits) / speed;
   let ground = 0,
     air = 0,
@@ -5457,7 +5568,7 @@ const isSplashTower = (item) => !!item && (isCannonTower(item) || item.splashFul
 let splashView = 0,
   crowdView = 1; // v0.22u2: Hardo scales the splash bonus by how many creeps the opponent really sends (few big tier-3 creeps: little splash)
 /** Measured splash curve over the rows, scaled to an average of 1 (top row ×1.3, bottom ×0.86). */
-const splashShape = (game, y) => (1.9 + 1.2 * (1 - Math.min(1, y / game.grid.rows)) ** 3) / 2.2;
+const splashShape = (game, y) => (1.9 + 1.2 * (1 - Math.min(1, y / baseRows(game))) ** 3) / 2.2; // v0.24r: shape of a fresh maze
 function splashFactor(game, item, y, size, air = false) {
   if (!isSplashTower(item)) return 1;
   if (splashView !== 1 || air) return 1 + 0.8 * crowdView;
@@ -5473,21 +5584,24 @@ function towerPassDamage(game, p, item, x, y, size, path, air = false) {
   return dps * splash * secs;
 }
 /** Flyers cross straight down the column they spawn in; any column is equally likely. */
-const airPathOf = (game) => Array.from({ length: game.grid.rows }, (_, y) => pos(game, Math.floor(game.grid.cols / 2), y));
-// v0.23: the flyer columns of a board, made once per game (pos() only depends on the grid; never changed by a caller)
+const airPathOf = (game, rows = baseRows(game)) => Array.from({ length: rows }, (_, y) => pos(game, Math.floor(game.grid.cols / 2), y));
+// v0.23: the flyer columns of a board, made once per game (pos() only depends on the grid; never changed by a caller);
+// v0.24r: per maze length
 const AIR_COLUMNS = new WeakMap();
-function airColumns(game) {
-  let list = AIR_COLUMNS.get(game);
+function airColumns(game, rows = baseRows(game)) {
+  let byRows = AIR_COLUMNS.get(game);
+  if (!byRows) AIR_COLUMNS.set(game, (byRows = new Map()));
+  let list = byRows.get(rows);
   if (!list) {
-    const { cols, rows } = game.grid;
+    const { cols } = game.grid;
     list = Array.from({ length: cols }, (_, c) => Array.from({ length: rows }, (_, r) => pos(game, c, r)));
-    AIR_COLUMNS.set(game, list);
+    byRows.set(rows, list);
   }
   return list;
 }
 function airPass(game, p, item, x, y, size) {
   const { cols } = game.grid,
-    columns = airColumns(game); // v0.23
+    columns = airColumns(game, laneRows(game, p)); // v0.23
   let sum = 0;
   for (let c = 0; c < cols; c++) sum += towerPassDamage(game, p, item, x, y, size, columns[c], true);
   return sum / cols;
@@ -5798,7 +5912,8 @@ function typedOrder(game, tpl, mirror) {
   return order.concat(rest.filter((c) => !late(c)), rest.filter(late));
 }
 function funMaze(game, wanted = null, p = null) {
-  const { cols, rows } = game.grid,
+  const { cols } = game.grid,
+    rows = baseRows(game), // v0.24r: built for a fresh maze
     named = wanted && FUN_MAZES.find((m) => m.name === wanted),
     given = wanted && !named && /\d,\d/.test(wanted) ? { order: wanted } : named, // a name or an order of cells
     // v0.19f: mission tower rules would break a typed maze: those bots keep the plain shapes
@@ -5829,7 +5944,7 @@ function funMaze(game, wanted = null, p = null) {
   return { cols, rows, template: true, fun: true, typed, order, keys: new Set(order.map((c) => c.key)), curve: order.map(() => 10.2).concat([10.2]), gaps: [], wallOf: {}, cellsOf: [], extra: new Set(), size: order.length };
 }
 function templatePlan(game, forced = null) {
-  const list = MAZE_TEMPLATES[game.grid.cols + "x" + game.grid.rows];
+  const list = MAZE_TEMPLATES[game.grid.cols + "x" + baseRows(game)];
   if (!list) return null;
   let roll = random(game) * list.reduce((s, t) => s + t.weight, 0),
     tpl = list[list.length - 1];
@@ -5841,7 +5956,7 @@ function templatePlan(game, forced = null) {
       if (mirror) x = game.grid.cols - 1 - x;
       return { x, y, key: x + "," + y };
     });
-  return { cols: game.grid.cols, rows: game.grid.rows, template: true, order, keys: new Set(order.map((c) => c.key)), curve: tpl.curve, gaps: [], wallOf: {}, cellsOf: [], extra: new Set(), size: order.length };
+  return { cols: game.grid.cols, rows: baseRows(game), template: true, order, keys: new Set(order.map((c) => c.key)), curve: tpl.curve, gaps: [], wallOf: {}, cellsOf: [], extra: new Set(), size: order.length };
 }
 /**
  * The bot's maze. On the arena a template (see above); elsewhere, and for very easy, horizontal
@@ -5849,7 +5964,8 @@ function templatePlan(game, forced = null) {
  * rolls its template and mirror side, or where the first wall sits and which side its gap is on.
  */
 function mazePlan(game, p, level) {
-  if (p.aiMaze && p.aiMaze.cols === game.grid.cols && p.aiMaze.rows === game.grid.rows) {
+  // v0.24r: templates and fun mazes are made for a fresh maze, the generated plan for the player's current one
+  if (p.aiMaze && p.aiMaze.cols === game.grid.cols && p.aiMaze.rows === (p.aiMaze.template || p.aiMaze.fun ? baseRows(game) : laneRows(game, p))) {
     // v0.10za: a saved or synced game turns the plan's Sets into {}; rebuild them instead of crashing.
     const m = p.aiMaze;
     if (m.extra instanceof Set && (!m.template || m.keys instanceof Set)) return m;
@@ -5861,13 +5977,14 @@ function mazePlan(game, p, level) {
     p.aiMaze = null;
   }
   // v0.16k: very easy builds funny, chaotic mazes (a smiley, a heart, pillars, lightning, chaos)
-  if (p.rules?.maze && game.grid.cols === 6 && game.grid.rows === 9) return (p.aiMaze = funMaze(game, p.rules.maze, p)); // v0.17: mission maze
-  if (level === "veryEasy" && game.grid.cols === 6 && game.grid.rows === 9) return (p.aiMaze = funMaze(game, null, p));
+  if (p.rules?.maze && game.grid.cols === 6 && baseRows(game) === 9) return (p.aiMaze = funMaze(game, p.rules.maze, p)); // v0.17: mission maze
+  if (level === "veryEasy" && game.grid.cols === 6 && baseRows(game) === 9) return (p.aiMaze = funMaze(game, null, p));
   if (level !== "veryEasy" && (p.aiPersona?.mazeV2 ?? 1) > 0.5) {
     const plan = templatePlan(game, p.aiPersona?.mazeTpl ?? null);
     if (plan) return (p.aiMaze = plan);
   }
-  const { cols, rows } = game.grid,
+  const { cols } = game.grid,
+    rows = laneRows(game, p),
     weak = level === "veryEasy",
     spacing = weak ? 3 : 2,
     start = weak ? 2 : random(game) < 0.65 ? 1 : 2,
@@ -5934,7 +6051,7 @@ function templateCandidates(game, p, maze, ctx) {
   // v0.16k: a fun maze stays recognisable: only a few towers beyond its shape, then upgrades
   if (open.length <= 1 && !(maze.fun && taken.size >= maze.order.length + 4)) {
     const now = ctx.expRoute ?? (ctx.expRoute = expectedRoute(game, p));
-    for (let y = 0; y < game.grid.rows; y++)
+    for (let y = 0; y < laneRows(game, p); y++)
       for (let x = 0; x < game.grid.cols; x++) {
         const key = x + "," + y;
         if (taken.has(key) || maze.keys.has(key)) continue;
@@ -5968,7 +6085,7 @@ function templateSpot(game, p, item, persona, air, ctx) {
       value = Math.max(own * 0.25, own + others - capNow) + (persona.mazeValue ?? 1) * Math.max(capNow, ctx.need || 0) * c.promise;
       if (value <= 0) continue;
       if (splashView === 1) { if (isSplashTower(item)) value *= persona.splash * 1.3; } // v0.22m2: the row is in the pass damage (1.3 = the old average row bonus)
-      else if (isCannonTower(item)) value *= persona.splash * (1 + 0.6 * (1 - c.y / game.grid.rows));
+      else if (isCannonTower(item)) value *= persona.splash * (1 + 0.6 * (1 - Math.min(1, c.y / baseRows(game))));
     }
     if (value <= 0) continue;
     value *= Math.max(0, 1 - (persona.mazeRank ?? 0.15) * c.rank); // keep to the build order
@@ -5985,7 +6102,8 @@ function templateSpot(game, p, item, persona, air, ctx) {
   return best;
 }
 function bestSpot(game, p, item, persona, air = false, ctx = {}) {
-  const { cols, rows } = game.grid,
+  const { cols } = game.grid,
+    rows = laneRows(game, p),
     size = footprintOf(item.id),
     maze = ctx.maze || null;
   if (maze?.template && size === 1 && ctx.strict) return templateSpot(game, p, item, persona, air, ctx);
@@ -6275,7 +6393,7 @@ function think(game, p) {
       taken = new Set((p.infested || []).map((t) => t.y * game.grid.cols + t.x));
     for (let k = Math.floor(n / 3); k < Math.floor((2 * n) / 3); k++) {
       const node = p.path[k];
-      if (!node || node.gridY < 0 || node.gridY >= game.grid.rows || taken.has(node.gridY * game.grid.cols + node.gridX)) continue;
+      if (!node || node.gridY < 0 || node.gridY >= laneRows(game, p) || taken.has(node.gridY * game.grid.cols + node.gridX)) continue;
       command(game, { type: "infested", player: p.id, x: (node.gridX + 0.5) / game.grid.cols, y: (node.gridY + 0.5) / game.grid.rows });
       break;
     }
@@ -6438,7 +6556,7 @@ function think(game, p) {
       const spots = templateCandidates(game, p, maze, {}).sort((a, b) => Number(a.plan) - Number(b.plan) || near(a) - near(b));
       for (const c of spots) if (previewBuild(game, p.id, c.x, c.y, gen.id).ok && command(game, { type: "build", player: p.id, id: gen.id, gridX: c.x, gridY: c.y }).ok) return;
     } else if (gen && p.gold >= gen.cost + reserve) {
-      for (let y = game.grid.rows - 1; y >= 0; y--)
+      for (let y = laneRows(game, p) - 1; y >= 0; y--)
         for (const x of [0, game.grid.cols - 1]) {
           const pv = previewBuild(game, p.id, x, y, gen.id);
           if (pv.ok && pv.path?.length >= p.path.length && command(game, { type: "build", player: p.id, id: gen.id, gridX: x, gridY: y }).ok) return;
@@ -6600,7 +6718,7 @@ function airCapacityVs(game, p, enemy, s) {
       // flyers are slow (about 18 s across the board): the opponent sees them coming and builds anti-air with the
       // gold in hand (and the next income if it arrives during the flight). Self-play: without this, 0 of 30 air
       // waves broke through; with the defending bot switched off, 5 of 6 flyers did.
-      flight = (game.grid.rows * game.grid.cellUnits) / Math.max(1, (unit.speed || AI_SAVE.refSpeed) * movementMultiplier(game)),
+      flight = (laneRows(game, enemy) * game.grid.cellUnits) / Math.max(1, (unit.speed || AI_SAVE.refSpeed) * movementMultiplier(game)),
       spend = enemy.gold + ((game.incomeRemaining ?? Infinity) < flight ? enemy.income : 0),
       react = Math.max(0, spend) * antiAirPerGold(game, p, enemy) * AI_AIR_REACT * damageMultiplier(obj("h003")?.attackType, unit.defenseType || "medium", unit.armor || 0);
     map.set(key, (sum + react) * slow + block);
@@ -6618,7 +6736,7 @@ function antiAirPerGold(game, p, enemy) {
   for (const t of enemy.towers) if (obj(t.typeId)?.targets?.includes("air")) ids.add(t.typeId);
   let best = 0;
   const x = Math.floor(game.grid.cols / 2) - 1,
-    y = Math.floor(game.grid.rows / 2);
+    y = Math.floor(baseRows(game) / 2);
   for (const id of ids) {
     const item = obj(id),
       cost = item?.cost || 0;
@@ -6852,7 +6970,7 @@ function spawnWaveCreep(game, entry, at = null, hpScale = 1, child = false) {
     bounty: child ? Math.max(1, Math.round(info.bounty * 0.4)) : info.bounty,
     leakLives: spec.leak || 1,
     defenseType: real ? item.defenseType || "medium" : spec.defense || (entry.flying ? "small" : "medium"),
-    path: entry.flying ? [position, pos(game, column, game.grid.rows)] : findPath(game, target.id, gridAt(game, position)) || [],
+    path: entry.flying ? [position, exitPos(game, target, column)] : findPath(game, target.id, gridAt(game, position)) || [],
     pathIndex: 0,
     statuses: [],
     cooldown: 0,
@@ -7096,7 +7214,8 @@ function leanCreep(c) {
 /** v0.23: a ground creep without a usable route walks on from the nearest field that still leads to the exit. */
 function snapCreep(game, p, c) {
   const d = exitDistances(game, p),
-    { cols, rows } = game.grid,
+    { cols } = game.grid,
+    rows = laneRows(game, p),
     g = gridAt(game, c);
   let best = null;
   for (let y = -1; y < rows; y++)

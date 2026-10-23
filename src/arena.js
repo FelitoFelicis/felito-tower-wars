@@ -1,4 +1,4 @@
-import { getStats, attackInfo, divineShield, isHeavy, isMagicTower, isMeleeTower, towerAt, towerSize, footprintOf, STRIP, HELLFIRE, loneActive, zoneOf, hpBarScale, tierSends } from "./simulation.js";
+import { getStats, attackInfo, divineShield, isHeavy, isMagicTower, isMeleeTower, towerAt, towerSize, footprintOf, STRIP, HELLFIRE, loneActive, zoneOf, hpBarScale, tierSends, laneRows, baseRows } from "./simulation.js";
 /** v0.19j: is this send one of the 4 most expensive non-boss creeps of its tier? (heavy HP-bar frame) */
 const TOP_FOUR = new Map();
 function topFour(def) {
@@ -136,12 +136,29 @@ function creepSize(catalog, id) {
 }
 const tierGrowth = (tier) => 1 + 0.01 * Math.max(0, (tier || 1) - 1);
 /** Creeps drawn larger than their rank alone would make them. */
-const SIZE_BOOST = { n00S: 1.3, nAGO: 1.45, n02Z: 0.65, n034: 0.65, n02Y: 0.65, n036: 0.65, n037: 0.65 }; // tier 1 Raiders, v0.12: Arcane Golem; v0.21p: little Naga Sirens
+const SIZE_BOOST = { n00S: 1.3, nAGO: 1.45, n00P: 0.95, n02W: 0.6, n02Z: 0.65, n034: 0.65, n02Y: 0.65, n036: 0.65, n037: 0.65 }; // tier 1 Raiders, v0.12: Arcane Golem; v0.21p: little Naga Sirens; v0.24s: Flying Sheep 5 % smaller, small Spawn Spider spawns
 /** v0.17d: mobile layout B is switched on by a class on <html> (set by the app). */
 const layoutB = () => typeof document !== "undefined" && document.documentElement.classList.contains("layout-b");
 /** Mobile Max: the board fills the whole screen width and runs under the HUD and the buttons. */
 const layoutFull = () => typeof document !== "undefined" && document.documentElement.classList.contains("layout-full");
+/**
+ * v0.24r: a lane grows by 3 rows with every tier upgrade (simulation.js laneRows). `grid.rows` is the lane's
+ * current height, `grid.total` the full grid (where creeps are measured), `grid.base` the starting height that
+ * sets the cell size. When the grown lane is taller than the screen, the board scrolls up and down (`lane`).
+ */
 export function arenaGeometry(width, height, grid = { cols: 6, rows: 9 }, mode = "build", insets = { top: 84, bottom: 172 }, scrollY = 0) {
+  const z = baseGeometry(width, height, grid, mode, insets, scrollY),
+    total = grid?.total || z.logicalRows;
+  z.totalRows = total;
+  z.ny = z.ch * total; // height of one unit of creep y (creeps are measured in the full grid)
+  if (!z.scroll) {
+    const bottom = z.h - Math.max(0, insets?.bottom || 0) - 4,
+      end = z.top + z.bh + (z.frameV || 5) + 6;
+    if (end > bottom + 1) z.scroll = { lo: 0, hi: end - bottom, def: 0, lane: true };
+  }
+  return z;
+}
+function baseGeometry(width, height, grid = { cols: 6, rows: 9 }, mode = "build", insets = { top: 84, bottom: 172 }, scrollY = 0) {
   const w = Math.max(1, width),
     h = Math.max(1, height),
     logicalCols = grid.cols,
@@ -152,7 +169,8 @@ export function arenaGeometry(width, height, grid = { cols: 6, rows: 9 }, mode =
     // v0.12: thin wall above and below the board, so the board can use the full height
     frameV = 5;
   const availableHeight = Math.max(9, h - safeTop - safeBottom - frameV * 2),
-    byHeight = availableHeight / (logicalRows + STRIP); // v0.09: no exit strip below the board
+    fitRows = Math.min(logicalRows, grid?.base || logicalRows), // v0.24r: the cell size follows the starting height
+    byHeight = availableHeight / (fitRows + STRIP); // v0.09: no exit strip below the board
   // Mobile Max: the board is as wide as the screen and taller than the free space between the
   // HUD and the cards. It sits in world space from y = 0 down; the camera scrolls over it
   // (`scrollY` = world y at the top edge of the screen). Level button and mini map float in the top
@@ -202,7 +220,7 @@ export function arenaGeometry(width, height, grid = { cols: 6, rows: 9 }, mode =
       bh = cell * logicalRows,
       strip = cell * STRIP,
       left = edgeLeft + Math.max(0, (w - edgeLeft - colReserve - bw) / 2),
-      top = safeTop + frameV + strip + (availableHeight - bh - strip) / 2,
+      top = safeTop + frameV + strip + Math.max(0, (availableHeight - bh - strip) / 2),
       sq = Math.floor((colW - 4) / 2),
       slot = Math.round(colW * 0.62),
       col = { x: left + bw + frame + colGap, y: top - strip, w: colW, h: bh + strip, sq };
@@ -243,10 +261,15 @@ export function arenaGeometry(width, height, grid = { cols: 6, rows: 9 }, mode =
     bh = cell * logicalRows,
     strip = cell * STRIP,
     left = compact ? edgeLeft + Math.max(0, (w - edgeLeft - pipReserve - bw) / 2) : Math.max(sideReserve, Math.min((w - bw) / 2, w - pipReserve - bw)),
-    top = safeTop + frameV + strip + (availableHeight - bh - strip) / 2;
-  const pip = { x: left + bw + frame + pipGap, y: top - strip, w: pipW, h: pipH },
+    top = safeTop + frameV + strip + Math.max(0, (availableHeight - bh - strip) / 2);
+  let pip = { x: left + bw + frame + pipGap, y: top - strip, w: pipW, h: pipH },
     // compact: the level button sits below the mini map and its label
     side = compact ? { x: pip.x, y: pip.y + pipH + 36, w: pipW, compact: true } : { x: left - frame - sideGap - sideW, y: top - strip, w: sideW };
+  // v0.24p: Desktop Wide: the mini maps sit beside the player windows (app.js), the level button right of the board
+  if (layoutWide()) {
+    side = { x: pip.x, y: pip.y, w: pipW, wide: true };
+    pip = null;
+  }
   return {
     w,
     h,
@@ -272,6 +295,7 @@ export function arenaGeometry(width, height, grid = { cols: 6, rows: 9 }, mode =
   };
 }
 
+const layoutWide = () => typeof document !== "undefined" && document.documentElement.classList.contains("layout-wide");
 /** Mini map of the other lane: portrait, in its own column beside the board. */
 export function pipGeometry(z) {
   return z.pip;
@@ -318,6 +342,12 @@ export function mountArena({
   getAllyPlayers = () => [], // v0.21d: team games: your allies' fields, shown beside the normal mini map
   getPrefetch = () => null, // v0.23: catalog items whose art the board should load ahead (buildable towers, sendable creeps)
 }) {
+  /** v0.24r: the shown lane's grid: its own height (it grows with the tier), the full grid and the starting height. */
+  const viewGrid = () => {
+    const state = getState();
+    if (!state?.grid) return undefined;
+    return { cols: state.grid.cols, rows: laneRows(state, state.players?.[getViewPlayer()]), total: state.grid.rows, base: baseRows(state), cellUnits: state.grid.cellUnits };
+  };
   /** A lane's colour: the player's choice, else blue for you and red for the other side. */
   const colorOf = (player) => {
     const id = getColors()?.[player];
@@ -767,7 +797,7 @@ export function mountArena({
         if (ev.pointerType === "mouse" || ev.pointerType === "pen") {
           const state = getState(),
             pos = this.toGrid(p.x, wy(p.y)),
-            inside = state && pos.gridX >= 0 && pos.gridX < state.grid.cols && pos.gridY >= 0 && pos.gridY < state.grid.rows;
+            inside = state && pos.gridX >= 0 && pos.gridX < state.grid.cols && pos.gridY >= 0 && pos.gridY < laneRows(state, state.players[getViewPlayer()]);
           onHover(inside ? pos : null);
         }
       });
@@ -778,7 +808,7 @@ export function mountArena({
         if (!state || getMode() !== "build") return;
         const box = canvas.getBoundingClientRect(),
           pos = this.toGrid(ev.clientX - box.left, wy(ev.clientY - box.top));
-        if (pos.gridX < 0 || pos.gridX >= state.grid.cols || pos.gridY < 0 || pos.gridY >= state.grid.rows) return;
+        if (pos.gridX < 0 || pos.gridX >= state.grid.cols || pos.gridY < 0 || pos.gridY >= laneRows(state, state.players[getViewPlayer()])) return;
         const tower = towerAt(state.players[getViewPlayer()], pos.gridX, pos.gridY);
         if (tower) onTowerRight(tower, ev.timeStamp);
         else onCellRight(pos); // v0.18a: an empty field (e.g. a pre-build)
@@ -836,10 +866,10 @@ export function mountArena({
         }
         if (press.view !== getViewPlayer()) return;
         const pos = this.toGrid(p.x, y);
-        if (pos.gridX < 0 || pos.gridX >= state.grid.cols || pos.gridY < 0 || pos.gridY >= state.grid.rows) return;
+        if (pos.gridX < 0 || pos.gridX >= state.grid.cols || pos.gridY < 0 || pos.gridY >= laneRows(state, state.players[getViewPlayer()])) return;
         const z = this.geometry();
         pos.fx = (p.x - z.left) / z.bw; // exact point on the board, as a share (v0.09q: volley aim)
-        pos.fy = (y - z.top) / z.bh;
+        pos.fy = (y - z.top) / z.ny; // v0.24r: a share of the full grid height
         const player = state.players[getViewPlayer()],
           tower = towerAt(player, pos.gridX, pos.gridY);
         // v0.17h: towers (own or enemy) can be tapped outside Build too; empty fields only in Build
@@ -897,7 +927,7 @@ export function mountArena({
       }
     }
     geometry() {
-      return arenaGeometry(this.stage.width, this.stage.height, getState()?.grid, getMode(), insets, this.stage.scrollY || 0);
+      return arenaGeometry(this.stage.width, this.stage.height, viewGrid(), getMode(), insets, this.stage.scrollY || 0);
     }
     // ---- Mobile Max: scrolling the board up and down ---------------------------------
     setScroll(y, linger) {
@@ -998,7 +1028,7 @@ export function mountArena({
         n++;
         e.c = c;
         e.x = z.left + c.x * z.bw;
-        e.y = z.top + c.y * z.bh;
+        e.y = z.top + c.y * z.ny;
         e.fly = !!c.flying;
         e.gx = Math.floor(e.x / R);
         e.gy = Math.floor(e.y / R);
@@ -1053,13 +1083,13 @@ export function mountArena({
     }
     point(x, y) {
       const z = this.geometry();
-      return { x: z.left + x * z.bw, y: z.top + y * z.bh };
+      return { x: z.left + x * z.bw, y: z.top + y * z.ny }; // v0.24r: y is a share of the full grid
     }
     toGrid(x, y) {
       const z = this.geometry(),
         u = (x - z.left) / z.bw,
-        v = (y - z.top) / z.bh;
-      return { gridX: Math.floor(u * z.logicalCols), gridY: Math.floor(v * z.logicalRows) };
+        v = (y - z.top) / z.ch;
+      return { gridX: Math.floor(u * z.logicalCols), gridY: Math.floor(v) };
     }
     keyFor(z) {
       return [z.w, z.h, z.left, z.top, z.bw, z.bh, z.logicalCols, z.logicalRows, currentDesign()].join(":"); // design variants: a new look redraws the board
@@ -2162,7 +2192,7 @@ export function mountArena({
           // v0.23x: Infested Ground aims at one field: the field under the pointer lights up
           const col = Math.floor((px - z.left) / cell),
             row = Math.floor((py - z.top) / cell);
-          if (col >= 0 && row >= 0 && col < z.logicalCols && row < game.grid.rows) {
+          if (col >= 0 && row >= 0 && col < z.logicalCols && row < z.logicalRows) {
             g.fillStyle(ac, 0.18 + 0.1 * pulse);
             g.fillRect(z.left + col * cell, z.top + row * cell, cell, cell);
             g.lineStyle(2.5, al, 0.9);
@@ -2416,7 +2446,7 @@ export function mountArena({
         creepDepth = (c, d) => {
           if (!plankRows) return d;
           const gx = Math.floor(c.x * z.logicalCols),
-            gy = Math.floor(c.y * z.logicalRows),
+            gy = Math.floor(c.y * z.totalRows),
             pl = plankRows.find((k) => k.x === gx && k.y === gy);
           return pl ? Math.max(d, Math.floor(z.top + (pl.y + 0.6) * cell) + 100.6) : d;
         };
@@ -2753,7 +2783,7 @@ export function mountArena({
           }
         }
       }
-      this.batchCreeps(view, z, game.grid.rows, cell, alive); // v0.23i: creeps drawn in a few batches instead of one call each
+      this.batchCreeps(view, z, z.totalRows, cell, alive); // v0.23i: creeps drawn in a few batches instead of one call each
       this.gone ||= [];
       for (const [key, s] of this.units)
         if (!alive.has(key)) {
@@ -2790,8 +2820,8 @@ export function mountArena({
         uv = (this._batchUv ||= [0, 0, 0, 0]),
         stage = this.stage,
         set = activeArtSet(),
-        top = z.top + (0.5 / rows) * z.bh + cell * 0.1, // feet line of the first tower row
-        rowH = z.bh / rows;
+        top = z.top + 0.5 * z.ch + cell * 0.1, // feet line of the first tower row
+        rowH = z.ch;
       this._bandTop = top; // v0.23l: for fallenDepth
       this._bandH = rowH;
       for (const bands of pool.values()) for (const g of bands.values()) g.items.length = 0;
@@ -3042,7 +3072,7 @@ export function mountArena({
         if (!qd || view !== getOwnPlayer()) return img.setVisible(false);
         const def = catalog.byId[qd.id],
           fp = footprintOf(qd.id),
-          q = this.point((qd.gridX + fp / 2) / z.logicalCols, (qd.gridY + fp / 2) / z.logicalRows),
+          q = this.point((qd.gridX + fp / 2) / z.logicalCols, (qd.gridY + fp / 2) / z.totalRows),
           cell = z.cw * fp;
         if (!def) return img.setVisible(false);
         const still = this.stillFor(artFor(def), colorOf(getOwnPlayer())), // v0.23
@@ -3088,7 +3118,7 @@ export function mountArena({
         return;
       }
       const fp = preview.size || 1,
-        q = this.point((preview.gridX + fp / 2) / z.logicalCols, (preview.gridY + fp / 2) / z.logicalRows),
+        q = this.point((preview.gridX + fp / 2) / z.logicalCols, (preview.gridY + fp / 2) / z.totalRows),
         cell = z.cw * fp,
         inside = preview.gridX >= 0 && preview.gridX < z.logicalCols && preview.gridY >= 0 && preview.gridY < z.logicalRows;
       if (!inside) {
@@ -3354,10 +3384,18 @@ export function mountArena({
         mode = getMinimapMode(),
         other = getPipPlayer ? getPipPlayer() : 1 - view,
         lane = game.players[other],
-        r = mode === "on" ? pipGeometry(z) : null,
-        { cols, rows } = game.grid;
+        pr = mode === "on" ? pipGeometry(z) : null,
+        // v0.24r: the mini map shows the other lane at its own (grown) height; it scrolls with a scrolling lane
+        r = pr && { ...pr, y: pr.y + ((z.scroll?.lane && this.stage.scrollY) || 0), h: (pr.w * laneRows(game, lane)) / game.grid.cols },
+        { cols } = game.grid,
+        rows = baseRows(game);
       g.clear();
       this.miniRects = [];
+      // v0.24p: Desktop Wide draws the mini maps beside the player windows (app.js)
+      if (layoutWide()) {
+        this.pipLabel.setVisible(false);
+        return;
+      }
       if (mode === "all") {
         // v0.18c: every other field as a 40 % see-through mini map, side by side below the player plates
         const ids = getMiniPlayers().filter((id) => game.players[id]),
@@ -3408,11 +3446,12 @@ export function mountArena({
     }
     /** One field drawn small: grass, path, towers and creeps; `a` scales every alpha, `team` frames it in the player's colour. */
     drawLaneMap(g, game, lane, other, own, r, catalog, a, team) {
-      const { cols, rows } = game.grid;
+      const { cols } = game.grid,
+        rows = laneRows(game, lane); // v0.24r: the lane's own height
       // Portrait, same orientation as the main board.
       const sx = r.w / cols,
         sy = r.h / rows,
-        P = (nx, ny) => ({ x: r.x + nx * r.w, y: r.y + ny * r.h });
+        P = (nx, ny) => ({ x: r.x + nx * r.w, y: r.y + ny * game.grid.rows * sy }); // creep y is a share of the full grid
       g.fillStyle(0x0a1a22, 0.92 * a);
       g.fillRoundedRect(r.x - 4, r.y - 4, r.w + 8, r.h + 8, 8);
       g.fillStyle(0x3f7a3a, a);
@@ -3650,7 +3689,7 @@ export function mountArena({
     },
     geometry() {
       return (
-        scene()?.geometry() || arenaGeometry(container.clientWidth, container.clientHeight, getState()?.grid, getMode(), insets)
+        scene()?.geometry() || arenaGeometry(container.clientWidth, container.clientHeight, viewGrid(), getMode(), insets)
       );
     },
     /** A cell's centre in screen pixels of the board container (Mobile Max: after scrolling). */

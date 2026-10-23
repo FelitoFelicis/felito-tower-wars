@@ -29,6 +29,7 @@ import {
   targetOf,
   sendIncome,
   perkGold,
+  quarryGold, // v0.24s
   VOLLEY,
   NOVICE,
   PILLAGE,
@@ -47,12 +48,18 @@ import {
   STORMFEATHERS,
   FROZEN_GROUND,
   HILLS,
+  laneRows, // v0.24r
+  BACKUP, // v0.24q
+  TIDES,
+  backupSpeed,
+  tidesDamage,
   loneTowers,
   loneSpeed,
   FRENZY,
   LEADERSHIP,
   HEAVY_WEAPONS,
   towerWorth,
+  deathSpawnTypes, // v0.24s
   teamIncome,
   teamMates,
   TEAM_LIVES,
@@ -166,7 +173,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.24o",
+const APP_VERSION = "0.25",
   APP_BRANCH = "F", // v0.23q: author marker (F = Felix, S = Steven) and branch text, shown behind the version; APP_VERSION stays plain for online matches (VersionPublishingRules.md)
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "23.10.2026";
@@ -363,18 +370,26 @@ function refreshOwnMedals() {
     if (src) im.src = src;
   });
 }
-function readRating() {
+/**
+ * v0.25: two ranked modes, each with its own rating and league: "1v1" (Ranked 1v1, the rating kept since v0.23b)
+ * and "ffa" (Ranked FFA, up to eight players).
+ */
+const RATING_PREFS = { "1v1": RATING_PREF, ffa: "felito.rating.ffa" };
+const rankModeOf = (kind) => (kind === "rankedffa" ? "ffa" : "1v1");
+function readRating(mode = "1v1") {
   try {
-    const v = JSON.parse(localStorage.getItem(RATING_PREF) || "null");
+    const v = JSON.parse(localStorage.getItem(RATING_PREFS[mode] || RATING_PREF) || "null");
     if (v && Number.isFinite(v.r)) return { r: Math.round(v.r), games: v.games | 0, wins: v.wins | 0 };
   } catch {}
   return { r: RATING_START, games: 0, wins: 0 };
 }
-function saveRating(v) {
+function saveRating(v, mode = "1v1") {
   try {
-    localStorage.setItem(RATING_PREF, JSON.stringify(v));
+    localStorage.setItem(RATING_PREFS[mode] || RATING_PREF, JSON.stringify(v));
   } catch {}
 }
+/** The rating change as the dialogs show it. */
+const ratingResult = (before, after, delta) => ({ before, after, delta, league: leagueOf(after), up: leagueOf(after) !== leagueOf(before) && after > before, down: leagueOf(after) !== leagueOf(before) && after < before });
 /** Elo after a ranked 1v1: the new rating and the change. */
 function rateMatch(won, foe) {
   const me = readRating(),
@@ -382,29 +397,61 @@ function rateMatch(won, foe) {
     delta = Math.round(RATING_K * ((won ? 1 : 0) - exp)),
     next = { r: Math.max(0, me.r + delta), games: me.games + 1, wins: me.wins + (won ? 1 : 0) };
   saveRating(next);
-  return { before: me.r, after: next.r, delta, league: leagueOf(next.r), up: leagueOf(next.r) !== leagueOf(me.r) && next.r > me.r, down: leagueOf(next.r) !== leagueOf(me.r) && next.r < me.r };
+  return ratingResult(me.r, next.r, delta);
+}
+/**
+ * v0.25: Elo after a Ranked FFA: every other player counts as one duel, won when you finished ahead of them.
+ * `field`: the others as { rating, ahead } (ahead = they finished before you). The sum is scaled by the field size,
+ * so first place against an even field of eight gains about +24 and last place loses about as much.
+ */
+const RATING_K_FFA = 48;
+function rateFfa(field, won) {
+  const me = readRating("ffa"),
+    n = Math.max(1, field.length),
+    score = field.reduce((sum, f) => sum + (f.ahead ? 0 : 1) - 1 / (1 + 10 ** (((Number.isFinite(f.rating) ? f.rating : RATING_START) - me.r) / 400)), 0),
+    delta = Math.round((RATING_K_FFA * score) / n),
+    next = { r: Math.max(0, me.r + delta), games: me.games + 1, wins: me.wins + (won ? 1 : 0) };
+  saveRating(next, "ffa");
+  return ratingResult(me.r, next.r, delta);
+}
+/** v0.25: the others of a Ranked FFA from your point of view: who finished (or still plays) ahead of you. */
+function ffaField(g, me, place) {
+  return g.players
+    .filter((q) => q.id !== me)
+    .map((q) => ({ rating: q.rating, ahead: place == null ? true : q.out ? (q.place || 99) < place : true }));
 }
 /**
  * v0.24b: a ranked 1v1 counts as a loss the moment it starts (the stake); a win at the end replaces it. So a player
  * who loses, leaves early or closes the game always loses the rating points for that match.
+ * v0.25: Ranked FFA the same way: the stake is last place, your real place replaces it (own stake slot).
  */
 const RATING_STAKE_PREF = "felito.rating.stake";
+const STAKE_PREFS = { "1v1": RATING_STAKE_PREF, ffa: "felito.rating.ffa.stake" };
 const rankedKey = (g) => `${g.seed}|${g.players.map((q) => q.name).join("|")}`;
-function readStake() {
+function readStake(mode = "1v1") {
   try {
-    return JSON.parse(localStorage.getItem(RATING_STAKE_PREF) || "null");
+    return JSON.parse(localStorage.getItem(STAKE_PREFS[mode]) || "null");
   } catch {
     return null;
   }
 }
-function writeStake(v) {
+function writeStake(v, mode = "1v1") {
   try {
-    if (v) localStorage.setItem(RATING_STAKE_PREF, JSON.stringify(v));
-    else localStorage.removeItem(RATING_STAKE_PREF);
+    if (v) localStorage.setItem(STAKE_PREFS[mode], JSON.stringify(v));
+    else localStorage.removeItem(STAKE_PREFS[mode]);
   } catch {}
 }
 function stakeRanked(g, me) {
-  if (!g?.ranked || g.players.length !== 2 || readStake()?.key === rankedKey(g)) return;
+  if (!g?.ranked) return;
+  if (g.rankedFfa) {
+    // v0.25: Ranked FFA: stake = last place against everybody
+    if (g.players.length < 2 || readStake("ffa")?.key === rankedKey(g)) return;
+    const before = readRating("ffa");
+    rateFfa(ffaField(g, me, null), false);
+    writeStake({ key: rankedKey(g), before }, "ffa");
+    return;
+  }
+  if (g.players.length !== 2 || readStake()?.key === rankedKey(g)) return;
   const foe = g.players.find((q) => q.id !== me),
     before = readRating();
   rateMatch(false, foe?.rating);
@@ -419,11 +466,24 @@ function settleRanked(g, me, won) {
   saveRating(stake.before);
   return rateMatch(won, stake.foe ?? foe);
 }
+/** v0.25: your Ranked FFA result at your place (1 = winner): replaces the last-place stake. */
+function settleRankedFfa(g, me, place) {
+  const stake = readStake("ffa");
+  if (stake?.key === rankedKey(g)) {
+    writeStake(null, "ffa");
+    saveRating(stake.before, "ffa");
+  }
+  return rateFfa(ffaField(g, me, place), place === 1);
+}
+/** v0.25: the rating line of a result dialog. */
+const rankLineHtml = (rated, mode = "1v1") =>
+  rated ? `<p class="modal-copy rank-result" style="text-align:center">${medalHtml(rated.after, iconColor(), "mini-medal", true)}${mode === "ffa" ? `<small class="rank-mode">${t("Ranked FFA")}</small> ` : ""}<b>${rated.delta >= 0 ? "+" : ""}${rated.delta}</b> → ${rated.after} · ${t(rated.league)}${rated.up ? ` · ${t("Promoted!")}` : rated.down ? ` · ${t("Relegated")}` : ""}</p>` : "";
 /** v0.24c: this player searched Quick Match and was paired into a ranked player's room: the match counts for the
  * other player only; here it is unrated (no stake, no rating change). */
 let qmCrossed = false;
-const isQuickKind = (k = roomKind) => k === "quick" || k === "ranked"; // v0.23b: Ranked works like Quick Match
-const qmTitle = () => t(qmSearch?.ranked || roomKind === "ranked" ? "Ranked Match" : "Quick Match");
+const isQuickKind = (k = roomKind) => k === "quick" || k === "ranked" || k === "rankedffa"; // v0.23b: Ranked works like Quick Match; v0.25: Ranked FFA too
+const QM_TITLES = { quick: "Quick Match", ranked: "Ranked 1v1", rankedffa: "Ranked FFA" };
+const qmTitle = () => t(QM_TITLES[qmSearch?.mode || (isQuickKind() ? roomKind : "quick")] || "Quick Match");
 // v0.23b: Options › Gameplay › Tiles (v0.23c: in Graphics, next to Minimap): checkers (default), plain grid, or no grid lines
 const TILES_PREF = "felito.tiles";
 const TILE_MODES = ["checkers", "grid", "none"];
@@ -462,8 +522,8 @@ const LAYOUT_CHOICES = [
   ["pc", "Desktop"],
   ["wide", "Desktop Wide"],
   ["mobile", "Mobile Default"],
-  ["zoomed", "Mobile Zoomed"],
-  ["full", "Mobile Max"], // the board fills the whole screen and scrolls under the buttons (layout F)
+  ["zoomed", "Mobile Large"], // v0.24s: was Mobile Zoomed
+  ["full", "Mobile Zoom"], // v0.24s: was Mobile Max; // the board fills the whole screen and scrolls under the buttons (layout F)
 ];
 const layoutChoice = () =>
   controlMode === "pc" ? (desktopWide ? "wide" : "pc") : mobileLayout === "F" ? "full" : mobileLayout === "B" || mobileLayout === "B2" ? "zoomed" : "mobile";
@@ -619,7 +679,7 @@ const onlineName = (q) => cleanName(q?.name && !/^(You|Player \d)$/.test(q.name)
  * v0.09b: an AI shows its difficulty in its portrait — very easy keeps the goblin, easy the
  * skeleton, normal the grunt, hard the alchemist. Human players keep the goblin portrait.
  */
-const AI_PORTRAIT = { easy: "n00R", normal: "n00M", hard: "n021", insane: "n02Q" };
+const AI_PORTRAIT = { veryEasy: "n007", easy: "n00L", normal: "n00W", hard: "n01F", insane: "n02Q" }; // v0.24s: Pony, Wolf, Boar, Minotaurus
 /**
  * v0.19c1: player icons (PvP menu): the classic player portrait plus creep heads the AI never wears
  * (not the goblin, skeleton, orc or alchemist). Shown in the lobby, on the plates and in tooltips.
@@ -747,14 +807,14 @@ function renderEnemyStack(force = false) {
     cell.classList.toggle("target", q.id === target && !q.out);
     cell.classList.toggle("viewing", q.id === view);
     const lives = String(q.lives),
-      gold = q.out ? "–" : resourceNumber(goldShown(q.gold)),
+      gold = q.out ? "–" : goldShown(q.gold),
       inc = q.out ? "" : "+" + resourceNumber(Math.floor(q.income));
     if (cell.querySelector(".ec-lives b").textContent !== lives) cell.querySelector(".ec-lives b").textContent = lives;
     const lvl = String(q.level || 1);
     if (cell.querySelector(".ec-level b").textContent !== lvl) cell.querySelector(".ec-level b").textContent = lvl;
     const tierText = String(q.tier || 1); // v0.22u2
     if (cell.querySelector(".ec-tier b").textContent !== tierText) cell.querySelector(".ec-tier b").textContent = tierText;
-    if (cell.querySelector(".ec-gold b").textContent !== gold) cell.querySelector(".ec-gold b").textContent = gold;
+    setGoldFit(cell.querySelector(".ec-gold b"), gold); // v0.25: full number while it fits
     if (cell.querySelector(".ec-inc").textContent !== inc) cell.querySelector(".ec-inc").textContent = inc;
     if (cell.getAttribute("aria-label") !== label) {
       cell.setAttribute("aria-label", label);
@@ -812,11 +872,11 @@ function renderTeamStack(stack, colors, force) {
   for (const cell of [...stack.querySelectorAll(".team-cell"), ...(allyStack?.querySelectorAll(".team-cell") || [])]) {
     const v = teamValues(Number(cell.dataset.team)),
       lives = String(v.lives),
-      gold = v.out ? "–" : resourceNumber(goldShown(v.gold)),
+      gold = v.out ? "–" : goldShown(v.gold),
       inc = v.out ? "" : "+" + resourceNumber(Math.floor(v.income));
     cell.classList.toggle("out", v.out);
     if (cell.querySelector(".ec-lives b").textContent !== lives) cell.querySelector(".ec-lives b").textContent = lives;
-    if (cell.querySelector(".ec-gold b").textContent !== gold) cell.querySelector(".ec-gold b").textContent = gold;
+    setGoldFit(cell.querySelector(".ec-gold b"), gold); // v0.25
     if (cell.querySelector(".ec-inc").textContent !== inc) cell.querySelector(".ec-inc").textContent = inc;
     for (const face of cell.querySelectorAll("[data-seat]")) {
       const q = game.players[Number(face.dataset.seat)];
@@ -835,7 +895,7 @@ function teamTip(team) {
     html:
       `<div class="tip-head"><b>${esc(v.list.map((q) => playerLabel(q)).join(", "))}</b>${v.out ? `<span class="tip-level">${esc(t("out"))}</span>` : ""}</div>` +
       row(t("Lives"), String(v.lives)) +
-      row(t("Gold"), v.out ? "–" : resourceNumber(goldShown(v.gold))) +
+      row(t("Gold"), v.out ? "–" : format(goldShown(v.gold))) + // v0.25: tooltips have room for the full number
       row(t("Income"), v.out ? "–" : "+" + resourceNumber(Math.floor(v.income)), " tip-inc"),
   };
 }
@@ -1875,7 +1935,7 @@ const ABILITY_DESC = {
   "Nerf Resistance": "Slows, stuns and curses last much shorter",
   "Magic Resistance": "Magic attacks and spells inflict less damage",
   "Slow Resistance": "Reduces slowing debuffs",
-  "Tier Boss": "Reduced damage from attacks, Debuffs last shorter", // v0.22n2
+  "Tier Boss": "Reduced damage from attacks, 50% less duration for debuffs, 30% slow resistance", // v0.22n2
   "Splash Attack": "Part of the damage also hits creeps nearby",
   "Speed Aura": "Creeps nearby run faster; flying creeps get half the bonus", // v0.17p: was Endurance Aura
   "Divine Shield": "Now and then invulnerable for a few seconds",
@@ -1985,7 +2045,7 @@ function abilityDesc(name, item) {
       slow = fv(a, "Spo2", lvl) || POISON_SLOW;
     if (a) return `Slows by ${pctN(slow)}% and deals ${num(dps)} damage per second, can stack.`;
   }
-  if (name === "Tier Boss") return "Reduced damage from attacks, Debuffs last shorter";
+  if (name === "Tier Boss") return "Reduced damage from attacks, 50% less duration for debuffs, 30% slow resistance";
   // v0.21z: Treant EXP (30 − Treants you bought) and the Meat Golem's Enrage
   if (name === "EXP Bonus") {
     const bought = (game && game.players[own]?.treantCount) || 0,
@@ -2079,6 +2139,15 @@ function statTip(item, action, towerId = null, who = own, bare = false) {
     const classes = creepClasses(item);
     if (classes.length) rows.push([t("Classification"), classes.join(", ")]); // v0.17c
     after.push([t("Stock"), `${stockCount(item)}/${stockMaxOf(game.players[own], item)}`]);
+  } else if (item.kind === "unit") {
+    // v0.24s: spawned creeps (Deathrattle spawns opened from the card book): hit points, speed, armor, classes
+    const us = getStats(game, who, item.id),
+      ub = baseStats(game, who, item.id);
+    rows.push([t("Hitpoints"), changed(ub.hp, us.hp)]);
+    rows.push([t("Speed"), `${changed(ub.speed / game.grid.cellUnits, us.speed / game.grid.cellUnits)} ${t("fields/s")}`]);
+    if (us.armor != null) rows.push([t("Armor"), format(us.armor)]);
+    const classes = creepClasses(item);
+    if (classes.length) rows.push([t("Classification"), classes.join(", ")]);
   } else if (!item.attacks && item.woodIncome) {
     // v0.21n: EXP Generator: no attack values, just what it is
     return {
@@ -2151,11 +2220,11 @@ function playerTip(q) {
     html:
       `<div class="tip-head"><b>${esc(playerLabel(q))}</b>${q.out ? `<span class="tip-level">${esc(t("out"))}</span>` : ""}</div>` +
       row(t("Lives"), String(q.lives)) +
-      row(t("Gold"), q.out ? "–" : resourceNumber(goldShown(q.gold))) +
+      row(t("Gold"), q.out ? "–" : format(goldShown(q.gold))) + // v0.25: full number
       row(t("Income"), q.out ? "–" : "+" + resourceNumber(Math.floor(q.income)), " tip-inc") +
       row(t("Level"), String(q.level || 1)) +
       row(t("Tier"), String(q.tier || 1)) + // v0.22u2
-      row(t("Maze value"), resourceNumber(towerWorth(q)), " tip-gold") + // v0.19k: what the player's towers cost
+      row(t("Maze value"), format(Math.floor(towerWorth(q))), " tip-gold") + // v0.19k: what the player's towers cost
       (els.length ? `<div class="tip-icons tip-elements">${els.map((f) => `<span class="tip-icon el-${f.id}" style="--el:${f.color}" title="${esc(t(f.name))}"><img src="${iconUrl(ELEMENT_ICON[f.id])}" alt="${esc(t(f.name))}"></span>`).join("")}</div>` : ""),
   };
 }
@@ -2200,7 +2269,7 @@ function helpText(el) {
   const abilityId = /^(volley|burst|pillar|frostbolt|infested|agolem|monsun)-button$/.exec(el.id || "")?.[1];
   if (abilityId && game) return abilityTip(abilityId) || ""; // v0.17q: no use instructions, only the values
   // v0.18b: enemy info windows (4+ players: one cell per enemy; duel: the enemy plate)
-  if (game && begun && el.dataset.seat !== undefined && el.classList.contains("enemy-cell")) return playerTip(game.players[Number(el.dataset.seat)]);
+  if (game && begun && el.dataset.seat !== undefined && (el.classList.contains("enemy-cell") || el.classList.contains("wide-player"))) return playerTip(game.players[Number(el.dataset.seat)]);
   if (game?.teams && begun && el.classList.contains("team-cell")) return teamTip(Number(el.dataset.team)); // v0.20c
   if (game && begun && el.classList.contains("rival") && !isFfa()) return playerTip(game.players[rivalIndex()]);
   if (game && begun && el.classList.contains("player-plate") && el.classList.contains("own")) return playerTip(game.players[own]); // v0.19k: own window too
@@ -2311,7 +2380,7 @@ document.addEventListener("pointerover", (e) => {
   if (helpTip.contains(e.target) || buffTip.contains(e.target)) return; // v0.21g: resting on the tooltip's own icons
   if (!helpMode) {
     if (controlMode !== "pc") return;
-    let card = e.target.closest?.("dialog") ? null : e.target.closest?.("[data-card], [data-upgrade], .enemy-cell, .player-plate.rival:not(.multi), .player-plate.own, #auto-slot"); // v0.18b: enemy info windows too; v0.19k: own window and the auto-spawn slot
+    let card = e.target.closest?.("dialog") ? null : e.target.closest?.("[data-card], [data-upgrade], .enemy-cell, .wide-player, .player-plate.rival:not(.multi), .player-plate.own, #auto-slot"); // v0.18b: enemy info windows too; v0.19k: own window and the auto-spawn slot
     // v0.17g: creep cards show their tooltip only with tooltips switched on (the ? button)
     if (card?.dataset.card && catalog?.byId[card.dataset.card]?.kind === "send") card = null;
     clearTimeout(pcTipTimer);
@@ -2332,7 +2401,7 @@ document.addEventListener("pointerout", (e) => {
 document.addEventListener("pointerdown", (e) => {
   // v0.18b: a tap on an enemy's info window shows its values for a moment (also without help mode)
   if (!helpMode && e.pointerType === "touch" && begun) {
-    const plate = e.target.closest?.("dialog") ? null : e.target.closest?.(".enemy-cell, .player-plate.rival:not(.multi), .player-plate.own");
+    const plate = e.target.closest?.("dialog") ? null : e.target.closest?.(".enemy-cell, .wide-player, .player-plate.rival:not(.multi), .player-plate.own");
     if (!plate) return;
     showHelp(plate);
     clearTimeout(helpTimer);
@@ -2471,7 +2540,8 @@ function placeToast(el = $("toast")) {
     return;
   }
   // Mobile Max: the board runs under the cards, so the banner sits on the free space's lower edge
-  const edge = box.top + (z.full ? z.clearBottom : z.top + z.bh) - shell.top;
+  // v0.24r: a scrolling lane: the banner sits above the visible board edge, never below the screen
+  const edge = Math.min(box.top + (z.full ? z.clearBottom : z.top + z.bh - ((z.scroll?.lane && arena.scrollY?.()) || 0)), box.bottom - 6) - shell.top;
   el.style.bottom = "auto";
   el.style.top = Math.round(edge - el.offsetHeight - 4) + "px";
 }
@@ -2811,14 +2881,14 @@ function iconModal() {
 }
 function welcome() {
   if (!begun) arena?.releaseArt?.(); // v0.24j: back in the menu: free the match's creep sheets and colour copies
-  presenceState("idle"); // v0.14
+  presenceState("menu"); // v0.14; v0.25: an open game counts as online too ("Players online")
   if (colorPick !== "random" && colorChoice !== colorPick) {
     colorChoice = colorPick; // v0.18a: back from an online match with an assigned colour
     applyColors();
   }
   const saved = unusableSave ? null : localStorage.getItem(SAVE);
   showModal(
-    `<div class="welcome-eyes" aria-hidden="true"></div><div class="welcome-mood mood-easy" aria-hidden="true"></div><div class="welcome-mood mood-hard" aria-hidden="true"></div><div class="welcome-mood mood-hard-glow" aria-hidden="true"></div><div class="welcome-art" aria-hidden="true"></div><button class="welcome-options" id="welcome-options" type="button" aria-label="${t("Options")}"><img src="${iconUrl("gear")}" alt=""></button><button class="welcome-options welcome-mute" id="welcome-mute" type="button" aria-pressed="${muted}" aria-label="${t(muted ? "Sound off" : "Sound on")}">${speakerSvg(muted)}</button>${standaloneApp() ? "" : `<button class="welcome-options welcome-install" id="welcome-install" type="button" aria-label="${t("Add to Home Screen")}" title="${t("Add to Home Screen")}">${installSvg()}</button>`}<span class="app-version">v${APP_VERSION}${APP_BRANCH} · ${APP_DATE}${APP_NOTE ? `<small class="app-version-note">${esc(APP_NOTE)}</small>` : ""}</span><img class="welcome-logo" src="${logoUrl()}" alt="${gameName()}">${castMarkup()}<div class="welcome-panel" id="welcome-panel" data-view="home"><div class="welcome-home"><span class="modal-label">${t("Your color")}: <b id="color-name">${colorLabel()}</b></span><div class="color-picker" role="radiogroup" aria-label="${t("Your color")}">${Object.entries(TEAM_COLORS).map(([id, c]) => `<button role="radio" data-color="${id}" aria-checked="${id === colorPick}" aria-label="${t(c.name)}" title="${t(c.name)}" class="${id === colorPick ? "active" : ""}" style="--c:${c.css}"></button>`).join("")}</div><div class="welcome-modes"><button class="primary-button big welcome-mode" data-open="player"><span class="keep-case">${t("PvP")}</span></button><button class="primary-button big welcome-mode alt" data-open="ai">${t("Training")}</button></div></div><section class="welcome-group" data-sub="ai" aria-label="${t("Training")}"><h3 class="welcome-group-title"><button class="welcome-back" type="button" data-back aria-label="${t("Back")}">${t("Back")}</button>${t("Training")}</h3><div class="segmented ai-levels${hardoUnlocked ? " hardo-mode" : ""}" role="radiogroup" aria-label="${t("Difficulty")}">${Object.entries(AI_NAMES).map(([id, name]) => `<button role="radio" data-ai="${id}" aria-checked="${id === aiChoice}" class="${id === aiChoice ? "active" : ""}${id === "insane" ? " hardo-level" : hardoUnlocked ? " hardo-gone" : ""}"${id === "insane" && !hardoUnlocked ? " hidden" : ""}${id !== "insane" && hardoUnlocked ? " disabled" : ""}>${t(name)}</button>`).join("")}<button type="button" class="ai-mixed${aiMixed ? " active" : ""}${hardoUnlocked ? " hardo-gone" : ""}" id="ai-mixed" aria-pressed="${aiMixed}"${hardoUnlocked ? " disabled" : ""} title="${t("Shuffles AI enemies of different difficulties into the match, up to the chosen one")}">${t("Mixed")}</button></div>${hardoUnlocked ? hardoNoteHtml() : ""}<div class="welcome-inline"><span class="modal-label">${t("Neutral waves")}</span><div class="segmented" role="radiogroup" aria-label="${t("Neutral waves")}">${[["on", "On"], ["off", "Off"]].map(([id, name]) => `<button role="radio" data-waves="${id}" aria-checked="${(id === "on") === wavesOn}" class="${(id === "on") === wavesOn ? "active" : ""}">${t(name)}</button>`).join("")}</div></div><span class="modal-label">${t("Number of AI enemies")}</span><div class="segmented ai-count" role="radiogroup" aria-label="${t("Number of AI enemies")}">${hardoUnlocked ? hardoJustHtml() : AI_COUNTS.map((n) => `<button role="radio" data-aicount="${n}" aria-checked="${n === aiCount}" class="${n === aiCount ? "active" : ""}">${n}</button>`).join("")}</div><button class="primary-button big" id="start-training">${t("Start")}</button><button class="secondary-button big campaign-open" id="start-campaign">${t("Campaign")} · ${campaignDone().size}/${MISSIONS.length}</button></section><section class="welcome-group" data-sub="player" aria-label="${t("PvP")}"><h3 class="welcome-group-title"><button class="welcome-back" type="button" data-back aria-label="${t("Back")}">${t("Back")}</button><span class="keep-case">${t("PvP")}</span></h3><label class="modal-label name-label pvp-name" for="player-name">${t("Player name")}</label><div class="name-row"><input id="player-name" class="name-input" maxlength="16" autocomplete="nickname" spellcheck="false" placeholder="${t("Your name")}" value="${esc(playerNameChoice)}"><button type="button" class="icon-pick" id="icon-pick" aria-label="${t("Choose your player icon")}" style="--pc:${iconColor()}"><img src="${iconSrc(iconChoice)}" alt=""></button></div><div class="welcome-row pvp-row"><button class="primary-button rank-button" id="start-ranked" title="${t("1v1 · rated")}">${t("Ranked match")}<small>${t(leagueOf(readRating().r))} · ${readRating().r}</small>${medalHtml(readRating().r, iconColor(), "rank-medal", true)}</button><button class="secondary-button" id="start-quick">${t("Quick Match")}</button><button class="secondary-button" id="start-online">${t("Play a friend")}</button></div></section></div>`,
+    `<div class="welcome-eyes" aria-hidden="true"></div><div class="welcome-mood mood-easy" aria-hidden="true"></div><div class="welcome-mood mood-hard" aria-hidden="true"></div><div class="welcome-mood mood-hard-glow" aria-hidden="true"></div><div class="welcome-art" aria-hidden="true"></div><button class="welcome-options" id="welcome-options" type="button" aria-label="${t("Options")}"><img src="${iconUrl("gear")}" alt=""></button><button class="welcome-options welcome-mute" id="welcome-mute" type="button" aria-pressed="${muted}" aria-label="${t(muted ? "Sound off" : "Sound on")}">${speakerSvg(muted)}</button>${standaloneApp() ? "" : `<button class="welcome-options welcome-install" id="welcome-install" type="button" aria-label="${t("Add to Home Screen")}" title="${t("Add to Home Screen")}">${installSvg()}</button>`}<span class="app-version">v${APP_VERSION}${APP_BRANCH} · ${APP_DATE}${APP_NOTE ? `<small class="app-version-note">${esc(APP_NOTE)}</small>` : ""}</span><img class="welcome-logo" src="${logoUrl()}" alt="${gameName()}">${castMarkup()}<div class="welcome-panel" id="welcome-panel" data-view="home"><div class="welcome-home"><span class="modal-label">${t("Your color")}: <b id="color-name">${colorLabel()}</b></span><div class="color-picker" role="radiogroup" aria-label="${t("Your color")}">${Object.entries(TEAM_COLORS).map(([id, c]) => `<button role="radio" data-color="${id}" aria-checked="${id === colorPick}" aria-label="${t(c.name)}" title="${t(c.name)}" class="${id === colorPick ? "active" : ""}" style="--c:${c.css}"></button>`).join("")}</div><div class="welcome-modes"><button class="primary-button big welcome-mode" data-open="player"><span class="keep-case">${t("PvP")}</span></button><button class="primary-button big welcome-mode alt" data-open="ai">${t("Training")}</button></div></div><section class="welcome-group" data-sub="ai" aria-label="${t("Training")}"><h3 class="welcome-group-title"><button class="welcome-back" type="button" data-back aria-label="${t("Back")}">${t("Back")}</button>${t("Training")}</h3><div class="segmented ai-levels${hardoUnlocked ? " hardo-mode" : ""}" role="radiogroup" aria-label="${t("Difficulty")}">${Object.entries(AI_NAMES).map(([id, name]) => `<button role="radio" data-ai="${id}" aria-checked="${id === aiChoice}" class="${id === aiChoice ? "active" : ""}${id === "insane" ? " hardo-level" : hardoUnlocked ? " hardo-gone" : ""}"${id === "insane" && !hardoUnlocked ? " hidden" : ""}${id !== "insane" && hardoUnlocked ? " disabled" : ""}>${t(name)}</button>`).join("")}<button type="button" class="ai-mixed${aiMixed ? " active" : ""}${hardoUnlocked ? " hardo-gone" : ""}" id="ai-mixed" aria-pressed="${aiMixed}"${hardoUnlocked ? " disabled" : ""} title="${t("Shuffles AI enemies of different difficulties into the match, up to the chosen one")}">${t("Mixed")}</button></div>${hardoUnlocked ? hardoNoteHtml() : ""}<div class="welcome-inline"><span class="modal-label">${t("Neutral waves")}</span><div class="segmented" role="radiogroup" aria-label="${t("Neutral waves")}">${[["on", "On"], ["off", "Off"]].map(([id, name]) => `<button role="radio" data-waves="${id}" aria-checked="${(id === "on") === wavesOn}" class="${(id === "on") === wavesOn ? "active" : ""}">${t(name)}</button>`).join("")}</div></div><span class="modal-label">${t("Number of AI enemies")}</span><div class="segmented ai-count" role="radiogroup" aria-label="${t("Number of AI enemies")}">${hardoUnlocked ? hardoJustHtml() : AI_COUNTS.map((n) => `<button role="radio" data-aicount="${n}" aria-checked="${n === aiCount}" class="${n === aiCount ? "active" : ""}">${n}</button>`).join("")}</div><button class="primary-button big" id="start-training">${t("Start")}</button><button class="secondary-button big campaign-open" id="start-campaign">${t("Campaign")} · ${campaignDone().size}/${MISSIONS.length}</button></section><section class="welcome-group" data-sub="player" aria-label="${t("PvP")}"><h3 class="welcome-group-title"><button class="welcome-back" type="button" data-back aria-label="${t("Back")}">${t("Back")}</button><span class="keep-case">${t("PvP")}</span></h3><label class="modal-label name-label pvp-name" for="player-name">${t("Player name")}</label><div class="name-row"><input id="player-name" class="name-input" maxlength="16" autocomplete="nickname" spellcheck="false" placeholder="${t("Your name")}" value="${esc(playerNameChoice)}"><button type="button" class="icon-pick" id="icon-pick" aria-label="${t("Choose your player icon")}" style="--pc:${iconColor()}"><img src="${iconSrc(iconChoice)}" alt=""></button></div><div class="welcome-row pvp-row"><button class="primary-button rank-button rank-ffa" id="start-ranked-ffa" title="${t("Up to 8 players · rated")}">${t("Ranked FFA")}<small>${t(leagueOf(readRating("ffa").r))} · ${readRating("ffa").r}</small>${medalHtml(readRating("ffa").r, iconColor(), "rank-medal", true)}</button><button class="primary-button rank-button" id="start-ranked" title="${t("1v1 · rated")}">${t("Ranked 1v1")}<small>${t(leagueOf(readRating().r))} · ${readRating().r}</small>${medalHtml(readRating().r, iconColor(), "rank-medal", true)}</button><button class="secondary-button" id="start-quick">${t("Quick Match")}</button><button class="secondary-button" id="start-online">${t("Play a friend")}</button></div></section></div>`,
     { pauseGame: false, welcome: true },
   );
   $("modal-body")
@@ -2928,7 +2998,12 @@ function welcome() {
   // v0.23b: Ranked Match: Quick Match rules, 1v1 only, with a rating and leagues
   $("start-ranked").onclick = () => {
     tone("tap");
-    afterPacks(() => quickMatch(true));
+    afterPacks(() => quickMatch("ranked"));
+  };
+  // v0.25: Ranked FFA: up to eight players, own rating and league
+  $("start-ranked-ffa").onclick = () => {
+    tone("tap");
+    afterPacks(() => quickMatch("rankedffa"));
   };
   if (saved && $("resume-game"))
     $("resume-game").onclick = () => afterPacks(() => {
@@ -3118,10 +3193,13 @@ function ownKnockedOut(place) {
   } catch {}
   tone("defeat");
   const me = game.players[own],
-    summary = matchSummary(me, place);
+    summary = matchSummary(me, place),
+    // v0.25: Ranked FFA: your place is final once you are out, so the rating changes now
+    rated = game.ranked && game.rankedFfa && !game.ratedHere ? settleRankedFfa(game, own, place) : null;
+  if (rated) game.ratedHere = true;
   // v0.18b: place in the summary tiles; Keep watching and Play again side by side in blue, Main menu gold
   showModal(
-    `${resultClock()}<div class="result-banner lose">${t("Defeat")}</div>${room ? "" : `<img class="modal-hero result-hero" src="${artUrl("creep-golem")}" alt="">`}${summary.html}<div class="result-pair"><button class="secondary-button" id="ko-watch">${t("Keep watching")}</button>${room ? "" : `<button class="secondary-button" id="ko-again">${t("Play again")}</button>`}</div><button class="primary-button" id="ko-menu">${t("Main menu")}</button>`,
+    `${resultClock()}<div class="result-banner lose">${t("Defeat")}</div>${room ? "" : `<img class="modal-hero result-hero" src="${artUrl("creep-golem")}" alt="">`}${rankLineHtml(rated, "ffa")}${summary.html}<div class="result-pair"><button class="secondary-button" id="ko-watch">${t("Keep watching")}</button>${room ? "" : `<button class="secondary-button" id="ko-again">${t("Play again")}</button>`}</div><button class="primary-button" id="ko-menu">${t("Main menu")}</button>`,
     { pauseGame: false },
   );
   summary.wire();
@@ -3178,7 +3256,7 @@ function playAgainOnline(again) {
   welcome();
   document.querySelector('[data-open="player"]')?.click();
   if (kind === "friend") onlineMenu();
-  else quickMatch(kind === "ranked"); // v0.23b
+  else quickMatch(isQuickKind(kind) ? kind : "quick"); // v0.23b; v0.25: Ranked FFA
 }
 /**
  * v0.14: levels for a mixed match. Each AI seat draws a level up to the chosen one; one seat
@@ -4131,6 +4209,16 @@ function renderCards() {
   deckSignature = deckSig();
   $("cards").innerHTML =
     (list.map(cardMarkup).join("") || `<div class="empty-deck">${t("All available upgrades researched.")}</div>`);
+  // v0.25: Desktop Wide: from five blueprints on, the basic towers fill the first row, Hall and EXP Generator the second
+  const split = wideDeck() && tab === "build" && list.length >= 5;
+  $("cards").classList.toggle("wide-split", split);
+  if (split)
+    $("cards")
+      .querySelectorAll("[data-card]")
+      .forEach((b) => {
+        const item = catalog.byId[b.dataset.card];
+        b.classList.toggle("second-row", !!item && (footprintOf(item.id) > 1 || (!item.attacks && !!item.woodIncome)));
+      });
   fitCardNames($("cards"));
   fitPrices($("cards")); // v0.17
   $("cards")
@@ -4193,8 +4281,7 @@ function renderSendDeck() {
     b.addEventListener("pointerdown", startSendHold);
   });
   if (sendHold) deckCard(sendHold.id)?.classList.add("holding");
-  const title = $("wd-send-title");
-  if (title) title.textContent = t("Send · Tier {n}", { n: game.players[own].tier });
+  setText($("wd-send-text"), t("Send · Tier {n}", { n: game.players[own].tier })); // v0.25: the title row also holds the auto-spawn slot
 }
 // ---- Deck navigation: swipe strip with arrows, and an "All" sheet with every card ----
 function updateDeckArrows() {
@@ -4474,6 +4561,7 @@ const perkVars = (level, q, lv, next) => {
     airBlockBack: AIRBLOCK.back[l3],
     airBlockStun: AIRBLOCK.stun[l3],
     airBlockMonsun: AIRBLOCK.monsun[l3],
+    quarryGold: format(quarryGold(game, q, l)), // v0.24s
     airBlock: format(airBlockDamage(q, l3 + 1)),
     growth: format(Math.round(SUPERGROWTH[l3 + 1] * 1000) / 10) + "%",
     slaveStock: SLAVE.stock * Math.min(3, lv),
@@ -4499,6 +4587,10 @@ const perkVars = (level, q, lv, next) => {
     pocks: pct(POCKS.hpShare * lv),
     permafrost: pct(FROZEN_GROUND * lv), // v0.22h1: Frozen Ground 5 % per level
     hills: pct(HILLS[Math.min(5, lv)]), // v0.22h1
+    backup: pct(backupSpeed(Math.min(3, lv || 1))), // v0.24q
+    backupRows: BACKUP.rows - (lv >= 3 ? 1 : 0),
+    tides: pct(tidesDamage(Math.min(3, lv || 1))),
+    tidesRows: TIDES.rows - (lv >= 3 ? 1 : 0),
     stormfeathers: pctOf(STORMFEATHERS * lv), // v0.22h1
     crowdMax: CROWD.threshold[l3], // v0.20d
     pillage: pct(PILLAGE.shares[Math.min(PILLAGE.max, lv)] || 0), // v0.19h1; v0.22m2: 14 / 24 / 30 %
@@ -4781,16 +4873,17 @@ function refreshLevelButton(p) {
       bottom = Math.min(z.top + z.bh, cardsTop > 0 ? cardsTop - 6 : Infinity), // v0.09: no exit strip
       dockTop = Math.round(bottom - (dock.offsetHeight || size + 34)) + "px",
       top = Math.round(z.side.y + 14) + "px";
-    // v0.24b: Desktop Wide: the auto-spawn slot and the tier sit in the card column on the right
+    // v0.24b: Desktop Wide: the auto-spawn slot and the tier sit in the card column on the right;
+    // v0.24q: left of the creep cards, in the send row; v0.25: top right, above the creep cards (in the Send title row)
     const wide = document.documentElement.classList.contains("layout-wide"),
-      home = wide ? document.querySelector(".command-deck") : $("arena");
+      home = $(wide ? "wd-send-title" : "arena");
     if (home && dock.parentNode !== home) {
-      if (wide) home.insertBefore(dock, home.firstChild);
+      if (wide) home.appendChild(dock);
       else home.insertBefore(dock, $("level-button"));
       dock.removeAttribute("style");
     }
     if (wide) {
-      if (dock.style.getPropertyValue("--slot") !== "64px") dock.style.setProperty("--slot", "64px");
+      if (dock.style.getPropertyValue("--slot") !== "56px") dock.style.setProperty("--slot", "56px");
     } else if (z.col) placeColumn(z, dock, size);
     else if (z.full) {
       // Mobile Max: the auto slot floats in the bottom-left corner, right above the cards
@@ -4897,6 +4990,30 @@ function setText(el, value) {
   const v = String(value);
   if (el && el.textContent !== v) el.textContent = v;
 }
+/**
+ * v0.25: gold in the info windows: the full number (123,456) while it fits inside its window without running over
+ * the border, else the short form (123.4k). Only measured when the two differ (from 100,000 up) and the text changed.
+ */
+function setGoldFit(el, value) {
+  if (!el) return;
+  if (typeof value !== "number") return setText(el, value);
+  const short = resourceNumber(value),
+    full = format(Math.floor(value));
+  if (full === short) {
+    delete el.dataset.fit;
+    return setText(el, short);
+  }
+  const box = el.closest(".wide-player, .enemy-cell, .team-cell, .player-plate, .wide-stats, .resource") || el.parentElement,
+    key = `${full}|${box?.clientWidth || 0}`;
+  if (el.dataset.fit === key) return;
+  el.dataset.fit = key;
+  el.textContent = full;
+  const row = el.parentElement,
+    r = el.getBoundingClientRect(),
+    b = box.getBoundingClientRect(),
+    fits = r.width > 0 && r.right <= b.right - 3 && row.scrollWidth <= row.clientWidth + 1;
+  if (!fits) el.textContent = short;
+}
 function setProp(el, name, value) {
   const v = String(value);
   if (el && el.getAttribute(name) !== v) el.setAttribute(name, v);
@@ -4913,7 +5030,7 @@ function refreshUI() {
     shownRival = enemy.id;
     applyColors();
   }
-  setText($("gold"), resourceNumber(goldShown(p.gold)));
+  setGoldFit($("gold"), goldShown(p.gold)); // v0.25: full number while it fits
   setProp($("gold"), "title", format(goldShown(p.gold)) + " Gold");
   setText($("income"), "+" + resourceNumber(p.income + (p.incomeDecimal || 0) / 100));
   setProp($("income"), "title", t("+{n} income", { n: format(p.income + (p.incomeDecimal || 0) / 100) }));
@@ -4921,17 +5038,18 @@ function refreshUI() {
   // whole numbers only (v0.07j); v0.20: in team games what the player gets each round from the shared team income
   const incomeOf = (pl) => "+" + resourceNumber(Math.floor(!game.teams ? pl.income : game.teams.gold === "shared" ? teamIncome(game, pl) : teamIncome(game, pl) / Math.max(1, teamMates(game, pl).length)));
   setText($("gold-income"), incomeOf(p));
-  setText($("own-gold"), resourceNumber(goldShown(p.gold)));
+  setGoldFit($("own-gold"), goldShown(p.gold));
   setText($("own-income"), incomeOf(p));
   if (wideDeck()) {
     // v0.24f: Desktop Wide: your gold, income and EXP on top of the left column
     setText($("ws-gold"), format(Math.floor(goldShown(p.gold))));
     setText($("ws-income"), incomeOf(p));
     setText($("ws-level"), p.level);
+    setText($("ws-tier"), p.tier || 1); // v0.24q
     setText($("ws-exp"), `${format(Math.floor(p.exp))} / ${format(Math.max(1, Math.round(p.expNext)))} EXP`);
     setStyle($("ws-exp-fill"), "width", `${Math.min(100, (100 * p.exp) / Math.max(1, p.expNext))}%`);
   }
-  setText($("rival-gold"), resourceNumber(goldShown(enemy.gold)));
+  setGoldFit($("rival-gold"), goldShown(enemy.gold));
   setText($("rival-income"), incomeOf(enemy));
   for (const [prefix, pl] of [["own", p], ["rival", enemy]]) {
     setStyle($(prefix + "-exp"), "width", `${Math.min(100, (100 * pl.exp) / Math.max(1, pl.expNext))}%`); // v0.21l: only on change
@@ -5043,7 +5161,7 @@ function anchorFor(id, gridX, gridY) {
   if (n === 1 || !game) return { gridX, gridY };
   return {
     gridX: Math.max(0, Math.min(game.grid.cols - n, gridX)),
-    gridY: Math.max(0, Math.min(game.grid.rows - n, gridY)),
+    gridY: Math.max(0, Math.min(laneRows(game, game.players[view]) - n, gridY)), // v0.24r: the lane's own height
   };
 }
 function onCell(tapped) {
@@ -5356,7 +5474,7 @@ function dragTarget(e) {
   // Aim slightly above the finger so the target cell stays visible.
   const cell = arena?.gridAtClient(e.clientX, e.clientY - 38);
   if (!cell || !game) return null;
-  return cell.gridX >= 0 && cell.gridX < game.grid.cols && cell.gridY >= 0 && cell.gridY < game.grid.rows ? cell : null;
+  return cell.gridX >= 0 && cell.gridX < game.grid.cols && cell.gridY >= 0 && cell.gridY < laneRows(game, game.players[view]) ? cell : null;
 }
 document.addEventListener(
   "pointermove",
@@ -5646,7 +5764,11 @@ function researchDetail(id) {
 /** v0.22n2: the info dialog's picture with the elements the tower needs as symbols in its upper left corner. */
 function heroWithElements(item) {
   const els = item.kind === "tower" || item.isBuildable ? catalog.factions.filter((f) => (item.requires || []).some((r) => r.id === f.unlock || r.id === f.research)) : [];
-  const img = `<img class="modal-hero" src="${towerArtUrl(artFor(item))}" alt="">`;
+  const img = `<img class="modal-hero" src="${towerArtUrl(artFor(item))}" alt="">`,
+    // v0.24s: creeps that spawn others on death: square buttons to the spawned creeps' info, bottom right
+    spawns = item.isSend || item.kind === "send" ? deathSpawnTypes(item.id).filter((id) => id !== item.id) : [];
+  if (spawns.length && !els.length)
+    return `<div class="modal-hero-wrap">${img}<div class="spawn-links${spawns.length > 1 ? " many" : ""}" aria-label="${esc(t("Spawns on death"))}">${spawns.map((id) => `<button type="button" class="spawn-link" data-spawn="${id}" title="${esc(itemName(catalog.byId[id]))}"><img src="${headCrop(artUrl(artFor(catalog.byId[id])))}" alt="${esc(itemName(catalog.byId[id]))}"></button>`).join("")}</div></div>`;
   if (!els.length) return img;
   return `<div class="modal-hero-wrap">${img}<div class="hero-elements">${els.map((f) => `<span class="hero-el" style="--el:${f.color}" title="${esc(t(f.name))}"><img src="${iconUrl(ELEMENT_ICON[f.id])}" alt="${esc(t(f.name))}"></span>`).join("")}</div></div>`;
 }
@@ -5681,6 +5803,9 @@ function itemDetail(id, towerId, detailPlayer = own, back = null) {
         }),
     );
   if (back && $("sub-back")) $("sub-back").onclick = back; // v0.22
+  $("modal-body")
+    .querySelectorAll("[data-spawn]")
+    .forEach((b) => (b.onclick = () => itemDetail(b.dataset.spawn, undefined, detailPlayer, () => itemDetail(id, towerId, detailPlayer, back)))); // v0.24s
   if ($("detail-techtree")) $("detail-techtree").onclick = () => catalogModal({ filter: "tower", focus: id, back: () => itemDetail(id, towerId, detailPlayer, back) }); // v0.22n2: Back to the tower
   if (!towerId && canAct && (item.kind === "research" || item.isRoot)) { // v0.17h: no "Send creep" button for creeps
     const action = document.createElement("button");
@@ -5998,7 +6123,7 @@ function catalogModal({ filter: startFilter = "tower", focus = null, back } = {}
   const showFocus = () => {
     const node = focus && $("catalog-grid").querySelector(`.tt-node[data-card="${focus}"]:not(.tt-ref)`);
     if (!node) return;
-    node.classList.add("tt-focus");
+    if (filter !== "send") node.classList.add("tt-focus"); // v0.24s: no golden glow on the creep you came from
     node.scrollIntoView({ block: "center", inline: "center" });
   };
   $("modal-body")
@@ -6039,7 +6164,7 @@ const onOff = (v) => t(v ? "On" : "Off");
 // v0.13: Audio and Graphic open as sub-menus; music and sound are volume sliders now.
 function settingsButtons() {
   // v0.15: Tips, preview and double tap moved into the Gameplay sub-menu (below Graphic)
-  return `<button class="secondary-button submenu-button" id="menu-audio">${t("Audio")}<i aria-hidden="true">›</i></button><button class="secondary-button submenu-button" id="menu-graphic">${t("Graphics")}<i aria-hidden="true">›</i></button><button class="secondary-button submenu-button" id="menu-gameplay">${t("Gameplay")}<i aria-hidden="true">›</i></button><button class="secondary-button submenu-button" id="menu-online">${t("Online")}<i aria-hidden="true">›</i></button>`;
+  return `<button class="secondary-button submenu-button" id="menu-audio">${t("Audio")}<i aria-hidden="true">›</i></button><button class="secondary-button submenu-button" id="menu-graphic">${t("Graphics")}<i aria-hidden="true">›</i></button><button class="secondary-button submenu-button" id="menu-gameplay">${t("Gameplay")}<i aria-hidden="true">›</i></button>`; // v0.24s: Online is a section of Gameplay
 }
 const DBL_LABELS = { upgrade: "Upgrade", advanced: "Advanced Upgrade", info: "Tower info", off: "Off" };
 const dblText = () => `${t("Double tap on a tower")}: ${t(DBL_LABELS[dblMode])}`;
@@ -6095,7 +6220,7 @@ function audioModal(back) {
 }
 function graphicModal(back) {
   showModal(
-    `${subHeader(t("Graphics"))}<div id="menu-design">${designRow(t)}</div><div id="menu-controls">${controlsRow()}</div><button class="secondary-button" id="menu-popnum">${t("Pop-up numbers")}: ${onOff(popNumbers)}</button><button class="secondary-button" id="menu-popnote">${t("Pop-up notifications")}: ${onOff(popNotes)}</button><div class="opt-pair"><button class="secondary-button" id="menu-tiles">${tilesText()}</button><button class="secondary-button" id="menu-minimap">${minimapText()}</button></div>`, // v0.23c: Tiles and Minimap side by side at the bottom
+    `${subHeader(t("Graphics"))}<div id="menu-design">${designRow(t)}</div><div id="menu-controls">${controlsRow()}</div><div class="menu-pair"><button class="secondary-button" id="menu-popnum">${t("Pop-up numbers")}: ${onOff(popNumbers)}</button><button class="secondary-button" id="menu-popnote">${t("Pop-up notifications")}: ${onOff(popNotes)}</button></div><div class="opt-pair"><button class="secondary-button" id="menu-tiles">${tilesText()}</button><button class="secondary-button" id="menu-minimap">${minimapText()}</button></div>`, // v0.23c: Tiles and Minimap side by side at the bottom
   );
   $("sub-back").onclick = back;
   $("menu-controls").onclick = (e) => {
@@ -6158,37 +6283,39 @@ function graphicModal(back) {
 /** v0.15: Gameplay sub-menu: tips, build preview, double tap and Predator view. */
 const predatorText = () => `${t("Predator view")}: ${onOff(predatorView)}`;
 /** v0.23o: Options › Online: test switches for the online protocol and the net stats overlay. */
-function onlineModal(back) {
+/** v0.24s: the Online switches as a section at the bottom of Gameplay: its markup and the wiring after showModal. */
+function onlineSection() {
   const deltaText = () => `${t("Tower deltas")}: ${onOff(netDeltas)}`,
     zipText = () => `${t("Compression")}: ${onOff(netZip)}`,
     statsText = () => `${t("Net stats")}: ${onOff(netStatsOn)}`;
-  showModal(
-    `${subHeader(t("Online"))}<button class="secondary-button" id="menu-netdelta">${deltaText()}</button><button class="secondary-button" id="menu-netzip">${zipText()}</button><button class="secondary-button" id="menu-netstats">${statsText()}</button><p class="modal-note">${t(
+  return {
+    html: `<h3 class="menu-section">${t("Online")}</h3><button class="secondary-button" id="menu-netdelta">${deltaText()}</button><button class="secondary-button" id="menu-netzip">${zipText()}</button><button class="secondary-button" id="menu-netstats">${statsText()}</button><p class="modal-note">${t(
       "Test switches for online lag. Tower deltas: off on any player sends every tower in full. Compression: off on either side, from the next connection on. Net stats: a small box with lost, skipped and late game states.",
     )}</p>`,
-  );
-  $("sub-back").onclick = back;
-  $("menu-netdelta").onclick = () => {
-    netDeltas = !netDeltas;
-    savePref(NET_DELTA_PREF, netDeltas);
-    room?.send(netPresence());
-    $("menu-netdelta").textContent = deltaText();
-    tone("select");
-  };
-  $("menu-netzip").onclick = () => {
-    netZip = !netZip;
-    globalThis.felitoNetZip = netZip;
-    savePref(NET_ZIP_PREF, netZip);
-    $("menu-netzip").textContent = zipText();
-    if (room) toast("Applies from the next connection.");
-    tone("select");
-  };
-  $("menu-netstats").onclick = () => {
-    netStatsOn = !netStatsOn;
-    savePref(NET_STATS_PREF, netStatsOn);
-    $("menu-netstats").textContent = statsText();
-    updateNetStats(performance.now(), true);
-    tone("select");
+    wire: () => {
+      $("menu-netdelta").onclick = () => {
+        netDeltas = !netDeltas;
+        savePref(NET_DELTA_PREF, netDeltas);
+        room?.send(netPresence());
+        $("menu-netdelta").textContent = deltaText();
+        tone("select");
+      };
+      $("menu-netzip").onclick = () => {
+        netZip = !netZip;
+        globalThis.felitoNetZip = netZip;
+        savePref(NET_ZIP_PREF, netZip);
+        $("menu-netzip").textContent = zipText();
+        if (room) toast("Applies from the next connection.");
+        tone("select");
+      };
+      $("menu-netstats").onclick = () => {
+        netStatsOn = !netStatsOn;
+        savePref(NET_STATS_PREF, netStatsOn);
+        $("menu-netstats").textContent = statsText();
+        updateNetStats(performance.now(), true);
+        tone("select");
+      };
+    },
   };
 }
 /** v0.23o: the net stats overlay (top left, small), refreshed twice a second while online. Counts are per 10 s. */
@@ -6228,9 +6355,11 @@ function updateNetStats(now, force = false) {
   }
 }
 function gameplayModal(back) {
+  const online = onlineSection();
   showModal(
-    `${subHeader(t("Gameplay"))}<button class="secondary-button" id="menu-tips">${t("Tips")}: ${onOff(tipsEnabled)}</button><button class="secondary-button" id="menu-preview">${t("Build with preview")}: ${onOff(buildPreview)}</button><button class="secondary-button" id="menu-dbl">${dblText()}</button><button class="secondary-button" id="menu-predator">${predatorText()}</button>`,
+    `${subHeader(t("Gameplay"))}<button class="secondary-button" id="menu-tips">${t("Tips")}: ${onOff(tipsEnabled)}</button><button class="secondary-button" id="menu-preview">${t("Build with preview")}: ${onOff(buildPreview)}</button><button class="secondary-button" id="menu-dbl">${dblText()}</button><button class="secondary-button" id="menu-predator">${predatorText()}</button>${online.html}`,
   );
+  online.wire();
   $("sub-back").onclick = back;
   $("menu-tips").onclick = () => {
     setTips(!tipsEnabled);
@@ -6261,14 +6390,13 @@ function wireSettings(reopen) {
   $("menu-gameplay").onclick = () => gameplayModal(reopen);
   $("menu-audio").onclick = () => audioModal(reopen);
   $("menu-graphic").onclick = () => graphicModal(reopen);
-  $("menu-online").onclick = () => onlineModal(reopen); // v0.23o
   $("menu-rules").onclick = () => rulesModal(reopen); // v0.22n2: Back returns to the menu
 }
 /** In-game menu: settings only, rulebook at the bottom. */
 const FLAG_SVG = `<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M8 4v25" stroke="#c9b48a" stroke-width="2.6" stroke-linecap="round"/><path d="M9 5.5c4-2 7 1.5 11 0s5-1.5 7-.5v11c-2-1-3.5-1-7 .5s-7-2-11 0z" fill="#fff" stroke="#9aa6ae" stroke-width="1.2" stroke-linejoin="round"/></svg>`;
 /** v0.17o: AI training matches (1 or more AI enemies) get a yellow Restart button beside Surrender. */
 const canRestart = () => (sessionMode === "training" && !game?.rankedBot) || sessionMode === "ffa"; // v0.24d: not in a ranked AI match
-const RESTART_SVG = `<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M25 16a9 9 0 1 1-2.64-6.36" fill="none" stroke="#3a2a00" stroke-width="3.4" stroke-linecap="round"/><path d="M24.5 4.5v6.5H18" fill="none" stroke="#3a2a00" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const RESTART_SVG = `<svg viewBox="0 0 32 32" aria-hidden="true"><path d="M25 16a9 9 0 1 1-2.64-6.36" fill="none" stroke="#fff" stroke-width="3.4" stroke-linecap="round"/><path d="M24.5 4.5v6.5H18" fill="none" stroke="#fff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 /** v0.09: you can give up from the pause menu (1v1: the other side wins, four players: you are out). */
 /** v0.18c: you are out of a match that goes on (Keep watching). */
 const watchingOut = () => begun && !!game?.players[own]?.out && !!game?.running;
@@ -6293,10 +6421,16 @@ function surrender() {
 /** In-game menu: settings only, rulebook at the bottom. The red × closes it. */
 function menu() {
   showModal(
-    `${modalHeader(t(room ? "Menu" : "Paused"), `<div class="menu-clock" title="${t("Match time")}"><img src="${iconUrl("hourglass")}" alt=""><b id="menu-clock">${matchClock()}</b></div>`).replace('<div class="modal-header">', `<div class="modal-header menu-header"><button class="welcome-options header-mute" id="menu-mute" type="button" aria-pressed="${muted}" aria-label="${t(muted ? "Sound off" : "Sound on")}">${speakerSvg(muted)}</button>`)}${sessionMode === "hotseat" ? `<button class="secondary-button" id="switch-player">${t("Switch player")}</button>` : ""}${settingsButtons()}<button class="secondary-button" id="menu-catalog">${t("Card book")}</button><button class="secondary-button" id="menu-rules">${t("Rules & development status")}</button>${canSurrender() ? `<div id="surrender-confirm" class="surrender-confirm" hidden><b>${t("Really surrender?")}</b><span>${t(isFfa() ? "You drop out of this match." : "Your opponent wins the duel.")}</span><div class="surrender-row"><button class="danger-button" id="surrender-yes" type="button">${t("Surrender")}</button><button class="secondary-button" id="surrender-no" type="button">${t("Resume")}</button></div></div>${canRestart() ? `<div class="surrender-pair" id="surrender-pair">` : ""}<button class="danger-button menu-surrender" id="menu-surrender" type="button">${FLAG_SVG}${t("Surrender")}</button>${canRestart() ? `<button class="primary-button restart-button" id="menu-restart" type="button">${RESTART_SVG}${t("Restart")}</button></div>` : ""}` : ""}${watchingOut() ? `<button class="primary-button" id="menu-main" type="button">${t("Main menu")}</button>` : ""}`,
+    `${modalHeader(t(room ? "Menu" : "Paused"), `<div class="menu-clock" title="${t("Match time")}"><img src="${iconUrl("hourglass")}" alt=""><b id="menu-clock">${matchClock()}</b></div>`).replace('<div class="modal-header">', `<div class="modal-header menu-header"><button class="welcome-options header-mute" id="menu-mute" type="button" aria-pressed="${muted}" aria-label="${t(muted ? "Sound off" : "Sound on")}">${speakerSvg(muted)}</button>`)}${sessionMode === "hotseat" ? `<button class="secondary-button" id="switch-player">${t("Switch player")}</button>` : ""}${settingsButtons()}<button class="secondary-button" id="menu-catalog">${t("Card book")}</button><button class="secondary-button" id="menu-rules">${t("Rules & development status")}</button>${canSurrender() ? `<button class="primary-button menu-resume" id="menu-resume" type="button">${t("Return to Game")}</button>` : ""}${canSurrender() ? `<div id="surrender-confirm" class="surrender-confirm" hidden><b>${t("Really surrender?")}</b><span>${t(isFfa() ? "You drop out of this match." : "Your opponent wins the duel.")}</span><div class="surrender-row"><button class="danger-button" id="surrender-yes" type="button">${t("Surrender")}</button><button class="secondary-button" id="surrender-no" type="button">${t("Resume")}</button></div></div>${canRestart() ? `<div class="surrender-pair" id="surrender-pair">` : ""}<button class="danger-button menu-surrender" id="menu-surrender" type="button">${FLAG_SVG}${t("Surrender")}</button>${canRestart() ? `<button class="danger-button restart-button" id="menu-restart" type="button">${RESTART_SVG}${t("Restart")}</button></div>` : ""}` : ""}${watchingOut() ? `<button class="primary-button" id="menu-main" type="button">${t("Main menu")}</button>` : ""}`,
   );
   $("modal").classList.remove("with-flag");
   $("menu-mute").onclick = () => toggleMute($("menu-mute")); // v0.18e
+  // v0.24s: "Return to Game" above Surrender and Restart
+  if ($("menu-resume"))
+    $("menu-resume").onclick = () => {
+      tone("tap");
+      closeModal();
+    };
   // v0.18c: watching on after a defeat: back to the main menu from the in-game menu
   if ($("menu-main"))
     $("menu-main").onclick = () => {
@@ -6388,17 +6522,22 @@ function presenceState(state) {
 // Quick Match (v0.10i): automatic 1v1 against the next searching player, no room code.
 // v0.18a: the search runs on its own. The dialog can be minimised to a small bar, and training
 // matches can be played meanwhile; a found match ends the training match and connects.
-const qmOnline = (c) => Math.max(1, (c.queue || 0) + (c.pve || 0) + (c.pvp || 0));
+// v0.25: every open game counts ("menu": main menu, results …), not only searching and playing ones
+const qmOnline = (c) => Math.max(1, (c.queue || 0) + (c.pve || 0) + (c.pvp || 0) + (c.menu || 0));
 function qmDialog() {
   const q = qmSearch;
   if (!q) return;
   q.minimized = false;
+  const mine = readRating(rankModeOf(q.mode)),
+    duel = q.mode === "ranked";
   const host = pvpModal(
-    `${modalHeader(qmTitle())}${q.ranked ? `<div class="qm-medal">${medalHtml(readRating().r, iconColor(), "", true)}<b>${t(leagueOf(readRating().r))} · ${readRating().r}</b></div>` : ""}<p class="modal-copy">${
-      q.ranked
-        ? `${t("You'll be paired with the next free player for a ranked 1v1.")}<br>${rankedBotLevel(readRating().r) ? `${t("If nobody is found within 30 s, you play a ranked match against an AI opponent.")}<br>` : ""}${t("Minimize this window to play a training match while you wait.")}`
-        : t("You'll be paired with the next player who is searching. Minimize this window to play a training match while you wait.")
-    }</p>${q.ranked && rankedBotLevel(readRating().r) ? `<label class="qm-bots"><input type="checkbox" id="qm-bots"${rankedBots ? " checked" : ""}><span>${t("Allow an AI opponent")}</span></label>` : ""}<div id="network-status" class="network-status">${esc(q.status)}</div><div class="qm-presence" id="qm-presence"><span><b id="qm-queue">${q.counts ? Math.max(1, q.counts.queue) : "…"}</b>${t("in the queue")}</span><span><b id="qm-online">${q.counts ? qmOnline(q.counts) : "…"}</b>${t("Players online")}</span></div><div class="qm-actions"><button class="primary-button" id="qm-min">${t("Minimize")}</button><button class="secondary-button" id="qm-cancel">${t("Cancel")}</button></div>`,
+    `${modalHeader(qmTitle())}${q.ranked ? `<div class="qm-medal">${medalHtml(mine.r, iconColor(), "", true)}<b>${t(leagueOf(mine.r))} · ${mine.r}</b></div>` : ""}<p class="modal-copy">${
+      q.mode === "rankedffa"
+        ? `${t("Up to 8 players. The lobby waits up to 60 s, every new player adds 10 s.")} ${t("Minimize this window to play a training match while you wait.")}` // v0.25
+        : duel
+          ? `${t("You'll be paired with the next free player for a ranked 1v1.")} ${rankedBotLevel(mine.r) ? `${t("If nobody is found within 30 s, you play a ranked match against an AI opponent.")} ` : ""}${t("Minimize this window to play a training match while you wait.")}`
+          : t("You'll be paired with the next player who is searching. Minimize this window to play a training match while you wait.")
+    }</p>${duel && rankedBotLevel(mine.r) ? `<label class="qm-bots"><input type="checkbox" id="qm-bots"${rankedBots ? " checked" : ""}><span>${t("Allow an AI opponent")}</span></label>` : ""}<div id="network-status" class="network-status">${esc(q.status)}</div><div class="qm-presence" id="qm-presence"><span><b id="qm-queue">${q.counts ? Math.max(1, q.counts.queue) : "…"}</b>${t("in the queue")}</span><span><b id="qm-online">${q.counts ? qmOnline(q.counts) : "…"}</b>${t("Players online")}</span></div><div class="qm-actions"><button class="primary-button" id="qm-min">${t("Minimize")}</button><button class="secondary-button" id="qm-cancel">${t("Cancel")}</button></div>`,
   );
   // v0.18g: from the main menu, cancel and minimize return to the PvP page underneath
   const leave = closeModal;
@@ -6461,15 +6600,19 @@ function refreshQmPill() {
   const span = pill.querySelector(".qm-pill-text");
   if (span.textContent !== text) span.textContent = text;
 }
-async function quickMatch(ranked = false) {
+/** `mode`: "quick", "ranked" (Ranked 1v1) or "rankedffa" (v0.25: Ranked FFA, up to eight players). */
+async function quickMatch(mode = "quick") {
   if (qmSearch) return qmDialog();
+  if (mode === true) mode = "ranked";
+  if (!isQuickKind(mode)) mode = "quick";
+  const ranked = mode !== "quick";
   qmCrossed = false; // v0.24c
-  if (!webrtcSupported()) return noWebrtcModal(ranked ? "Ranked Match" : "Quick Match"); // v0.19b1
-  roomKind = ranked ? "ranked" : "quick"; // v0.19b1; v0.23b: Ranked
+  if (!webrtcSupported()) return noWebrtcModal(QM_TITLES[mode]); // v0.19b1
+  roomKind = mode; // v0.19b1; v0.23b: Ranked
   if (!begun) disconnectRoom();
   const abort = new AbortController(),
     signal = abort.signal;
-  const q = (qmSearch = { abort, ranked, status: t("Searching for an opponent …"), counts: null, minimized: false, timer: 0, stopWatch: null });
+  const q = (qmSearch = { abort, mode, ranked, status: t("Searching for an opponent …"), counts: null, minimized: false, timer: 0, stopWatch: null });
   presenceState(presenceBase); // counts as "in the queue" while the search runs
   qmDialog();
   const status = (message) => {
@@ -6493,7 +6636,7 @@ async function quickMatch(ranked = false) {
     .catch(() => {});
   q.timer = setInterval(refreshQmPill, 400);
   // v0.24d: Ranked: nobody found within 30 s: a ranked match against an AI of the player's league (not from Platinum up)
-  if (ranked && rankedBotLevel(readRating().r)) {
+  if (mode === "ranked" && rankedBotLevel(readRating().r)) {
     q.startBot = () => {
       if (qmSearch !== q) return;
       if (!rankedBots) return void (q.botDue = true); // v0.24k: AI opponents switched off in the queue dialog
@@ -6510,7 +6653,7 @@ async function quickMatch(ranked = false) {
   }
   try {
     const { findQuickMatch } = await import("./multiplayer.js");
-    const match = await findQuickMatch({ signal, ranked, onStatus: (s) => status(t(s.message)) });
+    const match = await findQuickMatch({ signal, queue: mode, onStatus: (s) => status(t(s.message)) });
     if (signal.aborted || qmSearch !== q) return;
     qmSearch = null;
     clearInterval(q.timer);
@@ -6543,7 +6686,7 @@ async function quickMatch(ranked = false) {
   } catch (error) {
     if (signal.aborted || qmSearch !== q) return;
     cancelQuickMatch();
-    if (error.code === "browser-incompatible") return noWebrtcModal(ranked ? "Ranked Match" : "Quick Match"); // v0.19b1
+    if (error.code === "browser-incompatible") return noWebrtcModal(QM_TITLES[mode]); // v0.19b1
     const msg = t("Connection failed:") + " " + error.message;
     if ($("network-status")) $("network-status").textContent = msg;
     else toast(msg);
@@ -6553,11 +6696,11 @@ async function quickMatch(ranked = false) {
 const QM_CONNECT_MS = 20000;
 function qmRequeue() {
   if (begun) return;
-  const ranked = roomKind === "ranked" && !qmCrossed; // v0.24c: back to the queue this player chose
+  const mode = qmCrossed || !isQuickKind() ? "quick" : roomKind; // v0.24c: back to the queue this player chose
   disconnectRoom();
-  roomKind = ranked ? "ranked" : "quick";
+  roomKind = mode;
   toast("No connection to the other player. Searching again …");
-  quickMatch(ranked);
+  quickMatch(mode);
 }
 function onlineMenu() {
   cancelQuickMatch();
@@ -6644,7 +6787,7 @@ async function connectOnline(code, preset) {
           view = own;
           ensureBackgroundTicker(); // v0.16
         }
-        if (r.role === "guest") r.send({ kind: "ready", faction: chosenFaction, name: playerNameChoice, color: colorPick === "random" ? null : colorPick, icon: iconChoice, rating: readRating().r }); // v0.18a: the picked colour; v0.19c1: icon; v0.23b: rating
+        if (r.role === "guest") r.send({ kind: "ready", faction: chosenFaction, name: playerNameChoice, color: colorPick === "random" ? null : colorPick, icon: iconChoice, rating: readRating(rankModeOf(roomKind)).r }); // v0.18a: the picked colour; v0.19c1: icon; v0.23b: rating
       },
       onData: receiveNetwork,
       // v0.19 (host): one guest left; the room and the match go on for the others
@@ -6703,7 +6846,7 @@ async function connectOnline(code, preset) {
         }
       }
     } else if (code) r = await joinRoom(code, callbacks);
-    else if (preset) r = await createRoom(callbacks, roomKind === "ranked" ? { maxGuests: 1 } : {}, preset); // v0.23b: Ranked is 1v1
+    else if (preset) r = await createRoom(callbacks, roomKind === "ranked" ? { maxGuests: 1 } : roomKind === "rankedffa" ? { maxGuests: FFA_LOBBY_MAX - 1 } : {}, preset); // v0.23b: Ranked is 1v1; v0.25: Ranked FFA up to eight
     else
       // v0.19c1: Play a friend: four-digit codes; a code already in use draws a new one
       for (let tries = 0; ; tries++) {
@@ -6782,7 +6925,7 @@ function receiveNetwork(message, r, peerId) {
   if (simRole === "host") {
     if (message.kind === "ready" && !begun && room.role === "host") lobbyJoin(peerId, message); // v0.19: up to six players
     if (message.kind === "kicked" && !begun && room.role === "guest") kickedNote = message.reason === "full" ? "The room is full." : "The host removed you from the room."; // v0.19c1
-    if (message.kind === "lobby-start" && !begun && lobby?.go && peer) lobby.go(); // v0.18b: a guest pressed Start
+    if (message.kind === "lobby-start" && !begun && lobby?.go && peer && !lobbyLocked()) lobby.go(); // v0.18b: a guest pressed Start; v0.25: not in the 10 s after a join (Ranked FFA)
     if (message.kind === "need-key" && begun) {
       towerNet.force = true; // v0.23: a follower misses tower fields
       netStats.needKey = (netStats.needKey || 0) + 1; // v0.23o
@@ -6826,10 +6969,12 @@ function receiveNetwork(message, r, peerId) {
     }
   } else if (message.kind === "lobby" && !begun && isFollower()) {
     // v0.19: the host tells every guest its seat
-    if (Number.isInteger(message.you) && message.you > 0 && message.you < LOBBY_MAX) lobbySeat = message.you;
-    if (message.room === "friend" || message.room === "quick" || message.room === "ranked") roomKind = message.room; // v0.19b1; v0.23b: ranked
+    if (Number.isInteger(message.you) && message.you > 0 && message.you < FFA_LOBBY_MAX) lobbySeat = message.you;
+    if (message.room === "friend" || isQuickKind(message.room)) roomKind = message.room; // v0.19b1; v0.23b: ranked; v0.25: rankedffa
     if (message.opts && typeof message.opts === "object") roomOpts = { waves: message.opts.waves !== false, rotation: message.opts.rotation !== false, mode: message.opts.mode === "teams" ? "teams" : "ffa", gold: message.opts.gold === "own" ? "own" : "shared" }; // v0.20
     if (ROOM_LIVES.includes(message.lives) || TEAM_LIVES.includes(message.lives)) roomLives = message.lives;
+    if (lobby) lobby.lockUntil = performance.now() + Math.max(0, Number(message.lock) || 0); // v0.25: Ranked FFA start lock
+    else lobby = { done: false, lockUntil: performance.now() + Math.max(0, Number(message.lock) || 0) };
     showLobby(message.players, Number(message.left) || lobbyWait(), message.timed !== false); // v0.18a, v0.18b: with Start button and wait time
   } else if (message.kind === "lobby-go" && !begun && isFollower()) {
     lobbyStarting(); // v0.18b
@@ -6837,7 +6982,7 @@ function receiveNetwork(message, r, peerId) {
     message.kind === "state" &&
     message.game?.version === SAVE_VERSION &&
     message.game.players?.length >= 2 &&
-    message.game.players.length <= LOBBY_MAX &&
+    message.game.players.length <= FFA_LOBBY_MAX &&
     lobbySeat < message.game.players.length &&
     isCompatibleGameGrid(message.game)
   ) {
@@ -6884,6 +7029,12 @@ function receiveNetwork(message, r, peerId) {
 const LOBBY_WAIT = 45000,
   FRIEND_WAIT = 240000, // v0.19b1: a room with friends waits up to 4 minutes before it starts on its own
   LOBBY_MAX = 6,
+  // v0.25: Ranked FFA: up to eight players; the lobby waits 60 s, every join adds 10 s (never more than 60 s left),
+  // and Start works only once 10 s have passed since the last join
+  FFA_LOBBY_MAX = 8,
+  FFA_WAIT = 60000,
+  FFA_JOIN_ADD = 10000,
+  FFA_START_LOCK = 10000,
   ROOM_LIVES = [10, 25, 40]; // v0.19b1: start lives the host of a friend room can choose
 let kickedNote = "", // v0.19c1: why the host closed our link
   roomKind = null, // v0.19b1: "quick" (Quick Match) or "friend" (Play a friend)
@@ -6924,7 +7075,11 @@ function wireRoomOptions() {
       }),
   );
 }
-const lobbyWait = () => (roomKind === "friend" ? FRIEND_WAIT : LOBBY_WAIT);
+const lobbyWait = () => (roomKind === "friend" ? FRIEND_WAIT : roomKind === "rankedffa" ? FFA_WAIT : LOBBY_WAIT);
+/** v0.25: seats of this room: Ranked 1v1 two, Ranked FFA eight, else six. */
+const lobbyMax = () => (roomKind === "ranked" ? 2 : roomKind === "rankedffa" ? FFA_LOBBY_MAX : LOBBY_MAX);
+/** v0.25: Ranked FFA: Start is locked for 10 s after a player joined. */
+const lobbyLocked = () => roomKind === "rankedffa" && !!lobby && (lobby.lockUntil || 0) > performance.now();
 /** v0.19b1: start lives picker for the host of a friend room (guests see the value). */
 function livesPicker(host) {
   if (roomKind !== "friend") return "";
@@ -6961,7 +7116,7 @@ function newLobby() {
     done: false,
     timed: false,
     go: lobbyGo,
-    entries: [{ peer: null, key: "host", name: playerNameChoice, pick: colorPick === "random" ? null : colorPick, faction: chosenFaction, icon: iconChoice, team: 0, rating: readRating().r }],
+    entries: [{ peer: null, key: "host", name: playerNameChoice, pick: colorPick === "random" ? null : colorPick, faction: chosenFaction, icon: iconChoice, team: 0, rating: readRating(rankModeOf(roomKind)).r }],
     players: [],
   };
 }
@@ -6982,12 +7137,22 @@ function lobbyStartTimer() {
   clearTimeout(lobbyTimer);
   lobbyTimer = setTimeout(lobbyGo, lobbyWait());
 }
+/** v0.25: Ranked FFA, host: a new player adds 10 s to the wait (at most 60 s left) and locks Start for 10 s. */
+function lobbyFfaJoined() {
+  if (roomKind !== "rankedffa" || !lobby || lobby.done) return;
+  const now = performance.now();
+  lobby.lockUntil = now + FFA_START_LOCK;
+  if (!lobby.timed) return;
+  lobby.until = Math.min(now + FFA_WAIT, lobby.until + FFA_JOIN_ADD);
+  clearTimeout(lobbyTimer);
+  lobbyTimer = setTimeout(lobbyGo, Math.max(0, lobby.until - now));
+}
 const lobbyHumans = () => (lobby?.entries || []).filter((e) => e.peer != null).length;
 let botSeq = 0;
 const botLevels = () => Object.keys(AI_NAMES).filter((id) => id !== "insane"); // veryEasy … hard (Hardo is Training only)
 /** v0.19c1, host: a bot takes a free seat of the friend room (difficulty Normal). */
 function lobbyAddBot() {
-  if (!lobby || lobby.done || lobby.entries.length >= LOBBY_MAX) return;
+  if (!lobby || lobby.done || lobby.entries.length >= lobbyMax()) return;
   const factions = catalog.factions.map((f) => f.id);
   lobby.entries.push({ peer: null, bot: true, level: "normal", key: "bot" + ++botSeq, name: "", pick: null, faction: factions[Math.floor(Math.random() * factions.length)], icon: null, team: smallerTeam() });
   lobbyColors();
@@ -7039,17 +7204,21 @@ function lobbyJoin(peerId, message) {
   if (!lobby) lobby = newLobby();
   const i = lobby.entries.findIndex((e) => e.peer === peerId);
   entry.team = i >= 0 ? lobby.entries[i].team : smallerTeam(); // v0.20
+  const joined = i < 0;
   if (i >= 0) lobby.entries[i] = entry;
-  else if (lobby.entries.length >= LOBBY_MAX) {
+  else if (lobby.entries.length >= lobbyMax()) {
     // v0.19c1: every seat taken (bots included)
     room.sendTo(peerId, { kind: "kicked", reason: "full" });
     setTimeout(() => room?.kick(peerId), 250);
     return;
   } else lobby.entries.push(entry);
+  const first = !lobby.timed;
   lobbyStartTimer();
+  if (joined && !first) lobbyFfaJoined(); // v0.25: Ranked FFA: +10 s, Start locked for 10 s
+  else if (joined && roomKind === "rankedffa") lobby.lockUntil = performance.now() + FFA_START_LOCK;
   lobbyColors();
   lobbyBroadcast();
-  if (lobby.entries.length >= Math.min(LOBBY_MAX, room.maxPlayers || LOBBY_MAX) && !lobby.entries.some((e) => e.bot)) {
+  if (lobby.entries.length >= Math.min(lobbyMax(), room.maxPlayers || lobbyMax()) && !lobby.entries.some((e) => e.bot)) {
     // full: start soon
     qmSlot?.close();
     qmSlot = null;
@@ -7100,7 +7269,7 @@ function lobbyColors() {
     picked: e.pick,
     icon: e.icon || null, // v0.19c1
     team: e.team | 0, // v0.20
-    ...(roomKind === "ranked" ? { rating: e.rating ?? RATING_START } : {}), // v0.23b
+    ...(roomKind === "ranked" || roomKind === "rankedffa" ? { rating: e.rating ?? RATING_START } : {}), // v0.23b; v0.25: the Ranked FFA rating
     ...(e.bot ? { bot: true, level: e.level } : {}),
   }));
 }
@@ -7108,7 +7277,7 @@ function lobbyBroadcast() {
   if (!lobby || !room) return;
   const left = Math.max(0, lobby.until - performance.now());
   lobby.entries.forEach((e, i) => {
-    if (e.peer != null) room.sendTo(e.peer, { kind: "lobby", players: lobby.players, left, you: i, room: roomKind, lives: roomLives, opts: roomOpts, timed: lobby.timed });
+    if (e.peer != null) room.sendTo(e.peer, { kind: "lobby", players: lobby.players, left, you: i, room: roomKind, lives: roomLives, opts: roomOpts, timed: lobby.timed, lock: Math.max(0, (lobby.lockUntil || 0) - performance.now()) });
   });
   showLobby(lobby.players, left, lobby.timed);
 }
@@ -7251,7 +7420,7 @@ function showLobby(players, left = lobbyWait(), timed = true) {
       .join("");
   }
   const code = friend && room?.code ? `<div class="lobby-code"><span>${t("Room code")}</span><b>${esc(room.code)}</b></div>` : "",
-    addBot = host && friend && players.length < LOBBY_MAX ? `<button class="secondary-button" id="lobby-add-bot" type="button">${t("+ Add bot")}</button>` : "",
+    addBot = host && friend && players.length < lobbyMax() ? `<button class="secondary-button" id="lobby-add-bot" type="button">${t("+ Add bot")}</button>` : "",
     cancel = ""; // v0.20a: the red × in the corner closes the room
   pvpModal(
     `${modalHeader(t(friend ? "Room" : "Match found"))}${code}<div class="qm-lobby${players.length > 3 ? " many" : ""}${lobbyTeams() ? " teams" : ""}">${cards}</div>${addBot}${roomOptions(host)}<p class="modal-note qm-wait" id="qm-wait"></p><button class="primary-button" id="lobby-start" type="button">${t("Start match")}</button>${cancel}`,
@@ -7271,6 +7440,7 @@ function showLobby(players, left = lobbyWait(), timed = true) {
         onlineMenu();
       };
   }
+  let lastTick = -1;
   const wait = () => {
     const el = $("qm-wait");
     if (!el) return clearInterval(lobbyTick);
@@ -7278,13 +7448,28 @@ function showLobby(players, left = lobbyWait(), timed = true) {
     el.textContent = lobby.done
       ? t("The match starts …")
       : lobby.timed === false
-        ? t("Waiting for players ({n}/{m})", { n: players.length, m: roomKind === "ranked" ? 2 : LOBBY_MAX })
-        : t("Waiting for players ({n}/{m}) · starts in {s} s", { n: players.length, m: roomKind === "ranked" ? 2 : LOBBY_MAX, s: sec });
+        ? t("Waiting for players ({n}/{m})", { n: players.length, m: lobbyMax() })
+        : t("Waiting for players ({n}/{m}) · starts in {s} s", { n: players.length, m: lobbyMax(), s: sec });
+    // v0.25: Ranked FFA: the last five seconds tick once a second and glow golden; Start waits 10 s after a join
+    const final = roomKind === "rankedffa" && !lobby.done && lobby.timed !== false && sec > 0 && sec <= 5;
+    el.classList.toggle("final-count", final);
+    if (final && sec !== lastTick) {
+      lastTick = sec;
+      sfx.play("tick");
+    }
+    const b = $("lobby-start");
+    if (b && !lobby.done && roomKind === "rankedffa") {
+      const lockSec = Math.ceil(Math.max(0, (lobby.lockUntil || 0) - performance.now()) / 1000),
+        label = lockSec ? `${t("Start match")} (${lockSec})` : t("Start match");
+      b.disabled = lockSec > 0;
+      if (b.textContent !== label) b.textContent = label;
+    }
   };
   clearInterval(lobbyTick);
   lobbyTick = setInterval(wait, 250);
   wait();
   $("lobby-start").onclick = () => {
+    if (lobbyLocked()) return; // v0.25
     tone("select");
     if (simRole === "host") lobby?.go?.();
     else room?.send({ kind: "lobby-start" });
@@ -7319,7 +7504,7 @@ function startHostedMatch(entries, players) {
     game.players[i].name = players[i].name || `Player ${i + 1}`;
     game.players[i].color = players[i].color;
     game.players[i].icon = e.icon || "player"; // v0.19c1
-    if (roomKind === "ranked") game.players[i].rating = e.rating ?? RATING_START; // v0.23b
+    if (roomKind === "ranked" || roomKind === "rankedffa") game.players[i].rating = e.rating ?? RATING_START; // v0.23b; v0.25: Ranked FFA
     if (e.bot) {
       // v0.19c1: a bot the host added in the friend room
       game.players[i].ai = true;
@@ -7336,6 +7521,10 @@ function startHostedMatch(entries, players) {
     }
   });
   if (roomKind === "ranked" && entries.length === 2) game.ranked = true; // v0.23b: rated 1v1
+  if (roomKind === "rankedffa" && entries.length >= 2) {
+    game.ranked = true; // v0.25: rated free-for-all (own rating)
+    game.rankedFfa = true;
+  }
   warnedWave = 0;
   own = 0;
   view = 0;
@@ -7847,6 +8036,7 @@ function tick(dt) {
         tone(e.boss ? "breach" : "tier");
         haptic(e.boss ? [40, 60, 40] : 30);
       }
+      if (e.type === "maze" && e.player === view) arena?.refresh(); // v0.24r: the shown lane grew
       if (e.type === "tier" && e.player === own) {
         sendTier = game.players[own].tier;
         renderCards();
@@ -7880,12 +8070,18 @@ function tick(dt) {
               ? t("Tip: build towers in rows so the path gets longer.")
               : t("Tip: tap towers and upgrade them instead of only building new ones.");
     tone(won ? "victory" : "defeat");
-    // v0.23b: a ranked 1v1 changes the rating kept on this device
-    const foe = game.players.find((q) => q.id !== own),
-      rated = game.ranked && !qmCrossed && game.players.length === 2 && !game.ratedHere ? settleRanked(game, own, won) : null; // v0.24b: settles the stake
+    // v0.23b: a ranked 1v1 changes the rating kept on this device; v0.25: a Ranked FFA its own rating, by your place
+    const rated =
+      game.ranked && !qmCrossed && !game.ratedHere
+        ? game.rankedFfa
+          ? settleRankedFfa(game, own, won ? 1 : me.place || game.players.length)
+          : game.players.length === 2
+            ? settleRanked(game, own, won) // v0.24b: settles the stake
+            : null
+        : null;
     if (rated) game.ratedHere = true;
     const rankLine = rated
-      ? `<p class="modal-copy rank-result" style="text-align:center">${medalHtml(rated.after, iconColor(), "mini-medal", true)}<b>${rated.delta >= 0 ? "+" : ""}${rated.delta}</b> → ${rated.after} · ${t(rated.league)}${rated.up ? ` · ${t("Promoted!")}` : rated.down ? ` · ${t("Relegated")}` : ""}</p>`
+      ? rankLineHtml(rated, game.rankedFfa ? "ffa" : "1v1")
       : game.ranked && qmCrossed
         ? `<p class="modal-copy rank-result" style="text-align:center">${t("Unrated for you · joined from Quick Match")}</p>`
         : "";
@@ -7894,10 +8090,10 @@ function tick(dt) {
       hardoFact = sessionMode === "training" && hardoGame() ? t(HARDO_FACTS[Math.floor(Math.random() * HARDO_FACTS.length)]).replace(/^Did you know:\s*/, "") : "",
       hero = hardoFact
         ? `<div class="hardo-fact"><small>${t("Did you know?")}</small><p>${esc(hardoFact.charAt(0).toUpperCase() + hardoFact.slice(1))}</p></div>`
-        : sessionMode === "online"
-          ? "" // v0.24k: multiplayer results without the creep picture and the "Your line …" quote
+        : sessionMode === "online" || game.rankedBot
+          ? "" // v0.24k: multiplayer results without the creep picture and the "Your line …" quote (v0.24p: ranked bot matches too)
           : `<img class="modal-hero result-hero" src="${artUrl(won ? "tower-archer" : "creep-golem")}" alt=""><h2 class="welcome-title">${won ? t("Your line.<br><span>Your victory.</span>") : t("Well fought.<br><span>Another round?</span>")}</h2>`;
-    if (sessionMode !== "online") presenceState("idle");
+    if (sessionMode !== "online") presenceState("menu");
     showModal(
       `${resultClock()}<div class="result-banner ${won ? "win" : "lose"}">${t(won ? "Victory" : "Defeat")}</div>${hero}${rankLine}${summary.html}${sessionMode === "training" ? `<p class="modal-copy" style="text-align:center">${t("AI")} ${t(AI_NAMES[game.aiLevel] || "Normal")}</p>` : ""}${tip ? `<p class="modal-note result-tip">${tip}</p>` : ""}<div class="result-pair"><button class="secondary-button" id="play-again">${t("Play again")}</button>${sessionMode === "training" && !game.rankedBot && game.aiLevel !== (hardoUnlocked ? "insane" : "hard") && won ? `<button class="secondary-button" id="play-harder">${t("Harder AI")}</button>` : ""}</div><button class="primary-button" id="to-menu">${t("Main menu")}</button>`,
       { pauseGame: false },
@@ -8415,3 +8611,220 @@ window.addEventListener("pagehide", () => {
   if (game && begun && !room) saveLocal(); // v0.23
 });
 init();
+
+// ---- v0.24p/q: Desktop Wide: player windows in a column on the left, mini maps beside them -------------
+/** Canvas per player for the Desktop Wide mini maps (next to that player's window). */
+const wideMiniCanvases = new Map();
+/** The window that shows a player: the Desktop Wide card, else the own plate, an enemy cell or the rival plate. */
+function playerWindow(id) {
+  const card = document.querySelector(`#wide-players [data-seat="${id}"]`);
+  if (card && card.offsetParent) return card;
+  if (id === own) return document.querySelector(".player-plate.own");
+  const cell = document.querySelector(`#enemy-stack .enemy-cell[data-seat="${id}"], #ally-stack .enemy-cell[data-seat="${id}"]`);
+  if (cell && cell.offsetParent) return cell;
+  const rival = document.querySelector(".player-plate.rival:not(.multi)");
+  return rival && rivalIndex() === id ? rival : null;
+}
+/** One lane drawn small on a canvas: grass, path, towers and creeps (like arena.js drawLaneMap). */
+function drawWideMini(canvas, lane, team, w, h) {
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+  }
+  canvas.style.width = w + "px";
+  canvas.style.height = h + "px";
+  const g = canvas.getContext("2d"),
+    { cols } = game.grid,
+    rows = laneRows(game, lane),
+    pad = 3,
+    r = { x: pad, y: pad, w: w - pad * 2, h: h - pad * 2 },
+    sx = r.w / cols,
+    sy = r.h / rows,
+    P = (nx, ny) => [r.x + nx * r.w, r.y + ny * game.grid.rows * sy], // creep y is a share of the full grid
+    color = TEAM_COLORS[seatColors()[lane.id]]?.css || "#888";
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, w, h);
+  g.fillStyle = "#0a1a22eb";
+  g.beginPath();
+  g.roundRect(0, 0, w, h, 6);
+  g.fill();
+  g.fillStyle = "#3f7a3a";
+  g.fillRect(r.x, r.y, r.w, r.h);
+  g.fillStyle = "#8a4dffe6";
+  g.fillRect(r.x, r.y, r.w, Math.max(2, sy * 0.25));
+  const path = lane.path || [];
+  if (path.length > 1) {
+    g.strokeStyle = "#b08a5a";
+    g.lineWidth = Math.max(1.5, sx * 0.5);
+    g.lineJoin = "round";
+    g.beginPath();
+    path.forEach((p, i) => {
+      const [x, y] = P(p.x, p.y);
+      i ? g.lineTo(x, y) : g.moveTo(x, y);
+    });
+    g.stroke();
+  }
+  const cell = Math.min(sx, sy);
+  for (const tw of lane.towers) {
+    const [x, y] = P(tw.x, tw.y);
+    g.fillStyle = "#163a4a";
+    g.beginPath();
+    g.arc(x, y, cell * 0.42, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = color;
+    g.beginPath();
+    g.arc(x, y, cell * 0.22, 0, Math.PI * 2);
+    g.fill();
+  }
+  for (const c of lane.creeps) {
+    if (c.hp <= 0) continue;
+    const [x, y] = P(c.x, c.y);
+    g.fillStyle = c.owner < 0 ? "#b48cff" : c.owner === own ? "#ffe36e" : "#ff8a7a";
+    g.beginPath();
+    g.arc(x, y, catalog?.byId[c.typeId]?.bossTier || c.waveBoss ? 3 : 1.8, 0, Math.PI * 2);
+    g.fill();
+  }
+  g.strokeStyle = team ? color : "#d9b45a";
+  g.lineWidth = 2;
+  g.beginPath();
+  g.roundRect(1, 1, w - 2, h - 2, 6);
+  g.stroke();
+}
+/** v0.24p: Desktop Wide: the mini map sits next to its player's window; "All" shows every other player's this way. */
+function updateWideMinis() {
+  const host = $("wide-minis"),
+    root = document.documentElement,
+    ids =
+      !root.classList.contains("layout-wide") || !game || !begun || minimapMode === "off"
+        ? []
+        : minimapMode === "all"
+          ? game.players.filter((q) => q.id !== view && !q.out).map((q) => q.id)
+          : [view === own ? rivalIndex() : own];
+  root.classList.toggle("wide-minis-on", ids.length > 0);
+  if (!host) return;
+  const box = host.parentNode,
+    boxRect = box.getBoundingClientRect(),
+    shown = new Set();
+  for (const id of ids) {
+    const lane = game.players[id],
+      win = lane && playerWindow(id);
+    if (!win) continue;
+    let canvas = wideMiniCanvases.get(id);
+    if (!canvas) {
+      canvas = document.createElement("canvas");
+      canvas.className = "wide-mini";
+      canvas.addEventListener("click", () => playerWindow(id)?.click());
+      wideMiniCanvases.set(id, canvas);
+    }
+    if (canvas.parentNode !== host) host.appendChild(canvas);
+    shown.add(id);
+    const rect = win.getBoundingClientRect(),
+      maxW = 52,
+      rows = laneRows(game, lane),
+      h = Math.min(Math.round((maxW * rows) / game.grid.cols), Math.max(30, Math.round(rect.height - 4))),
+      w = Math.round((h * game.grid.cols) / rows);
+    canvas.style.left = Math.round(rect.right - boxRect.left + 6 + (maxW - w) / 2) + "px";
+    canvas.style.top = Math.round(rect.top - boxRect.top + box.scrollTop + (rect.height - h) / 2) + "px";
+    drawWideMini(canvas, lane, minimapMode === "all", w, h);
+  }
+  for (const [id, canvas] of wideMiniCanvases)
+    if (!shown.has(id)) {
+      canvas.remove();
+      wideMiniCanvases.delete(id);
+    }
+}
+let widePlayersKey = "";
+/** v0.24q: Desktop Wide: every player's window laid out like your own (portrait left, gold, lives, level, tier, maze, elements, EXP). */
+function updateWidePlayers() {
+  const host = $("wide-players"),
+    root = document.documentElement,
+    on = !!host && root.classList.contains("layout-wide") && !!game && begun && !game.teams;
+  root.classList.toggle("wide-cards", on);
+  if (!host) return;
+  host.hidden = !on;
+  if (!on) return;
+  const colors = seatColors(),
+    n = game.players.length,
+    order = [];
+  for (let i = 0; i < n; i++) order.push(game.players[(own + i) % n]); // you first, then the seats after you
+  const key = order.map((q) => q.id + ":" + colors[q.id]).join(",");
+  if (key !== widePlayersKey) {
+    widePlayersKey = key;
+    host.innerHTML = order
+      .map(
+        (q) =>
+          `<button class="wide-player${q.id === own ? " mine" : ""}" type="button" data-seat="${q.id}" style="--pc:${TEAM_COLORS[colors[q.id]]?.css || "#888"}"><span class="wp-face"><img class="portrait" src="assets/art/portrait-enemy.webp" alt=""><i class="plate-skull" aria-hidden="true"></i></span><span class="wp-main"><span class="wp-name"></span><span class="wp-row wp-money"><img src="${iconUrl("coin")}" alt="Gold"><b class="wp-gold"></b><em class="wp-inc"></em></span><span class="wp-row wp-state"><img src="assets/art/icon-heart.webp" alt="Lives"><b class="wp-lives"></b><span class="wp-lv">Lv <b class="wp-level"></b></span><span class="wp-tier">T<b class="wp-t"></b></span></span><span class="wp-row wp-maze"><span class="wp-worth-label">${esc(t("Maze"))}</span><b class="wp-worth"></b><span class="wp-els"></span></span><i class="wp-exp"><s></s></i></span></button>`,
+      )
+      .join("");
+  }
+  const target = game.players[own].out ? -1 : targetOf(game, own).id,
+    put = (el, text) => {
+      if (el && el.textContent !== text) el.textContent = text;
+    };
+  for (const card of host.querySelectorAll("[data-seat]")) {
+    const q = game.players[Number(card.dataset.seat)];
+    if (!q) continue;
+    if (q.id === own) {
+      const img = card.querySelector(".portrait"),
+        src = document.querySelector(".player-plate.own .portrait")?.getAttribute("src");
+      if (src && img.getAttribute("src") !== src) img.setAttribute("src", src);
+    } else setPortrait(card.querySelector(".portrait"), q);
+    card.classList.toggle("out", !!q.out);
+    card.classList.toggle("target", q.id === target && !q.out && q.id !== own);
+    card.classList.toggle("viewing", q.id === view);
+    put(card.querySelector(".wp-name"), q.id === own ? t("You") : bannerName(q.id));
+    setGoldFit(card.querySelector(".wp-gold"), q.out ? "–" : goldShown(q.gold)); // v0.25: full number while it fits
+    put(card.querySelector(".wp-inc"), q.out ? "" : "+" + resourceNumber(Math.floor(q.income)));
+    put(card.querySelector(".wp-lives"), String(q.lives));
+    put(card.querySelector(".wp-level"), String(q.level || 1));
+    put(card.querySelector(".wp-t"), String(q.tier || 1));
+    setGoldFit(card.querySelector(".wp-worth"), Math.floor(towerWorth(q)));
+    const els = catalog.factions.filter((f) => q.research?.[f.unlock]),
+      elKey = els.map((f) => f.id).join(","),
+      elBox = card.querySelector(".wp-els");
+    if (elBox.dataset.key !== elKey) {
+      elBox.dataset.key = elKey;
+      elBox.innerHTML = els.map((f) => `<img class="el-${f.id}" src="${iconUrl(ELEMENT_ICON[f.id])}" alt="${esc(t(f.name))}" title="${esc(t(f.name))}">`).join("");
+    }
+    const width = `${Math.min(100, (100 * (q.exp || 0)) / Math.max(1, q.expNext || 1)).toFixed(1)}%`,
+      bar = card.querySelector(".wp-exp s");
+    if (bar.style.width !== width) bar.style.width = width;
+  }
+}
+document.addEventListener("click", (e) => {
+  const card = e.target.closest?.("#wide-players [data-seat]");
+  if (!card || !game) return;
+  const id = Number(card.dataset.seat);
+  if (!game.players[id]?.out || id === own) showMaze(id);
+});
+setInterval(() => {
+  try {
+    updateWidePlayers();
+  } catch {}
+  try {
+    updateWideMinis();
+  } catch {}
+}, 150);
+// v0.24s: with a mouse, the one-row tower blueprints (#cards.grid-build) scroll sideways by dragging
+(() => {
+  let drag = null;
+  document.addEventListener("pointerdown", (e) => {
+    const deck = e.target.closest?.("#cards.grid-build");
+    if (!deck || e.pointerType !== "mouse" || (e.button ?? 0) > 0 || deck.scrollWidth <= deck.clientWidth + 1) return;
+    drag = { deck, x0: e.clientX, left: deck.scrollLeft, moved: false };
+  });
+  document.addEventListener("pointermove", (e) => {
+    if (!drag) return;
+    const dx = e.clientX - drag.x0;
+    if (!drag.moved && Math.abs(dx) < 8) return;
+    drag.moved = true;
+    drag.deck.scrollLeft = drag.left - dx;
+  });
+  const end = () => {
+    if (drag?.moved) suppressClickUntil = performance.now() + 300; // the drag is not a tap on a blueprint
+    drag = null;
+  };
+  document.addEventListener("pointerup", end);
+  document.addEventListener("pointercancel", end);
+})();

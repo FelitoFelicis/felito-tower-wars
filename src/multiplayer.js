@@ -10,6 +10,8 @@
 // client gets a clean "versions don't match" at the handshake instead of undecodable data.
 export const PROTOCOL_VERSION = 7; // v0.20: team games and room options (older versions cannot join)
 export const MAX_GUESTS = 5;
+/** v0.25: Ranked FFA rooms take up to seven guests (eight players). */
+export const MAX_ROOM_GUESTS = 7;
 export const MAX_PAYLOAD_BYTES = 512 * 1024;
 export const ROOM_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const PROTOCOL = "felito-tw";
@@ -395,6 +397,7 @@ async function openRelayLinks(inbox, onText) {
  * v0.14: presence. Every open game says anonymously over the relay brokers what it is doing
  * ("queue" = searching a Quick Match, "pve" = playing vs AI); a heartbeat every 10 s keeps the
  * entry alive for 25 s. `watch(cb)` reports { queue, pve } counts, own entry included.
+ * v0.25: "menu" = the game is open (main menu, results …), so "Players online" counts every open game.
  */
 const PRESENCE_TOPIC = `felito/v${PROTOCOL_VERSION}/presence`;
 export function createPresence() {
@@ -408,7 +411,7 @@ export function createPresence() {
     tick = null;
   const counts = () => {
     const now = Date.now(),
-      c = { queue: 0, pve: 0, pvp: 0 }; // v0.18a: online matches count too ("Players online")
+      c = { queue: 0, pve: 0, pvp: 0, menu: 0 }; // v0.18a: online matches count too ("Players online"); v0.25: open games
     for (const [k, v] of seen) {
       if (now - v.at > 25000) seen.delete(k);
       else if (v.s in c) c[v.s]++;
@@ -432,7 +435,7 @@ export function createPresence() {
     } catch {
       return;
     }
-    if (s === "queue" || s === "pve" || s === "pvp") seen.set(who, { s, at: Date.now() });
+    if (s === "queue" || s === "pve" || s === "pvp" || s === "menu") seen.set(who, { s, at: Date.now() });
     else seen.delete(who);
     notify();
   };
@@ -1303,7 +1306,7 @@ class Session {
     this.heartbeatInterval = dependencies.heartbeatIntervalMs || 5000;
     this.idleTimeout = dependencies.idleTimeoutMs || 30000;
     // v0.19: a host takes up to maxGuests guests (default 5 = six players)
-    this.maxGuests = Math.max(1, Math.min(MAX_GUESTS, Math.round(Number(dependencies.maxGuests)) || MAX_GUESTS));
+    this.maxGuests = Math.max(1, Math.min(MAX_ROOM_GUESTS, Math.round(Number(dependencies.maxGuests)) || MAX_GUESTS)); // v0.25: up to 7 (Ranked FFA)
     this.timers = new Set();
     this.peerListeners = [];
     this.links = new Map();
@@ -1675,7 +1678,7 @@ async function startRoom(role, code, callbacks, dependencies) {
  * Resolves after signaling registration. Wait for onConnect before sending.
  * v0.19 callbacks: onConnect(room, peerId) for every guest that joins (host) or once (guest),
  * onData(payload, room, peerId), onPeerLeave({ id, reason, message }) when a guest drops (host),
- * onDisconnect(info) when the whole room ends. dependencies.maxGuests limits the room (1–5).
+ * onDisconnect(info) when the whole room ends. dependencies.maxGuests limits the room (1–7, default 5).
  */
 export async function createRoom(callbacks = {}, dependencies = {}, presetCode) {
   const code = presetCode ? normalizeRoomCode(presetCode) : randomCode(dependencies);
@@ -1697,15 +1700,18 @@ export async function joinRoom(code, callbacks = {}, dependencies = {}) {
  * starts or is full).
  */
 export const QUICK_SLOTS = 6;
-const lobbyId = (slot, ranked = false) => `felito-${ranked ? "rk" : "qm"}-p${PROTOCOL_VERSION}-${slot}`; // v0.23b: Ranked has its own slots
+// v0.23b: Ranked has its own slots; v0.25: so has Ranked FFA ("rf"). `queue`: "quick", "ranked" (1v1) or "rankedffa".
+const QUEUE_PREFIX = { quick: "qm", ranked: "rk", rankedffa: "rf" };
+const lobbyId = (slot, queue = "quick") => `felito-${QUEUE_PREFIX[queue] || "qm"}-p${PROTOCOL_VERSION}-${slot}`;
 /** v0.23b: `ranked`: Ranked Match – same matchmaking as Quick Match, own queue, always 1v1 (one guest per slot).
  * v0.24c: a Quick Match searcher who has waited CROSS_QUEUE_MS without a partner also asks the Ranked slots and joins
  * a waiting ranked player (result `queue: "ranked"`). Only Quick searchers cross, so two waiters never ask each other. */
 export const CROSS_QUEUE_MS = 5000;
-export async function findQuickMatch({ signal, onStatus, ranked = false } = {}, dependencies = {}) {
-  const maxGuests = ranked ? 1 : MAX_GUESTS,
+/** v0.25: `queue: "rankedffa"`: Ranked FFA – up to eight players, own slots, rooms stay open while their lobby waits. */
+export async function findQuickMatch({ signal, onStatus, ranked = false, queue = ranked ? "ranked" : "quick" } = {}, dependencies = {}) {
+  const maxGuests = queue === "ranked" ? 1 : queue === "rankedffa" ? MAX_ROOM_GUESTS : MAX_GUESTS,
     startedAt = Date.now(),
-    cross = !ranked && dependencies.crossQueue !== false;
+    cross = queue === "quick" && dependencies.crossQueue !== false;
   const PeerClass = await peerClass(dependencies, signal);
   const options = await peerOptions(dependencies);
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -1804,12 +1810,12 @@ export async function findQuickMatch({ signal, onStatus, ranked = false } = {}, 
       const probe = async () => {
         while (free()) {
           for (let s = 0; s < QUICK_SLOTS && free(); s++) {
-            const { peer: p, result } = await openPeer(lobbyId(s, true));
+            const { peer: p, result } = await openPeer(lobbyId(s, "ranked"));
             try {
               p.destroy();
             } catch {}
             if (result !== "unavailable-id" || !free()) continue;
-            const code = await askSlot(s, true, () => free() && (crossed = true));
+            const code = await askSlot(s, "ranked", () => free() && (crossed = true));
             if (code) {
               settle({ role: "guest", code, queue: "ranked" });
               return slot.close();
@@ -1843,7 +1849,7 @@ export async function findQuickMatch({ signal, onStatus, ranked = false } = {}, 
           offers.delete(secret);
           acks++;
           if (!settled) {
-            life = setTimeout(() => slot.close(), 60000);
+            life = setTimeout(() => slot.close(), queue === "rankedffa" ? 130000 : 60000); // v0.25: the FFA lobby waits up to 60 s after the last join
             setTimeout(() => settle({ role: "host", code, slot }), 250);
           }
           if (acks >= maxGuests) setTimeout(() => slot.close(), 600);
@@ -1872,7 +1878,7 @@ export async function findQuickMatch({ signal, onStatus, ranked = false } = {}, 
       });
     });
   // Asks a waiting slot for a match; resolves the room code or null.
-  const askSlot = (slot, queueRanked = ranked, mayTake = () => true) =>
+  const askSlot = (slot, askQueue = queue, mayTake = () => true) =>
     new Promise((resolve) => {
       openPeer().then(async ({ peer, result }) => {
         let done = false,
@@ -1915,7 +1921,7 @@ export async function findQuickMatch({ signal, onStatus, ranked = false } = {}, 
         talk = await lobbyTalk(secret, "g", onOffer);
         if (done) return;
         peer.on("error", () => finish(null));
-        conn = peer.connect(lobbyId(slot, queueRanked), { reliable: true, metadata: { qm: secret } });
+        conn = peer.connect(lobbyId(slot, askQueue), { reliable: true, metadata: { qm: secret } });
         conn.on("data", onOffer);
       });
     });
@@ -1924,7 +1930,7 @@ export async function findQuickMatch({ signal, onStatus, ranked = false } = {}, 
     tell(round ? "Still searching for an opponent …" : "Searching for an opponent …");
     for (let slot = 0; slot < QUICK_SLOTS; slot++) {
       check();
-      const { peer, result } = await openPeer(lobbyId(slot, ranked));
+      const { peer, result } = await openPeer(lobbyId(slot, queue));
       check();
       if (result === "open") {
         tell("Waiting for an opponent …");

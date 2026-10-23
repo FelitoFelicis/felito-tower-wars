@@ -253,7 +253,7 @@ export const ART_MANIFEST = Object.freeze({
  * v0.23: version key on every art URL (figures, animations, icons): raise it whenever pictures in
  * assets/art, assets/anim, assets/art-toy or assets/art-pets change, so browsers fetch the new ones (see the README).
  */
-export const ART_VERSION = "v024g"; // v0.24a: death rows inside the walk sheets, perk and tower level art in packs, smoother edges on older sheets; v0.24: release of the v0.23 creep overhaul; v0.23zr: Banshee and Arcane Wolf cut out cleanly (no white edges or gaps); v0.23zq: Bone Dragon, Arcane Wolf, Giant Bat; v0.23zp: Naga Siren; v0.23zo: Raven; v0.23zn: Demon Lord; v0.23zm: leftover white removed from Necromancer, Meat Golem, Infernal Golem; v0.23zl: Banshee; v0.23zk: Dark Monk (was Faceless); v0.23zj: Demon Knight, Witch Hunter on the Spellbreaker, Dryad; v0.23zi: Witch Hunter, Druid; v0.23zh: Zombie Ogre; v0.23zg: left-over white background removed from creep sheets (holes between arms/legs, light edge halos)
+export const ART_VERSION = "v024s"; // v0.24s: Wolf, Skeleton, Satyr, Rouge Captain, Wolfrider, Rock Golem cut out cleaner, smaller Spawn Spider spawns; v0.24a: death rows inside the walk sheets, perk and tower level art in packs, smoother edges on older sheets; v0.24: release of the v0.23 creep overhaul; v0.23zr: Banshee and Arcane Wolf cut out cleanly (no white edges or gaps); v0.23zq: Bone Dragon, Arcane Wolf, Giant Bat; v0.23zp: Naga Siren; v0.23zo: Raven; v0.23zn: Demon Lord; v0.23zm: leftover white removed from Necromancer, Meat Golem, Infernal Golem; v0.23zl: Banshee; v0.23zk: Dark Monk (was Faceless); v0.23zj: Demon Knight, Witch Hunter on the Spellbreaker, Dryad; v0.23zi: Witch Hunter, Druid; v0.23zh: Zombie Ogre; v0.23zg: left-over white background removed from creep sheets (holes between arms/legs, light edge halos)
 // ---- art sets of the Circle Tower Wars designs ------------------------------------------------------
 // Sonnenwiese and Bonbon draw every figure as a round toy ("toy"), Pfotenwelt as a cute animal ("pets").
 // A set holds one picture per figure; level variants (-v1..-v3, -l1, -l2) share their base figure there.
@@ -471,7 +471,7 @@ export const ANIM_MANIFEST = Object.freeze({
   "creep-n-zombie": { kind: "walk", dirs: 8, frames: 8, cols: 8, fw: 104, fh: 112, footX: 52, footY: 102, figH: 93, ms: 95, figS: 93 }, // v0.23za: zombie goblin, 8 frames per direction
   "creep-n-zombie-death": { kind: "death", in: "creep-n-zombie", first: 64, frames: 7, cols: 8, fw: 104, fh: 112, footX: 52, footY: 102, ms: 110 }, // v0.24a: death row inside the walk sheet
   "creep-n-wolf": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 254, fh: 166, footX: 127, footY: 160, figH: 138, figS: 138, ms: 95, scale: 0.92 }, // v0.24j: 14 % bulkier than its tier
-  "creep-n-skeleton": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 190, fh: 151, footX: 95, footY: 145, figH: 133, figS: 133, ms: 95, scale: 0.92 }, // v0.23j: smaller; v0.24j: 0.82 → 0.92 (was smaller than cheaper creeps)
+  "creep-n-skeleton": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 190, fh: 151, footX: 95, footY: 145, figH: 133, figS: 133, ms: 95, scale: 0.8 }, // v0.23j: smaller; v0.24j: 0.82 → 0.92 (was smaller than cheaper creeps); v0.24p: 0.80
 });
 /** v0.23a (creep graphic overhaul): painted head portraits for the send buttons, by the creep's art key (original design). */
 export const CREEP_PORTRAIT = Object.freeze({
@@ -613,7 +613,7 @@ const CREEP_PATTERNS = [
   [/necromancer/i, "creep-n-necromancer"],
   [/undoctor|witch doctor/i, "creep-n-undoctor"], // v0.23zb
   [/zealot|akolyte|acolyte/i, "creep-n-zealot"], // v0.23z: the tier 4 Akolyte is the Goblin Zealot
-  [/raider/i, "creep-n-raider"],
+  [/raider|wolfrider/i, "creep-n-raider"],
   [/alchemist/i, "creep-n-bomber"],
   [/boar|scout/i, "creep-n-armored-boar"],
   [/centaur warrior/i, "creep-n-satyr"], // v0.23zb: the Centaur Warrior is the Satyr
@@ -674,7 +674,7 @@ const SET_CREEP_PATTERNS = [
   [/satyr/i, "creep-satyr", "creep-orc"],
   [/necromancer|zealot|akolyte|skeleton mage/i, "creep-necromancer", "creep-shaman"],
   [/fel raider/i, "creep-fel-raider", "creep-boar"],
-  [/raider/i, "creep-raider", "creep-boar"],
+  [/raider|wolfrider/i, "creep-raider", "creep-boar"],
   [/alchemist/i, "creep-alchemist", "creep-shaman"],
   [/centaur/i, "creep-centaur", "creep-boar"],
   [/troll/i, "creep-troll", "creep-orc"],

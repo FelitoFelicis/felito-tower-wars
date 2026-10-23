@@ -200,11 +200,16 @@ export function createSfx() {
       hiss({ dur: 1.6, gain: 0.025, freq: 160, q: 0.6, delay: 1.9, sweep: 0.7 });
     },
     error: () => tone({ type: "square", from: 180, to: 140, dur: 0.12, gain: 0.03 }),
+    // v0.25: a clock tick (Ranked FFA lobby: the last five seconds)
+    tick: () => {
+      hiss({ dur: 0.035, gain: 0.07, freq: 3200, q: 2.2 });
+      tone({ type: "triangle", from: 1500, to: 1150, dur: 0.05, gain: 0.035 });
+    },
     tier: () => [523, 659, 784, 1046].forEach((f, i) => tone({ type: "triangle", from: f, dur: 0.16, gain: 0.04, delay: i * 0.08 })),
     victory: () => [523, 659, 784, 1046, 1318].forEach((f, i) => tone({ type: "triangle", from: f, dur: 0.3, gain: 0.05, delay: i * 0.11 })),
     defeat: () => [392, 330, 262, 196].forEach((f, i) => tone({ type: "sine", from: f, dur: 0.35, gain: 0.05, delay: i * 0.16 })),
   };
-  const minGap = { hardo: 3, growl: 0.8, unlock: 0.2, thunder: 0.22, pillar: 1, frostbolt: 0.5, infest: 0.5, infestBurst: 0.15, monsun: 1, golem: 0.5, volley: 0.5, kill: 0.07, tap: 0.03, built: 0.08, income: 0.3, leak: 0.12, bell: 1 };
+  const minGap = { hardo: 3, growl: 0.8, unlock: 0.2, thunder: 0.22, pillar: 1, frostbolt: 0.5, infest: 0.5, infestBurst: 0.15, monsun: 1, golem: 0.5, volley: 0.5, kill: 0.07, tap: 0.03, built: 0.08, income: 0.3, leak: 0.12, bell: 1, tick: 0.5 };
   return {
     play(name) {
       if (!enabled || !sounds[name]) return;

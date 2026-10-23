@@ -2032,7 +2032,8 @@ dialog.welcome-modal::backdrop {
   color: #fff;
   text-shadow: 0 2px 0 #000;
 }
-.game-shell[data-page="send"] .unit-card {
+.game-shell[data-page="send"] .unit-card,
+:root.layout-wide .game-shell #cards-send .unit-card {
   display: block;
   position: relative;
   width: 100%;
@@ -2045,7 +2046,8 @@ dialog.welcome-modal::backdrop {
   user-select: none;
   -webkit-touch-callout: none;
 }
-.game-shell[data-page="send"] .unit-card .unit-name {
+.game-shell[data-page="send"] .unit-card .unit-name,
+:root.layout-wide .game-shell #cards-send .unit-card .unit-name {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -2053,19 +2055,22 @@ dialog.welcome-modal::backdrop {
   clip-path: inset(50%);
   padding: 0;
 }
-.game-shell[data-page="send"] .unit-card .card-art {
+.game-shell[data-page="send"] .unit-card .card-art,
+:root.layout-wide .game-shell #cards-send .unit-card .card-art {
   position: absolute;
   inset: 3px 3px 15px;
   margin: 0;
   border-radius: 6px;
 }
-.game-shell[data-page="send"] .unit-card .card-art img {
+.game-shell[data-page="send"] .unit-card .card-art img,
+:root.layout-wide .game-shell #cards-send .unit-card .card-art img {
   inset: 6%;
   width: 88%;
   height: 88%;
   object-position: 50% 50%;
 }
-.game-shell[data-page="send"] .unit-card .card-foot {
+.game-shell[data-page="send"] .unit-card .card-foot,
+:root.layout-wide .game-shell #cards-send .unit-card .card-foot {
   position: absolute;
   left: 0;
   right: 0;
@@ -2074,15 +2079,18 @@ dialog.welcome-modal::backdrop {
   padding: 0;
   justify-content: center;
 }
-.game-shell[data-page="send"] .unit-card .price {
+.game-shell[data-page="send"] .unit-card .price,
+:root.layout-wide .game-shell #cards-send .unit-card .price {
   font-size: 11px;
   gap: 1px;
 }
-.game-shell[data-page="send"] .unit-card .price::before {
+.game-shell[data-page="send"] .unit-card .price::before,
+:root.layout-wide .game-shell #cards-send .unit-card .price::before {
   width: 10px;
   height: 10px;
 }
-.game-shell[data-page="send"] .unit-card .card-note {
+.game-shell[data-page="send"] .unit-card .card-note,
+:root.layout-wide .game-shell #cards-send .unit-card .card-note {
   position: absolute;
   right: 3px;
   bottom: 16px;
@@ -2092,15 +2100,18 @@ dialog.welcome-modal::backdrop {
   font-size: 10px;
   line-height: 13px;
 }
-.game-shell[data-page="send"] .unit-card .card-note::before {
+.game-shell[data-page="send"] .unit-card .card-note::before,
+:root.layout-wide .game-shell #cards-send .unit-card .card-note::before {
   display: none;
 }
-.game-shell[data-page="send"] .unit-card .card-status {
+.game-shell[data-page="send"] .unit-card .card-status,
+:root.layout-wide .game-shell #cards-send .unit-card .card-status {
   inset: 3px 3px 15px;
   font-size: 13px;
   border-radius: 6px;
 }
-.game-shell[data-page="send"] .unit-card.holding {
+.game-shell[data-page="send"] .unit-card.holding,
+:root.layout-wide .game-shell #cards-send .unit-card.holding {
   box-shadow: inset 0 0 0 2px #ffe27a, 0 0 10px #ffcf4a90;
 }
 .game-shell[data-page="send"] #deck-expand,
@@ -2271,7 +2282,8 @@ dialog.welcome-modal::backdrop {
   grid-auto-rows: unset;
   align-items: center;
 }
-.game-shell[data-page="send"] .unit-card {
+.game-shell[data-page="send"] .unit-card,
+:root.layout-wide .game-shell #cards-send .unit-card {
   width: auto;
   height: 100%;
   max-width: 100%;
@@ -2307,7 +2319,8 @@ dialog.welcome-modal::backdrop {
 .game-shell[data-page="send"] .tier-tag b {
   font-size: 16px;
 }
-.game-shell[data-page="send"] .unit-card {
+.game-shell[data-page="send"] .unit-card,
+:root.layout-wide .game-shell #cards-send .unit-card {
   width: 100%;
   height: 100%;
   aspect-ratio: auto;
@@ -2317,19 +2330,22 @@ dialog.welcome-modal::backdrop {
   background: radial-gradient(circle at 50% 62%, #6a3b5a, #241326 72%);
   overflow: hidden;
 }
-.game-shell[data-page="send"] .unit-card .card-art {
+.game-shell[data-page="send"] .unit-card .card-art,
+:root.layout-wide .game-shell #cards-send .unit-card .card-art {
   inset: 0;
   border-radius: 0;
   background: none;
 }
-.game-shell[data-page="send"] .unit-card .card-art img {
+.game-shell[data-page="send"] .unit-card .card-art img,
+:root.layout-wide .game-shell #cards-send .unit-card .card-art img {
   inset: -4% -8% 0;
   width: 116%;
   height: 104%;
   object-fit: contain;
   object-position: 50% 30%;
 }
-.game-shell[data-page="send"] .unit-card .card-foot {
+.game-shell[data-page="send"] .unit-card .card-foot,
+:root.layout-wide .game-shell #cards-send .unit-card .card-foot {
   inset: 0;
   height: auto;
   display: flex;
@@ -2339,11 +2355,13 @@ dialog.welcome-modal::backdrop {
   background: linear-gradient(#0a081000 68%, #0a0810d9 90%);
   pointer-events: none;
 }
-.game-shell[data-page="send"] .unit-card .price {
+.game-shell[data-page="send"] .unit-card .price,
+:root.layout-wide .game-shell #cards-send .unit-card .price {
   font-size: 11px;
   text-shadow: 0 1px 0 #000, 0 0 2px #000;
 }
-.game-shell[data-page="send"] .unit-card .card-note {
+.game-shell[data-page="send"] .unit-card .card-note,
+:root.layout-wide .game-shell #cards-send .unit-card .card-note {
   position: absolute;
   top: 1px;
   right: 1px;
@@ -2353,7 +2371,8 @@ dialog.welcome-modal::backdrop {
   font-size: 9px;
   line-height: 11px;
 }
-.game-shell[data-page="send"] .unit-card .card-status {
+.game-shell[data-page="send"] .unit-card .card-status,
+:root.layout-wide .game-shell #cards-send .unit-card .card-status {
   inset: 0;
   border-radius: 0;
   background: #050d1373;
@@ -2363,7 +2382,8 @@ dialog.welcome-modal::backdrop {
   font-size: 7px;
   line-height: 10px;
 }
-.game-shell[data-page="send"] .unit-card:has(.boss-mark) .card-note {
+.game-shell[data-page="send"] .unit-card:has(.boss-mark) .card-note,
+:root.layout-wide .game-shell #cards-send .unit-card:has(.boss-mark) .card-note {
   top: 11px;
 }
 
@@ -2698,7 +2718,8 @@ dialog.welcome-modal::backdrop {
 .unit-card .card-stock {
   display: none;
 }
-.game-shell[data-page="send"] .unit-card .card-stock {
+.game-shell[data-page="send"] .unit-card .card-stock,
+:root.layout-wide .game-shell #cards-send .unit-card .card-stock {
   display: block;
   position: absolute;
   z-index: 3;
@@ -2709,7 +2730,8 @@ dialog.welcome-modal::backdrop {
   text-shadow: -1.2px -1.2px 0 #000, 1.2px -1.2px 0 #000, -1.2px 1.2px 0 #000, 1.2px 1.2px 0 #000, 0 0 2px #000;
   pointer-events: none;
 }
-.game-shell[data-page="send"] .unit-card .card-note {
+.game-shell[data-page="send"] .unit-card .card-note,
+:root.layout-wide .game-shell #cards-send .unit-card .card-note {
   min-width: 26px;
   padding: 0 3px;
   font-size: 11px;
@@ -2731,11 +2753,13 @@ dialog.welcome-modal::backdrop {
 .frame-air {
   background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20100%20100%22%20preserveAspectRatio%3D%22none%22%3E%3Crect%20x%3D%222%22%20y%3D%222%22%20width%3D%2296%22%20height%3D%2296%22%20rx%3D%227%22%20fill%3D%22none%22%20stroke%3D%22%238fd3ff%22%20stroke-width%3D%222.4%22%20stroke-dasharray%3D%226%203%22/%3E%3Cg%20transform%3D%22translate%2825%2095%29%20scale%28-1%201%29%22%3E%3Cpath%20d%3D%22M0%200C3-5%209-9%2021-11c-2.5%202-3.6%203.6-4%205%203-.8%205.6-.6%208%20.5-3%20.9-5%202.3-6.4%204%202%20.1%203.8.7%205.2%201.8C16%202.4%207%203%200%202z%22%20fill%3D%22%23f4f8fc%22%20stroke%3D%22%2322324a%22%20stroke-width%3D%221.4%22%20stroke-linejoin%3D%22round%22/%3E%3Cpath%20d%3D%22M4-.5c4-2%209-4.6%2014-6.6M5%201c4-.6%208-1.2%2012-1%22%20stroke%3D%22%239cb4cc%22%20stroke-width%3D%22.9%22%20fill%3D%22none%22%20stroke-linecap%3D%22round%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%2875%2095%29%20scale%281%201%29%22%3E%3Cpath%20d%3D%22M0%200C3-5%209-9%2021-11c-2.5%202-3.6%203.6-4%205%203-.8%205.6-.6%208%20.5-3%20.9-5%202.3-6.4%204%202%20.1%203.8.7%205.2%201.8C16%202.4%207%203%200%202z%22%20fill%3D%22%23f4f8fc%22%20stroke%3D%22%2322324a%22%20stroke-width%3D%221.4%22%20stroke-linejoin%3D%22round%22/%3E%3Cpath%20d%3D%22M4-.5c4-2%209-4.6%2014-6.6M5%201c4-.6%208-1.2%2012-1%22%20stroke%3D%22%239cb4cc%22%20stroke-width%3D%22.9%22%20fill%3D%22none%22%20stroke-linecap%3D%22round%22/%3E%3C/g%3E%3C/svg%3E");
 }
-.game-shell[data-page="send"] .unit-card:has(.frame-boss) .card-note {
+.game-shell[data-page="send"] .unit-card:has(.frame-boss) .card-note,
+:root.layout-wide .game-shell #cards-send .unit-card:has(.frame-boss) .card-note {
   top: 9px;
   right: 7px;
 }
-.game-shell[data-page="send"] .unit-card:has(.frame-boss) .card-stock {
+.game-shell[data-page="send"] .unit-card:has(.frame-boss) .card-stock,
+:root.layout-wide .game-shell #cards-send .unit-card:has(.frame-boss) .card-stock {
   left: 7px;
   bottom: 16px;
 }
@@ -3005,20 +3029,24 @@ dialog.welcome-modal::backdrop {
     height: 143px;
   }
 }
-.game-shell[data-page="send"] .unit-card {
+.game-shell[data-page="send"] .unit-card,
+:root.layout-wide .game-shell #cards-send .unit-card {
   overflow: visible;
 }
-.game-shell[data-page="send"] .unit-card .card-art {
+.game-shell[data-page="send"] .unit-card .card-art,
+:root.layout-wide .game-shell #cards-send .unit-card .card-art {
   inset: 1px 1px 16px;
   overflow: hidden;
   border-radius: 6px 6px 2px 2px;
 }
-.game-shell[data-page="send"] .unit-card .card-art img {
+.game-shell[data-page="send"] .unit-card .card-art img,
+:root.layout-wide .game-shell #cards-send .unit-card .card-art img {
   inset: 2%;
   width: 96%;
   height: 96%;
 }
-.game-shell[data-page="send"] .unit-card .card-foot {
+.game-shell[data-page="send"] .unit-card .card-foot,
+:root.layout-wide .game-shell #cards-send .unit-card .card-foot {
   inset: auto 0 0;
   height: 16px;
   display: flex;
@@ -3029,12 +3057,15 @@ dialog.welcome-modal::backdrop {
   border-radius: 0 0 6px 6px;
   background: linear-gradient(#0a0810cc, #0a0810f2);
 }
-.game-shell[data-page="send"] .unit-card .card-foot .price {
+.game-shell[data-page="send"] .unit-card .card-foot .price,
+:root.layout-wide .game-shell #cards-send .unit-card .card-foot .price {
   font-size: 11px;
   line-height: 1;
 }
 .game-shell[data-page="send"] .unit-card .card-note,
-.game-shell[data-page="send"] .unit-card.framed .card-note {
+.game-shell[data-page="send"] .unit-card.framed .card-note,
+:root.layout-wide .game-shell #cards-send .unit-card .card-note,
+:root.layout-wide .game-shell #cards-send .unit-card.framed .card-note {
   position: static;
   min-width: 0;
   padding: 0;
@@ -3046,36 +3077,46 @@ dialog.welcome-modal::backdrop {
   white-space: nowrap;
 }
 .game-shell[data-page="send"] .unit-card .card-foot.long .price,
-.game-shell[data-page="send"] .unit-card .card-foot.long .card-note {
+.game-shell[data-page="send"] .unit-card .card-foot.long .card-note,
+:root.layout-wide .game-shell #cards-send .unit-card .card-foot.long .price,
+:root.layout-wide .game-shell #cards-send .unit-card .card-foot.long .card-note {
   font-size: 9.5px;
   letter-spacing: -0.02em;
 }
-.game-shell[data-page="send"] .unit-card .card-foot.long .price::before {
+.game-shell[data-page="send"] .unit-card .card-foot.long .price::before,
+:root.layout-wide .game-shell #cards-send .unit-card .card-foot.long .price::before {
   width: 8px;
   height: 8px;
 }
 .game-shell[data-page="send"] .unit-card .card-stock,
-.game-shell[data-page="send"] .unit-card.framed .card-stock {
+.game-shell[data-page="send"] .unit-card.framed .card-stock,
+:root.layout-wide .game-shell #cards-send .unit-card .card-stock,
+:root.layout-wide .game-shell #cards-send .unit-card.framed .card-stock {
   left: 4px;
   bottom: 18px;
 }
-.game-shell[data-page="send"] .unit-card .card-status {
+.game-shell[data-page="send"] .unit-card .card-status,
+:root.layout-wide .game-shell #cards-send .unit-card .card-status {
   inset: 1px 1px 16px;
   border-radius: 6px 6px 2px 2px;
 }
 /* framed creeps: the frame owns the edge, the art sits inside it */
 .game-shell[data-page="send"] .unit-card.framed .card-art,
-.game-shell[data-page="send"] .unit-card.framed .card-status {
+.game-shell[data-page="send"] .unit-card.framed .card-status,
+:root.layout-wide .game-shell #cards-send .unit-card.framed .card-art,
+:root.layout-wide .game-shell #cards-send .unit-card.framed .card-status {
   inset: 6px 6px 21px;
 }
-.game-shell[data-page="send"] .unit-card.framed .card-foot {
+.game-shell[data-page="send"] .unit-card.framed .card-foot,
+:root.layout-wide .game-shell #cards-send .unit-card.framed .card-foot {
   bottom: 6px;
   left: 2px;
   right: 2px;
   height: 15px;
   border-radius: 0;
 }
-.game-shell[data-page="send"] .unit-card.framed .card-stock {
+.game-shell[data-page="send"] .unit-card.framed .card-stock,
+:root.layout-wide .game-shell #cards-send .unit-card.framed .card-stock {
   left: 8px;
   bottom: 23px;
 }
@@ -3136,17 +3177,25 @@ dialog.welcome-modal::backdrop {
 .game-shell[data-page="send"] .unit-card .card-note,
 .game-shell[data-page="send"] .unit-card.framed .card-note,
 .game-shell[data-page="send"] .unit-card .card-foot.long .price,
-.game-shell[data-page="send"] .unit-card .card-foot.long .card-note {
+.game-shell[data-page="send"] .unit-card .card-foot.long .card-note,
+:root.layout-wide .game-shell #cards-send .unit-card .card-foot .price,
+:root.layout-wide .game-shell #cards-send .unit-card .card-note,
+:root.layout-wide .game-shell #cards-send .unit-card.framed .card-note,
+:root.layout-wide .game-shell #cards-send .unit-card .card-foot.long .price,
+:root.layout-wide .game-shell #cards-send .unit-card .card-foot.long .card-note {
   font-family: var(--font-display);
   font-weight: 800;
   font-size: 12px;
   letter-spacing: 0;
 }
 .game-shell[data-page="send"] .unit-card .card-foot.long .price,
-.game-shell[data-page="send"] .unit-card .card-foot.long .card-note {
+.game-shell[data-page="send"] .unit-card .card-foot.long .card-note,
+:root.layout-wide .game-shell #cards-send .unit-card .card-foot.long .price,
+:root.layout-wide .game-shell #cards-send .unit-card .card-foot.long .card-note {
   font-size: 11px;
 }
-.game-shell[data-page="send"] .unit-card .card-foot {
+.game-shell[data-page="send"] .unit-card .card-foot,
+:root.layout-wide .game-shell #cards-send .unit-card .card-foot {
   gap: 2px;
 }
 .up-card .up-queued {
@@ -5810,10 +5859,12 @@ dialog.welcome-modal.hard-eyes .welcome-eyes {
   color: #6ee87a;
 }
 /* creep gold cost about 7 % larger when the card has room (set by fitPrices) */
-.game-shell[data-page="send"] .unit-card.price-big .card-foot .price {
+.game-shell[data-page="send"] .unit-card.price-big .card-foot .price,
+:root.layout-wide .game-shell #cards-send .unit-card.price-big .card-foot .price {
   font-size: 12.9px;
 }
-.game-shell[data-page="send"] .unit-card.price-big .card-foot.long .price {
+.game-shell[data-page="send"] .unit-card.price-big .card-foot.long .price,
+:root.layout-wide .game-shell #cards-send .unit-card.price-big .card-foot.long .price {
   font-size: 11.8px;
 }
 
@@ -5876,13 +5927,15 @@ dialog.welcome-modal.hard-eyes .welcome-eyes {
   box-shadow: 0 0 0 1px #0009, 0 1px 2px #0008;
 }
 /* v0.16f/g: recruit number in the top-left corner of creep cards, 10 % larger */
-.game-shell[data-page="send"] .unit-card .card-stock {
+.game-shell[data-page="send"] .unit-card .card-stock,
+:root.layout-wide .game-shell #cards-send .unit-card .card-stock {
   top: 3px;
   left: 4px;
   bottom: auto;
   font-size: 14.3px;
 }
-.game-shell[data-page="send"] .unit-card.framed .card-stock {
+.game-shell[data-page="send"] .unit-card.framed .card-stock,
+:root.layout-wide .game-shell #cards-send .unit-card.framed .card-stock {
   top: 8px;
   left: 8px;
   bottom: auto;
@@ -6815,7 +6868,9 @@ html.layout-full .game-shell .bottom-nav {
 }
 /* v0.18b: creep cards: gold cost and income scaled up to 20 % (fitPrices sets --pz where it fits) */
 .game-shell[data-page="send"] .unit-card.card-send .card-foot .price,
-.game-shell[data-page="send"] .unit-card.card-send .card-foot .card-note {
+.game-shell[data-page="send"] .unit-card.card-send .card-foot .card-note,
+:root.layout-wide .game-shell #cards-send .unit-card.card-send .card-foot .price,
+:root.layout-wide .game-shell #cards-send .unit-card.card-send .card-foot .card-note {
   zoom: var(--pz, 1);
 }
 /* v0.18b: lobby: player icon left of the name, wait note and Start button */
@@ -7711,7 +7766,8 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
 /* ---- v0.23a (creep graphic overhaul): send buttons in the bestiary scroll style ----------------------------
    Parchment card, a tan scroll ribbon with dark ink for gold and income, the stock in the
    square number box of the scrolls; bosses get the red skull ribbon. */
-:root:is(:not([data-design]), [data-design="original"]) .game-shell[data-page="send"] .unit-card[data-kind="send"] {
+:root:is(:not([data-design]), [data-design="original"]) .game-shell[data-page="send"] .unit-card[data-kind="send"],
+:root.layout-wide:is(:not([data-design]), [data-design="original"]) .game-shell #cards-send .unit-card[data-kind="send"] {
   background:
     radial-gradient(ellipse 70% 62% at 50% 42%, #fbf0d8 0%, #f1dcb2 55%, #dcb87f 100%) !important;
   border: 2px solid #3b2413;
@@ -7720,13 +7776,16 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
     inset 0 0 6px #b68a4f,
     0 2px 0 #1a0d05;
 }
-:root:is(:not([data-design]), [data-design="original"]) .game-shell[data-page="send"] .unit-card[data-kind="send"] .card-art {
+:root:is(:not([data-design]), [data-design="original"]) .game-shell[data-page="send"] .unit-card[data-kind="send"] .card-art,
+:root.layout-wide:is(:not([data-design]), [data-design="original"]) .game-shell #cards-send .unit-card[data-kind="send"] .card-art {
   background: none;
 }
-:root:is(:not([data-design]), [data-design="original"]) .game-shell[data-page="send"] .unit-card[data-kind="send"] .card-art img {
+:root:is(:not([data-design]), [data-design="original"]) .game-shell[data-page="send"] .unit-card[data-kind="send"] .card-art img,
+:root.layout-wide:is(:not([data-design]), [data-design="original"]) .game-shell #cards-send .unit-card[data-kind="send"] .card-art img {
   filter: drop-shadow(0 1.5px 1px #3b241366);
 }
-:root:is(:not([data-design]), [data-design="original"]) .game-shell[data-page="send"] .unit-card[data-kind="send"] .card-foot {
+:root:is(:not([data-design]), [data-design="original"]) .game-shell[data-page="send"] .unit-card[data-kind="send"] .card-foot,
+:root.layout-wide:is(:not([data-design]), [data-design="original"]) .game-shell #cards-send .unit-card[data-kind="send"] .card-foot {
   left: 2px;
   right: 2px;
   bottom: 1px;
@@ -7739,19 +7798,24 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
     inset -3px 0 0 #c99b5f,
     inset 0 1px 0 #fff6e0;
 }
-:root:is(:not([data-design]), [data-design="original"]) .game-shell[data-page="send"] .unit-card[data-kind="send"] .card-foot .price {
+:root:is(:not([data-design]), [data-design="original"]) .game-shell[data-page="send"] .unit-card[data-kind="send"] .card-foot .price,
+:root.layout-wide:is(:not([data-design]), [data-design="original"]) .game-shell #cards-send .unit-card[data-kind="send"] .card-foot .price {
   color: #2e1a0c;
   text-shadow: none;
 }
 :root:is(:not([data-design]), [data-design="original"]) .game-shell[data-page="send"] .unit-card[data-kind="send"] .card-note,
-:root:is(:not([data-design]), [data-design="original"]) .game-shell[data-page="send"] .unit-card[data-kind="send"].framed .card-note {
+:root:is(:not([data-design]), [data-design="original"]) .game-shell[data-page="send"] .unit-card[data-kind="send"].framed .card-note,
+:root.layout-wide:is(:not([data-design]), [data-design="original"]) .game-shell #cards-send .unit-card[data-kind="send"] .card-note,
+:root.layout-wide:is(:not([data-design]), [data-design="original"]) .game-shell #cards-send .unit-card[data-kind="send"].framed .card-note {
   color: #17692a;
   text-shadow: 0 0.5px 0 #fff6e0;
 }
-:root:is(:not([data-design]), [data-design="original"]) .game-shell[data-page="send"] .unit-card[data-kind="send"] .card-note.buffed {
+:root:is(:not([data-design]), [data-design="original"]) .game-shell[data-page="send"] .unit-card[data-kind="send"] .card-note.buffed,
+:root.layout-wide:is(:not([data-design]), [data-design="original"]) .game-shell #cards-send .unit-card[data-kind="send"] .card-note.buffed {
   color: #0e7f8a;
 }
-:root:is(:not([data-design]), [data-design="original"]) .game-shell[data-page="send"] .unit-card[data-kind="send"] .card-stock {
+:root:is(:not([data-design]), [data-design="original"]) .game-shell[data-page="send"] .unit-card[data-kind="send"] .card-stock,
+:root.layout-wide:is(:not([data-design]), [data-design="original"]) .game-shell #cards-send .unit-card[data-kind="send"] .card-stock {
   left: 3px;
   top: 3px;
   bottom: auto;
@@ -7767,12 +7831,14 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
   color: #2a180b;
   text-shadow: none;
 }
-:root:is(:not([data-design]), [data-design="original"]) .game-shell[data-page="send"] .unit-card[data-kind="send"].framed .card-stock {
+:root:is(:not([data-design]), [data-design="original"]) .game-shell[data-page="send"] .unit-card[data-kind="send"].framed .card-stock,
+:root.layout-wide:is(:not([data-design]), [data-design="original"]) .game-shell #cards-send .unit-card[data-kind="send"].framed .card-stock {
   left: 7px;
   top: 7px;
   bottom: auto;
 }
-:root:is(:not([data-design]), [data-design="original"]) .game-shell[data-page="send"] .unit-card[data-kind="send"].framed .card-foot {
+:root:is(:not([data-design]), [data-design="original"]) .game-shell[data-page="send"] .unit-card[data-kind="send"].framed .card-foot,
+:root.layout-wide:is(:not([data-design]), [data-design="original"]) .game-shell #cards-send .unit-card[data-kind="send"].framed .card-foot {
   left: 4px;
   right: 4px;
   bottom: 5px;
@@ -7781,7 +7847,9 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
 }
 /* v0.23k: boss cards keep the normal price bar (the red BOSS ribbon is gone) */
 :root:is(:not([data-design]), [data-design="original"]) .game-shell[data-page="send"] .unit-card[data-kind="send"].unaffordable .price,
-:root:is(:not([data-design]), [data-design="original"]) .game-shell[data-page="send"] .unit-card[data-kind="send"].poor .price {
+:root:is(:not([data-design]), [data-design="original"]) .game-shell[data-page="send"] .unit-card[data-kind="send"].poor .price,
+:root.layout-wide:is(:not([data-design]), [data-design="original"]) .game-shell #cards-send .unit-card[data-kind="send"].unaffordable .price,
+:root.layout-wide:is(:not([data-design]), [data-design="original"]) .game-shell #cards-send .unit-card[data-kind="send"].poor .price {
   color: #a3241c;
 }
 /* v0.22f (v0.23a (creep graphic overhaul)): painted portraits on the send buttons fill the picture area, flat cut at the ribbon */
@@ -7792,7 +7860,8 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
   object-fit: contain;
   object-position: 50% 100%;
 }
-:root:is(:not([data-design]), [data-design="original"]) .game-shell[data-page="send"] .unit-card[data-kind="send"] .card-art.portrait-art img {
+:root:is(:not([data-design]), [data-design="original"]) .game-shell[data-page="send"] .unit-card[data-kind="send"] .card-art.portrait-art img,
+:root.layout-wide:is(:not([data-design]), [data-design="original"]) .game-shell #cards-send .unit-card[data-kind="send"] .card-art.portrait-art img {
   filter: drop-shadow(0 1px 1px #3b241355);
 }
 
@@ -7818,7 +7887,8 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
 }
 
 /* v0.23j: recruit number on creep cards: no frame, a larger white number with a black outline */
-:root:is(:not([data-design]), [data-design="original"]) .game-shell[data-page="send"] .unit-card[data-kind="send"] .card-stock {
+:root:is(:not([data-design]), [data-design="original"]) .game-shell[data-page="send"] .unit-card[data-kind="send"] .card-stock,
+:root.layout-wide:is(:not([data-design]), [data-design="original"]) .game-shell #cards-send .unit-card[data-kind="send"] .card-stock {
   min-width: 0;
   height: auto;
   padding: 0;
@@ -7841,7 +7911,8 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
     0 2px 2px #0009;
 }
 /* v0.23j: a locked creep card shows its lock, not the (empty) recruit number behind the chains */
-.game-shell[data-page="send"] .unit-card:has(.card-lock) .card-stock {
+.game-shell[data-page="send"] .unit-card:has(.card-lock) .card-stock,
+:root.layout-wide .game-shell #cards-send .unit-card:has(.card-lock) .card-stock {
   visibility: hidden;
 }
 
@@ -8281,11 +8352,7 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
 :root.layout-wide .bottom-nav [data-tab] {
   display: none;
 }
-/* the own plate keeps portrait, lives and level; gold and income move to the stats panel */
-:root.layout-wide .player-plate.own .plate-gold,
-:root.layout-wide .player-plate.own .plate-inc {
-  display: none;
-}
+/* v0.24p: the own plate shows gold and income again; the stats panel sits in the card column on the right */
 :root.layout-wide .wide-stats {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -8355,9 +8422,10 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
   background: linear-gradient(90deg, #6fd0ff, #3a8cff);
   transition: width 0.3s;
 }
-/* v0.24j: the send cards in Desktop Wide stay square (the Send page's own card rules size them by the strip height) */
+/* v0.24j: the send cards in Desktop Wide keep a fixed shape (the Send page's own card rules size them by the strip height);
+   v0.24p: the Send menu's shape and look, five in a row */
 :root.layout-wide .command-deck #cards-send > .unit-card {
-  aspect-ratio: 1 !important;
+  aspect-ratio: 1.38 !important;
   height: auto !important;
   width: 100% !important;
 }
@@ -8514,4 +8582,456 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
 /* v0.24m: tower tooltip: what the auras of neighbouring towers add */
 .help-tip .tip-row.tip-aura b {
   color: #6ee87a;
+}
+
+/* ---- v0.24p: tip banners in white text (headline stays gold) ---- */
+.game-shell .coach,
+.game-shell .coach p {
+  color: #fff;
+}
+
+/* ---- v0.24p: Desktop Wide: cards at the bottom, stats panel above them, mini maps beside the player windows ---- */
+:root.layout-wide .command-deck {
+  justify-content: flex-end;
+  padding-bottom: calc(var(--nav-size) + 10px);
+}
+:root.layout-wide .command-deck .side-dock {
+  margin-bottom: auto;
+}
+:root.layout-wide .command-deck .wide-stats {
+  flex: none;
+  margin: 8px 0 6px;
+}
+:root.layout-wide .command-deck .cards-wrap {
+  flex: none;
+}
+:root.layout-wide .command-deck #cards-send {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  column-gap: 3px;
+  row-gap: 7px;
+  height: auto !important;
+  max-height: none;
+  padding: 2px 1px 4px;
+  overflow: visible;
+}
+/* the tip box and the bottom notes: over the board, close to the screen's lower edge */
+:root.layout-wide .game-shell .coach {
+  left: calc(var(--wide-left) + 16px);
+  right: calc(var(--wide-right) + 16px);
+  bottom: calc(14px + env(safe-area-inset-bottom));
+}
+:root.layout-wide #toast {
+  left: calc(var(--wide-left) + 16px);
+  right: calc(var(--wide-right) + 16px);
+}
+:root.layout-wide .game-shell:has(.coach:not([hidden])) #toast {
+  top: auto !important;
+  bottom: calc(110px + env(safe-area-inset-bottom)) !important;
+}
+/* mini maps in a gutter right of the player windows */
+.wide-minis {
+  display: none;
+}
+:root.layout-wide .mini-hud .wide-minis {
+  display: block;
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+}
+:root.layout-wide .wide-mini {
+  position: absolute;
+  pointer-events: auto;
+  cursor: pointer;
+  filter: drop-shadow(0 2px 4px #000a);
+}
+:root.layout-wide.wide-minis-on .game-header {
+  padding-right: 60px;
+}
+#toast.tip {
+  color: #fff;
+}
+
+/* ---- v0.24q: Desktop Wide: every player window in your window's layout, 2ndLocalInfoWindow with the tier,
+   the auto-spawn slot left of the creep cards, tower cards in the default (Desktop) shape ---- */
+:root {
+  --exp-fill: linear-gradient(90deg, #7d3cff, #c48bff);
+}
+.wide-players {
+  display: none;
+}
+:root.layout-wide.wide-cards .game-header .player-plate {
+  display: none !important;
+}
+:root.layout-wide .mini-hud .wide-players:not([hidden]) {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+:root.layout-wide.wide-minis-on .mini-hud .wide-players {
+  margin-right: 60px;
+}
+:root.layout-wide .wide-player {
+  position: relative;
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  align-items: center;
+  column-gap: 10px;
+  width: 100%;
+  min-height: 92px;
+  padding: 8px 10px 12px;
+  border-radius: 12px;
+  border: 2px solid #050d13;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--pc) 32%, #1b3a56), #0e2133 75%);
+  box-shadow:
+    inset 0 0 0 2px color-mix(in srgb, var(--pc) 70%, #6a8496),
+    inset 0 0 0 3px #0b1822,
+    0 4px 10px #0009;
+  color: #fff;
+  text-align: left;
+  cursor: pointer;
+}
+:root.layout-wide .wide-player.viewing {
+  box-shadow:
+    inset 0 0 0 2px #ffe36e,
+    inset 0 0 0 3px #0b1822,
+    0 0 10px #ffe36e66,
+    0 4px 10px #0009;
+}
+:root.layout-wide .wide-player.out {
+  opacity: 0.55;
+  filter: grayscale(0.6);
+}
+:root.layout-wide .wp-face {
+  position: relative;
+  width: 52px;
+  height: 52px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #07131b;
+  box-shadow: inset 0 0 0 2px var(--pc);
+}
+:root.layout-wide .wp-face .portrait {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+:root.layout-wide .wp-face .plate-skull {
+  display: none;
+}
+:root.layout-wide .wide-player.out .wp-face .plate-skull {
+  display: block;
+  position: absolute;
+  inset: 8px;
+}
+:root.layout-wide .wide-player.target::after {
+  content: "";
+  position: absolute;
+  top: -6px;
+  left: -6px;
+  width: 22px;
+  height: 22px;
+  background: url("assets/art/icon-attack.webp") center / contain no-repeat;
+  filter: drop-shadow(0 1px 2px #000);
+}
+:root.layout-wide .wp-main {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+:root.layout-wide .wp-name {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font: 800 13px/1.1 var(--font-display);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--pc) 45%, #fff);
+}
+:root.layout-wide .wp-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  font: 400 17px/1 var(--font-number);
+  font-variant-numeric: tabular-nums;
+}
+:root.layout-wide .wp-row img {
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+:root.layout-wide .wp-gold {
+  color: #ffd36a;
+}
+:root.layout-wide .wp-inc {
+  font-style: normal;
+  color: #8ef08a;
+}
+:root.layout-wide .wp-lv,
+:root.layout-wide .wp-tier {
+  margin-left: auto;
+  font: 800 11px/1 var(--font-display);
+  color: #d8bfff;
+}
+:root.layout-wide .wp-tier {
+  margin-left: 4px;
+  color: #c78cff;
+}
+:root.layout-wide .wp-lv b,
+:root.layout-wide .wp-tier b {
+  font: 400 15px/1 var(--font-number);
+  color: #fff;
+}
+:root.layout-wide .wp-maze {
+  font-size: 14px;
+}
+:root.layout-wide .wp-worth-label {
+  font: 800 10px/1 var(--font-display);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #a8bccb;
+}
+:root.layout-wide .wp-worth {
+  color: #ffd36a;
+}
+:root.layout-wide .wp-els {
+  display: flex;
+  gap: 2px;
+  margin-left: auto;
+}
+:root.layout-wide .wp-els img {
+  width: 16px;
+  height: 16px;
+}
+:root.layout-wide .wp-exp {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 4px;
+  height: 5px;
+  border-radius: 3px;
+  background: #1a0f2a;
+  box-shadow: inset 0 0 0 1px #3c2560;
+  overflow: hidden;
+}
+:root.layout-wide .wp-exp s {
+  display: block;
+  height: 100%;
+  width: 0;
+  border-radius: 3px;
+  background: var(--exp-fill);
+  box-shadow: 0 0 6px #a066ff;
+  transition: width 0.4s;
+}
+/* EXP bars always in the EXP purple */
+:root.layout-wide .ws-bar s,
+.plate-exp i {
+  background: var(--exp-fill) !important;
+}
+/* 2ndLocalInfoWindow: gold, income, tier, then level and EXP */
+:root.layout-wide .wide-stats {
+  grid-template-columns: 1fr 1fr auto;
+}
+:root.layout-wide .ws-tier-badge {
+  grid-row: 1 / 3;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background: linear-gradient(#6b3fb0, #3a1f6e);
+  box-shadow: inset 0 0 0 1px #c78cff;
+  font: 800 13px var(--font-display);
+  color: #fff;
+}
+:root.layout-wide .ws-tier b {
+  color: #e2c8ff;
+}
+/* the auto-spawn slot left of the creep cards */
+.wide-send-row {
+  display: contents;
+}
+:root.layout-wide .wide-send-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+:root.layout-wide .wide-send-row #cards-send {
+  flex: 1;
+  min-width: 0;
+}
+:root.layout-wide .wide-send-row .side-dock {
+  flex: none;
+  flex-direction: column;
+  gap: 4px;
+  width: 64px;
+  margin: 0 !important;
+  padding: 6px 4px;
+}
+/* tower cards: the Desktop build bar's shape, five in a row */
+:root.layout-wide .command-deck #cards {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 5px;
+}
+:root.layout-wide .command-deck #cards > .unit-card {
+  aspect-ratio: 1.06;
+}
+
+/* ---- v0.24s: options: buttons side by side, sections inside a sub-menu, Return to Game ---- */
+.menu-pair {
+  display: flex;
+  gap: 8px;
+}
+.menu-pair > button {
+  flex: 1 1 0;
+  min-width: 0;
+  margin-top: 0;
+}
+.menu-section {
+  margin: 14px 0 2px;
+  font: 800 13px var(--font-display);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+.menu-resume {
+  margin-top: 6px;
+}
+
+/* ---- v0.24s: Mobile Default and Mobile Large: the tower cards stay in one row and scroll sideways ---- */
+:root:not(.pc-controls):not(.layout-full) .game-shell[data-page="build"] .cards.grid-build:not(.upgrade-mode) {
+  grid-template-columns: none;
+  grid-auto-flow: column;
+  grid-auto-columns: calc((100% - 4 * 5px) / 5);
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  touch-action: pan-x;
+}
+:root:not(.pc-controls):not(.layout-full) .game-shell[data-page="build"] .cards.grid-build:not(.upgrade-mode)::-webkit-scrollbar {
+  display: none;
+}
+/* v0.24s: card book: Deathrattle creeps link to the creeps they spawn (bottom right of the picture) */
+.modal-hero-wrap .spawn-links {
+  position: absolute;
+  right: -10px;
+  bottom: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.spawn-link {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  padding: 3px;
+  border-radius: 10px;
+  border: 2px solid #050d13;
+  background: linear-gradient(#24465f, #10243a);
+  box-shadow: inset 0 0 0 2px #d9b45a, 0 3px 6px #0009;
+  cursor: pointer;
+}
+.spawn-links.many .spawn-link {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+}
+.spawn-link img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.spawn-link:hover,
+.spawn-link:focus-visible {
+  box-shadow: inset 0 0 0 2px #ffe36e, 0 0 8px #ffe36e88;
+}
+
+/* ---- v0.25: Ranked FFA button (above Ranked 1v1), lobby countdown, Desktop Wide: wider player windows,
+   2ndLocalInfoWindow at the top, auto-spawn slot top right above the creep cards, blueprints in two rows ---- */
+#start-ranked-ffa {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.1;
+  padding-left: 52px;
+  padding-right: 52px;
+}
+#start-ranked-ffa small {
+  display: block;
+  font-size: 0.68em;
+  opacity: 0.8;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.welcome-row.pvp-row #start-ranked-ffa {
+  grid-column: 1 / -1;
+}
+#start-ranked-ffa .rank-medal {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  width: 38px;
+  height: 38px;
+  transform: translateY(-50%);
+  filter: drop-shadow(0 2px 2px #0008);
+  pointer-events: none;
+}
+.rank-result .rank-mode {
+  margin-right: 4px;
+  font-size: 0.75em;
+  opacity: 0.8;
+}
+/* Ranked FFA lobby: the last five seconds glow golden (steady, no blinking) */
+.qm-wait.final-count {
+  font-weight: 800;
+  font-size: 1.12em;
+  color: #ffd84a;
+  text-shadow:
+    0 0 6px #ffb20099,
+    0 0 14px #ffb20066;
+  transition:
+    color 0.3s,
+    text-shadow 0.3s;
+}
+#lobby-start:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+/* Desktop Wide: wider player windows */
+:root.layout-wide {
+  --wide-left: clamp(260px, 22vw, 350px);
+}
+/* Desktop Wide: the 2ndLocalInfoWindow sits at the top of the right column, a short distance below the screen edge */
+:root.layout-wide .command-deck .wide-stats {
+  margin: 0 0 auto;
+}
+/* Desktop Wide: the auto-spawn slot at the right end of the Send title, right above the creep cards */
+:root.layout-wide #wd-send-title {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px;
+}
+:root.layout-wide #wd-send-title .side-dock {
+  flex: none;
+  flex-direction: row;
+  width: auto;
+  margin: 0 1px 0 0 !important;
+  padding: 4px;
+  border-radius: 12px;
+  background: #07131b99;
+  letter-spacing: 0;
+  text-transform: none;
+}
+/* Desktop Wide: tower blueprints: the basic towers in the first row, Hall and EXP Generator in the second */
+:root.layout-wide .command-deck #cards.wide-split {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+:root.layout-wide .command-deck #cards.wide-split > .unit-card.second-row {
+  grid-row: 2;
 }

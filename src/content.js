@@ -609,7 +609,7 @@ export const CUSTOM_ABILITIES = [
   { id: "XA11", baseId: "Xinf", custom: true, fields: { anam: { 0: "Enrage" }, aub1: { 1: "Denies its first death and rises enraged" } } },
   // v0.22n2: Tier Boss (every tier boss golem) replaces Scale Armor, Nerf Resistance and Magic Resistance: debuffs last
   // 50 % shorter, every tower attack does 1 / 5 / 10 / 20 / 30 less damage (never below 1; simulation.js TIER_BOSS)
-  { id: "XA12", baseId: "Xtbs", custom: true, fields: { anam: { 0: "Tier Boss" }, aub1: { 1: "Reduced damage from attacks, Debuffs last shorter" } } },
+  { id: "XA12", baseId: "Xtbs", custom: true, fields: { anam: { 0: "Tier Boss" }, aub1: { 1: "Reduced damage from attacks, 50% less duration for debuffs, 30% slow resistance" } } },
   { id: "XA06", baseId: "Xfoc", custom: true, step: 0.09, interval: 0.25, max: 5, fields: { anam: { 0: "Focus Fire" }, aub1: { 1: "Damage +9% every 0.25 s while attacking the same target, up to 500%" } } },
 ];
 /**
@@ -700,8 +700,18 @@ function applyTowerDamageBuff(byId) {
     u.damageBase += next - u.damage;
     u.damage = next;
   }
+  // v0.24p: pinned average damage (after the percentage buffs)
+  for (const [id, dmg] of Object.entries(TOWER_DAMAGE_PIN)) {
+    const u = byId[id];
+    if (!u || !(u.damage > 0)) continue;
+    u.damageBase += dmg - u.damage;
+    u.damage = dmg;
+  }
 }
+// v0.24p: fixed average damage per tower (Footman level 2: 11)
+export const TOWER_DAMAGE_PIN = { h02U: 11 };
 export const CREEP_TUNING = {
+  n01Y: { armor: 4 }, // v0.24s: Dark Monk armor 4
   n01D: { income: 60 }, // v0.21p: Ghoul earns income now (1500 gold: 4 %, like Demon Hound)
   // v0.21p: Naga Siren's death spawns +50 % hit points (they look like little Naga Sirens, art.js / arena.js)
   n02Z: { hp: 4050 }, // Mutant 2500 → 3750; v0.22zl: +8 %, 4050
@@ -712,14 +722,14 @@ export const CREEP_TUNING = {
   n02P: { hp: 90000 }, // Warden: +50 % hit points, 60000 → 90000 (v0.21k)
   n01R: { hp: 30000 }, // Eredar Warlock: +50 % hit points, 20000 → 30000 (v0.21k)
   n00E: { income: 1, cost: 5, stockMax: 18, bountyBase: 0.85, bountyDice: 0, speed: 170.66 }, // v0.24k: 0.64 → 0.60 fields/s; // v0.22h1: bounty 0.85 per Goblin (+70 % over the tier 1 average); // Goblin: income 1.17 → 1 (v0.07g), cost 6 → 5 (v0.07h); peon companion removed (v0.07i); stock 16 → 18 (v0.08b)
-  n007: { cost: 10, income: 1.9, bountyBase: 1.5, bountyDice: 0 }, // v0.22h1: bounty 1.5 per Horse (+50 %); // Horse: cost 12 → 10, income 2 → 1.9 (v0.08b)
+  n007: { cost: 10, speed: 227.55, income: 1.9, bountyBase: 1.5, bountyDice: 0 }, // v0.24s: Pony 0.80 fields/s; // v0.22h1: bounty 1.5 per Horse (+50 %); // Horse: cost 12 → 10, income 2 → 1.9 (v0.08b)
   n00K: { income: 3.5, bountyBase: 2.6, bountyDice: 0 }, // v0.22h1: bounty 2.6 per Gnoll (+30 %, was 0–5 at random); // Gnoll: income 3 → 3.5 (v0.08d)
-  n00M: { hp: 260, speed: 180, stockRegen: 7, count: 1, bountyBase: 11, name: "[06] Orc", shortName: "Orc", abilities: ["A01A", "XA02"] }, // Grunt → Orc (v0.17b): hit points +30 %, 120 → 156 (v0.09s); Siege Resistance 33 % (v0.17b), v0.22za2: Splash Resistance, 260 HP; v0.18e: one Orc per purchase (heavy), hit points 156 → 312, bounty 5+1d1 → 11+1d1 (12 per purchase as before), restocks 1 Goblin; v0.21m: hit points 312 → 300, speed 190 → 180 (−5 %); v0.21p: 280 hit points, restock 6 → 7 s
+  n00M: { hp: 250, speed: 180, stockRegen: 7, count: 1, bountyBase: 11, name: "[06] Orc", shortName: "Orc", abilities: ["A01A", "XA02"] }, // Grunt → Orc (v0.17b): hit points +30 %, 120 → 156 (v0.09s); Siege Resistance 33 % (v0.17b), v0.22za2: Splash Resistance, 260 HP; v0.18e: one Orc per purchase (heavy), hit points 156 → 312, bounty 5+1d1 → 11+1d1 (12 per purchase as before), restocks 1 Goblin; v0.21m: hit points 312 → 300, speed 190 → 180 (−5 %); v0.21p: 280 hit points, restock 6 → 7 s; v0.24s: 250 HP
   n00R: { abilities: ["A01A", "XA01"] }, // Skeleton: Arrow Resistance now 33 % less damage from Archer-Line towers (v0.17b, was: ignores 1 ranged damage)
   n00N: { hp: 185, abilities: ["A01A", "XA03"] }, // Necromancer: hit points 170 → 180 (v0.17f), 185 (v0.21p); Unholy Aura removed, Deathrattle shown (v0.17g)
   n00P: { hp: 85, speed: 138.56, stockRegen: 11 }, // Flying Sheep: hit points 80 → 85, speed 1.06 → 1.08 fields/s (v0.17b); restock 10 → 11 s (v0.17o)
   n00W: { speed: 227.55, hp: 175 }, // v0.24k: Boar Scout 0.84 → 0.80 fields/s, hit points 180 → 175
-  n016: { hp: 675 }, // v0.24k: Zombie hit points −10 % (750 → 675)
+  n016: { hp: 675, speed: 170.66 }, // v0.24k: Zombie hit points −10 % (750 → 675); v0.24s: 0.60 fields/s
   n01S: { hp: 6750 }, // v0.24k: Scarabaeus hit points −10 % (7500 → 6750)
   n00U: { speed: 170.66 }, // v0.22n2: Imp 0.70 → 0.64 fields/s (game units before the arena's 45 %); v0.24k: Trenchlin 0.60 fields/s
   n00X: { speed: 284.44 }, // v0.22n2: Centaur Warrior 1.01 → 1.00 fields/s
@@ -728,8 +738,8 @@ export const CREEP_TUNING = {
   // plants a Siege Plank once (simulation.js SIEGE_OGRE)
   n01G: { name: "[34] Siege Ogre", shortName: "Siege Ogre", count: 1, hp: 16000, armor: 3, bountyBase: 718, abilities: ["A08S", "A01A"], stockMax: 2, stockRegen: 17 }, // v0.22o2: was Spiritwalker → Shieldbearer; v0.24i: stock 5 → 2, restock 15 → 17 s
   n025: { income: 30 }, // v0.24j: Raven earns a little income (0.3 % of its price; flyers pay less than ground creeps)
-  n00L: { speed: 375 }, // Wolf: 25 % faster, 300 → 375 (v0.08d)
-  n00S: { speed: 420, stockRegen: 13, income: 8 }, // Raider: 25 % faster (v0.07b); restock 12 → 13 s (v0.17o); income 9 → 8 (v0.17q)
+  n00L: { speed: 375, cost: 30 }, // Wolf: 25 % faster, 300 → 375 (v0.08d); v0.24s: cost 30
+  n00S: { speed: 420, stockRegen: 13, income: 8, name: "[10] Wolfrider", shortName: "Wolfrider" }, // v0.24s: Raider → Wolfrider; Raider: 25 % faster (v0.07b); restock 12 → 13 s (v0.17o); income 9 → 8 (v0.17q)
   n012: { name: "[21] Giant Bat", shortName: "Giant Bat" }, // v0.23zq: the Zeppelin is the Giant Bat
   n025: { name: "[52] Raven", shortName: "Raven" }, // v0.23zo: the Gryphon Rider is the Raven
   n02Q: { name: "[59] Demon Lord", shortName: "Demon Lord" }, // v0.23zn: the Pit Lord creep is the Demon Lord (the Pit Lord tower keeps its name)
