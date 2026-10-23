@@ -818,8 +818,9 @@ export function mountArena({
         "wheel",
         (ev) => {
           const range = this.geometry().scroll;
-          if (!range) return;
+          if (!range || range.hi - range.lo < 1 || Math.abs(ev.deltaX) > Math.abs(ev.deltaY)) return;
           ev.preventDefault();
+          ev.stopPropagation(); // v0.25j: a vertical wheel moves the maze up and down instead of switching lanes
           this.scrollVel = 0;
           this.setScroll(clamp((this.scrollY ?? range.def) + ev.deltaY, range.lo, range.hi));
         },
@@ -2738,8 +2739,13 @@ export function mountArena({
         // v0.24i: Spirit Wolves no longer wear the arcane veil sphere (their violet tint stays)
         // v0.17: no ring under neutral creeps any more; their grey clothes set them apart
         // Health bar only once a creep has lost health; drawn on top of everything on the board.
-        const ratio = clamp(c.hp / (c.maxHp || def.hp), 0, 1);
-        if (ratio < 0.999) {
+        // v0.25i: also when a River Guardian shield took the hit (the hit points stay full) and after small hits on
+        // big creeps (below 0.1 % the bar stayed hidden)
+        const maxHp = c.maxHp || def.hp,
+          ratio = clamp(c.hp / maxHp, 0, 1),
+          guarded = c.guard && c.guard.max > 0 ? clamp(c.guard.hp / c.guard.max, 0, 1) : null,
+          eps = Math.max(1e-3, maxHp * 1e-6); // any real hit, not float noise
+        if (c.hp < maxHp - eps || (guarded != null && c.guard.hp < c.guard.max - 1e-3)) {
           const hb = this.hpBars,
             bar = boss ? cell * 0.95 : cell * 0.55 * hpBarScale(def), // v0.19h1: weak creeps get shorter bars
             barH = boss ? 6 : 4,
@@ -2779,6 +2785,11 @@ export function mountArena({
           hb.fillRoundedRect(q.x - bar / 2 - 1.5, barY - 1.5, bar + 3, barH + 3, 3);
           hb.fillStyle(ratio > 0.5 ? 0x8ff05a : ratio > 0.25 ? 0xffc75a : 0xff5f52, see);
           hb.fillRoundedRect(q.x - bar / 2, barY, Math.max(1, bar * ratio), barH, 2);
+          if (guarded != null) {
+            // v0.25i: the River Guardian shield as a water-blue line over the top of the bar (what is left of it)
+            hb.fillStyle(0x9fe4ff, see);
+            hb.fillRoundedRect(q.x - bar / 2, barY - 1, Math.max(1, bar * guarded), Math.max(2, barH * 0.5), 1.5);
+          }
           // v0.23s: hit flash: a white overlay (25 % transparent) on the bar itself, not on its frame
           if ((sprite.getData("hit") || 0) > time) {
             hb.fillStyle(0xffffff, 0.75);
@@ -3497,8 +3508,14 @@ export function mountArena({
         if (c.hp <= 0) continue;
         const q = P(c.x, c.y),
           mine = c.owner === own;
-        g.fillStyle(c.owner < 0 ? 0xb48cff : mine ? 0xffe36e : 0xff8a7a, a);
-        g.fillCircle(q.x, q.y, (catalog.byId[c.typeId]?.bossTier || c.waveBoss ? 3.4 : 2.1) * (team ? 0.8 : 1));
+        const rad = (catalog.byId[c.typeId]?.bossTier || c.waveBoss ? 3.4 : 2.1) * (team ? 0.8 : 1);
+        if (mine) {
+          // v0.25i: your own creeps in your player colour with a white outline (was yellow)
+          g.fillStyle(0xffffff, a);
+          g.fillCircle(q.x, q.y, rad + 1);
+          g.fillStyle(TEAM_COLORS[colorOf(own)].hex, a);
+        } else g.fillStyle(c.owner < 0 ? 0xb48cff : 0xff8a7a, a);
+        g.fillCircle(q.x, q.y, rad);
       }
       if (team) g.lineStyle(2, TEAM_COLORS[colorOf(other)].hex, 0.9 * a);
       else g.lineStyle(2, this.gainFlash > 0 ? 0x9ce0ff : 0xd9b45a, this.gainFlash > 0 ? 0.6 + this.gainFlash * 0.4 : 0.9);

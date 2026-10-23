@@ -173,7 +173,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.25h",
+const APP_VERSION = "0.25i",
   APP_BRANCH = "F", // v0.23q: author marker (F = Felix, S = Steven) and branch text, shown behind the version; APP_VERSION stays plain for online matches (VersionPublishingRules.md)
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "23.10.2026";
@@ -4251,6 +4251,23 @@ function renderCards() {
       });
   // v0.25f: only three basic towers: three larger cards per row fill the width
   $("cards").classList.toggle("wide-three", split && $("cards").querySelectorAll("[data-card]:not(.second-row)").length <= 3);
+  // v0.25j: Desktop Wide: every row of blueprints fills the width (up to 4 cards per row, fewer cards get larger)
+  const fill = wideDeck() && tab === "build";
+  $("cards").classList.toggle("wide-fill", fill);
+  if (fill) {
+    const cards = [...$("cards").querySelectorAll("[data-card]")],
+      groups = split ? [cards.filter((b) => !b.classList.contains("second-row")), cards.filter((b) => b.classList.contains("second-row"))] : [cards];
+    let row = 0;
+    for (const g of groups)
+      for (let i = 0; i < g.length; i += 4, row++) {
+        const part = g.slice(i, i + 4);
+        part.forEach((b) => {
+          b.style.setProperty("--span", String(12 / part.length));
+          b.style.order = row;
+          b.dataset.per = part.length;
+        });
+      }
+  }
   fitCardNames($("cards"));
   fitPrices($("cards")); // v0.17
   $("cards")
@@ -4892,6 +4909,7 @@ function refreshLevelButton(p) {
   // v0.09t: the button fills with experience from the bottom up
   const fill = Math.round(Math.max(0, Math.min(1, p.exp / Math.max(1, p.expNext))) * 1000) / 10 + "%";
   if (btn.style.getPropertyValue("--xp") !== fill) btn.style.setProperty("--xp", fill);
+  setText($("level-exp"), `${format(Math.floor(p.exp))} / ${format(Math.max(1, Math.round(p.expNext)))} EXP`); // v0.25k: Desktop Wide
   if (btn.classList.contains("ready") !== p.picks.length > 0) btn.classList.toggle("ready", p.picks.length > 0);
   if (p.picks.length > 0) ensureHalo(); // v0.17q
   // Left of the board: the level button on top, the auto-spawn slot at the bottom edge.
@@ -4907,10 +4925,12 @@ function refreshLevelButton(p) {
       top = Math.round(z.side.y + 14) + "px";
     // v0.24b: Desktop Wide: the auto-spawn slot and the tier sit in the card column on the right;
     // v0.24q: left of the creep cards, in the send row; v0.25: top right, above the creep cards (in the Send title row)
+    // v0.25k: Desktop Wide: top right of the card column, right below the 2ndLocalInfoWindow
     const wide = document.documentElement.classList.contains("layout-wide"),
-      home = $(wide ? "wd-send-title" : "arena");
-    if (home && dock.parentNode !== home) {
-      if (wide) home.appendChild(dock);
+      info = $("local-info-2"),
+      home = wide ? info?.parentNode : $("arena");
+    if (home && (dock.parentNode !== home || (wide && dock.previousElementSibling !== info))) {
+      if (wide) info.after(dock);
       else home.insertBefore(dock, $("level-button"));
       dock.removeAttribute("style");
     }
@@ -4954,17 +4974,19 @@ function placeWideHud(wide, z) {
     btn = $("level-button");
   if (!row || !plate || !btn) return;
   if (wide) {
-    // v0.25g: the round timer and below it the level button stand left of the board, at its top
+    // v0.25g: the round timer stands next to the board, at its top (v0.25i: right of it);
+    // v0.25k: the level button is the EXP bar at the bottom of the 2ndLocalInfoWindow
     if (row.parentNode !== $("arena")) $("arena").appendChild(row);
     if (z) {
-      const left = Math.round(Math.max(6, z.left - (z.frame || 13) - 12 - row.offsetWidth)) + "px",
+      const left = Math.round(z.left + z.bw + (z.frame || 13) + 12) + "px",
         top = Math.round(Math.max(8, z.top - (z.strip || 0))) + "px";
       if (row.style.left !== left) row.style.left = left;
       if (row.style.top !== top) row.style.top = top;
     }
     if (plate.parentNode !== row) row.appendChild(plate);
-    if (btn.parentNode !== row) {
-      row.appendChild(btn);
+    const info = $("local-info-2");
+    if (info && btn.parentNode !== info) {
+      info.appendChild(btn);
       btn.style.left = btn.style.top = "";
     }
   } else {
@@ -8758,9 +8780,17 @@ function drawWideMini(canvas, lane, team, w, h) {
   for (const c of lane.creeps) {
     if (c.hp <= 0) continue;
     const [x, y] = P(c.x, c.y);
-    g.fillStyle = c.owner < 0 ? "#b48cff" : c.owner === own ? "#ffe36e" : "#ff8a7a";
+    const rad = catalog?.byId[c.typeId]?.bossTier || c.waveBoss ? 3 : 1.8;
+    if (c.owner === own) {
+      // v0.25i: your own creeps in your player colour with a white outline (was yellow)
+      g.fillStyle = "#fff";
+      g.beginPath();
+      g.arc(x, y, rad + 1, 0, Math.PI * 2);
+      g.fill();
+      g.fillStyle = TEAM_COLORS[seatColors()[own]]?.css || "#3b82f6";
+    } else g.fillStyle = c.owner < 0 ? "#b48cff" : "#ff8a7a";
     g.beginPath();
-    g.arc(x, y, catalog?.byId[c.typeId]?.bossTier || c.waveBoss ? 3 : 1.8, 0, Math.PI * 2);
+    g.arc(x, y, rad, 0, Math.PI * 2);
     g.fill();
   }
   g.strokeStyle = team ? color : "#d9b45a";
@@ -8777,7 +8807,7 @@ function updateWideMinis() {
       !root.classList.contains("layout-wide") || !game || !begun || minimapMode === "off"
         ? []
         : minimapMode === "all"
-          ? game.players.filter((q) => (q.id !== view || q.id === own) && !q.out).map((q) => q.id) // v0.25e: your own lane too
+          ? game.players.filter((q) => !q.out).map((q) => q.id) // v0.25e: your own lane too; v0.25i: and the lane you are watching
           : [view === own ? rivalIndex() : own];
   root.classList.toggle("wide-minis-on", ids.length > 0);
   if (!host) return;

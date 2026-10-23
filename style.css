@@ -9238,3 +9238,154 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
 :root:not(.layout-wide) .ec-level .ec-tier b {
   font-size: 10px !important;
 }
+
+/* ---- v0.25i: Desktop Wide: tower blueprints and creep cards sit lower, with a small gap above the bottom bar; the
+   round timer and level button stand right of the board; the tier is the same plain text as in the other layouts ---- */
+:root.layout-wide .command-deck {
+  padding-bottom: 8px;
+}
+:root.layout-wide .wp-tier,
+:root.layout-wide .ws-tier #ws-tier {
+  display: inline;
+  min-width: 0;
+  margin-left: 8px;
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none !important;
+}
+:root.layout-wide .ws-tier-badge {
+  display: none;
+}
+:root.layout-wide .wp-tier::before,
+:root.layout-wide .ws-tier #ws-tier::before {
+  content: "T";
+}
+:root.layout-wide .wp-tier,
+:root.layout-wide .wp-tier b,
+:root.layout-wide .ws-tier #ws-tier {
+  font: 800 15px/1 var(--font-display) !important;
+  letter-spacing: 0.02em;
+  color: var(--tier-orange) !important;
+  -webkit-text-stroke: 0;
+  text-shadow:
+    -1px -1px 0 #fff,
+    1px -1px 0 #fff,
+    -1px 1px 0 #fff,
+    1px 1px 0 #fff,
+    0 1px 2px #0008;
+}
+:root.layout-wide .ws-tier #ws-tier {
+  margin-left: 0;
+  font-size: 22px !important;
+  letter-spacing: 0.04em;
+  text-shadow:
+    -1.5px -1.5px 0 #fff,
+    1.5px -1.5px 0 #fff,
+    -1.5px 1.5px 0 #fff,
+    1.5px 1.5px 0 #fff,
+    0 1px 3px #0009;
+}
+
+/* ---- v0.25j: Desktop Wide: each row of tower blueprints fills the column width; with fewer cards per row the
+   cards grow, a lone pair or single card gets wider rather than taller; the tower art keeps its proportions ---- */
+:root.layout-wide .command-deck #cards.wide-fill:not(.upgrade-mode) {
+  grid-template-columns: repeat(12, minmax(0, 1fr)) !important;
+}
+:root.layout-wide .command-deck #cards.wide-fill:not(.upgrade-mode) > .unit-card {
+  grid-column: span var(--span, 3);
+  grid-row: auto !important;
+}
+:root.layout-wide .command-deck #cards.wide-fill:not(.upgrade-mode) > .unit-card[data-per="2"] {
+  aspect-ratio: 1.45;
+}
+:root.layout-wide .command-deck #cards.wide-fill:not(.upgrade-mode) > .unit-card[data-per="1"] {
+  aspect-ratio: 2.6;
+}
+:root.layout-wide .command-deck #cards.wide-fill:not(.upgrade-mode) > .unit-card .card-art img {
+  object-fit: contain !important;
+}
+
+/* ---- v0.25k: Desktop Wide: the level button is the EXP bar at the bottom of the 2ndLocalInfoWindow (fills from left
+   to right, waiting rewards in a badge on its upper left corner); the auto-spawn slot sits top right below it, 10 % larger ---- */
+.level-exp {
+  display: none;
+}
+:root.layout-wide .wide-stats .ws-exp {
+  display: none;
+}
+:root.layout-wide .command-deck .wide-stats {
+  margin: 8px 0 6px;
+}
+:root.layout-wide .wide-stats .level-button {
+  position: relative;
+  inset: auto;
+  z-index: 1;
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 5px;
+  width: 100%;
+  height: 30px;
+  margin-top: 2px;
+  padding: 0 10px;
+  border-radius: 9px;
+  border: 2px solid #1a0b2e;
+  background: linear-gradient(#2a1650d9, #160a30d9);
+  box-shadow: inset 0 0 0 1.5px #c9a6ff99, 0 2px 0 #12061f;
+  overflow: visible;
+}
+:root.layout-wide .wide-stats .level-button .level-fill {
+  top: 0;
+  right: auto;
+  bottom: 0;
+  width: var(--xp, 0%);
+  height: auto;
+  border-radius: 7px;
+  background: linear-gradient(90deg, #6a33d6, #b884ff);
+  box-shadow: inset 0 1.5px 0 #e6d4ff99;
+  transition: width 0.4s ease-out;
+}
+:root.layout-wide .wide-stats .level-button span {
+  font: 800 12px/1 var(--font-display);
+  color: #e7d6ff;
+}
+:root.layout-wide .wide-stats .level-button b {
+  font: 400 19px/1 var(--font-number);
+}
+:root.layout-wide .wide-stats .level-button .level-exp {
+  position: relative;
+  display: block;
+  margin-left: auto;
+  font: 700 11px/1 var(--font-display);
+  font-style: normal;
+  letter-spacing: 0.06em;
+  color: #fff;
+  text-shadow: 0 1px 0 #12061f, 0 0 3px #12061f;
+}
+:root.layout-wide .wide-stats .level-button i {
+  top: -9px;
+  left: -8px;
+  right: auto;
+}
+/* the rotating halo belongs to the square button; the wide bar only breathes with its glow layer */
+:root.layout-wide .wide-stats .level-button.ready::before {
+  display: none;
+}
+:root.layout-wide .wide-stats .level-button.ready::after {
+  border-radius: 10px;
+}
+:root.layout-wide .command-deck > .side-dock {
+  flex: none;
+  flex-direction: row;
+  align-self: flex-end;
+  width: auto;
+  margin: 0 1px auto 0 !important;
+  padding: 4px;
+  border-radius: 12px;
+  background: #07131b99;
+  letter-spacing: 0;
+  text-transform: none;
+  zoom: 1.1;
+}

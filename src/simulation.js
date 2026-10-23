@@ -3028,6 +3028,7 @@ function completeTower(game, p, t) {
   abilityEpoch++; // v0.23i: a finished tower can fulfil a skill requirement
   if (t.completed) return;
   t.completed = true;
+  delete t.upgradeUndo; // v0.25j
   const item = obj(t.typeId);
   // v0.09k: the gold bonus for the first towers (payback) is gone
   if (
@@ -3331,6 +3332,8 @@ function runCommand(game, input) {
       old = obj(t.typeId),
       ratio = t.hp / t.maxHp;
     pay(p, check.cost);
+    // v0.25j: what a sale during the upgrade has to undo (the upgrade is cancelled and paid back in full first)
+    t.upgradeUndo = { from: t.typeId, name: t.name, gold: check.cost.gold, spent: item.cost, wood: item.woodCost, woodBack: t.completed && old.woodIncome ? old.woodIncome : 0 };
     if (t.completed && old.woodIncome) p.woodIncome -= old.woodIncome;
     t.previousTypeId = t.typeId;
     t.typeId = id;
@@ -3602,8 +3605,24 @@ export function getSellBase(game, playerIndex, towerId) {
 function sellTower(game, p, towerId) {
   const i = p.towers.findIndex((t) => t.id === towerId);
   if (i < 0) return { ok: false, reason: "Tower not found" };
-  const t = p.towers[i],
-    item = obj(t.typeId);
+  const t = p.towers[i];
+  // v0.25j: selling a tower while it upgrades cancels the upgrade (full refund) and sells the tower it was before
+  let undone = 0;
+  if (t.buildRemaining > EPS && t.upgrading && t.upgradeUndo && obj(t.upgradeUndo.from)) {
+    const u = t.upgradeUndo;
+    p.gold += u.gold;
+    p.woodIncome += u.woodBack;
+    t.totalSpent -= u.spent;
+    t.woodSpent -= u.wood;
+    t.typeId = u.from;
+    t.name = u.name;
+    t.buildRemaining = 0;
+    t.upgrading = false;
+    t.completed = true;
+    delete t.upgradeUndo;
+    undone = u.gold;
+  }
+  const item = obj(t.typeId);
   if (t.buildRemaining > EPS) return { ok: false, reason: "Still under construction" };
   if (t.typeId === ROCK_ID) {
     // v0.17: a rock is cleared for gold, not sold
@@ -3619,8 +3638,9 @@ function sellTower(game, p, towerId) {
     if (t.quarry) finishQuarry(game, p); // v0.18h
     return { ok: true, refund: -price };
   }
-  const refund = getSellValue(game, p.id, towerId);
-  p.gold += refund;
+  const value = getSellValue(game, p.id, towerId),
+    refund = value + undone;
+  p.gold += value;
   if (item.woodIncome) p.woodIncome -= item.woodIncome;
   if (item.support === "farm") {
     // Farm's zero-value demolition/explosion is distinct from selling a tower.
