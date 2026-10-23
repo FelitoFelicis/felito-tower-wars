@@ -173,7 +173,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.25g",
+const APP_VERSION = "0.25h",
   APP_BRANCH = "F", // v0.23q: author marker (F = Felix, S = Steven) and branch text, shown behind the version; APP_VERSION stays plain for online matches (VersionPublishingRules.md)
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "23.10.2026";
@@ -3123,8 +3123,9 @@ const favStolen = (st, fav) => [...new Set([fav.id, ...(fav.spawnIds || [])])].r
 function placeTile(place, of) {
   if (!place || !of) return "";
   place = Math.max(1, Math.min(of, place));
-  const skin = place === 1 ? "gold" : place === 2 ? "silver" : place === 3 && of > 3 ? "bronze" : place === of && of >= 4 ? "stinky" : "plain";
-  return `<span class="sum-place place-${skin}">${t("Place")}<b><em>${place}</em><small>${t("of {m}", { m: of })}</small></b>${skin === "stinky" ? `<i class="stink" aria-hidden="true"><s></s><s></s><s></s></i>` : ""}</span>`;
+  // v0.25h: last place: the number in the red of the "Defeat" headline (the stink lines are gone)
+  const skin = place === 1 ? "gold" : place === 2 && of < 3 ? "silver" : place === of ? "last" : place === 2 ? "silver" : place === 3 && of > 3 ? "bronze" : "plain";
+  return `<span class="sum-place place-${skin}">${t("Place")}<b><em>${place}</em><small>${t("of {m}", { m: of })}</small></b></span>`;
 }
 function matchSummary(me, place = 0) {
   const st = me.stats || {},
@@ -3298,25 +3299,15 @@ function playAgainOnline(again) {
   else quickMatch(isQuickKind(kind) ? kind : "quick"); // v0.23b; v0.25: Ranked FFA
 }
 /**
- * v0.14: levels for a mixed match. Each AI seat draws a level up to the chosen one; one seat
- * always gets the chosen level. With Hard chosen there are no very easy AIs and easy appears on
- * a seat with only 10 % chance (normal and hard share the rest).
+ * v0.14: levels for a mixed match; one seat always gets the chosen level.
+ * v0.25h: the other seats draw from one level below to one level above the chosen one (Hardo never joins by chance).
  */
 function mixedLevels(seats, top) {
-  const order = ["veryEasy", "easy", "normal", "hard", "insane"],
-    allowed = order.slice(0, order.indexOf(top) + 1),
+  const order = ["veryEasy", "easy", "normal", "hard"],
+    at = order.indexOf(top),
+    allowed = at < 0 ? [top] : order.slice(Math.max(0, at - 1), at + 2),
     roll = () => crypto.getRandomValues(new Uint32Array(1))[0] / 2 ** 32,
-    pick = () => {
-      if (top === "hard") {
-        const r = roll();
-        return r < 0.1 ? "easy" : r < 0.55 ? "normal" : "hard";
-      }
-      if (top === "insane") {
-        const r = roll();
-        return r < 0.3 ? "normal" : r < 0.75 ? "hard" : "insane";
-      }
-      return allowed[Math.floor(roll() * allowed.length)];
-    },
+    pick = () => allowed[Math.floor(roll() * allowed.length)],
     out = [null];
   for (let i = 1; i < seats; i++) out.push(pick());
   if (seats > 1 && !out.includes(top)) out[1 + Math.floor(roll() * (seats - 1))] = top;
@@ -4661,7 +4652,7 @@ function pickCard(o, i, p) {
       els = perkLook(o.id), // v0.21: frame also for "look" perks
       pel = els.length ? elementOf(els.find((e) => p.research[elementOf(e)?.unlock]) || els[0]) : null; // v0.10n: element perks get the element frame
     // v0.23: "pick-up": offered at level 2 or higher, its text shows "old → new" values (perkText)
-    return `<button class="pick-card pick-perk perk-${o.id}${pel ? " pick-element el-" + pel.id : ""}${level ? " pick-up" : ""}" data-pick="${i}"${pel ? ` style="--el:${pel.color}"` : ""}><img src="${PERK_ART[o.id](level + 1)}" alt="" decoding="sync"><b>${esc(t(d.name))}</b><span>${valHtml(perkText(o.id, p.picks[0]?.level || p.level, p, true))}</span>${perkCd(o.id, p, true) ? `<small class="pick-cd">${valHtml(perkCd(o.id, p, true))}</small>` : ""}<small>${t("Level {a} → {b}", { a: level, b: level + 1 })}</small></button>`;
+    return `<button class="pick-card pick-perk perk-${o.id}${pel ? " pick-element el-" + pel.id : ""}${level ? " pick-up" : ""}${ACTIVE_PERKS.has(o.id) ? " pick-active" : ""}" data-pick="${i}"${pel ? ` style="--el:${pel.color}"` : ""}>${ACTIVE_PERKS.has(o.id) ? `<span class="pick-book" aria-hidden="true"><img src="${PERK_ART[o.id](level + 1)}" alt="" decoding="sync"></span>` : `<img src="${PERK_ART[o.id](level + 1)}" alt="" decoding="sync">`}<b>${esc(t(d.name))}</b><span>${valHtml(perkText(o.id, p.picks[0]?.level || p.level, p, true))}</span>${perkCd(o.id, p, true) ? `<small class="pick-cd">${valHtml(perkCd(o.id, p, true))}</small>` : ""}<small>${t("Level {a} → {b}", { a: level, b: level + 1 })}</small></button>`;
   }
   if (o.type === "quest") {
     const q = QUESTS[o.id];

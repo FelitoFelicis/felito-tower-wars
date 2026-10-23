@@ -8233,34 +8233,7 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
   vertical-align: -0.6em;
 }
 
-/* v0.24e: active abilities sit on an open book (the ability book button keeps its own look) */
-.volley-button:not(.ability-book) {
-  border: 0;
-  border-radius: 6px;
-  background: var(--ability-book) center / 100% auto no-repeat !important;
-  box-shadow: none !important;
-  overflow: visible;
-  filter: drop-shadow(0 2px 1px #000b);
-}
-.volley-button:not(.ability-book) img {
-  width: 64%;
-  height: 64%;
-  transform: translateY(-17%);
-  filter: drop-shadow(0 1px 1px #0009);
-}
-.volley-button:not(.ability-book) .volley-cd {
-  inset: 12% 15% 32% 15%;
-  border-radius: 4px;
-}
-.volley-button:not(.ability-book) b {
-  transform: translateY(-17%);
-}
-.volley-button:not(.ability-book).ready {
-  filter: drop-shadow(0 0 3px #ffe27a) drop-shadow(0 2px 1px #000b);
-}
-.volley-button:not(.ability-book).swap-target {
-  filter: drop-shadow(0 0 0 #fff) drop-shadow(0 0 4px #ffd34a);
-}
+/* v0.24e–v0.25g: active abilities sat on an open book in the game; v0.25h: the book stays in the reward dialog only */
 
 /* ---- v0.24f: Desktop Wide: send cards (top) and build cards (bottom) at the same time; own stats top left ---- */
 .wide-stats,
@@ -9194,4 +9167,74 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
 :root.layout-wide .command-deck #cards {
   padding-top: 8px;
   margin-top: -6px;
+}
+
+/* ---- v0.25h: active abilities: framed buttons in the game, cooldown fills from top to bottom (like the EXP meter);
+   the book only behind them in the reward dialog; last place in red; simple tier text outside Desktop Wide ---- */
+.volley-button .volley-cd {
+  inset: auto 0 0 0;
+  height: calc(var(--cd, 0) * 100%);
+  background: #000b;
+  box-shadow: inset 0 1.5px 0 #ffffff55;
+  border-radius: 0 0 9px 9px;
+}
+.pick-card .pick-book {
+  display: grid;
+  place-items: center;
+  width: 76px;
+  height: 64px;
+  margin: 0 auto;
+  background: var(--ability-book) center / 100% auto no-repeat;
+  filter: drop-shadow(0 2px 1px #000b);
+}
+.pick-card .pick-book img {
+  width: 64% !important;
+  height: 64% !important;
+  transform: translateY(-17%);
+  filter: drop-shadow(0 1px 1px #0009);
+}
+.sum-place.place-last {
+  box-shadow: inset 0 0 0 1.5px #ff4a3a88;
+  background: radial-gradient(circle at 50% 70%, #ff4a3a24, #07131b 70%);
+}
+.sum-place.place-last b em {
+  background: linear-gradient(180deg, #ffb3a6 0%, #ff4a3a 40%, #b3140c 70%, #ff6b5a 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-stroke: 1px #2a0400;
+  filter: drop-shadow(0 1px 0 #0009);
+}
+/* outside Desktop Wide the tier is plain text: "T" and the Roman numeral in tier orange with a white outline */
+:root:not(.layout-wide) .plate-exp .plate-tier,
+:root:not(.layout-wide) .ec-level .ec-tier {
+  display: inline;
+  min-width: 0;
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none !important;
+}
+:root:not(.layout-wide) .plate-exp .plate-tier::before,
+:root:not(.layout-wide) .ec-level .ec-tier::before {
+  content: "T";
+}
+:root:not(.layout-wide) .plate-exp .plate-tier,
+:root:not(.layout-wide) .plate-exp .plate-tier b,
+:root:not(.layout-wide) .ec-level .ec-tier,
+:root:not(.layout-wide) .ec-level .ec-tier b {
+  font: 800 12px/1 var(--font-display) !important;
+  letter-spacing: 0.02em;
+  color: var(--tier-orange) !important;
+  -webkit-text-stroke: 0;
+  text-shadow:
+    -1px -1px 0 #fff,
+    1px -1px 0 #fff,
+    -1px 1px 0 #fff,
+    1px 1px 0 #fff,
+    0 1px 2px #0008;
+}
+:root:not(.layout-wide) .ec-level .ec-tier,
+:root:not(.layout-wide) .ec-level .ec-tier b {
+  font-size: 10px !important;
 }
