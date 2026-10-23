@@ -173,7 +173,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.25d",
+const APP_VERSION = "0.25e",
   APP_BRANCH = "F", // v0.23q: author marker (F = Felix, S = Steven) and branch text, shown behind the version; APP_VERSION stays plain for online matches (VersionPublishingRules.md)
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "23.10.2026";
@@ -794,7 +794,7 @@ function renderEnemyStack(force = false) {
     stack.innerHTML = seats
       .map(
         (q) =>
-          `<button class="enemy-cell${game?.teams && q.team === game.players[own]?.team ? " ally" : ""}" type="button" data-seat="${q.id}" style="--pc:${TEAM_COLORS[colors[q.id]]?.css || "#888"}"><span class="ec-top"><span class="ec-face"><img class="portrait" src="assets/art/portrait-enemy.webp" alt=""><i class="plate-skull" aria-hidden="true"></i><img class="ec-target" src="${iconUrl("attack")}" alt=""></span><span class="ec-stats"><span class="ec-lives"><img src="${iconUrl("heart")}" alt=""><b></b></span></span></span><span class="ec-gold"><img src="${iconUrl("coin")}" alt=""><b></b></span><em class="ec-inc"></em><span class="ec-level"><i class="ec-lv">Lv</i><b></b><span class="ec-tier">T<b></b></span></span></button>`,
+          `<button class="enemy-cell${game?.teams && q.team === game.players[own]?.team ? " ally" : ""}" type="button" data-seat="${q.id}" style="--pc:${TEAM_COLORS[colors[q.id]]?.css || "#888"}"><span class="ec-top"><span class="ec-face"><img class="portrait" src="assets/art/portrait-enemy.webp" alt=""><i class="plate-skull" aria-hidden="true"></i><img class="ec-target" src="${iconUrl("attack")}" alt=""></span><span class="ec-stats"><span class="ec-lives"><img src="${iconUrl("heart")}" alt=""><b></b></span></span></span><span class="ec-gold"><img src="${iconUrl("coin")}" alt=""><b></b></span><em class="ec-inc"></em><span class="ec-level"><i class="ec-lv">Lv</i><b></b><span class="ec-tier"><b></b></span></span></button>`,
       )
       .join("");
   }
@@ -812,7 +812,7 @@ function renderEnemyStack(force = false) {
     if (cell.querySelector(".ec-lives b").textContent !== lives) cell.querySelector(".ec-lives b").textContent = lives;
     const lvl = String(q.level || 1);
     if (cell.querySelector(".ec-level b").textContent !== lvl) cell.querySelector(".ec-level b").textContent = lvl;
-    const tierText = String(q.tier || 1); // v0.22u2
+    const tierText = tierRoman(q.tier); // v0.22u2; v0.25e: Roman numerals
     if (cell.querySelector(".ec-tier b").textContent !== tierText) cell.querySelector(".ec-tier b").textContent = tierText;
     setGoldFit(cell.querySelector(".ec-gold b"), gold); // v0.25: full number while it fits
     if (cell.querySelector(".ec-inc").textContent !== inc) cell.querySelector(".ec-inc").textContent = inc;
@@ -5048,6 +5048,9 @@ const matchClock = () =>
   game ? `${String(Math.floor(game.time / 60)).padStart(2, "0")}:${String(Math.floor(game.time % 60)).padStart(2, "0")}` : "00:00";
 // v0.21l: write to the page only what changed (refreshUI runs every 150 ms)
 let uiRefreshCount = 0;
+/** v0.25e: the tier in the player windows as a Roman numeral (I, II, III …). */
+const TIER_ROMAN = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"];
+const tierRoman = (n) => TIER_ROMAN[(n || 1) - 1] || String(n);
 function setText(el, value) {
   const v = String(value);
   if (el && el.textContent !== v) el.textContent = v;
@@ -5107,7 +5110,7 @@ function refreshUI() {
     setText($("ws-gold"), format(Math.floor(goldShown(p.gold))));
     setText($("ws-income"), incomeOf(p));
     setText($("ws-level"), p.level);
-    setText($("ws-tier"), p.tier || 1); // v0.24q
+    setText($("ws-tier"), tierRoman(p.tier)); // v0.24q; v0.25e: Roman numerals
     setText($("ws-exp"), `${format(Math.floor(p.exp))} / ${format(Math.max(1, Math.round(p.expNext)))} EXP`);
     setStyle($("ws-exp-fill"), "width", `${Math.min(100, (100 * p.exp) / Math.max(1, p.expNext))}%`);
   }
@@ -5116,7 +5119,7 @@ function refreshUI() {
   for (const [prefix, pl] of [["own", p], ["rival", enemy]]) {
     setStyle($(prefix + "-exp"), "width", `${Math.min(100, (100 * pl.exp) / Math.max(1, pl.expNext))}%`); // v0.21l: only on change
     setText($(prefix + "-level"), pl.level);
-    setText($(prefix + "-tier"), pl.tier || 1); // v0.22u2: tier next to the level
+    setText($(prefix + "-tier"), tierRoman(pl.tier)); // v0.22u2: tier next to the level; v0.25e: Roman numerals
   }
   refreshLevelButton(p);
   refreshVolley(p);
@@ -5142,7 +5145,7 @@ function refreshUI() {
   updateNudge(p);
   const secs = Math.max(0, Math.ceil(game.incomeRemaining));
   const manualPause = uiPauses.has("manual") && game.paused; // v0.18h
-  setText($("income-time"), manualPause ? "II" : secs);
+  setText($("income-time"), manualPause ? "" : secs); // v0.25e: the paused timer shows a drawn pause sign (CSS) instead of "II"
   $("income-time").classList.toggle("soon", secs <= 3 && !game.paused && game.running);
   document.querySelector(".round-plate")?.classList.toggle("manual-pause", manualPause);
   if ($("menu-clock")) setText($("menu-clock"), matchClock());
@@ -8762,7 +8765,7 @@ function updateWideMinis() {
       !root.classList.contains("layout-wide") || !game || !begun || minimapMode === "off"
         ? []
         : minimapMode === "all"
-          ? game.players.filter((q) => q.id !== view && !q.out).map((q) => q.id)
+          ? game.players.filter((q) => (q.id !== view || q.id === own) && !q.out).map((q) => q.id) // v0.25e: your own lane too
           : [view === own ? rivalIndex() : own];
   root.classList.toggle("wide-minis-on", ids.length > 0);
   if (!host) return;
@@ -8817,7 +8820,7 @@ function updateWidePlayers() {
     host.innerHTML = order
       .map(
         (q) =>
-          `<button class="wide-player${q.id === own ? " mine" : ""}" type="button" data-seat="${q.id}" style="--pc:${TEAM_COLORS[colors[q.id]]?.css || "#888"}"><span class="wp-face"><img class="portrait" src="assets/art/portrait-enemy.webp" alt=""><i class="plate-skull" aria-hidden="true"></i></span><span class="wp-main"><span class="wp-name"></span><span class="wp-row wp-state"><img src="assets/art/icon-heart.webp" alt="Lives"><b class="wp-lives"></b><span class="wp-tier">T<b class="wp-t"></b></span></span><span class="wp-row wp-money"><img src="${iconUrl("coin")}" alt="Gold"><b class="wp-gold"></b><em class="wp-inc"></em></span><span class="wp-row wp-maze"><span class="wp-worth-label">${esc(t("Maze"))}</span><b class="wp-worth"></b><span class="wp-els"></span></span><span class="wp-expline"><span class="wp-lv">Lv <b class="wp-level"></b></span><i class="wp-exp"><s></s></i></span></span></button>`,
+          `<button class="wide-player${q.id === own ? " mine" : ""}" type="button" data-seat="${q.id}" style="--pc:${TEAM_COLORS[colors[q.id]]?.css || "#888"}"><span class="wp-face"><img class="portrait" src="assets/art/portrait-enemy.webp" alt=""><i class="plate-skull" aria-hidden="true"></i></span><span class="wp-main"><span class="wp-name"></span><span class="wp-row wp-state"><img src="assets/art/icon-heart.webp" alt="Lives"><b class="wp-lives"></b><span class="wp-tier"><b class="wp-t"></b></span></span><span class="wp-row wp-money"><img src="${iconUrl("coin")}" alt="Gold"><b class="wp-gold"></b><em class="wp-inc"></em></span><span class="wp-row wp-maze"><span class="wp-worth-label">${esc(t("Maze"))}</span><b class="wp-worth"></b><span class="wp-els"></span></span><span class="wp-expline"><span class="wp-lv">Lv <b class="wp-level"></b></span><i class="wp-exp"><s></s></i></span></span></button>`,
       )
       .join("");
   }
@@ -8841,7 +8844,7 @@ function updateWidePlayers() {
     put(card.querySelector(".wp-inc"), q.out ? "" : "+" + resourceNumber(Math.floor(q.income)));
     put(card.querySelector(".wp-lives"), String(q.lives));
     put(card.querySelector(".wp-level"), String(q.level || 1));
-    put(card.querySelector(".wp-t"), String(q.tier || 1));
+    put(card.querySelector(".wp-t"), tierRoman(q.tier)); // v0.25e
     setGoldFit(card.querySelector(".wp-worth"), Math.floor(towerWorth(q)));
     const els = catalog.factions.filter((f) => q.research?.[f.unlock]),
       elKey = els.map((f) => f.id).join(","),

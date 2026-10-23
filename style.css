@@ -9047,3 +9047,80 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
   flex: 1;
   min-width: 0;
 }
+
+/* ---- v0.25e: the tier in the player windows: a larger flame-orange badge with a Roman numeral (an orange redder and
+   deeper than the player colour Orange #fb8500); the paused round timer shows a drawn pause sign and breathes in grey ---- */
+:root {
+  --tier-orange: #ff5f2e;
+  --tier-orange-dark: #8a2a0c;
+}
+.plate-exp .plate-tier,
+.ec-level .ec-tier,
+:root.layout-wide .wp-tier {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.7em;
+  margin-left: 5px;
+  padding: 1px 4px 0;
+  border-radius: 5px;
+  background: linear-gradient(#ff8a4f, var(--tier-orange) 55%, #d9431a);
+  box-shadow:
+    inset 0 0 0 1px #ffc09a88,
+    0 0 0 1px var(--tier-orange-dark),
+    0 1px 2px #0008;
+  font-style: normal;
+  vertical-align: middle;
+}
+.plate-exp .plate-tier b,
+.ec-level .ec-tier b,
+:root.layout-wide .wp-tier b {
+  font: 800 12px/1.15 var(--font-display) !important;
+  letter-spacing: 0.04em;
+  color: #fff !important;
+  text-shadow: 0 1px 0 var(--tier-orange-dark);
+}
+.ec-level .ec-tier b {
+  font-size: 10px !important;
+}
+:root.layout-wide .wp-tier {
+  margin-left: 8px;
+  padding: 2px 6px 1px;
+}
+:root.layout-wide .wp-tier b {
+  font-size: 15px !important;
+}
+:root.layout-wide .ws-tier-badge {
+  background: linear-gradient(#ff8a4f, var(--tier-orange) 55%, #d9431a);
+  box-shadow: inset 0 0 0 1px #ffc09a88, 0 0 0 1px var(--tier-orange-dark);
+}
+:root.layout-wide .ws-tier b {
+  color: #ffb08a;
+  font-family: var(--font-display);
+}
+/* pause sign: two rounded bars in the middle of the timer, the plate breathes with a soft grey aura */
+.round-plate.manual-pause #income-time {
+  position: relative; /* above the ring (the svg is absolute) */
+  display: block;
+  width: 36%;
+  height: 42%;
+  background:
+    linear-gradient(var(--gold, #ffd34a), var(--gold, #ffd34a)) left / 36% 100% no-repeat,
+    linear-gradient(var(--gold, #ffd34a), var(--gold, #ffd34a)) right / 36% 100% no-repeat;
+  border-radius: 1.5px;
+  filter: drop-shadow(0 1px 1px #000a);
+}
+.round-plate.manual-pause {
+  animation: pause-aura 2.4s ease-in-out infinite;
+}
+@keyframes pause-aura {
+  0%,
+  100% {
+    box-shadow: inset 0 0 0 2px #c8ced488, 0 0 4px 1px #b4bcc433;
+  }
+  50% {
+    box-shadow: inset 0 0 0 2px #c8ced4cc, 0 0 16px 5px #b4bcc499;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .round-plate.manual-pause { animation: none; box-shadow: inset 0 0 0 2px #c8ced4aa, 0 0 10px 3px #b4bcc466; }
+}
