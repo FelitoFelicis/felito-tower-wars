@@ -173,7 +173,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.25a",
+const APP_VERSION = "0.25b",
   APP_BRANCH = "F", // v0.23q: author marker (F = Felix, S = Steven) and branch text, shown behind the version; APP_VERSION stays plain for online matches (VersionPublishingRules.md)
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "23.10.2026";
@@ -8777,7 +8777,7 @@ function updateWidePlayers() {
     host.innerHTML = order
       .map(
         (q) =>
-          `<button class="wide-player${q.id === own ? " mine" : ""}" type="button" data-seat="${q.id}" style="--pc:${TEAM_COLORS[colors[q.id]]?.css || "#888"}"><span class="wp-face"><img class="portrait" src="assets/art/portrait-enemy.webp" alt=""><i class="plate-skull" aria-hidden="true"></i></span><span class="wp-main"><span class="wp-name"></span><span class="wp-row wp-state"><img src="assets/art/icon-heart.webp" alt="Lives"><b class="wp-lives"></b><span class="wp-lv">Lv <b class="wp-level"></b></span><span class="wp-tier">T<b class="wp-t"></b></span></span><span class="wp-row wp-money"><img src="${iconUrl("coin")}" alt="Gold"><b class="wp-gold"></b><em class="wp-inc"></em></span><span class="wp-row wp-maze"><span class="wp-worth-label">${esc(t("Maze"))}</span><b class="wp-worth"></b><span class="wp-els"></span></span><i class="wp-exp"><s></s></i></span></button>`,
+          `<button class="wide-player${q.id === own ? " mine" : ""}" type="button" data-seat="${q.id}" style="--pc:${TEAM_COLORS[colors[q.id]]?.css || "#888"}"><span class="wp-face"><img class="portrait" src="assets/art/portrait-enemy.webp" alt=""><i class="plate-skull" aria-hidden="true"></i></span><span class="wp-main"><span class="wp-name"></span><span class="wp-row wp-state"><img src="assets/art/icon-heart.webp" alt="Lives"><b class="wp-lives"></b><span class="wp-tier">T<b class="wp-t"></b></span></span><span class="wp-row wp-money"><img src="${iconUrl("coin")}" alt="Gold"><b class="wp-gold"></b><em class="wp-inc"></em></span><span class="wp-row wp-maze"><span class="wp-worth-label">${esc(t("Maze"))}</span><b class="wp-worth"></b><span class="wp-els"></span></span><span class="wp-expline"><span class="wp-lv">Lv <b class="wp-level"></b></span><i class="wp-exp"><s></s></i></span></span></button>`,
       )
       .join("");
   }

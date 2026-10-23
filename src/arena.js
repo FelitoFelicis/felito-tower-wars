@@ -976,7 +976,7 @@ export function mountArena({
       const L = z.left,
         T = z.top,
         W = z.bw,
-        H = z.bh,
+        H = z.ny, // v0.25b: creep y is a share of the full grid (was z.bh, the lane height: creeps were drawn too high since v0.24r)
         raw = { x: L + c.x * W, y: T + c.y * H };
       if (c.flying || c.knock || !Array.isArray(c.path) || !c.path.length) return raw;
       const ox = c.ox || 0,
@@ -2607,6 +2607,7 @@ export function mountArena({
           // v0.23e: the board is seen from the bottom: ground creeps sort with the towers by where their feet are
           // (lower on the board = in front); flyers stay above everything on the ground
           .setDepth(flying ? 4200 + Math.floor(q.y) : creepDepth(c, 100.5 + Math.floor(q.y + cell * 0.2)));
+        sprite.setData("hx", sprite.x).setData("hy", sprite.y - height * 0.45); // v0.25b: where shots hit this figure (its middle)
         if (gait) g.fillStyle(0x2d5a1c, flying ? 0.14 : 0.2); // design variants: a softer, green-tinted shadow on the light meadow
         else g.fillStyle(0x06120e, flying ? 0.22 : 0.32);
         g.fillEllipse(q.x, q.y + cell * 0.2, cell * (boss ? 0.8 : 0.48), cell * (boss ? 0.28 : 0.17));
@@ -2797,7 +2798,7 @@ export function mountArena({
       for (const key of this.waiting.keys()) if (!alive.has(key)) this.waiting.delete(key); // v0.23
       this.consumeEvents(game, view, own, catalog, z, time);
       this.settleDeaths(view, time);
-      this.drawFx(game, player, dt, cell);
+      this.drawFx(game, player, dt, cell, view);
       this.drawPip(game, view, own, z, catalog, time);
       this.drawVignette(z, dt);
     }
@@ -3184,7 +3185,7 @@ export function mountArena({
         .setPosition(clamp(q.x, z.left + 64, z.left + z.bw - 64), Math.max(z.top + 16, q.y - cell * 0.95))
         .setVisible(true);
     }
-    drawFx(game, player, dt, cell) {
+    drawFx(game, player, dt, cell, view = player.id) {
       const f = this.fx,
         fa = this.fxAdd;
       f.clear();
@@ -3195,9 +3196,18 @@ export function mountArena({
         p.t += dt;
         const target = player.creeps.find((c) => c.id === p.targetId);
         if (target && target.hp > 0) {
-          const q = this.point(target.x, target.y);
-          p.tx = q.x;
-          p.ty = q.y - cell * 0.2;
+          // v0.25b: aim at the figure as it is drawn (curved corners, spread-out groups, its own height),
+          // not at the creep's logical spot on the ground
+          const fig = this.units.get(this.creepKey(view, target.id)),
+            hy = fig?.visible ? fig.getData("hy") : null;
+          if (hy != null) {
+            p.tx = fig.getData("hx");
+            p.ty = hy;
+          } else {
+            const q = this.point(target.x, target.y);
+            p.tx = q.x;
+            p.ty = q.y - cell * 0.2;
+          }
         }
         const k = clamp(p.t / p.dur, 0, 1),
           x = lerp(p.x0, p.tx, k),
