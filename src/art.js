@@ -344,7 +344,8 @@ export function loadPacks() {
 const PACK_MEMBER = /^assets\/art\/(perks\/[\w-]+|perk-[\w-]+|tower-[\w-]+-[vl]\d+)\.webp$/;
 /** v0.24j: what a pack picture shows until the packs are there: a blank picture that remembers its path (no request,
  * so no 404 and no error line); pictures on screen swap over when the packs arrive (see app.js). */
-export const PACK_PENDING = "data:image/gif;base64,R0lGODlhAQABAAAAACw=#";
+// v0.25c: a complete 1×1 transparent GIF (the old one was cut short, so the browser reported an image error)
+export const PACK_PENDING = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7#";
 export const unpack = (url) => {
   const path = String(url).split("?")[0];
   return packed.get(path) || (!packsReady && PACK_MEMBER.test(path) ? PACK_PENDING + path : url);

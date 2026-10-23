@@ -173,7 +173,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.25c",
+const APP_VERSION = "0.25d",
   APP_BRANCH = "F", // v0.23q: author marker (F = Felix, S = Steven) and branch text, shown behind the version; APP_VERSION stays plain for online matches (VersionPublishingRules.md)
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "23.10.2026";
@@ -2530,8 +2530,47 @@ document.addEventListener("change", (e) => {
   setTips(e.target.checked);
   tone("tap"); // v0.24e: no banner when tips are switched off from a tip
 });
-/** v0.16i: the bottom banner always sits on the bottom edge of the playing field, not over its lower third. */
+/**
+ * v0.25c: the lowest free line for a banner: right above the menu under it (the blueprint or creep cards, the
+ * tower panel, else the bottom bar), so it never covers buttons. Desktop Wide keeps its own places (null).
+ */
+function bannerFloor(el) {
+  if (wideDeck() || !el.offsetParent) return null;
+  const r = el.getBoundingClientRect(),
+    sh = el.offsetParent.getBoundingClientRect();
+  let floor = Infinity;
+  for (const c of [$("tower-panel"), $("cards"), document.querySelector(".bottom-nav")]) {
+    if (!c || c.hidden || !c.offsetParent || (c.id === "cards" && !c.children.length)) continue;
+    const b = c.getBoundingClientRect();
+    if (b.height < 4 || b.right <= r.left + 8 || b.left >= r.right - 8 || b.top < sh.top + sh.height * 0.35) continue; // not under the banner
+    floor = Math.min(floor, b.top);
+  }
+  return floor === Infinity ? null : floor - sh.top;
+}
+/** v0.25c: the tip box (coach) sits right above the menu. */
+function placeCoach() {
+  const box = $("coach");
+  if (!box || box.hidden) return;
+  const floor = bannerFloor(box);
+  if (floor == null) {
+    if (box.style.bottom) box.style.top = box.style.bottom = "";
+    return;
+  }
+  const bottom = Math.round(box.offsetParent.getBoundingClientRect().height - floor + 6) + "px";
+  if (box.style.bottom !== bottom) Object.assign(box.style, { top: "auto", bottom });
+}
+/** v0.16i: the bottom banner always sits on the bottom edge of the playing field, not over its lower third.
+ * v0.25c: right above the current menu (and above the tip box when it is open), as low as it can be. */
 function placeToast(el = $("toast")) {
+  const floor = bannerFloor(el);
+  if (floor != null) {
+    const shellTop = el.offsetParent.getBoundingClientRect().top,
+      tip = $("coach"),
+      edge = tip && !tip.hidden && el !== tip ? Math.min(floor, tip.getBoundingClientRect().top - shellTop) : floor;
+    el.style.bottom = "auto";
+    el.style.top = Math.round(edge - el.offsetHeight - 6) + "px";
+    return;
+  }
   const z = arena?.geometry?.(),
     box = $("arena")?.getBoundingClientRect(),
     shell = el.offsetParent?.getBoundingClientRect();
@@ -4561,7 +4600,7 @@ const perkVars = (level, q, lv, next) => {
     airBlockBack: AIRBLOCK.back[l3],
     airBlockStun: AIRBLOCK.stun[l3],
     airBlockMonsun: AIRBLOCK.monsun[l3],
-    quarryGold: format(quarryGold(game, q, l)), // v0.24s
+    quarryGold: format(quarryGold(level, q, game)), // v0.24s; v0.25c: argument order fixed (was a ReferenceError)
     airBlock: format(airBlockDamage(q, l3 + 1)),
     growth: format(Math.round(SUPERGROWTH[l3 + 1] * 1000) / 10) + "%",
     slaveStock: SLAVE.stock * Math.min(3, lv),
@@ -5692,6 +5731,7 @@ function coach(key) {
   const box = $("coach");
   box.innerHTML = `<div><b>${esc(t(step.title))}</b><p>${t(step.text)}</p>${tipToggleHtml()}</div><button type="button" id="coach-ok">OK</button>`;
   box.hidden = false;
+  placeCoach(); // v0.25c
   box.classList.remove("show");
   void box.offsetWidth;
   box.classList.add("show");
@@ -8822,6 +8862,10 @@ document.addEventListener("click", (e) => {
   if (!game.players[id]?.out || id === own) showMaze(id);
 });
 setInterval(() => {
+  try {
+    placeCoach(); // v0.25c: banners follow the menu under them
+    if ($("toast").classList.contains("show")) placeToast();
+  } catch {}
   try {
     updateWidePlayers();
   } catch {}
