@@ -387,7 +387,7 @@ export const ANIM_MANIFEST = Object.freeze({
   "creep-n-goblin": { kind: "walk", dirs: 8, frames: 8, cols: 8, fw: 104, fh: 113, footX: 52, footY: 99, figH: 88, ms: 95, figS: 88 }, // v0.23t: new hooded goblin sheet, 8 frames per direction
   "creep-n-trenchlin": { kind: "walk", dirs: 8, frames: 8, cols: 8, fw: 100, fh: 123, footX: 50, footY: 110, figH: 96, ms: 95, figS: 96 }, // v0.23x: helmeted goblin with a spike, 8 frames per direction
   "creep-n-trenchlin-death": { kind: "death", in: "creep-n-trenchlin", first: 64, frames: 7, cols: 8, fw: 100, fh: 123, footX: 50, footY: 110, ms: 110 }, // v0.24a: death row inside the walk sheet
-  "creep-n-zealot": { kind: "walk", dirs: 8, frames: 8, cols: 8, fw: 112, fh: 108, footX: 56, footY: 97, figH: 86, ms: 95, figS: 86 }, // v0.23z: hooded goblin zealot, 8 frames per direction
+  "creep-n-zealot": { kind: "walk", dirs: 8, frames: 8, cols: 8, fw: 112, fh: 108, footX: 56, footY: 97, figH: 86, ms: 95, figS: 86, bob: 0.02, bobSteps: 2 }, // v0.25a: a light step bob (little leg movement in the sheet); // v0.23z: hooded goblin zealot, 8 frames per direction
   "creep-n-zealot-death": { kind: "death", in: "creep-n-zealot", first: 64, frames: 7, cols: 8, fw: 112, fh: 108, footX: 56, footY: 97, ms: 110 }, // v0.24a: death row inside the walk sheet
   "creep-n-crystal-lizard": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 132, fh: 100, footX: 66, footY: 87, figH: 70, ms: 95, figS: 70 }, // v0.23zb: tier 4 Crystal Lizard (was Dragonspawn); one sheet: 8 walk rows, the death row below
   "creep-n-crystal-lizard-death": { kind: "death", in: "creep-n-crystal-lizard", first: 48, frames: 6, cols: 6, fw: 132, fh: 100, footX: 66, footY: 87, ms: 110 },
@@ -403,7 +403,7 @@ export const ANIM_MANIFEST = Object.freeze({
   "creep-n-siege-ogre-death": { kind: "death", in: "creep-n-siege-ogre", first: 48, frames: 6, cols: 6, fw: 142, fh: 106, footX: 71, footY: 91, ms: 110 },
   "creep-n-siege-ogre-bare": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 128, fh: 111, footX: 64, footY: 99, figH: 75, ms: 95, figS: 75 }, // v0.23zb: Siege Ogre after its plank is planted; one sheet: 8 walk rows, the death row below
   "creep-n-siege-ogre-bare-death": { kind: "death", in: "creep-n-siege-ogre-bare", first: 48, frames: 6, cols: 6, fw: 128, fh: 111, footX: 64, footY: 99, ms: 110 },
-  "creep-n-undoctor": { kind: "walk", dirs: 8, frames: 8, cols: 8, fw: 110, fh: 106, footX: 55, footY: 96, figH: 87, ms: 95, figS: 87 }, // v0.23zb: tier 4 Undoctor (was Witch Doctor); one sheet: 8 walk rows, the death row below
+  "creep-n-undoctor": { kind: "walk", dirs: 8, frames: 8, cols: 8, fw: 110, fh: 106, footX: 55, footY: 96, figH: 87, ms: 95, figS: 87, bob: 0.02, bobSteps: 2 }, // v0.25a: a light step bob (little leg movement in the sheet); // v0.23zb: tier 4 Undoctor (was Witch Doctor); one sheet: 8 walk rows, the death row below
   "creep-n-undoctor-death": { kind: "death", in: "creep-n-undoctor", first: 64, frames: 7, cols: 8, fw: 110, fh: 106, footX: 55, footY: 96, ms: 110 },
   "creep-n-satyr": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 126, fh: 95, footX: 63, footY: 86, figH: 71, ms: 95, figS: 71 }, // v0.23zb: tier 2 Satyr (was Centaur Warrior); one sheet: 8 walk rows, the death row below
   "creep-n-satyr-death": { kind: "death", in: "creep-n-satyr", first: 48, frames: 6, cols: 6, fw: 126, fh: 95, footX: 63, footY: 86, ms: 110 },
@@ -417,7 +417,7 @@ export const ANIM_MANIFEST = Object.freeze({
   "creep-n-scaleworm-death": { kind: "death", in: "creep-n-scaleworm", first: 64, frames: 7, cols: 8, fw: 112, fh: 106, footX: 56, footY: 91, ms: 110 },
   "creep-n-witch-hunter": { kind: "walk", dirs: 8, frames: 8, cols: 8, fw: 172, fh: 112, footX: 86, footY: 101, figH: 92, ms: 95, figS: 92 }, // v0.23zi: tier 4 Witch Hunter (was Demon Hunter); walk and death in one sheet
   "creep-n-witch-hunter-death": { kind: "death", in: "creep-n-witch-hunter", first: 64, frames: 7, cols: 8, fw: 172, fh: 112, footX: 86, footY: 101, ms: 110 },
-  "creep-n-demon-knight": { kind: "walk", dirs: 8, frames: 8, cols: 8, fw: 166, fh: 105, footX: 83, footY: 95, figH: 90, ms: 95, figS: 90 }, // v0.23zj: tier 4 Demon Knight (was Demon Hunter); walk and death in one sheet
+  "creep-n-demon-knight": { kind: "walk", dirs: 8, frames: 8, cols: 8, fw: 166, fh: 105, footX: 83, footY: 95, figH: 90, ms: 95, figS: 90, bob: 0.02, bobSteps: 2 }, // v0.25a: a light step bob (little leg movement in the sheet); // v0.23zj: tier 4 Demon Knight (was Demon Hunter); walk and death in one sheet
   "creep-n-demon-knight-death": { kind: "death", in: "creep-n-demon-knight", first: 64, frames: 7, cols: 8, fw: 166, fh: 105, footX: 83, footY: 95, ms: 110 },
   "creep-n-dryad": { kind: "walk", dirs: 8, frames: 8, cols: 8, fw: 176, fh: 117, footX: 88, footY: 108, figH: 102, ms: 95, figS: 102 }, // v0.23zj: tier 5 Dryad; 7 walk rows on the sheet (back-left = mirrored back-right); walk and death in one sheet
   "creep-n-dryad-death": { kind: "death", in: "creep-n-dryad", first: 64, frames: 7, cols: 8, fw: 176, fh: 117, footX: 88, footY: 108, ms: 110 },
@@ -429,11 +429,11 @@ export const ANIM_MANIFEST = Object.freeze({
   "creep-n-demon-lord-death": { kind: "death", in: "creep-n-demon-lord", first: 48, frames: 7, cols: 6, fw: 127, fh: 116, footX: 60, footY: 110, ms: 110 }, // v0.24a: death row inside the walk sheet
   "creep-n-raven": { kind: "walk", dirs: 8, frames: 8, cols: 8, fw: 170, fh: 118, footX: 85, footY: 113, figH: 88, ms: 95, figS: 95 }, // v0.23zo: tier 5 Raven (was Gryphon Rider); back-left = mirrored back-right; flight and death in one sheet
   "creep-n-raven-death": { kind: "death", in: "creep-n-raven", first: 64, frames: 7, cols: 8, fw: 170, fh: 118, footX: 85, footY: 113, ms: 110 },
-  "creep-n-naga-siren": { kind: "walk", dirs: 8, frames: 8, cols: 8, fw: 172, fh: 137, footX: 86, footY: 133, figH: 91, ms: 95, figS: 91 }, // v0.23zp: Naga Siren; back-left = mirrored back-right; swim and death in one sheet
+  "creep-n-naga-siren": { kind: "walk", dirs: 8, frames: 8, cols: 8, fw: 172, fh: 137, footX: 86, footY: 133, figH: 91, ms: 95, figS: 91, bob: 0.02, bobSteps: 2 }, // v0.25a: a light step bob (little leg movement in the sheet); // v0.23zp: Naga Siren; back-left = mirrored back-right; swim and death in one sheet
   "creep-n-naga-siren-death": { kind: "death", in: "creep-n-naga-siren", first: 64, frames: 7, cols: 8, fw: 172, fh: 137, footX: 86, footY: 133, ms: 110 },
-  "creep-n-druid": { kind: "walk", dirs: 8, frames: 8, cols: 8, fw: 120, fh: 115, footX: 60, footY: 104, figH: 96, ms: 95, figS: 96 }, // v0.23zi: tier 5 Druid (bear cloak); left = mirrored row 3; walk and death in one sheet
+  "creep-n-druid": { kind: "walk", dirs: 8, frames: 8, cols: 8, fw: 120, fh: 115, footX: 60, footY: 104, figH: 96, ms: 95, figS: 96, bob: 0.02, bobSteps: 2 }, // v0.25a: a light step bob (little leg movement in the sheet); // v0.23zi: tier 5 Druid (bear cloak); left = mirrored row 3; walk and death in one sheet
   "creep-n-druid-death": { kind: "death", in: "creep-n-druid", first: 64, frames: 7, cols: 8, fw: 120, fh: 115, footX: 60, footY: 104, ms: 110 },
-  "creep-n-zombie-ogre": { kind: "walk", dirs: 8, frames: 8, cols: 8, fw: 150, fh: 130, footX: 75, footY: 104, figH: 97, ms: 95, figS: 97 }, // v0.23zh: tier 5 Zombie Ogre (was Abomination); 7 walk rows on the sheet (front-right, back-right and left mirrored), walk and death in one sheet
+  "creep-n-zombie-ogre": { kind: "walk", dirs: 8, frames: 8, cols: 8, fw: 150, fh: 130, footX: 75, footY: 104, figH: 97, ms: 95, figS: 97, bob: 0.02, bobSteps: 2 }, // v0.25a: a light step bob (little leg movement in the sheet); // v0.23zh: tier 5 Zombie Ogre (was Abomination); 7 walk rows on the sheet (front-right, back-right and left mirrored), walk and death in one sheet
   "creep-n-zombie-ogre-death": { kind: "death", in: "creep-n-zombie-ogre", first: 64, frames: 6, cols: 8, fw: 150, fh: 130, footX: 75, footY: 104, ms: 110 },
   "creep-n-minotaurus": { kind: "walk", dirs: 8, frames: 8, cols: 8, fw: 112, fh: 112, footX: 56, footY: 100, figH: 93, ms: 95, figS: 93 }, // v0.23zf: tier 3 Minotaurus (was Cairne Bloodhoof); walk and death in one sheet
   "creep-n-minotaurus-death": { kind: "death", in: "creep-n-minotaurus", first: 64, frames: 7, cols: 8, fw: 112, fh: 112, footX: 56, footY: 100, ms: 110 },
@@ -452,7 +452,7 @@ export const ANIM_MANIFEST = Object.freeze({
   "creep-n-mud-golem-death": { kind: "death", in: "creep-n-mud-golem", first: 48, frames: 6, cols: 6, fw: 215, fh: 125, footX: 101, footY: 119, ms: 110 }, // v0.24a: death row inside the walk sheet
   "creep-n-necromancer": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 214, fh: 141, footX: 107, footY: 135, figH: 96, ms: 95, figS: 96 },
   "creep-n-necromancer-death": { kind: "death", in: "creep-n-necromancer", first: 48, frames: 6, cols: 6, fw: 214, fh: 141, footX: 107, footY: 135, ms: 110 }, // v0.24a: death row inside the walk sheet
-  "creep-n-raider": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 197, fh: 136, footX: 98, footY: 130, figH: 94, ms: 95, figS: 97, scale: 0.8 }, // v0.23j: smaller
+  "creep-n-raider": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 197, fh: 136, footX: 98, footY: 130, figH: 94, ms: 95, figS: 97, scale: 0.8, bob: 0.06 }, // v0.25a: Wolfrider gallops (a hop per stride; the wolf barely moves its legs in the front and back views); // v0.23j: smaller
   "creep-n-raider-death": { kind: "death", in: "creep-n-raider", first: 48, frames: 6, cols: 6, fw: 197, fh: 136, footX: 98, footY: 130, ms: 110 }, // v0.24a: death row inside the walk sheet
   "creep-n-rock-golem": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 193, fh: 132, footX: 91, footY: 126, figH: 93, ms: 95, figS: 93 },
   "creep-n-rock-golem-death": { kind: "death", in: "creep-n-rock-golem", first: 48, frames: 6, cols: 6, fw: 193, fh: 132, footX: 91, footY: 126, ms: 110 }, // v0.24a: death row inside the walk sheet
@@ -468,7 +468,7 @@ export const ANIM_MANIFEST = Object.freeze({
   "creep-n-spiritwolf-death": { kind: "death", in: "creep-n-spiritwolf", first: 48, frames: 6, cols: 6, fw: 172, fh: 120, footX: 86, footY: 112, ms: 110 },
   "creep-n-giant-bat": { kind: "walk", dirs: 8, frames: 8, cols: 8, fw: 150, fh: 95, footX: 75, footY: 81, figH: 60, ms: 95, figS: 98, scale: 1.12 }, // v0.24j: was small for one of the dearest creeps of its tier // v0.23zq: Giant Bat (was Zeppelin); right side = the 3/4 rows, back-left/back-right = back; flight and death in one sheet
   "creep-n-giant-bat-death": { kind: "death", in: "creep-n-giant-bat", first: 64, frames: 8, cols: 8, fw: 150, fh: 95, footX: 75, footY: 81, ms: 110 },
-  "creep-n-zombie": { kind: "walk", dirs: 8, frames: 8, cols: 8, fw: 104, fh: 112, footX: 52, footY: 102, figH: 93, ms: 95, figS: 93 }, // v0.23za: zombie goblin, 8 frames per direction
+  "creep-n-zombie": { kind: "walk", dirs: 8, frames: 8, cols: 8, fw: 104, fh: 112, footX: 52, footY: 102, figH: 93, ms: 95, figS: 93, bob: 0.02, bobSteps: 2 }, // v0.25a: a light step bob (little leg movement in the sheet); // v0.23za: zombie goblin, 8 frames per direction
   "creep-n-zombie-death": { kind: "death", in: "creep-n-zombie", first: 64, frames: 7, cols: 8, fw: 104, fh: 112, footX: 52, footY: 102, ms: 110 }, // v0.24a: death row inside the walk sheet
   "creep-n-wolf": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 254, fh: 166, footX: 127, footY: 160, figH: 138, figS: 138, ms: 95, scale: 0.92 }, // v0.24j: 14 % bulkier than its tier
   "creep-n-skeleton": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 190, fh: 151, footX: 95, footY: 145, figH: 133, figS: 133, ms: 95, scale: 0.8 }, // v0.23j: smaller; v0.24j: 0.82 → 0.92 (was smaller than cheaper creeps); v0.24p: 0.80

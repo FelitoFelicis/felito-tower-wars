@@ -2541,6 +2541,7 @@ export function mountArena({
         const statuses = c.statuses || [],
           slowed = statuses.some((st) => st.slow > 0 && !st.poison),
           poisoned = statuses.some((st) => st.poison || st.dps > 0);
+        let bob = 0; // v0.25a: a small hop per stride for sheets whose figures barely move their legs (front views)
         if (walk) {
           // Walk cycle runs with the creep's pace; stunned or rooted creeps freeze mid-step.
           const stuck = statuses.some((st) => st.stun || st.abilityId === "entangle") || c.enrageUntil > game.time, // v0.21z: growling Meat Golem
@@ -2554,6 +2555,7 @@ export function mountArena({
             const stride = Math.max(4, height * 0.6 * (walk.stride || 1)), // v0.23f: 0.85 → 0.6 figure heights per cycle (no moonwalking); v0.23r: walk.stride slows single sheets
               pos = (((((sprite.getData("wd") ?? 0) / stride) * walk.frames) % walk.frames) + walk.frames) % walk.frames,
               dir = sprite.getData("dir") ?? 0;
+            if (walk.bob && !stuck) bob = Math.abs(Math.sin(Math.PI * (pos / walk.frames) * (walk.bobSteps || 1))) * walk.bob * height;
             let shown = sprite.getData("show") ?? dir;
             if (shown !== dir && time - (sprite.getData("showAt") ?? -1e9) >= 130) {
               const diff = ((dir - shown + 12) % 8) - 4; // shortest way round, -4..3
@@ -2599,7 +2601,7 @@ export function mountArena({
         else sprite.setBend(0);
         sprite
           .setOrigin(walk ? (walk.footX ?? m.w / 2 + walk.ox) / walk.fw : 0.5, walk ? (walk.footY ?? m.footY + walk.oy) / walk.fh : m.footY / m.h)
-          .setPosition(q.x, q.y + (ground ? cell * 0.2 + height * 0.04 : cell * 0.18) - lift) // v0.23b: ground creeps stand in their shadow, feet slightly sunk
+          .setPosition(q.x, q.y + (ground ? cell * 0.2 + height * 0.04 : cell * 0.18) - lift - bob) // v0.23b: ground creeps stand in their shadow, feet slightly sunk
           .setScale(s * rage * face * (c.buff === "fat" ? 1.42 : 1) * (c.spiritWolf ? 1.08 : 1) * (gait ? gait.sx : 1), s * rage * flap * (c.buff === "fat" ? 1.06 : 1) * (c.spiritWolf ? 1.08 : 1) * (gait ? gait.sy : 1)) // v0.15: fat quest creeps; v0.19a1: Spirit Wolves a little larger
           .setRotation(gait ? gait.rot * face : flying || walk ? 0 : Math.sin(step) * 0.07)
           // v0.23e: the board is seen from the bottom: ground creeps sort with the towers by where their feet are
@@ -2821,8 +2823,11 @@ export function mountArena({
         stage = this.stage,
         set = activeArtSet(),
         top = z.top + 0.5 * z.ch + cell * 0.1, // feet line of the first tower row
-        rowH = z.ch;
-      this._bandTop = top; // v0.23l: for fallenDepth
+        rowH = z.ch,
+        // v0.25a: four bands per board row (was one), and inside a band the texture batches are ordered by the lowest
+        // feet they hold: a small creep just behind a boss or another large creep no longer pops in front of it
+        sub = Math.max(2, rowH / 4);
+      this._bandTop = top; // v0.23l: for fallenDepth (whole rows, behind every living creep of the row)
       this._bandH = rowH;
       for (const bands of pool.values()) for (const g of bands.values()) g.items.length = 0;
       for (const key of alive) {
@@ -2833,7 +2838,7 @@ export function mountArena({
         s.setBatched(ok);
         if (!ok) continue;
         const air = s.depth >= 4000,
-          depth = air ? 4200.5 : 100.5 + Math.floor(top + Math.floor((s.depth - 100.5 - top) / rowH) * rowH);
+          depth = air ? 4200.5 : 100.5 + Math.floor(top + Math.floor((s.depth - 100.5 - top) / sub) * sub);
         let bands = pool.get(s.texture.key);
         if (!bands) pool.set(s.texture.key, (bands = new Map()));
         let g = bands.get(depth);
@@ -2851,6 +2856,9 @@ export function mountArena({
             t = stage.textures.get(tex);
           b.clear();
           if (g.items.length > 1) g.items.sort(byDepth);
+          // v0.25a: the batch whose lowest feet are further down draws later inside its band (stays below the next band)
+          const order = depth >= 4200 ? depth : depth + 0.45 * clamp((g.items[g.items.length - 1].depth - depth) / sub, 0, 0.99);
+          if (b.depth !== order) b.setDepth(order);
           for (const s of g.items) {
             stage._uv(tex, s.frame.name, uv);
             const tint = (Math.round(s.tint[0] * 255) << 16) | (Math.round(s.tint[1] * 255) << 8) | Math.round(s.tint[2] * 255);

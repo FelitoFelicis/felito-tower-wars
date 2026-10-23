@@ -9035,3 +9035,32 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
 :root.layout-wide .command-deck #cards.wide-split > .unit-card.second-row {
   grid-row: 2;
 }
+
+/* ---- v0.25a: Desktop Wide: lives first (with level and tier beside them), then gold; round timer and level
+   button in a row below the 2ndLocalInfoWindow ---- */
+:root.layout-wide .wp-state .wp-lv {
+  margin-left: 10px;
+}
+.wide-hud-row {
+  display: none;
+}
+:root.layout-wide .command-deck .wide-stats {
+  margin: 0;
+}
+:root.layout-wide .wide-hud-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  margin: 10px 0 auto;
+}
+:root.layout-wide .wide-hud-row .round-plate {
+  position: static;
+  order: 0;
+  zoom: 1.2;
+}
+:root.layout-wide .wide-hud-row .level-button {
+  position: relative;
+  inset: auto;
+  flex: none;
+}

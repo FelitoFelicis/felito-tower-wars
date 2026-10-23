@@ -173,7 +173,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.25",
+const APP_VERSION = "0.25a",
   APP_BRANCH = "F", // v0.23q: author marker (F = Felix, S = Steven) and branch text, shown behind the version; APP_VERSION stays plain for online matches (VersionPublishingRules.md)
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "23.10.2026";
@@ -4891,9 +4891,11 @@ function refreshLevelButton(p) {
       if (dock.style.left !== x || dock.style.top !== fullTop) Object.assign(dock.style, { left: x, top: fullTop, width: size + "px" });
     } else if (dock.style.left !== x || dock.style.top !== dockTop) Object.assign(dock.style, { left: x, top: dockTop, width: size + "px" });
     if (!wide && dock.style.getPropertyValue("--slot") !== size + "px") dock.style.setProperty("--slot", size + "px");
-    if (btn.style.left !== x) btn.style.left = x;
-    if (btn.style.top !== top) btn.style.top = top;
-    if (btn.style.getPropertyValue("--slot") !== size + "px") btn.style.setProperty("--slot", size + "px");
+    placeWideHud(wide); // v0.25a: Desktop Wide: round timer and level button in the right column
+    const slot = wide ? "62px" : size + "px";
+    if (!wide && btn.style.left !== x) btn.style.left = x;
+    if (!wide && btn.style.top !== top) btn.style.top = top;
+    if (btn.style.getPropertyValue("--slot") !== slot) btn.style.setProperty("--slot", slot);
   }
   // v0.19b1: more rewards waiting after a pick (or from a quest): offer the next one at once
   if (pickChain) {
@@ -4908,6 +4910,27 @@ function refreshLevelButton(p) {
   if (p.picks[0]?.kind === "element" && p.picks[0].level <= 1 && openingShown !== key && !$("modal").open && game.running) {
     openingShown = key;
     pickModal();
+  }
+}
+/**
+ * v0.25a: Desktop Wide: the round timer and the level button move to the right column, in a row below the
+ * 2ndLocalInfoWindow; other layouts get them back in their usual places (header and board).
+ */
+function placeWideHud(wide) {
+  const row = $("wide-hud-row"),
+    plate = document.querySelector(".round-plate"),
+    btn = $("level-button");
+  if (!row || !plate || !btn) return;
+  if (wide) {
+    if (plate.parentNode !== row) row.appendChild(plate);
+    if (btn.parentNode !== row) {
+      row.appendChild(btn);
+      btn.style.left = btn.style.top = "";
+    }
+  } else {
+    const header = document.querySelector(".game-header");
+    if (header && plate.parentNode !== header) header.insertBefore(plate, header.querySelector(".player-plate.rival"));
+    if (btn.parentNode !== $("arena")) $("arena").insertBefore(btn, $("volley-button"));
   }
 }
 /** v0.17d, mobile layout B: the bottom bar becomes the button column right of the board — help and
@@ -8754,7 +8777,7 @@ function updateWidePlayers() {
     host.innerHTML = order
       .map(
         (q) =>
-          `<button class="wide-player${q.id === own ? " mine" : ""}" type="button" data-seat="${q.id}" style="--pc:${TEAM_COLORS[colors[q.id]]?.css || "#888"}"><span class="wp-face"><img class="portrait" src="assets/art/portrait-enemy.webp" alt=""><i class="plate-skull" aria-hidden="true"></i></span><span class="wp-main"><span class="wp-name"></span><span class="wp-row wp-money"><img src="${iconUrl("coin")}" alt="Gold"><b class="wp-gold"></b><em class="wp-inc"></em></span><span class="wp-row wp-state"><img src="assets/art/icon-heart.webp" alt="Lives"><b class="wp-lives"></b><span class="wp-lv">Lv <b class="wp-level"></b></span><span class="wp-tier">T<b class="wp-t"></b></span></span><span class="wp-row wp-maze"><span class="wp-worth-label">${esc(t("Maze"))}</span><b class="wp-worth"></b><span class="wp-els"></span></span><i class="wp-exp"><s></s></i></span></button>`,
+          `<button class="wide-player${q.id === own ? " mine" : ""}" type="button" data-seat="${q.id}" style="--pc:${TEAM_COLORS[colors[q.id]]?.css || "#888"}"><span class="wp-face"><img class="portrait" src="assets/art/portrait-enemy.webp" alt=""><i class="plate-skull" aria-hidden="true"></i></span><span class="wp-main"><span class="wp-name"></span><span class="wp-row wp-state"><img src="assets/art/icon-heart.webp" alt="Lives"><b class="wp-lives"></b><span class="wp-lv">Lv <b class="wp-level"></b></span><span class="wp-tier">T<b class="wp-t"></b></span></span><span class="wp-row wp-money"><img src="${iconUrl("coin")}" alt="Gold"><b class="wp-gold"></b><em class="wp-inc"></em></span><span class="wp-row wp-maze"><span class="wp-worth-label">${esc(t("Maze"))}</span><b class="wp-worth"></b><span class="wp-els"></span></span><i class="wp-exp"><s></s></i></span></button>`,
       )
       .join("");
   }
