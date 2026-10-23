@@ -166,7 +166,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.24n",
+const APP_VERSION = "0.24o",
   APP_BRANCH = "F", // v0.23q: author marker (F = Felix, S = Steven) and branch text, shown behind the version; APP_VERSION stays plain for online matches (VersionPublishingRules.md)
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "23.10.2026";
@@ -1662,7 +1662,7 @@ function cardHint(item, current = false) {
   if (researchCopy[item.id]) return t(researchCopy[item.id][1]);
   if (item.kind === "send") return t("+{n} income", { n: formatInc(incomeFor(item)) });
   return t(
-    { h003: "Arrows", h000: "Melee", h02R: "Splash", h03V: "Magic", h02Q: "+1 income", h05L: "Elements", h01F: "EXP every 5 s" }[
+    { h003: "Arrows", h000: "Melee", h02R: "Splash", h03V: "Magic", h02Q: "+1 income", h05L: "Elements", h01F: "EXP every 4 s" }[
       item.id
     ] || "Tower upgrade",
   );
@@ -1908,7 +1908,7 @@ const ABILITY_DESC = {
   Slow: "Slows the attacks of a tower",
   "Entangle Aura": "Slightly slows ground creeps nearby",
   "Trueshot Aura": "Archer-Line towers nearby deal more damage", // v0.17p; v0.24n: Archer-Line only
-  Production: "Generates EXP every 5 seconds",
+  Production: "Generates EXP every 4 seconds",
   Howl: "When creeps come within 1.5 fields: 25% slower and +20% damage from towers for 12 s (cooldown 20 s)", // v0.17p
   "Phoenix Fire": "Burns creeps around the tower: 350 damage per second to ground and air", // v0.17p
   "Phoenix Stun": "Chance to stun and deal big extra damage",
@@ -7785,7 +7785,7 @@ function tick(dt) {
         hudPop("#own-gold", `+${resourceNumber(e.gold)}`);
         if (e.exp > 0) hudPop("#own-level", `+${resourceNumber(e.exp)} EXP`, "exp");
       }
-      if (e.type === "expGen" && e.player === own && e.exp > 0) hudPop("#own-level", `+${resourceNumber(e.exp)} EXP`, "exp"); // v0.19d2: EXP generators every 5 s
+      if (e.type === "expGen" && e.player === own && e.exp > 0) hudPop("#own-level", `+${resourceNumber(e.exp)} EXP`, "exp"); // v0.19d2: EXP generators every 4 s (v0.24oF)
       if (e.type === "achievement" && e.player === own && e.exp) hudPop("#own-level", `+${e.exp} EXP`, "exp");
       // v0.19d2: every achievement of another player, minor ones too: "Name achieved Labyrinth +100 EXP"
       if (e.type === "achievement" && e.player !== own && e.exp) toast(t("{who} achieved {name} +{exp} EXP", { who: seatTag(e.player), name: t(e.name || e.achievement), exp: format(e.exp) }), "level");

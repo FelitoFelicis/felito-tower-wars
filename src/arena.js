@@ -1763,7 +1763,7 @@ export function mountArena({
           const q = this.point(e.x, e.y);
           this.ring(q.x, q.y, cell * 0.3, cell * 1.5, 0xffe7a8, 0.6, 3);
         } else if ((e.type === "income" || e.type === "expGen") && e.player === view && e.gens?.length) {
-          // v0.17c: EXP pop-up over every EXP generator (v0.19d2: every 5 s)
+          // v0.17c: EXP pop-up over every EXP generator (v0.19d2: every 4 s since v0.24oF)
           for (const gen of e.gens) {
             const q = this.point(gen.x, gen.y),
               n = Math.round(gen.exp * 100) / 100;

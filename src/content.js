@@ -19,6 +19,7 @@ const n = (value, fallback = null) =>
   value !== undefined && value !== null && value !== "" && Number.isFinite(Number(value)) ? Number(value) : fallback;
 /** v0.12: Wall (Fortifications) and Arcane Golem, units of the port itself. */
 export const WALL_ID = "hWAL",
+  EXP_GEN_TOP_ID = "hXG5", // v0.24oF: fifth EXP generator level
   GOLEM_ID = "nAGO";
 export const FACTIONS = [
   { id: "water", name: "Water", color: "#68caff", research: "R00N", unlock: "R01D" },
@@ -257,7 +258,7 @@ export function configureContent(data) {
       spawnIds: (f.utyp || "").includes("ancient") ? [raw.id] : Array(TRIPLES.has(raw.id) ? 3 : 2).fill(raw.id),
       sellRate: ["h003", "h000", "h02R", "h03V", "h05L"].includes(raw.id) ? 0.5 : 0.75,
       support: raw.id === "h02Q" ? "farm" : ["h01F", "h023", "h026", "h027"].includes(raw.id) ? "lumber" : null,
-      woodIncome: { h01F: 1, h023: 2, h026: 3, h027: 4 }[raw.id] || 0,
+      woodIncome: { h01F: 1, h023: 2, h026: 4, h027: 7 }[raw.id] || 0, // v0.24oF: 1 / 2 / 4 / 7 (+ 12 for the new top level below); was 1 / 2 / 3 / 4
       implementedAbilities: [],
       unimplementedAbilities: abilities.slice(),
       inactiveInSource: sendTiers.get(raw.id) === 6,
@@ -307,6 +308,36 @@ export function configureContent(data) {
   for (const [id, keep] of Object.entries(UPGRADE_LIMITS)) if (byId[id]) byId[id].upgrades = byId[id].upgrades.filter((u) => keep.includes(u));
   // The former lumbermill is the EXP generator: built directly, gives EXP every income round.
   if (byId.h01F) byId.h01F.isRoot = true;
+  // v0.24oF: a fifth EXP generator level and new prices 200 / 600 / 2000 / 5000 / 10,000 per step
+  // (sell value counts everything paid: 200 / 800 / 2800 / 7800 / 17,800)
+  if (byId.h01F && byId.h023 && byId.h026 && byId.h027) {
+    const top = byId.h027;
+    const gen5 = {
+      ...top,
+      id: EXP_GEN_TOP_ID,
+      name: top.name.replace(/Level\s+6/i, "Level 7"),
+      fields: { ...top.fields, unam: "Lumbermill [|c00FFFF00Level 7|r]", uupt: "" },
+      level: 7,
+      upgrades: [],
+      woodIncome: 12,
+      source: { file: "port", id: EXP_GEN_TOP_ID },
+    };
+    byId[EXP_GEN_TOP_ID] = gen5;
+    allUnits.push(gen5);
+    top.upgrades = [EXP_GEN_TOP_ID];
+    const prices = { h01F: 200, h023: 600, h026: 2000, h027: 5000, [EXP_GEN_TOP_ID]: 10000 };
+    let paid = 0;
+    ["h01F", "h023", "h026", "h027", EXP_GEN_TOP_ID].forEach((id, i) => {
+      const u = byId[id];
+      u.cost = prices[id];
+      paid += prices[id];
+      u.pointValue = paid;
+      // levels 1-5 instead of the Lumbermill's old 3-7
+      u.level = i + 1;
+      u.name = u.name.replace(/Level\s+\d+/i, `Level ${i + 1}`);
+      if (u.fields?.unam) u.fields = { ...u.fields, unam: u.fields.unam.replace(/Level\s+\d+/i, `Level ${i + 1}`) };
+    });
+  }
   // Wood is gone from the game: nothing costs wood any more.
   for (const u of allUnits) u.woodCost = 0;
   applyCreepTuning(byId);

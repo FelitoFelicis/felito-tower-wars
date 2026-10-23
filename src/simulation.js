@@ -2316,11 +2316,12 @@ for (let i = 4; i < EXP_STEPS.length; i++) EXP_STEPS[i] = Math.round(EXP_STEPS[i
 export function expNeeded(level) {
   return EXP_STEPS[Math.max(1, Math.min(MAX_LEVEL - 1, level)) - 1];
 }
-function gainExp(game, p, amount) {
+function gainExp(game, p, amount, source = "other") {
   if (!(amount > 0)) return;
   amount *= 1 + NOVICE[Math.min(5, perkLevel(p, "novice"))] + SCHOLAR.exp * Math.min(10, perkLevel(p, "scholar")); // v0.21e: up to level 10 // v0.19g1: Novice 20 / 35 / 50 / 60 / 70 %; v0.20d: Scholar +10 % per level
   p.exp += amount;
   p.stats.expEarned += amount;
+  (p.stats.expBy ||= {})[source] = (p.stats.expBy[source] || 0) + amount; // v0.24oF: EXP per source (stats and tests)
   while (p.level < MAX_LEVEL && p.exp >= p.expNext) {
     p.exp -= p.expNext;
     p.level++;
@@ -2336,7 +2337,7 @@ function gainExp(game, p, amount) {
 }
 /** Test hook (local debug only): grant EXP as if earned in play. */
 export function grantExp(game, playerIndex, amount) {
-  gainExp(game, game.players[playerIndex], amount);
+  gainExp(game, game.players[playerIndex], amount, "debug");
 }
 /**
  * v0.09i: perk availability. Every reward of the level-up dialog (a "perk") may appear only on
@@ -2610,10 +2611,8 @@ function applyOption(game, p, option, level) {
     }
   }
 }
-/** v0.17c: EXP generators give 25 % more EXP per round. */
-export const EXP_GEN_BONUS = 1.25;
 /** v0.19d2: seconds between two payouts of an EXP generator. */
-export const EXP_GEN_EVERY = 5;
+export const EXP_GEN_EVERY = 4; // v0.24oF: 5 → 4 s
 /** v0.15: the Gold perk is only offered to the player with the lowest gold and the lowest income. */
 /** v0.20d: Scholar: owned perks it may raise (not Arcane, not powerups, below their max level). */
 // v0.20e/v0.21: the former upgrades are perks now; Arcane ones (Magic Bank, Spirit Wolves) never count
@@ -2817,7 +2816,7 @@ function finishQuest(game, p, won) {
     }
     for (let i = randoms; i < 2; i++) p.picks.push(makePick(game, p, "upgrade", true));
   }
-  if (exp) gainExp(game, p, exp);
+  if (exp) gainExp(game, p, exp, "quest");
   emit(game, "quest", { player: p.id, id: st.id, state: won ? "won" : "lost", exp, granted, rounds: st.need || 0, gold: Math.max(0, p.gold - gold0), income: Math.max(0, p.income - income0) });
 }
 /** Cost share of a send from finished banters (won: cheaper, lost: dearer). */
@@ -2979,7 +2978,7 @@ function completeTower(game, p, t) {
   ) {
     const wood = [75, 50][game.achievements.halls++];
     game.achievements.hallNextTime = game.time + 0.01;
-    gainExp(game, p, wood);
+    gainExp(game, p, wood, "achievement");
     emit(game, "achievement", { player: p.id, achievement: "hall", name: "Hall Builder", exp: wood }); // v0.19d2: named for the notification
   }
   if (item.support === "farm" && !t.fromSale) {
@@ -3009,7 +3008,7 @@ function towerAchievements(game, p, t, item) {
   const award = (key) => {
     got[key] = true;
     const a = TOWER_ACHIEVEMENTS[key];
-    gainExp(game, p, a.exp);
+    gainExp(game, p, a.exp, "achievement");
     emit(game, "achievement", { player: p.id, achievement: key, name: a.name, exp: a.exp });
   };
   if (!got.element && item.element && item.element !== "neutral") award("element");
@@ -3027,7 +3026,7 @@ function labyrinthCheck(game, p) {
     need = GLOBAL_ACHIEVEMENTS.labyrinth;
   if (a.labyrinth !== undefined || !p.path || p.path.length - 1 < need.fields) return;
   a.labyrinth = p.id;
-  gainExp(game, p, need.exp);
+  gainExp(game, p, need.exp, "achievement");
   emit(game, "achievement", { player: p.id, achievement: "labyrinth", name: need.name, exp: need.exp, global: true });
 }
 function collectorCheck(game, p, item) {
@@ -3039,7 +3038,7 @@ function collectorCheck(game, p, item) {
   if (!tierSends(item.tier).every((x) => x.bossTier || p.bought[x.id])) return;
   done[item.tier] = p.id;
   const exp = collectorExp(item.tier);
-  gainExp(game, p, exp);
+  gainExp(game, p, exp, "achievement");
   emit(game, "achievement", { player: p.id, achievement: "collector", tier: item.tier, name: "Creep Collector " + ROMAN[item.tier], exp, global: true });
 }
 /**
@@ -3060,7 +3059,7 @@ function recruiterCheck(game, p, item, gold) {
   RECRUITER_ACHIEVEMENTS.forEach((r, i) => {
     if (done[i] !== undefined || spent < r.gold) return;
     done[i] = p.id;
-    gainExp(game, p, r.exp);
+    gainExp(game, p, r.exp, "achievement");
     emit(game, "achievement", { player: p.id, achievement: "recruiter", level: i + 1, name: "Recruiter " + ROMAN[i + 1], exp: r.exp, global: true });
   });
 }
@@ -3100,7 +3099,7 @@ function builderCheck(game, p) {
   for (const b of BUILDER_ACHIEVEMENTS) {
     if (Object.hasOwn(done, b.key) || worth < b.gold) continue; // hasOwn: "constructor" is on every object
     done[b.key] = p.id;
-    gainExp(game, p, b.exp);
+    gainExp(game, p, b.exp, "achievement");
     emit(game, "towerSplat", { player: p.id, achievement: b.key, name: b.name, frame: b.frame, exp: b.exp, typeId: bestTower(p) });
   }
 }
@@ -3117,7 +3116,7 @@ function bloodCheck(game, sender) {
     if (Object.hasOwn(done, b.key) || stolen < b.lives) continue;
     done[b.key] = sender.id;
     const exp = RULES.firstBloodWood * b.mult; // 200 % / 400 % more than First Blood
-    gainExp(game, sender, exp);
+    gainExp(game, sender, exp, "achievement");
     emit(game, "firstBlood", { player: sender.id, exp, kind: b.key, name: b.name });
   }
 }
@@ -3307,7 +3306,7 @@ function runCommand(game, input) {
         p.ghoulCount++;
         p.woodIncome++;
       }
-      gainExp(game, p, 1);
+      gainExp(game, p, 1, "ghoul");
     }
     // v0.23w: Clones: each creep of the card may bring a clone (heavy creeps from level 3, bosses from level 6)
     const cloneLv = perkLevel(p, "clones"),
@@ -3337,7 +3336,7 @@ function runCommand(game, input) {
     emit(game, "send", { player: p.id, id, count: item.spawnIds.length, income: base + decimal / 100, auto: !!input.auto });
     if (item.bossTier) {
       const reward = { n00T: 250, n015: 375, n01H: 500, n01T: 250, n02R: 300 }[id];
-      if (reward) gainExp(game, p, reward);
+      if (reward) gainExp(game, p, reward, "bossSend");
       // Each tier boss can be bought once; buying it unlocks the next tier (tier 6 is off in the source).
       p.bossBought = { ...(p.bossBought || {}), [id]: true };
       if (id === "n01T") p.infernalBossCount++;
@@ -3481,7 +3480,7 @@ function advanceTier(game, p, tier) {
   if (p.autoSend) p.autoSend = p.autoSend === oldFirst ? tierSends(tier)[0]?.id || null : null;
   if (tier >= 2 && tier <= 5 && !game.achievements.tiers.includes(tier)) {
     game.achievements.tiers.push(tier);
-    gainExp(game, p, 75);
+    gainExp(game, p, 75, "achievement");
     emit(game, "achievement", { player: p.id, achievement: "tier", tier, name: `First to Tier ${tier}`, exp: 75 }); // v0.19d2: named for the notification
   }
   emit(game, "tier", { player: p.id, tier, message: `Tier ${tier} unlocked` });
@@ -3541,7 +3540,7 @@ function sellTower(game, p, towerId) {
     p.path = findPath(game, p.id) || [];
     const exp = t.quarry ? QUARRY.exp[t.stone] || 0 : 0; // v0.22m2
     emit(game, "rock", { player: p.id, towerId, x: t.x, y: t.y, cleared: true, stone: t.stone || null, exp });
-    if (exp) gainExp(game, p, exp);
+    if (exp) gainExp(game, p, exp, "quarry");
     if (t.quarry) finishQuarry(game, p); // v0.18h
     return { ok: true, refund: -price };
   }
@@ -4825,11 +4824,35 @@ function enrageGolem(game, p, c) {
  * v0.23v: EXP for a kill: (price of the creep card / creeps it sends) × (0.11 − tier × 0.01), e.g. Goblin 5 / 2 × 0.10 =
  * 0.25 EXP, Orc 60 × 0.10 = 6. Bosses give none (their buyer already gets EXP); creeps that are no send card give none.
  */
+/** v0.24oF: breaches and line crossings of tier 2+ creeps give +10 % EXP per tier above 1 (tier 2 +10 %, tier 3 +20 % …). */
+export const CREEP_TIER_EXP = { perTier: 0.1 };
+function creepTierExp(c) {
+  const tier = obj(c.typeId)?.tier || 1;
+  return 1 + CREEP_TIER_EXP.perTier * Math.max(0, tier - 1);
+}
 export function killExp(item) {
-  if (!item || !item.isSend || item.bossTier || !(item.cost > 0)) return 0;
-  const n = item.spawnIds?.length || 1,
+  if (!item || !item.isSend || !(item.cost > 0)) return 0; // v0.24oF: tier bosses count too (were 0)
+  const n = item.spawnIds?.length || 1, // the cost is split over the creeps one send makes (heavies and bosses: 1)
     tier = item.tier || 1;
-  return Math.max(0, (item.cost / n) * (0.11 - tier * 0.01));
+  return Math.max(0, ((item.cost / n) * (1.8 - 0.15 * tier)) / 100); // v0.24oF: (1.8 − 0.15 × tier) % of the cost (was 11 − 1 × tier %)
+}
+/** v0.24oF: kill EXP of a summoned creep from its health, in brackets: 0.005 per HP up to 1,000, 0.003 per HP from 1,001 to 10,000, 0.0015 per HP above. */
+/** v0.24oF: a Clones copy gives 25 % less kill EXP. */
+export const CLONE_KILL_EXP = 0.75;
+export const SUMMON_EXP = [
+  [1000, 0.005],
+  [10000, 0.003],
+  [Infinity, 0.0015],
+];
+export function summonExp(hp) {
+  let exp = 0,
+    low = 0;
+  for (const [top, rate] of SUMMON_EXP) {
+    if (hp <= low) break;
+    exp += (Math.min(hp, top) - low) * rate;
+    low = top;
+  }
+  return exp;
 }
 function killCreep(game, p, c) {
   if (c.dead) return;
@@ -4838,7 +4861,7 @@ function killCreep(game, p, c) {
   // v0.10w: a killed treant gives its sender 30 − (treants bought this game) EXP (v0.21z: was 20)
   if (c.typeId === "n00Y" && !c.wave && c.owner >= 0) {
     const sender = game.players[c.owner];
-    if (sender && !sender.out) gainExp(game, sender, Math.max(0, TREANT.exp - (sender.treantCount || 0)));
+    if (sender && !sender.out) gainExp(game, sender, Math.max(0, TREANT.exp - (sender.treantCount || 0)), "treant");
   }
   const item = obj(c.typeId),
     tower = p.towers.find((t) => t.id === c.lastHit);
@@ -4853,8 +4876,8 @@ function killCreep(game, p, c) {
     tower.kills++;
     (p.stats.towerKills ||= {})[tower.typeId] = (p.stats.towerKills[tower.typeId] || 0) + 1; // v0.22j1: kills by tower type, sold towers included
   }
-  const exp = killExp(item);
-  if (exp > 0) gainExp(game, p, exp); // v0.23v: a little EXP for every kill
+  const exp = (c.summoned ? summonExp(c.maxHp || 0) : killExp(item)) * (c.clone ? CLONE_KILL_EXP : 1); // v0.24oF: summoned creeps by health, Clones copies −25 %
+  if (exp > 0) gainExp(game, p, exp, c.summoned ? "summonKills" : "kills"); // v0.23v: a little EXP for every kill
   emit(game, "kill", { player: p.id, id: c.typeId, creepId: c.id, x: c.x, y: c.y, bounty, bonus, wave: c.wave || 0, boss: !!c.waveBoss });
   if (c.wave) waveDeath(game, p, c);
   else deathrattle(game, c);
@@ -4925,7 +4948,7 @@ function touchdown(game, p, c) {
       emit(game, "pillage", { player: p.id, owner: sender.id, gold: loot, x: c.x, y: c.y });
     }
   }
-  gainExp(game, sender, ["n00S", "n01C"].includes(c.typeId) ? 30 : RULES.touchdownWood);
+  gainExp(game, sender, (["n00S", "n01C"].includes(c.typeId) ? 30 : RULES.touchdownWood) * creepTierExp(c), "breach"); // v0.24oF: +10 % per tier above 1
   if (["n01R", "n02P"].includes(c.typeId)) {
     const stolen = Math.trunc(p.income / 100);
     p.income -= stolen;
@@ -4933,13 +4956,13 @@ function touchdown(game, p, c) {
   }
   if (!game.firstBlood) {
     game.firstBlood = true;
-    gainExp(game, sender, RULES.firstBloodWood);
+    gainExp(game, sender, RULES.firstBloodWood, "achievement");
     emit(game, "firstBlood", { player: sender.id, exp: RULES.firstBloodWood });
   }
   bloodCheck(game, sender); // v0.19j
   emit(game, "leak", { player: p.id, owner: sender.id, creepId: c.id, lives: p.lives, x: c.x, y: c.y });
   if (p.lives <= 0) {
-    gainExp(game, sender, RULES.defeatWood);
+    gainExp(game, sender, RULES.defeatWood, "defeat");
     defeat(game, p, sender);
     return;
   }
@@ -5090,7 +5113,7 @@ function moveCreep(game, p, c, dt) {
   const reached = c.flying ? 0 : Math.min(5, Math.floor(c.maxProgress * 6));
   while (c.crossed < reached) {
     c.crossed++;
-    if (c.owner >= 0) gainExp(game, game.players[c.owner], 1);
+    if (c.owner >= 0) gainExp(game, game.players[c.owner], creepTierExp(c), "lines"); // v0.24oF: 1 EXP, +10 % per tier above 1
   }
 }
 
@@ -5119,13 +5142,13 @@ function spawnSpiritWolves(game, p, level) {
   p.income += Math.trunc(p.incomeDecimal / 100);
   p.incomeDecimal %= 100;
 }
-/** v0.19d2: EXP per tick of all finished EXP generators of a player (before the 25 % bonus and High Voltage). */
+/** v0.19d2: EXP per tick of all finished EXP generators of a player (before High Voltage). */
 function expGenBase(p) {
   let base = 0;
   for (const t of p.towers) base += t.completed ? obj(t.typeId)?.woodIncome || 0 : 0;
   return base;
 }
-/** v0.19d2: EXP generators pay their full amount every 5 s (before: once per round); each one reports its share for a pop-up over it. */
+/** v0.19d2: EXP generators pay their full amount every 4 s (v0.24oF; was 5 s) (before: once per round); each one reports its share for a pop-up over it. */
 function expGenTick(game) {
   for (const p of game.players) {
     if (p.out) continue;
@@ -5135,12 +5158,12 @@ function expGenTick(game) {
     for (const t of p.towers) {
       const w = t.completed ? obj(t.typeId)?.woodIncome || 0 : 0;
       if (!w) continue;
-      const e = w * EXP_GEN_BONUS * volt; // v0.17c: 25 % more
+      const e = w * volt; // v0.24oF: the flat 25 % bonus (v0.17c) is gone
       exp += e;
       gens.push({ towerId: t.id, x: t.x, y: t.y, exp: e });
     }
     if (!gens.length) continue;
-    gainExp(game, p, exp);
+    gainExp(game, p, exp, "generators");
     emit(game, "expGen", { player: p.id, exp, gens });
   }
 }
@@ -5176,10 +5199,10 @@ function incomeTick(game) {
     // v0.19d2: EXP generators pay on their own 5 s clock (expGenTick); the rest of the EXP per round (Ghouls) stays here
     const volt = 1 + VOLTAGE.bonus * perkLevel(p, "voltage"), // v0.10r: High Voltage
       expRound = Math.max(0, p.woodIncome - expGenBase(p)) * volt;
-    if (expRound > 0) gainExp(game, p, expRound);
+    if (expRound > 0) gainExp(game, p, expRound, "ghoul");
     emit(game, "income", { player: p.id, gold: paid, exp: expRound, gens: [] });
   }
-  game.expGenRemaining = EXP_GEN_EVERY; // v0.19d2: a generator tick at the start of every round, then every 5 s
+  game.expGenRemaining = EXP_GEN_EVERY; // v0.19d2: a generator tick at the start of every round, then every 4 s
   expGenTick(game);
   if (game.round >= RULES.suddenDeathRound) {
     if (!game.suddenDeath) {
@@ -5191,7 +5214,7 @@ function incomeTick(game) {
       if (game.teams && game.players.some((q) => !q.out && q.team === p.team && q.id < p.id)) continue; // v0.20: once per team
       if (p.lives > 5) {
         p.lives--;
-        gainExp(game, p, 25);
+        gainExp(game, p, 25, "suddenDeath");
       }
       for (const [threshold, wood] of [
         [60, 23],
@@ -5203,7 +5226,7 @@ function incomeTick(game) {
       ])
         if (p.lives > threshold) {
           p.lives--;
-          gainExp(game, p, wood);
+          gainExp(game, p, wood, "suddenDeath");
         }
     }
   }
@@ -6882,7 +6905,7 @@ function fixedTickInner(game) {
   game.time = game.tick * TICK;
   game.incomeRemaining -= TICK;
   if (game.incomeRemaining <= EPS) incomeTick(game);
-  // v0.19d2: EXP generators every 5 s between the income ticks
+  // v0.19d2: EXP generators every 4 s (v0.24oF) between the income ticks
   if (!game.warmup && game.expGenRemaining !== undefined) {
     game.expGenRemaining -= TICK;
     if (game.expGenRemaining <= EPS) {
