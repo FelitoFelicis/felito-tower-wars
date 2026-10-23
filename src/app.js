@@ -173,7 +173,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.25e",
+const APP_VERSION = "0.25f",
   APP_BRANCH = "F", // v0.23q: author marker (F = Felix, S = Steven) and branch text, shown behind the version; APP_VERSION stays plain for online matches (VersionPublishingRules.md)
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "23.10.2026";
@@ -4258,6 +4258,8 @@ function renderCards() {
         const item = catalog.byId[b.dataset.card];
         b.classList.toggle("second-row", !!item && (footprintOf(item.id) > 1 || (!item.attacks && !!item.woodIncome)));
       });
+  // v0.25f: only three basic towers: three larger cards per row fill the width
+  $("cards").classList.toggle("wide-three", split && $("cards").querySelectorAll("[data-card]:not(.second-row)").length <= 3);
   fitCardNames($("cards"));
   fitPrices($("cards")); // v0.17
   $("cards")

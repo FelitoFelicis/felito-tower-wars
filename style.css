@@ -9124,3 +9124,24 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
 @media (prefers-reduced-motion: reduce) {
   .round-plate.manual-pause { animation: none; box-shadow: inset 0 0 0 2px #c8ced4aa, 0 0 10px 3px #b4bcc466; }
 }
+
+/* ---- v0.25f: Desktop Wide: the sword of your target centred over its portrait and 10 % larger; three basic towers
+   get three larger cards per row; the tier badge has a white outline ---- */
+:root.layout-wide .wide-player.target::after {
+  top: -8px;
+  left: 26px; /* card border 2 + padding 10 + half the 52 px portrait − half the sword */
+  width: 24px;
+  height: 24px;
+}
+:root.layout-wide .command-deck #cards.wide-split.wide-three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.plate-exp .plate-tier,
+.ec-level .ec-tier,
+:root.layout-wide .wp-tier,
+:root.layout-wide .ws-tier-badge {
+  box-shadow:
+    inset 0 0 0 1px #ffc09a88,
+    0 0 0 1.5px #fff,
+    0 1px 3px #000a;
+}
