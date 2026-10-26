@@ -178,7 +178,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.26d",
+const APP_VERSION = "0.26e",
   APP_BRANCH = "F", // v0.23q: author marker (F = Felix, S = Steven) and branch text, shown behind the version; APP_VERSION stays plain for online matches (VersionPublishingRules.md)
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "26.10.2026";
@@ -4568,6 +4568,7 @@ const PERK_ART = {
   sanction: () => elPerkArt("sanction"),
   ring: () => uiArt("assets/art/perks/ring.webp?v=v026c"), // v0.26cF: gold ring with an emerald heart
   revenge: () => uiArt("assets/art/perks/revenge.webp?v=v026c"), // v0.26cF: fire wolves
+  amnesia: () => uiArt("assets/art/perks/amnesia.webp?v=v026e"), // v0.26eF: a scroll whose writing fades away
 };
 // v0.22h1: the perk icons load a moment after a match starts, so a reward dialog never waits for them
 let perkArtLoaded = false;
@@ -4743,6 +4744,12 @@ function pickCard(o, i, p) {
       pel = els.length ? elementOf(els.find((e) => p.research[elementOf(e)?.unlock]) || els[0]) : null; // v0.10n: element perks get the element frame
     // v0.23: "pick-up": offered at level 2 or higher, its text shows "old → new" values (perkText)
     return `<button class="pick-card pick-perk perk-${o.id}${pel ? " pick-element el-" + pel.id : ""}${level ? " pick-up" : ""}${ACTIVE_PERKS.has(o.id) ? " pick-active" : ""}" data-pick="${i}"${pel ? ` style="--el:${pel.color}"` : ""}>${ACTIVE_PERKS.has(o.id) ? `<span class="pick-book" aria-hidden="true"><img src="${PERK_ART[o.id](level + 1)}" alt="" decoding="sync"></span>` : `<img src="${PERK_ART[o.id](level + 1)}" alt="" decoding="sync">`}<b>${esc(t(d.name))}</b><span>${valHtml(perkText(o.id, p.picks[0]?.level || p.level, p, true))}</span>${perkCd(o.id, p, true) ? `<small class="pick-cd">${valHtml(perkCd(o.id, p, true))}</small>` : ""}<small>${t("Level {a} → {b}", { a: level, b: level + 1 })}</small></button>`;
+  }
+  if (o.type === "forget") {
+    // v0.26eF: Amnesia: an owned perk to forget, with the rewards it brings
+    const d = PERKS[o.id],
+      level = p.perks?.[o.id] || 0;
+    return `<button class="pick-card pick-perk pick-forget perk-${o.id}" data-pick="${i}"><img src="${PERK_ART[o.id](level)}" alt="" decoding="sync" style="filter:grayscale(.6)"><b>${esc(t(d.name))}</b><span>${t("Forget it: +{n} rewards", { n: 1 + level })}</span><small>${t("Level {n}", { n: level })}</small></button>`;
   }
   if (o.type === "quest") {
     const q = QUESTS[o.id];
@@ -4926,7 +4933,7 @@ function pickModal() {
   const p = game?.players[own],
     pick = p?.picks[0];
   if (!pick) return abilitiesModal();
-  const title = pick.kind === "element" ? (pick.level <= 1 ? t("Choose your first element") : t("Level {n}: new element", { n: pick.level })) : t("Level {n}: choose a reward", { n: pick.level });
+  const title = pick.kind === "amnesia" ? t("Amnesia: choose a perk to forget") : pick.kind === "element" ? (pick.level <= 1 ? t("Choose your first element") : t("Level {n}: new element", { n: pick.level })) : t("Level {n}: choose a reward", { n: pick.level });
   showModal(
     `${modalHeader(title)}<div class="pick-grid">${pick.options.map((o, i) => pickCard(o, i, p)).join("")}</div>${ownedTiles(p)}${p.picks.length > 2 ? `<p class="modal-note">${t("{n} more rewards after this.", { n: p.picks.length - 1 })}</p>` : p.picks.length > 1 ? `<p class="modal-note">${t("One more reward after this.")}</p>` : pick.kind === "element" && pick.level <= 1 ? "" : `<p class="modal-note">${t("EXP comes from breakthroughs, boss creeps and achievements.")}</p>`}`,
     { pauseGame: sessionMode !== "online" },
@@ -8172,6 +8179,8 @@ function tick(dt) {
       // v0.20e: Scholar: which perks went up a level
       if (e.type === "scholar" && e.player === own && e.upgrades?.length)
         banner(t("Scholar") + ":", e.upgrades.map((u) => `${t(PERKS[u.id]?.name || u.id)} ${t("Lv")} ${u.level}`).join(" · "), "level");
+      // v0.26eF: Amnesia: which perk was forgotten and how many rewards it gave
+      if (e.type === "amnesia" && e.player === own) banner(t("Amnesia") + ":", t("{name} forgotten · +{n} rewards", { name: t(PERKS[e.id]?.name || e.id), n: e.rewards }), "level");
       // v0.15: quests
       if (e.type === "quest" && e.player === own) questEvent(e);
       if (e.type === "questWave" && e.player === own) toast(t("{name}: wave {a} of {b}", { name: t(QUESTS[e.id].name), a: e.wave, b: e.of }), e.wave === e.of ? "boss" : "level");

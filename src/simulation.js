@@ -1150,6 +1150,8 @@ export const PERKS = Object.freeze({
   autoloader: { name: "Autoloader", max: 10, element: "earth", text: "Bombard-Line attack speed +{autoloader}" }, // v0.22g1: +7.5 % per level
   // v0.26cF: two new perks. Ring of Life: neutral, never offered to a player who owns Plague, Fire or Arcane ("x" elements), drawn 25 % less often
   ring: { name: "Ring of Life", max: 3, weight: 0.75, element: ["xplague", "xfire", "xarcane"], text: "Creep HP +{ringHp}. 1st creep of each tier +{ringInc} income", detail: "Every creep gets more HP by its tier: +{ringHpTiers} (T1 / T2 / T3 / T4 / T5). The 1st creep of every tier gives +{ringInc} income" },
+  // v0.26eF: Amnesia: forget one of 3 owned perks for good, get 1 + its level extra reward dialogs
+  amnesia: { name: "Amnesia", max: 1, powerup: true, unpopular: 0.5, text: "Forget 1 of 3 of your perks. Get 1 + its level extra rewards", detail: "Choose 1 of 3 random perks you own and forget it. It is never offered again this match. You get 1 + its level extra level-up rewards" },
   revenge: { name: "Revenge", max: 3, element: "fire", text: "Enemy breach: a Fire Wolf ({revengeHp} HP) runs onto its sender's field", detail: "Whenever an enemy creep breaches through your field, a Fire Wolf with {revengeHp} HP runs onto the field of the player who sent it. Each Fire Wolf gives +{revengeInc} income" },
 });
 /** v0.09q: Arrow Volley: cooldown, area radius in fields, arrows per perk level, extra base damage. */
@@ -2566,6 +2568,7 @@ export const PERK_AVAILABILITY = {
   firearrows: "2+", // Fire Arrows (v0.21c: from level 2)
   ring: "2", // v0.26cF: Ring of Life (ContinousPick, skips 2)
   revenge: "12+", // v0.26cF: Revenge (skips 3)
+  amnesia: "9,12,15,20", // v0.26eF
 };
 const availabilityCache = new Map();
 /** v0.22j1: the first level an availability spec opens on ("2-5" → 2, "6,9" → 6). */
@@ -2677,6 +2680,9 @@ function optionValid(game, p, o) {
     const f = FACTIONS.find((x) => x.id === o.id);
     return !!f && !p.research[f.unlock];
   }
+  if (o.type === "forget") return perkLevel(p, o.id) >= 1; // v0.26eF: Amnesia choice
+  if (o.type === "perk" && p.perkForgotten?.[o.id]) return false; // v0.26eF: a forgotten perk never comes back this match
+  if (o.type === "perk" && o.id === "amnesia" && !amnesiaTargets(p).length) return false;
   if (o.type === "perk" && perkElements(o.id).length && !perkElements(o.id).some((el) => ownsElement(p, el))) return false;
   if (o.type === "perk" && perkExcluded(o.id).some((el) => ownsElement(p, el))) return false; // v0.18h
   if (o.type === "perk" && p.rules?.noDefense && DEFENSIVE_PERKS.has(o.id)) return false; // v0.26: mission rule
@@ -2688,7 +2694,11 @@ function optionValid(game, p, o) {
   return true;
 }
 function refreshPicks(game, p) {
+  // v0.26eF: an Amnesia dialog only loses choices that are gone; an empty one is dropped
+  for (const pick of p.picks) if (pick.kind === "amnesia") pick.options = pick.options.filter((o) => optionValid(game, p, o));
+  p.picks = p.picks.filter((pick) => pick.kind !== "amnesia" || pick.options.length);
   for (const pick of p.picks) {
+    if (pick.kind === "amnesia") continue;
     const seen = new Set(),
       keep = pick.options.filter((o) => optionValid(game, p, o) && !seen.has(optionKey(o)) && seen.add(optionKey(o)));
     if (keep.length === pick.options.length) continue;
@@ -2736,6 +2746,7 @@ function applyOption(game, p, option, level) {
   else if (option.type === "gold") p.gold += option.amount;
   else if (option.type === "income") p.income += option.amount;
   else if (option.type === "lives") p.lives += option.amount;
+  else if (option.type === "forget") forgetPerk(game, p, option.id); // v0.26eF: Amnesia
   else if (option.type === "perk") {
     p.perks = { ...(p.perks || {}), [option.id]: perkLevel(p, option.id) + 1 };
     p.perkTakenAt = { ...(p.perkTakenAt || {}), [option.id]: pick.level }; // v0.12
@@ -2754,6 +2765,13 @@ function applyOption(game, p, option, level) {
       queueSummon(game, p, "quarry"); // v0.18h: stones appear after the view moved to the own field
     }
     if (option.id === "sanction") applySanction(game, p); // v0.18h
+    if (option.id === "amnesia") {
+      // v0.26eF: the forget dialog opens next, before any other open reward
+      const list = amnesiaTargets(p),
+        options = [];
+      while (list.length && options.length < AMNESIA.choices) options.push(list.splice(Math.floor(random(game) * list.length), 1)[0]);
+      if (options.length) p.picks.unshift({ kind: "amnesia", level: pick.level, options });
+    }
     if (option.id === "evolution") evolveTower(game, p);
     if (option.id === "scholar") scholarUpgrade(game, p); // v0.20d
     if (option.id === "gold") {
@@ -2772,6 +2790,29 @@ function applyOption(game, p, option, level) {
       p.income += treasureIncome(game, p); // v0.19e2
     }
   }
+}
+/** v0.26eF: Amnesia: choices in its dialog; owned perks it can forget (not powerups, not Amnesia). */
+export const AMNESIA = { choices: 3 };
+function amnesiaTargets(p) {
+  return Object.keys(p.perks || {})
+    .filter((id) => id !== "amnesia" && PERKS[id] && !PERKS[id].powerup && perkLevel(p, id) >= 1)
+    .map((id) => ({ type: "forget", id }));
+}
+/** v0.26eF: forgets a perk for the rest of the match and queues 1 + its level extra level-up rewards. */
+function forgetPerk(game, p, id) {
+  const level = perkLevel(p, id);
+  if (!level) return;
+  const { [id]: _gone, ...rest } = p.perks;
+  p.perks = rest;
+  p.perkForgotten = { ...(p.perkForgotten || {}), [id]: true };
+  if (id === "sanction") p.sanction = null; // its income bonus ends (running locks run out)
+  if (id === "hellfire") p.lava = [];
+  if (id === "infested") p.infested = [];
+  for (let k = 0; k < 1 + level; k++) {
+    const extra = makePick(game, p, "upgrade");
+    if (extra.options.length) p.picks.push(extra);
+  }
+  emit(game, "amnesia", { player: p.id, id, level, rewards: 1 + level });
 }
 /** v0.19d2: seconds between two payouts of an EXP generator. */
 export const EXP_GEN_EVERY = 4; // v0.24oF: 5 → 4 s
@@ -5941,6 +5982,8 @@ function aiPick(game, p, persona) {
       if (o.type === "income") return (game.round < 30 ? 6 : 2) * o.amount + random(game);
       if (o.type === "gold") return o.amount / 40 + random(game);
       if (o.type === "lives") return p.lives < 12 ? 9 : 1 + random(game);
+      // v0.26eF: Amnesia: forget the perk the data rates worst, higher levels give more rewards
+      if (o.type === "forget") return perkLevel(p, o.id) - 6 * (PERK_EDGE[o.id] ?? 0) + random(game);
       // v0.12: perks the bot can hardly use rank low
       if (o.type === "perk" && o.id === "fort") return 0.5 + random(game);
       // v0.23b: conditionalPerk: only when the condition holds, or holds after selling at most COND_SELL_MAX towers
