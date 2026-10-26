@@ -1256,6 +1256,8 @@ export const monsunForce = (p, level = perkLevel(p, "monsun")) => 0.48 + level *
 export const monsunDamage = (p, level = perkLevel(p, "monsun")) => 30 + 20 * level * (p?.tier || 1);
 /** Perks that skip the next level once taken. */
 /** v0.20c: perks that sit out more than one level after a pick (Supergrowth: two). */
+/** v0.26dF: levels a perk sits out after a pick when PERK_SKIP_LEVELS has no value for it. */
+const PERK_SKIP_DEFAULT = 2;
 const PERK_SKIP_LEVELS = { wolves: 3, mind: 3, exhume: 3, ring: 2, revenge: 3, backup: 3, tides: 3, supergrowth: 2, hellfire: 2, frostbolt: 2, clones: 2, infested: 2, lone: 2, bank: 3, monsun: 2 }; // v0.26cF: Spirit Wolves, Obsession, Exhumination, Revenge skip 3, Ring of Life skips 2 // v0.24q: Backup Line, Low Tides skip 3 // v0.24j: Monsun skips 2 // v0.24i: Magic Bank skips 3 // v0.23zi: Spartans skip 2 // v0.23w: Frost Bolt, Clones // v0.21x: Lava Floor skips 2
 const PERK_SKIP = new Set(["pillar", "agolem", "monsun", "slave", "guardian", "mind", "tailwind", "carmor", "owl", "autoloader", "hills"]); // v0.22g1: Autoloader // v0.19a1: Mind Control, Tailwind, Creep Armor, Watcher Owl
 /**
@@ -2599,8 +2601,9 @@ const perkAvailable = (o, level, p) => {
   const id = o.type === "perk" ? o.id : o.type;
   // v0.12: some perks sit out the level after they were taken
   // v0.23b: every perk now sits out the level after it was taken (skip1); a few still sit out two (PERK_SKIP_LEVELS)
-  if (o.type === "perk" && !PERK_SKIP_LEVELS[id] && p?.perkTakenAt?.[id] === level - 1) return false;
-  if (o.type === "perk" && PERK_SKIP_LEVELS[id] && p?.perkTakenAt?.[id] != null && level - p.perkTakenAt[id] <= PERK_SKIP_LEVELS[id]) return false; // v0.20c
+  // v0.26dF: perks without their own value sit out two levels (PERK_SKIP_DEFAULT, was 1)
+  const skip = PERK_SKIP_LEVELS[id] ?? PERK_SKIP_DEFAULT;
+  if (o.type === "perk" && p?.perkTakenAt?.[id] != null && level - p.perkTakenAt[id] <= skip) return false; // v0.20c
   if (parseAvailability(PERK_AVAILABILITY[id] ?? "1+")(level)) return true;
   if (o.type === "perk" && PERK_CONTINUOUS.has(id) && perkLevel(p, id) >= 1 && level >= firstAvailable(PERK_AVAILABILITY[id])) return true; // v0.22j1
   if (o.type === "perk" && PERK_OWNED_BEFORE[id] && !((p?.perkFirstAt?.[id] ?? Infinity) < PERK_OWNED_BEFORE[id])) return false;
