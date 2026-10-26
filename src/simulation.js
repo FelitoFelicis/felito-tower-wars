@@ -583,6 +583,12 @@ function placeFree(game, p, id, x, y) {
  */
 function applyMission(game, m) {
   game.mission = { id: m.id, goal: m.goal || null, rockCost: m.rockCost ?? 40, rocksOnSteal: !!m.rocksOnSteal };
+  // v0.26: Neutral Auxiliaries (see missionAux): copied as plain data, their gold banks live in game.mission.auxBank
+  if (m.aux?.length) {
+    game.mission.aux = m.aux.map((a) => ({ ...a }));
+    game.mission.auxScale = m.auxScale || 1;
+    game.mission.auxBank = {};
+  }
   const setup = (p, r = {}) => {
     if (r.lives) p.lives = r.lives;
     p.gold += r.gold || 0;
@@ -598,6 +604,7 @@ function applyMission(game, m) {
     if (r.sleep) rules.sleep = r.sleep;
     if (r.maze) rules.maze = r.maze;
     if (r.persona) rules.persona = r.persona;
+    if (r.noDefensePerks) rules.noDefense = true; // v0.26: no defensive perks in the level-up rewards
     if (Object.keys(rules).length) p.rules = rules;
     for (const pre of r.prebuild || []) for (const [x, y] of cellList(pre.cells)) placeFree(game, p, pre.id, x, y);
     for (const [x, y] of cellList(r.rocks)) placeFree(game, p, ROCK_ID, x, y);
@@ -605,6 +612,63 @@ function applyMission(game, m) {
   };
   setup(game.players[0], m.player);
   game.players.slice(1).forEach((p, i) => setup(p, m.enemies?.[i] || m.enemies?.[0]));
+}
+/**
+ * v0.26: campaign "Neutral Auxiliaries": neutral creeps that join the enemy, in the local player's lane only (seat 0).
+ * A mission lists them as { unit, from, until, tier, share, group, variant }: active from round `from` to round
+ * `until`, once the first enemy has reached tier `tier`. Each round the active ones share a budget of hit points
+ * (AUX.share of the neutral wave curve, times the mission's auxScale); each banks its part and sends as many creeps
+ * as the bank pays for (in packs of `group`), so a big creep comes every few rounds instead of never.
+ */
+export const AUX = Object.freeze({ share: 0.3, max: 16, gap: 0.6, delay: 1.2 });
+/** v0.26: the Lesser Skeleton: a Skeleton 20 % smaller, with 6 HP and 20 % slower (auxiliaries only). */
+export const LESSER = Object.freeze({ model: "n00R", hp: 6, speed: 0.8, scale: 0.8, name: "Lesser Skeleton" });
+const auxHp = (a) => (a.variant === "lesser" ? LESSER.hp : obj(a.unit)?.hp || 1);
+function missionAux(game) {
+  const list = game.mission?.aux,
+    me = game.players[0];
+  if (!list?.length || !game.running || !me || me.out) return;
+  const foeTier = game.players[1]?.tier || 1,
+    r = game.round,
+    active = list.map((a, i) => [a, i]).filter(([a]) => r >= (a.from || 1) && r <= (a.until ?? Infinity) && (!a.tier || foeTier >= a.tier));
+  if (!active.length) return;
+  const number = Math.max(1, (r - WAVE_FIRST_ROUND) / WAVE_EVERY_ROUNDS + 1),
+    budget = (AUX.share * (game.mission.auxScale || 1) * waveTotalHp(number)) / active.length,
+    bank = (game.mission.auxBank ||= {});
+  let k = 0;
+  for (const [a, i] of active) {
+    const item = obj(a.unit);
+    if (!item) continue;
+    const hp = auxHp(a),
+      group = a.group || 1;
+    bank[i] = (bank[i] || 0) + budget * (a.share || 1);
+    let count = Math.floor(bank[i] / hp);
+    count -= count % group;
+    if (count <= 0) continue;
+    if (count >= AUX.max) {
+      count = AUX.max - (AUX.max % group);
+      bank[i] = 0; // the rest is dropped: the bank never piles up
+    } else bank[i] -= count * hp;
+    for (let j = 0; j < count; j++)
+      game.waveQueue.push({ time: game.time + AUX.delay + AUX.gap * k++, defender: 0, number: Math.round(number), type: "normal", model: a.unit, flying: !!item.flying, real: true, aux: a.variant || true });
+  }
+}
+/** v0.26: a queued auxiliary enters the player's lane: the creep's own values and bounty, drawn as a neutral. */
+function spawnAuxCreep(game, entry) {
+  const c = spawnWaveCreep(game, entry),
+    item = obj(entry.model);
+  if (!c || !item) return c;
+  c.aux = true;
+  c.bounty = Math.max(1, Math.round((item.bountyBase || 0) + ((item.bountyDice || 0) * ((item.bountySides || 0) + 1)) / 2));
+  if (entry.aux === "lesser") {
+    c.hp = c.maxHp = LESSER.hp;
+    c.speed *= LESSER.speed;
+    c.baseSpeed *= LESSER.speed;
+    c.scale = LESSER.scale;
+    c.name = LESSER.name;
+    c.bounty = 1;
+  }
+  return c;
 }
 /** v0.17: is this send allowed for the player (mission rules)? Bosses always are. */
 const sendAllowed = (p, s) => !p.rules?.sends || s.bossTier || p.rules.sends.includes(s.id);
@@ -2509,6 +2573,8 @@ const perkAvailable = (o, level, p) => {
   if (o.type === "perk" && PERK_OWNED_BEFORE[id] && !((p?.perkFirstAt?.[id] ?? Infinity) < PERK_OWNED_BEFORE[id])) return false;
   return o.type === "perk" && perkLevel(p, id) >= 1 && !!PERK_AVAILABILITY_OWNED[id] && parseAvailability(PERK_AVAILABILITY_OWNED[id])(level);
 };
+/** v0.26: perks that strengthen the own defence (towers, spells and traps on the own field); a mission can leave them out. */
+export const DEFENSIVE_PERKS = new Set(["gunpowder", "archery", "militia", "evolution", "volley", "hellfire", "frostbolt", "infested", "burst", "fireblock", "airblock", "waterblock", "pocks", "permafrost", "hills", "stormfeathers", "crowd", "lone", "summon", "pillar", "fort", "agolem", "backup", "tides", "monsun", "owl", "melee", "heavy", "frenzy", "firearrows", "autoloader"]);
 /** v0.23k: with exactly one element owned, its element perks are 10 % more likely to be drawn than neutral perks. */
 export const ELEMENT_PERK_WEIGHT = 1.1;
 function makePick(game, p, kind, noQuest = false, focus = null) {
@@ -2577,6 +2643,7 @@ function optionValid(game, p, o) {
   }
   if (o.type === "perk" && perkElements(o.id).length && !perkElements(o.id).some((el) => ownsElement(p, el))) return false;
   if (o.type === "perk" && perkExcluded(o.id).some((el) => ownsElement(p, el))) return false; // v0.18h
+  if (o.type === "perk" && p.rules?.noDefense && DEFENSIVE_PERKS.has(o.id)) return false; // v0.26: mission rule
   if (o.type === "perk" && o.id === "lone" && loneCount(p) > loneTowers(perkLevel(p, "lone") + 1) + 1e-6) return false; // v0.18h / v0.22g1: only while the next level's tower limit holds
   if (o.type === "perk" && o.id === "quarry" && freeCells(game, p, QUARRY.stones).length < QUARRY.stones) return false; // v0.18h
   if (o.type === "perk" && o.id === "gold" && !goldPerkOpen(game, p)) return false;
@@ -5311,6 +5378,7 @@ function incomeTick(game) {
   game.warmup = false;
   game.round++;
   missionRound(game); // v0.17
+  missionAux(game); // v0.26
   if (game.waves && game.round >= WAVE_FIRST_ROUND && (game.round - WAVE_FIRST_ROUND) % WAVE_EVERY_ROUNDS === 0)
     launchWave(game, (game.round - WAVE_FIRST_ROUND) / WAVE_EVERY_ROUNDS + 1);
   game.incomeCounter++;
@@ -7109,7 +7177,7 @@ function fixedTickInner(game) {
     const due = game.waveQueue.filter((w) => w.time <= game.time + EPS);
     if (due.length) {
       game.waveQueue = game.waveQueue.filter((w) => w.time > game.time + EPS);
-      for (const w of due) (w.quest ? spawnQuestCreep(game, w) : spawnWaveCreep(game, w)); // v0.15: quest creeps
+      for (const w of due) w.quest ? spawnQuestCreep(game, w) : w.aux ? spawnAuxCreep(game, w) : spawnWaveCreep(game, w); // v0.15: quest creeps; v0.26: auxiliaries
     }
   }
   for (const p of game.players) {

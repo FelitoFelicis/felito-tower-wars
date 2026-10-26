@@ -1,6 +1,9 @@
 /**
  * v0.17: single-player campaign. 30 missions, each with a short scene, an enemy with its own
- * traits (sends, towers, maze, temper) and a weakness to exploit, and special start settings.
+ * traits (sends, towers, maze, temper) and special start settings.
+ * v0.26: briefings name only the rules (lives, goal, limits); what the enemy does is for the player
+ * to find out. `aux`: Neutral Auxiliaries, neutral creeps on the enemy's side that enter only the
+ * player's lane (simulation.js missionAux: { unit, from, until, tier, share, group, variant }).
  * `setup` goes to createGame({ mission }) as plain data; the rules live in simulation.js
  * (applyMission). Cells are "x,y" on the 6×9 board (x 0–5 left to right, y 0–8 portal to exit).
  */
@@ -29,24 +32,40 @@ export const MISSIONS = [
     scene: [
       ["Pip", "Your first duel, boss! Over there sits Grumbo, self-crowned King of the Goblins."],
       ["Grumbo", "Bow before Grumbo! Grumbo has a smiley maze. SMILEY. Fear it!"],
-      ["Pip", "He only sends goblins and horses. Build a few archers, send creeps of your own, and watch his crown wobble."],
+      ["Grumbo", "And Grumbo's cousins come along. Lots of cousins. Every round!"],
     ],
-    briefing: "Win the duel. You have 20 lives, Grumbo 10. He sends only Goblins and Ponies.",
-    weakness: "His smiley maze is all teeth and no bite.",
-    setup: { level: "veryEasy", waves: false, player: { lives: 20 }, enemies: [{ name: "Grumbo", art: "creep-goblin", level: "veryEasy", lives: 10, sends: [C.goblin, C.horse, C.imp, C.boar], maze: "smiley" }] },
+    briefing: "Win the duel. You have 10 lives, Grumbo 10. Neutral auxiliaries fight on his side.",
+    setup: {
+      level: "veryEasy",
+      waves: false,
+      player: { lives: 10 },
+      enemies: [{ name: "Grumbo", art: "creep-goblin", level: "veryEasy", lives: 10, sends: [C.goblin, C.horse, C.imp, C.boar], maze: "smiley" }],
+      auxScale: 0.8, // the first mission stays gentle
+      aux: [
+        { unit: C.goblin, from: 1, until: 15 },
+        { unit: C.imp, from: 16 },
+      ],
+    },
   },
   {
     title: "Counting Sheep",
-    enemy: "Shepherd Shaun",
+    enemy: "Shepherd Shawn",
     art: "creep-sheep-fly",
     scene: [
-      ["Shaun", "Baaa-ware! My flock flies, little builder. Flies!"],
-      ["Pip", "Flying sheep… only towers that shoot air can hit those. Archers do."],
-      ["Pip", "And between us: Shaun never built a single tower that looks up."],
+      ["Shawn", "Baaa-ware, little builder! My flock is bigger than you think."],
+      ["Pip", "A shepherd with a cannon? Since when do shepherds have cannons?"],
+      ["Shawn", "Since the wolves came. Now the wolves work for me. Baaa-ha-ha!"],
     ],
-    briefing: "Shaun sends flying sheep. Keep anti-air ready. You have 20 lives, Shaun 15.",
-    weakness: "His towers can't hit flyers: send your own Flying Sheep.",
-    setup: { level: "veryEasy", player: { lives: 20 }, enemies: [{ name: "Shepherd Shaun", art: "creep-sheep-fly", level: "easy", lives: 15, sends: [C.sheep, C.goblin, C.machine, C.imp], noAir: true, maze: "pillars" }] },
+    briefing: "Win the duel. You have 20 lives, Shawn 15. Neutral auxiliaries fight on his side.",
+    setup: {
+      level: "veryEasy",
+      player: { lives: 20 },
+      enemies: [{ name: "Shepherd Shawn", art: "creep-sheep-fly", level: "easy", lives: 15, sends: [C.sheep, C.goblin, C.machine, C.imp], towers: [T.footman, T.cannon], prebuild: [{ id: T.cannon, cells: "2,3" }], maze: "pillars" }],
+      aux: [
+        { unit: C.wolf, from: 4, until: 9 },
+        { unit: C.sheep, from: 10 },
+      ],
+    },
   },
   {
     title: "Bonehilda's Choir",
@@ -54,12 +73,23 @@ export const MISSIONS = [
     art: "creep-necromancer",
     scene: [
       ["Bonehilda", "La-la-laaa! My skeletons sing in perfect harmony. Join the choir… permanently!"],
-      ["Pip", "Undead are slow and stubborn. A long maze and steady damage break them."],
-      ["Pip", "She's a terrible singer, though. And her heart-shaped maze has holes."],
+      ["Pip", "Is it just me, or is the graveyard behind her getting… emptier?"],
+      ["Bonehilda", "Everyone sings in my choir. Everyone. Even the ones who were resting."],
     ],
-    briefing: "Bonehilda sends only undead. She starts with 20 lives.",
-    weakness: "Slow armies and a leaky heart maze. Hit her early.",
-    setup: { level: "easy", player: {}, enemies: [{ name: "Bonehilda", art: "creep-necromancer", level: "easy", lives: 20, sends: UNDEAD, maze: "heart" }] },
+    briefing: "Win the duel. Bonehilda has 20 lives. Neutral auxiliaries fight on her side.",
+    setup: {
+      level: "easy",
+      player: {},
+      enemies: [{ name: "Bonehilda", art: "creep-necromancer", level: "easy", lives: 20, sends: UNDEAD, maze: "heart" }],
+      auxScale: 1.25, // a slightly bigger choir than usual
+      aux: [
+        { unit: C.skeleton, from: 2, variant: "lesser" },
+        { unit: C.skeleton, from: 7 },
+        { unit: C.necro, from: 13 },
+        { unit: C.skelGrunt, tier: 2 },
+        { unit: C.zombie, tier: 3 },
+      ],
+    },
   },
   {
     title: "Rock Bottom",
@@ -70,9 +100,18 @@ export const MISSIONS = [
       ["Pip", "Eight boulders in our field! Tap one to clear it for gold…"],
       ["Pip", "…or steal lives from Mortimer: every life you steal cracks one rock."],
     ],
-    briefing: "Eight rocks block your field. Clear them for 40 gold each, or crack one with every life you steal.",
-    weakness: "Mortimer is slow to build. Early creeps crack your rocks for free.",
-    setup: { level: "easy", rocksOnSteal: true, rockCost: 40, player: { rocks: "1,1 4,1 2,3 3,3 0,5 5,5 2,7 3,7" }, enemies: [{ name: "Mason Mortimer", art: "creep-golem", level: "easy", sleep: 30 }] },
+    briefing: "Eight rocks block your field. Clear them for 40 gold each, or crack one with every life you steal. Neutral auxiliaries fight on Mortimer's side.",
+    setup: {
+      level: "easy",
+      rocksOnSteal: true,
+      rockCost: 40,
+      player: { rocks: "1,1 4,1 2,3 3,3 0,5 5,5 2,7 3,7" },
+      enemies: [{ name: "Mason Mortimer", art: "creep-golem", level: "easy", sleep: 30 }],
+      aux: [
+        { unit: C.gnoll, from: 3 },
+        { unit: C.grunt, from: 12 },
+      ],
+    },
   },
   {
     title: "Professor Boom",
@@ -80,12 +119,19 @@ export const MISSIONS = [
     art: "creep-alchemist",
     scene: [
       ["Boom", "KA-BOOM! Cannons, cannons, cannons! The only towers worth building!"],
-      ["Pip", "Cannons smash crowds on the ground. They never look up."],
-      ["Boom", "Up? Why would anything come from… up?"],
+      ["Pip", "Are those goblins carrying… barrels?"],
+      ["Boom", "My lab assistants! Very enthusiastic. Very flammable."],
     ],
-    briefing: "Boom builds only Bombards. His creeps come in big ground crowds.",
-    weakness: "Bombards can't hit flyers. Sheep and Flying Machines walk right through.",
-    setup: { level: "easy", player: {}, enemies: [{ name: "Professor Boom", art: "creep-alchemist", level: "normal", towers: [T.cannon], sends: [C.goblin, C.gnoll, C.grunt, C.raider, C.imp, C.skelGrunt, C.troll, C.zombie, C.marauder] }] },
+    briefing: "Win the duel. Neutral auxiliaries fight on Boom's side.",
+    setup: {
+      level: "easy",
+      player: {},
+      enemies: [{ name: "Professor Boom", art: "creep-alchemist", level: "normal", towers: [T.cannon], sends: [C.goblin, C.gnoll, C.grunt, C.raider, C.imp, C.skelGrunt, C.troll, C.zombie, C.marauder] }],
+      aux: [
+        { unit: C.goblin, from: 2 },
+        { unit: C.imp, from: 12 },
+      ],
+    },
   },
   {
     title: "Wolfgang's Pack",
@@ -93,12 +139,19 @@ export const MISSIONS = [
     art: "creep-wolf",
     scene: [
       ["Wolfgang", "Awoooo! My pack runs faster than your arrows fly!"],
-      ["Pip", "Wolves, Raiders, Centaurs… all speed, little armour. A long maze and splash damage tame them."],
-      ["Pip", "Here, 150 gold from the farm folk. Spend it on a good maze."],
+      ["Pip", "The farm folk sent us 150 gold. They really don't like wolves."],
+      ["Wolfgang", "Nobody likes wolves. That's why we bite."],
     ],
-    briefing: "Wolfgang sends only fast creeps. You start with 150 extra gold.",
-    weakness: "Fast but fragile: Bombards near the portal shred the pack.",
-    setup: { level: "easy", player: { gold: 150 }, enemies: [{ name: "Wolfgang", art: "creep-wolf", level: "normal", sends: FAST }] },
+    briefing: "Win the duel. You start with 150 extra gold. Neutral auxiliaries fight on Wolfgang's side.",
+    setup: {
+      level: "easy",
+      player: { gold: 150 },
+      enemies: [{ name: "Wolfgang", art: "creep-wolf", level: "normal", sends: FAST }],
+      aux: [
+        { unit: C.wolf, from: 3 },
+        { unit: C.raider, from: 12 },
+      ],
+    },
   },
   {
     title: "Last Stand at Pip's Farm",
@@ -107,11 +160,22 @@ export const MISSIONS = [
     scene: [
       ["Pip", "Bad news, boss. Krag's raiders burned the fences. We're down to 6 lives!"],
       ["Krag", "Six lives! Hah! I'll be eating your pumpkins by round ten."],
-      ["Pip", "We don't have to beat him. Hold out for 14 rounds and the king's army arrives."],
+      ["Pip", "The king's army is on its way. It just needs a little… time."],
     ],
-    briefing: "You have only 6 lives. Survive 14 rounds to win. Three archers already stand guard.",
-    weakness: "Krag never saves for big pushes. Steady defence wins.",
-    setup: { level: "normal", waves: false, goal: { survive: 14 }, player: { lives: 6, prebuild: [{ id: T.archer, cells: "2,2 3,4 2,6" }] }, enemies: [{ name: "Captain Krag", art: "creep-orc", level: "normal", persona: { saveMore: 0, push: 0 } }] },
+    briefing: "You have only 6 lives. Survive 25 rounds to win. Three archers already stand guard. Neutral auxiliaries fight on Krag's side.",
+    setup: {
+      level: "normal",
+      waves: false,
+      goal: { survive: 25 },
+      player: { lives: 6, prebuild: [{ id: T.archer, cells: "2,2 3,4 2,6" }] },
+      enemies: [{ name: "Captain Krag", art: "creep-orc", level: "normal", persona: { saveMore: 0, push: 0 } }],
+      auxScale: 0.8,
+      aux: [
+        { unit: C.gnoll, from: 3 },
+        { unit: C.grunt, from: 10 },
+        { unit: C.boar, from: 18 },
+      ],
+    },
   },
   {
     title: "The Pacifist",
@@ -119,12 +183,16 @@ export const MISSIONS = [
     art: "creep-shaman",
     scene: [
       ["Tumbleweed", "Peace, friend. I shall never send a single creep against you."],
-      ["Pip", "Suspicious. But true: he only builds. Thick walls, lots of lives."],
-      ["Pip", "The monks will vote for him if you don't win by round 22. Throw everything at him!"],
+      ["Pip", "Suspicious."],
+      ["Tumbleweed", "The monks will vote for me if you have not won by round 30. Peace takes patience."],
     ],
-    briefing: "Tumbleweed never attacks, but has 40 lives. Win before round 22.",
-    weakness: "Zero offence: put every coin into sends.",
-    setup: { level: "normal", goal: { deadline: 22 }, player: {}, enemies: [{ name: "Brother Tumbleweed", art: "creep-shaman", level: "normal", lives: 40, sends: [], gold: 200 }] },
+    briefing: "Win before round 30. Tumbleweed has 40 lives. No defensive perks are offered in this mission.",
+    setup: {
+      level: "normal",
+      goal: { deadline: 30 },
+      player: { noDefensePerks: true },
+      enemies: [{ name: "Brother Tumbleweed", art: "creep-shaman", level: "normal", lives: 40, sends: [], gold: 10, income: 10 }], // 40 gold, 30 income
+    },
   },
   {
     title: "Lady Tuskana",
@@ -132,11 +200,10 @@ export const MISSIONS = [
     art: "creep-boar",
     scene: [
       ["Tuskana", "Charge, my darlings! Tusks forward!"],
-      ["Pip", "Boars and Centaurs, sturdy and stubborn. And she loves her pillar garden."],
-      ["Pip", "Pillars look pretty, but creeps slip right between them."],
+      ["Pip", "She has a pillar garden. Who keeps a pillar garden?"],
+      ["Tuskana", "Elegance, little builder. Something you would not understand."],
     ],
-    briefing: "Tuskana sends Boars, Centaurs and Trolls. Neutral waves are on.",
-    weakness: "Her pillar maze is short: your creeps reach her quickly.",
+    briefing: "Win the duel. Neutral waves are on.",
     setup: { level: "normal", waves: true, player: {}, enemies: [{ name: "Lady Tuskana", art: "creep-boar", level: "normal", sends: [C.boar, C.centaur, C.troll, C.horse, C.gnoll, C.grunt, C.marauder, C.captain, C.cairne], maze: "pillars" }] },
   },
   {
@@ -145,12 +212,19 @@ export const MISSIONS = [
     art: "creep-orc-warlord",
     scene: [
       ["Goldfinger", "Gold, gold, gold! I earn more than you and I keep it. Towers are so… expensive."],
-      ["Pip", "He hoards for one giant wave. When it comes, it'll hurt."],
-      ["Pip", "But a miser builds few towers. Hit him early and often."],
+      ["Pip", "Is he counting coins? In the middle of a duel?"],
+      ["Goldfinger", "Every coin counts. Especially the ones I take from you."],
     ],
-    briefing: "Goldfinger earns more than you and saves for huge waves. He never builds more than 12 towers.",
-    weakness: "A tower limit of 12: early pressure breaks through.",
-    setup: { level: "normal", player: {}, enemies: [{ name: "Goldfinger", art: "creep-orc-warlord", level: "normal", income: 10, maxTowers: 12, persona: { saveMore: 3, greed: 0.6 } }] },
+    briefing: "Win the duel. Neutral auxiliaries fight on Goldfinger's side.",
+    setup: {
+      level: "normal",
+      player: {},
+      enemies: [{ name: "Goldfinger", art: "creep-orc-warlord", level: "normal", income: 10, maxTowers: 12, persona: { saveMore: 3, greed: 0.6 } }],
+      aux: [
+        { unit: C.horse, from: 2 },
+        { unit: C.imp, from: 14 },
+      ],
+    },
   },
   {
     title: "The Troll Bridge",
@@ -159,11 +233,20 @@ export const MISSIONS = [
     scene: [
       ["Gunther", "Nobody crosses my bridge without paying the toll! And your lane is full of rubble. Toll included."],
       ["Pip", "Six rocks again. 30 gold each to clear, or crack them by stealing lives."],
-      ["Pip", "His trolls are tough and fast. Don't let them stroll through."],
+      ["Gunther", "Pay up, or my friends from under the bridge come to collect."],
     ],
-    briefing: "Gunther sends Trenchlins and Trolls. Six rocks block your field (30 gold each, or crack them by stealing lives).",
-    weakness: "Gunther spends everything on trolls and forgets anti-air.",
-    setup: { level: "normal", rocksOnSteal: true, rockCost: 30, player: { rocks: "0,2 5,2 2,4 3,4 1,6 4,6" }, enemies: [{ name: "Toll-Troll Gunther", art: "creep-troll", level: "normal", sends: [C.goblin, C.wolf, C.raider, C.imp, C.troll, C.marauder, C.felRaider, C.hound], noAir: true }] },
+    briefing: "Six rocks block your field (30 gold each, or crack one with every life you steal). Neutral auxiliaries fight on Gunther's side.",
+    setup: {
+      level: "normal",
+      rocksOnSteal: true,
+      rockCost: 30,
+      player: { rocks: "0,2 5,2 2,4 3,4 1,6 4,6" },
+      enemies: [{ name: "Toll-Troll Gunther", art: "creep-troll", level: "normal", sends: [C.goblin, C.wolf, C.raider, C.imp, C.troll, C.marauder, C.felRaider, C.hound], noAir: true }],
+      aux: [
+        { unit: C.gnoll, from: 3 },
+        { unit: C.boar, from: 10 },
+      ],
+    },
   },
   {
     title: "Baron von Zeppelin",
@@ -171,12 +254,20 @@ export const MISSIONS = [
     art: "creep-zeppelin",
     scene: [
       ["Baron", "Mein fleet rules the skies! Sheep, machines, zeppelins: all airborne, all glorious!"],
-      ["Pip", "Everything he sends flies. We need anti-air everywhere."],
-      ["Pip", "And his towers? Footmen. Swords. They can't touch anything above their helmets."],
+      ["Pip", "He really likes the sky."],
+      ["Baron", "And the sky likes me! Look up, little builder. Look up!"],
     ],
-    briefing: "The Baron sends only flyers. His towers are all Footmen.",
-    weakness: "Footmen can't hit flyers. Answer air with air.",
-    setup: { level: "normal", player: {}, enemies: [{ name: "Baron von Zeppelin", art: "creep-zeppelin", level: "normal", sends: FLYERS, towers: [T.footman] }] },
+    briefing: "Win the duel. Neutral auxiliaries fight on the Baron's side.",
+    setup: {
+      level: "normal",
+      player: {},
+      enemies: [{ name: "Baron von Zeppelin", art: "creep-zeppelin", level: "normal", sends: FLYERS, towers: [T.footman] }],
+      auxScale: 0.7,
+      aux: [
+        { unit: C.sheep, from: 4 },
+        { unit: C.machine, from: 18 },
+      ],
+    },
   },
   {
     title: "Archie Two-Shoes",
@@ -184,12 +275,19 @@ export const MISSIONS = [
     art: "creep-darkknight",
     scene: [
       ["Archie", "One arrow, one kill. That's my motto. I only trust bows."],
-      ["Pip", "Archer towers hit one target at a time. No splash."],
-      ["Pip", "So… what happens if a hundred tiny creeps show up at once?"],
+      ["Pip", "Why is he called Two-Shoes?"],
+      ["Archie", "Because I always land on my feet. Both of them."],
     ],
-    briefing: "Archie builds only archer towers.",
-    weakness: "No splash damage: swarms of cheap creeps overwhelm him.",
-    setup: { level: "normal", player: {}, enemies: [{ name: "Archie Two-Shoes", art: "creep-darkknight", level: "normal", towers: [T.archer] }] },
+    briefing: "Win the duel. Neutral auxiliaries fight on Archie's side.",
+    setup: {
+      level: "normal",
+      player: {},
+      enemies: [{ name: "Archie Two-Shoes", art: "creep-darkknight", level: "normal", towers: [T.archer] }],
+      aux: [
+        { unit: C.gnoll, from: 3 },
+        { unit: C.centaur, from: 14 },
+      ],
+    },
   },
   {
     title: "Double Trouble",
@@ -198,10 +296,9 @@ export const MISSIONS = [
     scene: [
       ["Pib", "We are Pib and Pob! Two lanes, one brain!"],
       ["Pob", "Mostly Pib's brain."],
-      ["Pip", "Two enemies, but each has only 15 lives. Knock one out quickly and the other one is alone."],
+      ["Pip", "Two of them at once. Here we go."],
     ],
     briefing: "Three-way battle against Pib and Pob. Each twin has 15 lives.",
-    weakness: "Low lives: one good push knocks a twin out.",
     setup: { seats: 3, level: "normal", player: {}, enemies: [{ name: "Pib", art: "creep-satyr", level: "easy", lives: 15 }, { name: "Pob", art: "creep-dryad", level: "normal", lives: 15 }] },
   },
   {
@@ -210,12 +307,17 @@ export const MISSIONS = [
     art: "creep-spider",
     scene: [
       ["Mo", "Less is more. You may build only ten towers today. I insist."],
-      ["Pip", "Ten towers?! Then every one of them has to count. Upgrade, don't spread."],
+      ["Pip", "Ten towers?!"],
       ["Mo", "And I send many, many small things. Less is more, more is… also fine."],
     ],
-    briefing: "You may build at most 10 towers. Mo sends swarms of cheap creeps.",
-    weakness: "Mo's creeps are cheap and weak: well-upgraded splash towers eat them.",
-    setup: { level: "normal", player: { maxTowers: 10, gold: 100 }, enemies: [{ name: "Master Mo", art: "creep-spider", level: "normal", sends: [C.goblin, C.horse, C.gnoll, C.imp, C.boar, C.zombie, C.acolyte, C.scarab] }] },
+    briefing: "You may build at most 10 towers. You start with 100 extra gold. Neutral auxiliaries fight on Mo's side.",
+    setup: {
+      level: "normal",
+      player: { maxTowers: 10, gold: 100 },
+      enemies: [{ name: "Master Mo", art: "creep-spider", level: "normal", sends: [C.goblin, C.horse, C.gnoll, C.imp, C.boar, C.zombie, C.acolyte, C.scarab] }],
+      auxScale: 0.7,
+      aux: [{ unit: C.goblin, from: 2 }],
+    },
   },
   {
     title: "Count Batula",
@@ -224,11 +326,18 @@ export const MISSIONS = [
     scene: [
       ["Pip", "Shhh. The Count sleeps until sunset… about 45 seconds from now."],
       ["Batula", "Zzz… bats… zzz… blood… zzz…"],
-      ["Pip", "When he wakes, the sky fills with bats. Hurt him while he snores!"],
+      ["Pip", "Tiptoe, boss. Tiptoe."],
     ],
-    briefing: "Batula sleeps for the first 45 seconds, then sends only flyers. A few bat guards watch his lane.",
-    weakness: "A slow start: rush him while he sleeps.",
-    setup: { level: "normal", player: {}, enemies: [{ name: "Count Batula", art: "creep-bat-rider", level: "normal", sleep: 45, sends: FLYERS, prebuild: [{ id: T.archer, cells: "1,3 4,3 2,6" }] }] },
+    briefing: "Win the duel. Batula sleeps for the first 45 seconds. Neutral auxiliaries fight on his side.",
+    setup: {
+      level: "normal",
+      player: {},
+      enemies: [{ name: "Count Batula", art: "creep-bat-rider", level: "normal", sleep: 45, sends: FLYERS, prebuild: [{ id: T.archer, cells: "1,3 4,3 2,6" }] }],
+      aux: [
+        { unit: C.sheep, from: 6 },
+        { unit: C.zeppelin, from: 18 },
+      ],
+    },
   },
   {
     title: "Glass Cannon Gary",
@@ -236,12 +345,19 @@ export const MISSIONS = [
     art: "creep-raider",
     scene: [
       ["Gary", "I've got the biggest income in the valley. I am unstoppable!"],
-      ["Pip", "He also has 8 lives and builds like a toddler."],
+      ["Pip", "He says that every time."],
       ["Gary", "…Who told you that?"],
     ],
-    briefing: "Gary has a big income and a reckless push. But only 8 lives.",
-    weakness: "Eight lives and a thin defence: one breakthrough is enough.",
-    setup: { level: "normal", player: {}, enemies: [{ name: "Gary", art: "creep-raider", level: "normal", lives: 8, income: 15, persona: { caution: 0.6, saveMore: 2 } }] },
+    briefing: "Win the duel. Gary has 8 lives. Neutral auxiliaries fight on his side.",
+    setup: {
+      level: "normal",
+      player: {},
+      enemies: [{ name: "Gary", art: "creep-raider", level: "normal", lives: 8, income: 15, persona: { caution: 0.6, saveMore: 2 } }],
+      aux: [
+        { unit: C.wolf, from: 3 },
+        { unit: C.raider, from: 12 },
+      ],
+    },
   },
   {
     title: "The Marathon",
@@ -250,10 +366,9 @@ export const MISSIONS = [
     scene: [
       ["Maxi", "Endurance, my friend! Thirty rounds of non-stop creeps!"],
       ["Pip", "We don't need to beat Maxi. Just still be standing after round 30."],
-      ["Pip", "Neutral waves join the race too. Pace yourself."],
+      ["Maxi", "Stretch your legs. It's a long way to the finish."],
     ],
     briefing: "Survive 30 rounds. Neutral waves are on.",
-    weakness: "Maxi spends evenly and never saves: a strong economy outlasts him.",
     setup: { level: "normal", waves: true, goal: { survive: 30 }, player: {}, enemies: [{ name: "Marathon Maxi", art: "creep-centaur", level: "normal", persona: { saveMore: 0 } }] },
   },
   {
@@ -263,10 +378,9 @@ export const MISSIONS = [
     scene: [
       ["Bonehilda", "I'm back! And I brought my duet partner!"],
       ["Mortis", "*rattling noises*"],
-      ["Pip", "Two lanes full of undead. Take out Bonehilda first, she never learned to defend."],
+      ["Pip", "Two lanes full of undead. Lovely."],
     ],
-    briefing: "Three-way battle against two undead armies.",
-    weakness: "Bonehilda's defence is still a joke.",
+    briefing: "Three-way battle against Bonehilda and Mortis.",
     setup: { seats: 3, level: "normal", player: {}, enemies: [{ name: "Bonehilda", art: "creep-necromancer", level: "easy", sends: UNDEAD, maze: "heart" }, { name: "Mortis", art: "creep-ghoul", level: "normal", sends: UNDEAD }] },
   },
   {
@@ -276,11 +390,18 @@ export const MISSIONS = [
     scene: [
       ["Seraphina", "My song makes your walkers seasick. Only your flyers can reach me now."],
       ["Pip", "She's right, our ground creeps won't march. Only flyers this time!"],
-      ["Pip", "Good thing her towers are all swords and cannons."],
+      ["Seraphina", "And my friends from the deep don't get seasick at all."],
     ],
-    briefing: "You can only send flyers (and bosses). Seraphina builds Footmen and Bombards.",
-    weakness: "No anti-air at all: your flyers rule the sea.",
-    setup: { level: "normal", player: { sends: FLYERS }, enemies: [{ name: "Siren Seraphina", art: "creep-siren", level: "normal", towers: [T.footman, T.cannon] }] },
+    briefing: "You can only send flyers (and bosses). Neutral auxiliaries fight on Seraphina's side.",
+    setup: {
+      level: "normal",
+      player: { sends: FLYERS },
+      enemies: [{ name: "Siren Seraphina", art: "creep-siren", level: "normal", towers: [T.footman, T.cannon] }],
+      aux: [
+        { unit: C.gnoll, from: 3 },
+        { unit: C.marauder, tier: 3 },
+      ],
+    },
   },
   {
     title: "Fortress Fritz",
@@ -289,11 +410,20 @@ export const MISSIONS = [
     scene: [
       ["Fritz", "My fortress was finished before you even woke up. Forty lives. Twelve towers. Good luck."],
       ["Pip", "The king sent us 500 gold for this siege. And a deadline: round 35."],
-      ["Pip", "Fritz barely attacks. He believes walls win wars."],
+      ["Fritz", "My garrison gets bored behind the walls. Sometimes they go for a little walk."],
     ],
-    briefing: "Fritz starts with a full maze and 40 lives. You get 500 gold. Win by round 35.",
-    weakness: "He hardly sends. Outscale him with income, then flood him.",
-    setup: { level: "hard", goal: { deadline: 35 }, player: { gold: 500 }, enemies: [{ name: "Fortress Fritz", art: "creep-minotaur", level: "hard", lives: 40, persona: { greed: 0.5, saveMore: 0 }, prebuild: [{ id: T.archer, cells: "4,0 5,0 3,0 2,1 1,2 0,8 1,8 2,8 3,7 4,6 1,3 1,4" }] }] },
+    briefing: "Win by round 35. Fritz starts with a full maze and 40 lives. You get 500 extra gold. Neutral auxiliaries fight on his side.",
+    setup: {
+      level: "hard",
+      goal: { deadline: 35 },
+      player: { gold: 500 },
+      enemies: [{ name: "Fortress Fritz", art: "creep-minotaur", level: "hard", lives: 40, persona: { greed: 0.5, saveMore: 0 }, prebuild: [{ id: T.archer, cells: "4,0 5,0 3,0 2,1 1,2 0,8 1,8 2,8 3,7 4,6 1,3 1,4" }] }],
+      aux: [
+        { unit: C.grunt, from: 5 },
+        { unit: C.boar, from: 12 },
+        { unit: C.centaur, tier: 2 },
+      ],
+    },
   },
   {
     title: "Zara Stormcaller",
@@ -301,12 +431,19 @@ export const MISSIONS = [
     art: "creep-warlock",
     scene: [
       ["Zara", "Storm and arcane, lightning and starlight. My towers sparkle!"],
-      ["Pip", "She only builds archers and mages. Fancy, but single-target."],
-      ["Pip", "Swarm her. Cheap, many, all at once."],
+      ["Pip", "Is it going to rain?"],
+      ["Zara", "Oh, it is going to do more than rain."],
     ],
-    briefing: "Zara always picks Storm and Arcane, and builds only archer and magic towers.",
-    weakness: "No splash: big swarms get through.",
-    setup: { level: "hard", player: {}, enemies: [{ name: "Zara Stormcaller", art: "creep-warlock", level: "hard", towers: [T.archer, T.magic], persona: { elementOrder: elements("storm", "arcane"), smartElements: 0 } }] },
+    briefing: "Win the duel. Neutral auxiliaries fight on Zara's side.",
+    setup: {
+      level: "hard",
+      player: {},
+      enemies: [{ name: "Zara Stormcaller", art: "creep-warlock", level: "hard", towers: [T.archer, T.magic], persona: { elementOrder: elements("storm", "arcane"), smartElements: 0 } }],
+      aux: [
+        { unit: C.sheep, from: 5 },
+        { unit: C.machine, from: 15 },
+      ],
+    },
   },
   {
     title: "The Rock Garden",
@@ -315,11 +452,17 @@ export const MISSIONS = [
     scene: [
       ["Grizelda", "I love rocks. You get rocks. I get rocks. Everybody gets rocks!"],
       ["Pip", "Ten rocks each. Every life you steal cracks one of ours, every life she steals cracks one of hers."],
-      ["Pip", "Whoever hits first gets a free maze. Let's hit first."],
+      ["Grizelda", "My garden boars dig them up again. Good boars!"],
     ],
-    briefing: "Both fields hold 10 rocks (35 gold to clear). Stealing lives cracks your own rocks.",
-    weakness: "Grizelda's rocks clog her maze early. Strike before she clears them.",
-    setup: { level: "hard", rocksOnSteal: true, rockCost: 35, player: { rocks: "0,1 2,1 4,1 1,3 3,3 5,3 0,5 2,5 4,5 3,7" }, enemies: [{ name: "Gardener Grizelda", art: "creep-yeti", level: "normal", rocks: "1,1 3,1 5,1 0,3 2,3 4,3 1,5 3,5 5,5 2,7" }] },
+    briefing: "Both fields hold 10 rocks (35 gold to clear). Stealing lives cracks your own rocks. Neutral auxiliaries fight on Grizelda's side.",
+    setup: {
+      level: "hard",
+      rocksOnSteal: true,
+      rockCost: 35,
+      player: { rocks: "0,1 2,1 4,1 1,3 3,3 5,3 0,5 2,5 4,5 3,7" },
+      enemies: [{ name: "Gardener Grizelda", art: "creep-yeti", level: "normal", rocks: "1,1 3,1 5,1 0,3 2,3 4,3 1,5 3,5 5,5 2,7" }],
+      aux: [{ unit: C.boar, from: 8 }],
+    },
   },
   {
     title: "Brunhilde Blitzkrieg",
@@ -327,12 +470,19 @@ export const MISSIONS = [
     art: "creep-orc-warlord",
     scene: [
       ["Brunhilde", "Defence is for cowards! ATTACK! ATTACK! ATTACK!"],
-      ["Pip", "She saves for huge waves and goes for the kill when we're low."],
-      ["Pip", "But she builds almost nothing. One counter-punch could end it."],
+      ["Pip", "She's very loud."],
+      ["Brunhilde", "LOUD IS A STRATEGY!"],
     ],
-    briefing: "Brunhilde saves for crushing waves and goes for the kill.",
-    weakness: "A paper-thin defence.",
-    setup: { level: "hard", player: {}, enemies: [{ name: "Brunhilde", art: "creep-orc-warlord", level: "hard", persona: { caution: 0.55, saveMore: 3, killShot: 15 } }] },
+    briefing: "Win the duel. Neutral auxiliaries fight on Brunhilde's side.",
+    setup: {
+      level: "hard",
+      player: {},
+      enemies: [{ name: "Brunhilde", art: "creep-orc-warlord", level: "hard", persona: { caution: 0.55, saveMore: 3, killShot: 15 } }],
+      aux: [
+        { unit: C.grunt, from: 4 },
+        { unit: C.centaur, tier: 2 },
+      ],
+    },
   },
   {
     title: "Pit Lord Pete",
@@ -340,12 +490,19 @@ export const MISSIONS = [
     art: "creep-pit-lord",
     scene: [
       ["Pete", "Welcome to the pit! Demons, hounds and hellfire, all on my side."],
-      ["Pip", "He starts with 40 extra income. That's… a lot."],
-      ["Pip", "The king gave us 10 extra lives. And demons hate a long, long maze."],
+      ["Pip", "The king gave us 10 extra lives for this one. That's never a good sign."],
+      ["Pete", "My little helpers are already on their way. They love company."],
     ],
-    briefing: "Pete sends demons and starts with +40 income. You have 40 lives.",
-    weakness: "Pete builds slowly while he counts his gold.",
-    setup: { level: "hard", player: { lives: 40 }, enemies: [{ name: "Pit Lord Pete", art: "creep-pit-lord", level: "hard", income: 40, sends: DEMONS, sleep: 20 }] },
+    briefing: "Win the duel. You have 40 lives. Neutral auxiliaries fight on Pete's side.",
+    setup: {
+      level: "hard",
+      player: { lives: 40 },
+      enemies: [{ name: "Pit Lord Pete", art: "creep-pit-lord", level: "hard", income: 40, sends: DEMONS, sleep: 20 }],
+      aux: [
+        { unit: C.imp, from: 3 },
+        { unit: C.hound, tier: 4 },
+      ],
+    },
   },
   {
     title: "The Accountant",
@@ -353,12 +510,20 @@ export const MISSIONS = [
     art: "creep-gnoll",
     scene: [
       ["Lenny", "My spreadsheets predict your defeat in round 29. Compound interest is undefeated."],
-      ["Pip", "He starts with +30 income and invests every coin. If this goes long, he wins."],
-      ["Pip", "Win by round 28. Go loud, go early."],
+      ["Pip", "Round 28 is the deadline. After that, his numbers win."],
+      ["Lenny", "My interns handle the small accounts. Your lane is a small account."],
     ],
-    briefing: "Lenny starts with +30 income. Win by round 28.",
-    weakness: "He invests, not defends: early pushes hurt him.",
-    setup: { level: "hard", goal: { deadline: 28 }, player: {}, enemies: [{ name: "Ledger Lenny", art: "creep-gnoll", level: "hard", income: 30, persona: { greed: 2.4, caution: 0.8 } }] },
+    briefing: "Win by round 28. Neutral auxiliaries fight on Lenny's side.",
+    setup: {
+      level: "hard",
+      goal: { deadline: 28 },
+      player: {},
+      enemies: [{ name: "Ledger Lenny", art: "creep-gnoll", level: "hard", income: 30, persona: { greed: 2.4, caution: 0.8 } }],
+      aux: [
+        { unit: C.gnoll, from: 2 },
+        { unit: C.centaur, from: 12 },
+      ],
+    },
   },
   {
     title: "No Mercy Nora",
@@ -366,11 +531,10 @@ export const MISSIONS = [
     art: "creep-demon-slayer",
     scene: [
       ["Nora", "Twelve lives. That's all you get. I don't do mercy."],
-      ["Pip", "One mistake and we're done. Build careful, build strong."],
-      ["Pip", "Neutral waves too. Don't forget the neutral waves."],
+      ["Pip", "Twelve. Okay. Twelve is a number."],
+      ["Nora", "It is about to become a smaller one."],
     ],
-    briefing: "You have only 12 lives against a hard enemy. Neutral waves are on.",
-    weakness: "Nora rarely builds anti-air. Flyers sneak through.",
+    briefing: "You have only 12 lives. Neutral waves are on.",
     setup: { level: "hard", waves: true, player: { lives: 12 }, enemies: [{ name: "Nora", art: "creep-demon-slayer", level: "hard", persona: { airThreshold: 0.05 } }] },
   },
   {
@@ -380,10 +544,9 @@ export const MISSIONS = [
     scene: [
       ["Pob", "We've been training! Pib is now… slightly smarter!"],
       ["Pib", "Hard mode, baby!"],
-      ["Pip", "Pob still plays normal. Knock him out first, then deal with Pib."],
+      ["Pip", "They grow up so fast."],
     ],
-    briefing: "Three-way battle: Pib (hard) and Pob (normal).",
-    weakness: "Pob is the weak link.",
+    briefing: "Three-way battle against Pib and Pob.",
     setup: { seats: 3, level: "hard", player: {}, enemies: [{ name: "Pib", art: "creep-satyr", level: "hard" }, { name: "Pob", art: "creep-dryad", level: "normal" }] },
   },
   {
@@ -393,10 +556,9 @@ export const MISSIONS = [
     scene: [
       ["Pip", "The Council of Three wants to see if you're worthy of the Line Lord."],
       ["Council", "Three lanes. Three judges. One survivor."],
-      ["Pip", "Two of them are only normal. Survive the rotation, pick them off one by one."],
+      ["Pip", "No pressure, boss."],
     ],
-    briefing: "Four-way battle against the Council: two normal judges and one hard.",
-    weakness: "The normal judges fall first; their lives become yours.",
+    briefing: "Four-way battle against the Council of Three. Neutral waves are on.",
     setup: { seats: 4, level: "normal", waves: true, player: {}, enemies: [{ name: "Judge Ash", art: "creep-shaman", level: "normal" }, { name: "Judge Bramble", art: "creep-dryad", level: "normal" }, { name: "Judge Cinder", art: "creep-infernal", level: "hard" }] },
   },
   {
@@ -405,12 +567,11 @@ export const MISSIONS = [
     art: "creep-mountain-golem",
     scene: [
       ["Stevito", "So, Felito's champion finally arrives. I invented this lane, you know."],
-      ["Pip", "He has 40 lives and +25 income. And he goes for the kill."],
+      ["Pip", "Forty lives. And he never stops grinning."],
       ["Stevito", "Oh, and I left you a few rocks. Old habit."],
       ["Pip", "Every life we steal cracks a rock. Let's take this lane back. For Felito!"],
     ],
-    briefing: "The final duel: Stevito has 40 lives and +25 income. Six rocks in your field crack when you steal lives. Neutral waves are on.",
-    weakness: "Even legends get greedy: he saves for giant waves and leaves gaps in between.",
+    briefing: "The final duel: Stevito has 40 lives. Six rocks in your field crack when you steal lives. Neutral waves are on.",
     setup: { level: "hard", waves: true, rocksOnSteal: true, rockCost: 50, player: { rocks: "1,2 4,2 2,4 3,4 1,6 4,6" }, enemies: [{ name: "Stevito", art: "creep-mountain-golem", level: "hard", lives: 40, income: 25, persona: { killShot: 12, saveMore: 2 } }] },
   },
 ];

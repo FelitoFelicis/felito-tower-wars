@@ -173,10 +173,10 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.25p",
+const APP_VERSION = "0.26",
   APP_BRANCH = "F", // v0.23q: author marker (F = Felix, S = Steven) and branch text, shown behind the version; APP_VERSION stays plain for online matches (VersionPublishingRules.md)
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
-  APP_DATE = "23.10.2026";
+  APP_DATE = "26.10.2026";
 // v0.18: the version also stands in the page title (browser tab and the artifact window in chats)
 try {
   document.title = `${currentDesign() === "original" ? "Felito" : "Circle"} Tower Wars · v${APP_VERSION}${APP_BRANCH}`; // design variants: the new looks are called Circle Tower Wars
@@ -3492,22 +3492,42 @@ function campaignWon(id) {
     localStorage.setItem(CAMPAIGN_PREF, JSON.stringify([...done].sort((a, b) => a - b)));
   } catch {}
 }
+/** v0.26: best winning time per mission (seconds), kept in the browser. */
+const CAMPAIGN_TIMES = "felito.campaign.times";
+function campaignTimes() {
+  try {
+    const v = JSON.parse(localStorage.getItem(CAMPAIGN_TIMES) || "{}");
+    return v && typeof v === "object" ? v : {};
+  } catch {
+    return {};
+  }
+}
+function campaignTime(id, seconds) {
+  const times = campaignTimes();
+  if (!(seconds > 0) || (times[id] > 0 && times[id] <= seconds)) return;
+  times[id] = Math.round(seconds);
+  try {
+    localStorage.setItem(CAMPAIGN_TIMES, JSON.stringify(times));
+  } catch {}
+}
+const clockText = (sec) => `${String(Math.floor(sec / 60)).padStart(2, "0")}:${String(Math.floor(sec % 60)).padStart(2, "0")}`;
 /** A mission is open once the one before it is won (the first always is). */
 const missionOpen = (i, done = campaignDone()) => i === 0 || done.has(MISSIONS[i - 1].id) || done.has(MISSIONS[i].id);
 function campaignMenu() {
-  const done = campaignDone();
+  const done = campaignDone(),
+    times = campaignTimes();
   showModal(
     `${modalHeader(t("Campaign"))}<p class="modal-copy campaign-progress">${t("{n} of {m} missions won", { n: done.size, m: MISSIONS.length })}</p><div class="campaign-grid">${MISSIONS.map((m, i) => {
       const open = missionOpen(i, done),
         won = done.has(m.id);
-      return `<button class="mission-tile${won ? " won" : ""}${open ? "" : " locked"}" data-mission="${i}" ${open ? "" : "disabled"} aria-label="${esc(t("Mission {n}", { n: i + 1 }) + ": " + (open ? t(m.title) : t("locked")))}"><span class="mission-num">${i + 1}</span><img src="${artUrl(m.art)}" alt=""><b>${open ? esc(t(m.title)) : "???"}</b>${won ? '<i class="mission-check">✓</i>' : open ? "" : '<i class="mission-lock">🔒</i>'}</button>`;
+      return `<button class="mission-tile${won ? " won" : ""}${open ? "" : " locked"}" data-mission="${i}" ${open ? "" : "disabled"} aria-label="${esc(t("Mission {n}", { n: i + 1 }) + ": " + (open ? t(m.title) : t("locked")))}"><span class="mission-num">${i + 1}</span><img src="${artUrl(m.art)}" alt=""><b>${open ? esc(t(m.title)) : "???"}</b>${won && times[m.id] > 0 ? `<span class="mission-time" title="${esc(t("Best time"))}"><img src="${iconUrl("hourglass")}" alt="">${clockText(times[m.id])}</span>` : ""}${won ? '<i class="mission-check">✓</i>' : open ? "" : '<i class="mission-lock">🔒</i>'}</button>`; // v0.26: best time
     }).join("")}</div><button class="primary-button" data-close>${t("Back")}</button>`,
   );
   $("modal-body")
     .querySelectorAll("[data-mission]")
     .forEach((b) => (b.onclick = () => missionScene(Number(b.dataset.mission))));
 }
-/** The short scene before a mission: the enemy and Pip talk, then the briefing and Fight! */
+/** The short scene before a mission: the enemy and Pip talk, then the briefing and Fight! v0.26: no tips, a Start button from the first line on. */
 function missionScene(i, step = 0) {
   const m = MISSIONS[i];
   if (!m) return campaignMenu();
@@ -3518,13 +3538,14 @@ function missionScene(i, step = 0) {
   showModal(
     `<div class="mission-scene"><div class="scene-head"><span class="scene-kicker">${t("Mission {n}", { n: i + 1 })}</span><h2>${esc(t(m.title))}</h2></div><div class="scene-stage${pip ? " pip" : ""}"><img class="scene-enemy" src="${artUrl(m.art)}" alt="${esc(t(m.enemy))}"><img class="scene-pip" src="${artUrl("tower-archer")}" alt="Pip"></div>${
       talking
-        ? `<div class="scene-bubble${pip ? " pip" : ""}"><b>${esc(t(who))}</b><p>${esc(t(line))}</p></div><div class="scene-actions"><button class="primary-button" id="scene-next">${t(step === lines.length - 1 ? "To the briefing" : "Next")}</button><button class="secondary-button" id="scene-skip">${t("Skip")}</button></div>`
-        : `<div class="scene-brief"><p>${valHtml(t(m.briefing))}</p><p class="scene-weak"><b>${t("Pip's tip")}:</b> ${esc(t(m.weakness))}</p></div><div class="scene-actions"><button class="primary-button big" id="scene-fight">${t("Fight!")}</button><button class="primary-button" id="scene-back">${t("Back")}</button></div>`
+        ? `<div class="scene-bubble${pip ? " pip" : ""}"><b>${esc(t(who))}</b><p>${esc(t(line))}</p></div><div class="scene-actions"><button class="primary-button" id="scene-next">${t(step === lines.length - 1 ? "To the briefing" : "Next")}</button>${step === 0 ? `<div class="scene-pair"><button class="secondary-button" id="scene-skip">${t("Skip")}</button><button class="primary-button" id="scene-start">${t("Start")}</button></div>` : `<button class="secondary-button" id="scene-skip">${t("Skip")}</button>`}</div>`
+        : `<div class="scene-brief"><p>${valHtml(t(m.briefing))}</p></div><div class="scene-actions"><button class="primary-button big" id="scene-fight">${t("Fight!")}</button><button class="primary-button" id="scene-back">${t("Back")}</button></div>`
     }</div>`,
   );
   if (talking) {
     $("scene-next").onclick = () => missionScene(i, step + 1);
     $("scene-skip").onclick = () => missionScene(i, lines.length);
+    if ($("scene-start")) $("scene-start").onclick = () => startCampaign(i); // v0.26
   } else {
     $("scene-fight").onclick = () => startCampaign(i);
     $("scene-back").onclick = () => campaignMenu();
@@ -3544,12 +3565,23 @@ function startCampaign(i) {
 function campaignResult(won) {
   const m = MISSIONS[campaignIndex],
     next = MISSIONS[campaignIndex + 1];
-  if (won && m) campaignWon(m.id);
+  if (won && m) {
+    campaignWon(m.id);
+    campaignTime(m.id, game?.time); // v0.26
+  }
   const again = $("play-again");
   again.textContent = won ? (next ? t("Next mission") : t("Campaign complete!")) : t("Retry mission");
-  again.onclick = () => {
+  // v0.26: leaving the finished match first (begun = false), or the result dialog of the ended game comes back at once
+  const leave = () => {
+    begun = false;
     shownResult = false;
-    if (!won) return startCampaign(campaignIndex);
+  };
+  again.onclick = () => {
+    if (!won) {
+      shownResult = false;
+      return startCampaign(campaignIndex);
+    }
+    leave();
     if (next) missionScene(campaignIndex + 1);
     else campaignMenu();
   };
@@ -3558,7 +3590,7 @@ function campaignResult(won) {
   menu.className = "secondary-button";
   menu.textContent = t("Campaign");
   menu.onclick = () => {
-    shownResult = false;
+    leave();
     campaignMenu();
   };
   again.after(menu);

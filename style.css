@@ -6156,6 +6156,29 @@ b.val {
   display: grid;
   gap: 6px;
 }
+/* v0.26: Skip and Start side by side on a mission's first line */
+.scene-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+/* v0.26: best winning time on a won mission */
+.mission-time {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px 1px 3px;
+  border-radius: 8px;
+  background: #0007;
+  color: #ffe9a8;
+  font: 400 11.5px/1.2 var(--font-number, system-ui);
+  letter-spacing: 0.02em;
+}
+.mission-tile .mission-time img {
+  width: 12px;
+  height: 12px;
+  filter: none;
+}
 @keyframes scene-in {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: none; }

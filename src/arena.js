@@ -2561,7 +2561,7 @@ export function mountArena({
           flying = !!(c.flying ?? def.flying),
           neutral = c.owner < 0,
           height = cell * (boss ? 1.3 * (c.waveBoss ? 1 : tierGrowth(def.tier || (def.bossTier || 2) - 1)) : (flying ? 0.82 : 0.78) * creepSize(catalog, def.id)) * (c.golem ? 1 + 0.07 * ((c.level || 1) - 1) : 1), // v0.17c: the Arcane Golem grows 7 % per perk level
-          s = (height / (walk?.figH ? (walk.figS || walk.figH) * 1.04 : m.h)) * (walk?.scale || 1) * (1 - 0.12 * (c.shrink || 0)), // v0.23j: walk.scale for figures that read too large // v0.23a: 8-way walks are scaled by their own figure size (wide figures a bit smaller)
+          s = (height / (walk?.figH ? (walk.figS || walk.figH) * 1.04 : m.h)) * (walk?.scale || 1) * (1 - 0.12 * (c.shrink || 0)) * (c.scale || 1), // v0.26: c.scale (Lesser Skeleton); v0.23j: walk.scale for figures that read too large // v0.23a: 8-way walks are scaled by their own figure size (wide figures a bit smaller)
           step = time * 0.016 + phase0;
         // design variants: each monster walks its own way (motion.js); its clock runs with its pace and stops when stunned
         let gait = null;
