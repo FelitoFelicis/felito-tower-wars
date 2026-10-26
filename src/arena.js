@@ -2484,6 +2484,10 @@ export function mountArena({
           r = (cl.radius / game.grid.cellUnits) * cell,
           fade = Math.min(1, cl.remaining / 0.6),
           [base, spark] = cl.kind === "fire" ? [0xff6a20, 0xffc060] : cl.kind === "ice" ? [0x6ab8ff, 0xe0f4ff] : [0x7fd23a, 0xb8ff6a];
+        if (!cl.kind) {
+          this.drawPoisonCloud(g, glow, q, r, fade, time, cl.x * 9 + cl.y * 5);
+          continue;
+        }
         g.fillStyle(base, (cl.kind ? 0.12 : 0.16) * fade);
         g.fillCircle(q.x, q.y, r);
         for (let k = 0; k < (cl.kind === "ice" ? 9 : 5); k++) {
@@ -3700,6 +3704,40 @@ export function mountArena({
           glow.lineBetween(x, y, x + Math.sin(time * 0.003 + k) * cell * 0.12, y - len);
         }
       }
+    }
+    /**
+     * v0.26a: the Disease Launcher's cloud: slowly billowing green poison puffs with a darker rim and a
+     * see-through green skull floating in the middle.
+     */
+    drawPoisonCloud(g, glow, q, r, fade, time, seed) {
+      const t = time * 0.0011 + seed;
+      g.fillStyle(0x2f6b12, 0.14 * fade); // darker rim
+      g.fillCircle(q.x, q.y, r);
+      for (let k = 0; k < 7; k++) {
+        const a = k * 0.9 + t * (k % 2 ? 0.6 : -0.45),
+          d = r * (0.32 + 0.12 * Math.sin(t * 1.7 + k)),
+          pr = r * (0.38 + 0.08 * Math.sin(t * 1.3 + k * 2.1));
+        g.fillStyle(k % 3 ? 0x5fbf2a : 0x7fd23a, 0.11 * fade);
+        g.fillCircle(q.x + Math.cos(a) * d, q.y + Math.sin(a) * d * 0.7, pr);
+      }
+      for (let k = 0; k < 4; k++) {
+        const a = t * 0.8 + k * 1.57;
+        glow.fillStyle(0xb8ff6a, 0.12 * fade);
+        glow.fillCircle(q.x + Math.cos(a) * r * 0.5, q.y + Math.sin(a) * r * 0.32, r * 0.16);
+      }
+      // the skull: transparent green, bobbing gently
+      const s = r * 0.34,
+        x = q.x,
+        y = q.y - r * 0.08 + Math.sin(time * 0.002 + seed) * r * 0.04,
+        al = 0.42 * fade;
+      glow.fillStyle(0x9cff5a, al);
+      glow.fillCircle(x, y - s * 0.12, s * 0.62); // cranium
+      glow.fillRoundedRect(x - s * 0.36, y + s * 0.2, s * 0.72, s * 0.42, s * 0.12); // jaw
+      g.fillStyle(0x0f3a08, 0.7 * fade); // sockets, nose, teeth gaps
+      g.fillEllipse(x - s * 0.24, y - s * 0.1, s * 0.3, s * 0.34);
+      g.fillEllipse(x + s * 0.24, y - s * 0.1, s * 0.3, s * 0.34);
+      g.fillTriangle(x, y + s * 0.1, x - s * 0.08, y + s * 0.26, x + s * 0.08, y + s * 0.26);
+      for (let k = -1; k <= 1; k++) g.fillRect(x + k * s * 0.17 - s * 0.02, y + s * 0.36, s * 0.04, s * 0.22);
     }
     clearFx() {
       this.projectiles = [];
