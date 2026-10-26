@@ -186,12 +186,13 @@ export const MISSIONS = [
       ["Pip", "Suspicious."],
       ["Tumbleweed", "The monks will vote for me if you have not won by round 30. Peace takes patience."],
     ],
-    briefing: "Win before round 30. Tumbleweed has 40 lives. No defensive perks are offered in this mission.",
+    briefing: "Win before round 30. Tumbleweed has 40 lives and earns no bounty from kills. All your creeps are ready at once. No defensive perks are offered in this mission.",
     setup: {
       level: "normal",
       goal: { deadline: 30 },
-      player: { noDefensePerks: true },
-      enemies: [{ name: "Brother Tumbleweed", art: "creep-shaman", level: "normal", lives: 40, sends: [], gold: 10, income: 10 }], // 40 gold, 30 income
+      player: { noDefensePerks: true, noStartDelay: true }, // v0.26bF: every creep ready from the start
+      // v0.26bF: start gold 200 % (30 + 30 = 60), no bounty from kills, at least 4 Archer-Line towers (1 before the end of round 4)
+      enemies: [{ name: "Brother Tumbleweed", art: "creep-shaman", level: "normal", lives: 40, sends: [], gold: 30, income: 10, noBounty: true, archers: { total: 4, early: 1, by: 4 } }], // 60 gold, 30 income
     },
   },
   {

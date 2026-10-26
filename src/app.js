@@ -73,6 +73,11 @@ import {
   CREEP_ARMOR,
   BOOTS,
   EXHUME,
+  exhumeSpeed, // v0.26cF
+  RING,
+  ringHp,
+  revengeHp,
+  revengeIncome,
   WATERBLOCK,
   AIRBLOCK, // v0.20c
   SYNTHESIZER, // v0.20d
@@ -173,7 +178,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.26a",
+const APP_VERSION = "0.26c",
   APP_BRANCH = "F", // v0.23q: author marker (F = Felix, S = Steven) and branch text, shown behind the version; APP_VERSION stays plain for online matches (VersionPublishingRules.md)
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "26.10.2026";
@@ -1672,7 +1677,7 @@ const researchCopy = {
   R00U: ["Creep Armor", "Creep get HP and income."],
   R00V: ["Leadership", "Creeps get more HP."],
   R00W: ["Tailwind", "Creep Speed."],
-  R00X: ["Mind Control", "Creep HP and Creep Speed."],
+  R00X: ["Obsession", "Creep HP and Creep Speed."], // v0.26cF: was Mind Control
   R001: ["Creep Medicine", "Creep HP and Creep Income."], // v0.20c: was Healing Power
   R002: ["Melee Protocol", "Attackspeed for melee."],
   R006: ["Magic Bank", "Interest on Gold. Paid out start of each round."],
@@ -3935,7 +3940,7 @@ function deckItems() {
     const p = game.players[own];
     // Current tier only (12 monsters incl. its boss), cheapest first, boss last; a bought boss disappears.
     return catalog.sends
-      .filter((x) => x.playable && x.tier === p.tier && !(x.bossTier && p.bossBought?.[x.id]))
+      .filter((x) => x.playable && x.tier === p.tier && !(x.bossTier && x.id !== "n02R" && p.bossBought?.[x.id])) // v0.26cF: the Mountain Golem stays
       .sort((a, b) => a.tier - b.tier || Number(!!a.bossTier) - Number(!!b.bossTier) || a.cost - b.cost);
   }
   const p = game.players[own],
@@ -4561,6 +4566,8 @@ const PERK_ART = {
   backup: () => elPerkArt("backup"),
   tides: () => elPerkArt("tides"),
   sanction: () => elPerkArt("sanction"),
+  ring: () => uiArt("assets/art/perks/ring.webp?v=v026c"), // v0.26cF: gold ring with an emerald heart
+  revenge: () => uiArt("assets/art/perks/revenge.webp?v=v026c"), // v0.26cF: fire wolves
 };
 // v0.22h1: the perk icons load a moment after a match starts, so a reward dialog never waits for them
 let perkArtLoaded = false;
@@ -4659,6 +4666,12 @@ const perkVars = (level, q, lv, next) => {
     boots: num(BOOTS.slow[Math.min(BOOTS.slow.length, lv) - 1] * 100, { maximumFractionDigits: 1 }) + "%", // v0.22: 25 / 35 / 45 / 52.5 / 60 %
     bootsInc: num(BOOTS.income * Math.min(BOOTS.slow.length, lv) * 100, { maximumFractionDigits: 1 }) + "%",
     exhume: pct(EXHUME.discount[l3]),
+    exhumeSpeed: pct(exhumeSpeed(lv)), // v0.26cF
+    ringHp: format(ringHp(q?.tier || 1, Math.min(3, lv))), // v0.26cF: Ring of Life, for the player's current tier
+    ringHpTiers: RING.hp.map((h) => format(h * Math.min(3, lv))).join(" / "),
+    ringInc: pctOf(RING.income[l3]), // 5 / 7.5 / 10 %
+    revengeHp: format(revengeHp(q, Math.min(3, lv))), // v0.26cF: Revenge
+    revengeInc: format(revengeIncome(q, Math.min(3, lv))),
     blockCd: WATERBLOCK.cooldown[l3],
     fireBlockCd: FIREBLOCK.cooldown[l3], // v0.19j
     fireBlock: format(fireBlockDamage(q, Math.min(3, lv))),

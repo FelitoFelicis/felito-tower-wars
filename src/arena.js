@@ -1752,6 +1752,10 @@ export function mountArena({
             this.floatText(tq.x, tq.y - cell * 0.9, t("MAGIC BURST"), "#d8b8ff", 13, 34, 1);
             this.ring(q.x, q.y, cell * 0.1, cell * 0.75, 0xb88cff, 0.75, 4);
             this.burst(q.x, q.y - cell * 0.2, 0xd0b0ff, 12, 100, 2.8, 0.5, 0, true);
+          } else if (e.kind === "revenge") {
+            // v0.26cF: Revenge: a Fire Wolf comes in at the top of this board
+            this.floatText(q.x, q.y + cell * 0.6, t("REVENGE"), "#ff9a4a", 12, 30, 1.1);
+            this.burst(q.x, q.y + cell * 0.4, 0xff8a30, 8, 60, 2.2, 0.5, -30, true);
           } else if (e.kind === "fireblock") {
             // v0.19j: Fire Block: a small explosion near the breach
             this.floatText(q.x, q.y - cell * 0.7, t("FIRE BLOCK"), "#ffb070", 13, 34, 1.1);
@@ -2663,6 +2667,7 @@ export function mountArena({
           else if (c.enraged) sprite.setTint(0xff8f80); // v0.21z: Enraged Meat Golem
           else if (c.burning) sprite.setTint(0xffa060); // v0.10w: Burning Treant
           else if (c.spiritWolf) sprite.setTint(0xe8d0ff); // v0.19a1: Spirit Wolves
+          else if (c.fireWolf) sprite.setTint(0xffa66a); // v0.26cF: Revenge Fire Wolves
           else if (c.clone) {
             // v0.23w: Clones: a soft arcane shimmer that comes and goes
             const k = 0.5 + 0.5 * Math.sin(time * 0.004 + phase0),
@@ -2682,7 +2687,7 @@ export function mountArena({
         sprite
           .setOrigin(walk ? (walk.footX ?? m.w / 2 + walk.ox) / walk.fw : 0.5, walk ? (walk.footY ?? m.footY + walk.oy) / walk.fh : m.footY / m.h)
           .setPosition(q.x, q.y + (ground ? cell * 0.2 + height * 0.04 : cell * 0.18) - lift - bob) // v0.23b: ground creeps stand in their shadow, feet slightly sunk
-          .setScale(s * rage * face * (c.buff === "fat" ? 1.42 : 1) * (c.spiritWolf ? 1.08 : 1) * (gait ? gait.sx : 1), s * rage * flap * (c.buff === "fat" ? 1.06 : 1) * (c.spiritWolf ? 1.08 : 1) * (gait ? gait.sy : 1)) // v0.15: fat quest creeps; v0.19a1: Spirit Wolves a little larger
+          .setScale(s * rage * face * (c.buff === "fat" ? 1.42 : 1) * (c.spiritWolf || c.fireWolf ? 1.08 : 1) * (gait ? gait.sx : 1), s * rage * flap * (c.buff === "fat" ? 1.06 : 1) * (c.spiritWolf || c.fireWolf ? 1.08 : 1) * (gait ? gait.sy : 1)) // v0.15: fat quest creeps; v0.19a1: Spirit Wolves a little larger
           .setRotation(gait ? gait.rot * face : flying || walk ? 0 : Math.sin(step) * 0.07)
           // v0.23e: the board is seen from the bottom: ground creeps sort with the towers by where their feet are
           // (lower on the board = in front); flyers stay above everything on the ground
@@ -2806,6 +2811,22 @@ export function mountArena({
             glow.fillCircle(fx, fy, height * (0.09 + 0.05 * fl));
             glow.fillStyle(0xffd24a, 0.55 + 0.3 * fl);
             glow.fillCircle(fx, fy + height * 0.03, height * (0.04 + 0.03 * fl));
+          }
+        }
+        if (c.fireWolf) {
+          // v0.26cF: Revenge Fire Wolf: a calm orange glow and slow flames along its back (never hectic)
+          const k = 0.5 + 0.5 * Math.sin(time * 0.003 + phase0),
+            top = q.y + cell * 0.18 - lift;
+          glow.fillStyle(0xff5a12, 0.14 + 0.05 * k);
+          glow.fillCircle(q.x, top - height * 0.42, height * 0.62);
+          for (let n = 0; n < 3; n++) {
+            const fl = 0.5 + 0.5 * Math.sin(time * 0.005 + n * 2.1 + phase0),
+              fx = q.x + (n - 1) * height * 0.2,
+              fy = top - height * (0.62 + 0.08 * fl);
+            glow.fillStyle(0xff6a1a, 0.28 + 0.12 * fl);
+            glow.fillCircle(fx, fy, height * (0.1 + 0.03 * fl));
+            glow.fillStyle(0xffd24a, 0.45 + 0.15 * fl);
+            glow.fillCircle(fx, fy + height * 0.03, height * (0.05 + 0.02 * fl));
           }
         }
         if (c.golem) {

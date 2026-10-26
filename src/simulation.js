@@ -605,7 +605,11 @@ function applyMission(game, m) {
     if (r.maze) rules.maze = r.maze;
     if (r.persona) rules.persona = r.persona;
     if (r.noDefensePerks) rules.noDefense = true; // v0.26: no defensive perks in the level-up rewards
+    if (r.noBounty) rules.noBounty = true; // v0.26bF: no gold from creep kills
+    if (r.noStartDelay) rules.noStartDelay = true; // v0.26bF: every creep ready from the start
+    if (r.archers) rules.archers = { ...r.archers }; // v0.26bF: { total, early, by }: minimum Archer-Line towers
     if (Object.keys(rules).length) p.rules = rules;
+    if (rules.noStartDelay) stockTier(game, p, 1, game.time || 0);
     for (const pre of r.prebuild || []) for (const [x, y] of cellList(pre.cells)) placeFree(game, p, pre.id, x, y);
     for (const [x, y] of cellList(r.rocks)) placeFree(game, p, ROCK_ID, x, y);
     p.path = findPath(game, p.id) || [];
@@ -735,7 +739,7 @@ export function available(game, playerIndex, type, id, towerId = null, viaPick =
     if (item.tier > p.tier) return { ok: false, reason: `Send the tier ${item.tier - 1} boss` };
     if (item.tier < p.tier) return { ok: false, reason: "Replaced by the next tier" };
     if (item.inactiveInSource) return { ok: false, reason: "Disabled in the source map (tier 6 off)" };
-    if (item.bossTier && (p.bossBought?.[id] || p.tier >= item.bossTier)) return { ok: false, reason: "Boss already bought" };
+    if (item.bossTier && id !== MOUNTAIN_GOLEM.id && (p.bossBought?.[id] || p.tier >= item.bossTier)) return { ok: false, reason: "Boss already bought" }; // v0.26cF: the Mountain Golem can be recruited again
     if (!sendAllowed(p, item)) return { ok: false, reason: "Not allowed in this mission" }; // v0.17
     if (game.warmup) return { ok: false, reason: `Warm up · ${Math.ceil(game.incomeRemaining)} s` };
     if (lockRoundsLeft(game, p.stock[id]) > 0) return { ok: false, reason: lockRoundsLeft(game, p.stock[id]) === 1 ? "Locked for 1 more round" : `Locked for ${lockRoundsLeft(game, p.stock[id])} more rounds` }; // v0.15
@@ -849,7 +853,7 @@ const ARCHER_RANGE_CUT = 0.15, // fields (v0.17c)
 // Auras, curses and other timed effects are not part of statsFor (attack() applies them).
 // The returned object is shared: callers only read it.
 const STATS_CACHE = new WeakMap();
-const STATS_PERKS = ["archery", "autoloader", "backup", "carmor", "firearrows", "frenzy", "golem", "heavy", "leadership", "lone", "medicine", "melee", "militia", "mind", "nobility", "owl", "stormfeathers", "tailwind", "tides", "wings"];
+const STATS_PERKS = ["archery", "autoloader", "backup", "carmor", "firearrows", "frenzy", "golem", "heavy", "leadership", "lone", "medicine", "melee", "militia", "mind", "nobility", "owl", "ring", "stormfeathers", "tailwind", "tides", "wings"]; // v0.26cF: Ring of Life
 function statsInputs(player, item) {
   const research = player.research || {},
     affected = item.researchAffected || [],
@@ -859,6 +863,7 @@ function statsInputs(player, item) {
       item.isBuildable && item.attacks ? loneActive(player) : false,
       !!player.backupOn,
       !!player.tidesOn,
+      player.mountainGolems || 0, // v0.26cF: Mountain Golems recruited (tier-5 HP)
     ];
   for (const id of STATS_PERKS) out.push(perkLevel(player, id));
   for (const id of affected) out.push(research[id] || 0);
@@ -966,6 +971,10 @@ function statsForRaw(game, player, item) {
   // v0.12: Heavy Nobility: heavy creeps get more hit points
   if (perkLevel(player, "nobility") && isHeavy(item)) stats.hp *= 1 + NOBILITY.hp * perkLevel(player, "nobility");
   if (item.isSend && item.bossTier && perkLevel(player, "golem")) stats.hp *= 1 + GOLEM.hp; // v0.10n
+  // v0.26cF: every Mountain Golem recruited: tier-5 creeps +5 % HP for good
+  if (item.isSend && item.tier === 5 && !item.bossTier && player?.mountainGolems) stats.hp *= 1 + MOUNTAIN_GOLEM.hp * player.mountainGolems;
+  // v0.26cF: Ring of Life: flat HP by the creep's tier, times the perk level
+  if (item.isSend && item.tier && perkLevel(player, "ring")) stats.hp += ringHp(item.tier, perkLevel(player, "ring"));
   if (item.isSend && item.flying && perkLevel(player, "wings")) {
     // v0.10p: Wings of War
     stats.hp *= 1 + WINGS.hp * perkLevel(player, "wings");
@@ -1018,6 +1027,9 @@ function sendIncomeParts(p, item) {
   // v0.10r: Red Boots: +1.5 % income per level for ground creeps (v0.22, was 1 %)
   const boots = item.flying ? 0 : Math.min(BOOTS.slow.length, perkLevel(p, "boots"));
   if (boots) decimal += Math.round((base * 100 + (item.incomeHundredths || 0)) * BOOTS.income * boots);
+  // v0.26cF: Ring of Life: the 1st creep of every tier +5 / 7.5 / 10 % income
+  const ring = perkLevel(p, "ring") && firstOfTier(item) ? RING.income[Math.min(3, perkLevel(p, "ring")) - 1] : 0;
+  if (ring) decimal += Math.round((base * 100 + (item.incomeHundredths || 0)) * ring);
   return { base, decimal };
 }
 /** v0.08d: the income a purchase really adds for this player, buffs included (for the cards). */
@@ -1087,7 +1099,7 @@ export const PERKS = Object.freeze({
   treasure: { name: "Gold Treasure", max: 1, powerup: true, text: "Now +{treasure} gold and +{treasureInc} income", detail: "Instantly +{treasure} gold and +{treasureInc} income" }, // v0.10r; v0.19e2: +20 % gold, +60 income (doubled when far behind)
   voltage: { name: "High Voltage", max: 20, element: "storm", unpopular: 0.5, text: "EXP generators are {voltage} more efficient" }, // v0.10r; v0.19j: tooltip
   boots: { name: "Red Boots", max: 5, element: "fire", text: "Ground creeps {boots} slow resistance and +{bootsInc} creep income" }, // v0.10r; v0.22: max level 5
-  exhume: { name: "Exhumination", max: 3, element: "plague", text: "Undead creeps cost {exhume} less and recruit 10% faster" }, // v0.20c: 10 % faster instead of 20 % slower // v0.10r; v0.19j: tooltip (they still restock 20% slower)
+  exhume: { name: "Exhumination", max: 3, element: "plague", text: "Undead creeps cost {exhume} less and recruit {exhumeSpeed} faster" }, // v0.26cF: recruit 10 % faster per level // v0.20c: 10 % faster instead of 20 % slower // v0.10r; v0.19j: tooltip (they still restock 20% slower)
   fireblock: { name: "Fire Block", max: 3, element: "fire", text: "Every {fireBlockCd} s first breach is pushed back {fireBlockBack} fields and explodes 3× for {fireBlock}", detail: "Every {fireBlockCd} s the first breach is pushed back {fireBlockBack} fields and explodes at once: {fireBlock} damage 3 times" }, // v0.19j
   airblock: { name: "Air Block", max: 3, element: "storm", text: "Every {airBlockCd} s first flying breach is pushed back {airBlockBack} fields, struck for {airBlock} and stunned {airBlockStun} s", detail: "Every {airBlockCd} s the first flying breach is pushed back {airBlockBack} fields, struck by lightning for {airBlock} damage and stunned {airBlockStun} s. Each block cuts your Monsun cooldown by {airBlockMonsun} s" }, // v0.20c; v0.24s: Monsun cooldown per block
   supergrowth: { name: "Supergrowth", max: 3, element: "earth", text: "Buying strong ground creeps gives their type up to +{growth} HP", detail: "Each purchase of a ground creep from the stronger half of its tier gives that creep type +{growth} HP, less for weaker ones" }, // v0.20f
@@ -1126,7 +1138,7 @@ export const PERKS = Object.freeze({
   carmor: { name: "Creep Armor", max: 20, element: "earth", text: "Creep HP +{carmorHp}, income +{carmorInc}" },
   leadership: { name: "Leadership", max: 20, element: "fire", text: "Creeps +{leadership} HP" },
   tailwind: { name: "Tailwind", max: 10, element: "storm", text: "Creep Speed +{tailwind}" },
-  mind: { name: "Mind Control", max: 10, element: "plague", text: "Creep HP +{mindHp}, speed +{mindSpeed} (flyers half)" }, // v0.23: flyers get half (MIND.air)
+  mind: { name: "Obsession", max: 10, element: "plague", text: "Creep HP +{mindHp}, speed +{mindSpeed} (flyers half)" }, // v0.23: flyers get half (MIND.air); v0.26cF: Mind Control → Obsession
   medicine: { name: "Creep Medicine", max: 20, element: "water", text: "Creep HP +{medHp}, creep income +{medInc}" },
   melee: { name: "Melee Protocol", max: 20, element: "water", text: "Melee attack speed +{melee}" },
   heavy: { name: "Heavy Weapons", max: 20, element: "earth", text: "Footman-Line and Bombard-Line +{heavy} damage" },
@@ -1136,6 +1148,9 @@ export const PERKS = Object.freeze({
   firearrows: { name: "Fire Arrows", max: 20, element: "fire", text: "Archer-Line +{firearrows} damage" }, // v0.21c: tooltip
   forge: { name: "Creep Forge", max: 3, element: "fire", text: "6th creep {forge} cheaper, recruits 12% faster", detail: "6th creep of every tier {forge} cheaper, recruits 12% faster" }, // v0.21c
   autoloader: { name: "Autoloader", max: 10, element: "earth", text: "Bombard-Line attack speed +{autoloader}" }, // v0.22g1: +7.5 % per level
+  // v0.26cF: two new perks. Ring of Life: neutral, never offered to a player who owns Plague, Fire or Arcane ("x" elements), drawn 25 % less often
+  ring: { name: "Ring of Life", max: 3, weight: 0.75, element: ["xplague", "xfire", "xarcane"], text: "Creep HP +{ringHp}. 1st creep of each tier +{ringInc} income", detail: "Every creep gets more HP by its tier: +{ringHpTiers} (T1 / T2 / T3 / T4 / T5). The 1st creep of every tier gives +{ringInc} income" },
+  revenge: { name: "Revenge", max: 3, element: "fire", text: "Enemy breach: a Fire Wolf ({revengeHp} HP) runs onto its sender's field", detail: "Whenever an enemy creep breaches through your field, a Fire Wolf with {revengeHp} HP runs onto the field of the player who sent it. Each Fire Wolf gives +{revengeInc} income" },
 });
 /** v0.09q: Arrow Volley: cooldown, area radius in fields, arrows per perk level, extra base damage. */
 export const VOLLEY = { cooldown: 20, cdStep: 1, radius: 1.5, perLevel: 3, bonus: 3, spread: 0.9, archer: 1.5, perRound: 0.005, perTower: 2, perTowerLevel: 0.15 }; // v0.19g1: archer-tower arrows +50 %, all arrows +0.5 % per round
@@ -1241,7 +1256,7 @@ export const monsunForce = (p, level = perkLevel(p, "monsun")) => 0.48 + level *
 export const monsunDamage = (p, level = perkLevel(p, "monsun")) => 30 + 20 * level * (p?.tier || 1);
 /** Perks that skip the next level once taken. */
 /** v0.20c: perks that sit out more than one level after a pick (Supergrowth: two). */
-const PERK_SKIP_LEVELS = { backup: 3, tides: 3, supergrowth: 2, hellfire: 2, frostbolt: 2, clones: 2, infested: 2, lone: 2, bank: 3, monsun: 2 }; // v0.24q: Backup Line, Low Tides skip 3 // v0.24j: Monsun skips 2 // v0.24i: Magic Bank skips 3 // v0.23zi: Spartans skip 2 // v0.23w: Frost Bolt, Clones // v0.21x: Lava Floor skips 2
+const PERK_SKIP_LEVELS = { wolves: 3, mind: 3, exhume: 3, ring: 2, revenge: 3, backup: 3, tides: 3, supergrowth: 2, hellfire: 2, frostbolt: 2, clones: 2, infested: 2, lone: 2, bank: 3, monsun: 2 }; // v0.26cF: Spirit Wolves, Obsession, Exhumination, Revenge skip 3, Ring of Life skips 2 // v0.24q: Backup Line, Low Tides skip 3 // v0.24j: Monsun skips 2 // v0.24i: Magic Bank skips 3 // v0.23zi: Spartans skip 2 // v0.23w: Frost Bolt, Clones // v0.21x: Lava Floor skips 2
 const PERK_SKIP = new Set(["pillar", "agolem", "monsun", "slave", "guardian", "mind", "tailwind", "carmor", "owl", "autoloader", "hills"]); // v0.22g1: Autoloader // v0.19a1: Mind Control, Tailwind, Creep Armor, Watcher Owl
 /**
  * v0.19a1: reworked level-up upgrades (research perks). Their effects live here instead of the map
@@ -1857,6 +1872,20 @@ function tickGolems(game, p) {
 }
 /** v0.10n: Golem Whisperer (Earth): boss creeps 25 % cheaper and 10 % more hit points. */
 export const GOLEM = { discount: 0.25, hp: 0.1 };
+/** v0.26cF: Mountain Golem (tier-5 boss): unlocks no tier; it can be recruited again and again, each one gives the tier-5 creeps +5 % HP for good. */
+export const MOUNTAIN_GOLEM = { id: "n02R", hp: 0.05 };
+/** v0.26cF: Ring of Life: flat creep HP per perk level by the creep's tier (T1–T5), 1st creep of every tier income bonus by level. */
+export const RING = { hp: [1, 10, 30, 100, 400], income: [0.05, 0.075, 0.1] };
+export const ringHp = (tier, level) => RING.hp[Math.max(1, Math.min(RING.hp.length, tier || 1)) - 1] * Math.max(0, Math.min(3, level | 0));
+/**
+ * v0.26cF: Revenge (Fire): a Fire Wolf for every enemy breach, onto the sender's field. 1.33 fields/s.
+ * HP = tier base × perk level factor (strong) × (1 + 2 % per player level) (weak). Income: small, by tier × perk level.
+ */
+export const REVENGE = { speed: 1.33 * 284.44, tierHp: [120, 700, 3000, 9000, 25000], levelHp: [0.5, 1, 1.75], perPlayerLevel: 0.02, tierIncome: [0.5, 2, 5, 12, 30] };
+const revTier = (p) => Math.max(1, Math.min(REVENGE.tierHp.length, p?.tier || 1)) - 1;
+export const revengeHp = (p, level = perkLevel(p, "revenge")) =>
+  Math.round(REVENGE.tierHp[revTier(p)] * REVENGE.levelHp[Math.max(1, Math.min(3, level || 1)) - 1] * (1 + REVENGE.perPlayerLevel * (p?.level || 1)));
+export const revengeIncome = (p, level = perkLevel(p, "revenge")) => REVENGE.tierIncome[revTier(p)] * Math.max(1, Math.min(3, level || 1));
 /** v0.10p: Wings of War (Storm), per level. */
 export const WINGS = { hp: 0.06, speed: 0.03, income: 0.1 };
 /** v0.10p: Hellfire (Fire): burning row (0-based, v0.10q: 6th row from the top) and damage per second. */
@@ -2225,7 +2254,9 @@ function bossDiscount(p, item, gold) {
 }
 /** v0.10r: undead creeps (Exhumination). */
 export const UNDEAD_SENDS = new Set(["n00R", "n011", "n016", "n019", "n01B", "n01H", "n013", "n01D", "n02N", "n02E"]);
-export const EXHUME = { discount: [0.2, 0.35, 0.5], restock: 1 / 1.1 }; // v0.20c: recruit 10 % faster // v0.10s
+export const EXHUME = { discount: [0.2, 0.35, 0.5], restock: 0.1 }; // v0.26cF: recruit 10 % faster per perk level (10 / 20 / 30 %) // v0.20c: recruit 10 % faster // v0.10s
+/** v0.26cF: Exhumination: how much faster undead creeps recruit at a perk level (0.1 per level). */
+export const exhumeSpeed = (level) => EXHUME.restock * Math.max(0, Math.min(3, level | 0));
 /** v0.10r: Red Boots (per level), High Voltage (per level), Water Block (per level 1-3), Gold Treasure. */
 export const BOOTS = { slow: [0.25, 0.35, 0.45, 0.525, 0.6], income: 0.015 }; // v0.10s: slow resistance by level; v0.22: 5 levels, +1.5 % income per level
 export const VOLTAGE = { bonus: 0.5 };
@@ -2406,7 +2437,7 @@ function archerLine() {
 export function stockRegenOf(p, s) {
   const level = perkLevel(p, "recruit");
   const slave = perkLevel(p, "slave") && firstOfTier(s) ? 1 + slaveSpeed(perkLevel(p, "slave")) : 1; // v0.14
-  const slower = UNDEAD_SENDS.has(s.id) && perkLevel(p, "exhume") ? EXHUME.restock : 1; // v0.10s: Exhumination (v0.20c: faster)
+  const slower = UNDEAD_SENDS.has(s.id) && perkLevel(p, "exhume") ? 1 / (1 + exhumeSpeed(perkLevel(p, "exhume"))) : 1; // v0.10s: Exhumination (v0.20c: faster; v0.26cF: 10 % per level)
   const faster = (perkLevel(p, "manufacture") && eighthOf(s) ? MANUFACTURE.restock : 1) * (perkLevel(p, "synthesizer") && fourthOf(s) ? SYNTHESIZER.restock : 1) * (perkLevel(p, "forge") && sixthOf(s) ? FORGE.restock : 1) * (perkLevel(p, "nobility") && isHeavy(s) ? NOBILITY.restock : 1); // v0.12
   const contract = 1 + contractShare(p, s, "restock"); // v0.19d2: Blood Contract
   return ((s.stockRegen || 0) / (level && !s.bossTier ? 1 + 0.1 * level : 1)) * slower / faster / slave / contract;
@@ -2531,6 +2562,8 @@ export const PERK_AVAILABILITY = {
   frenzy: "2+", // Unholy Frenzy (v0.19a1)
   wolves: "2+", // Spirit Wolves (v0.19a1)
   firearrows: "2+", // Fire Arrows (v0.21c: from level 2)
+  ring: "2", // v0.26cF: Ring of Life (ContinousPick, skips 2)
+  revenge: "12+", // v0.26cF: Revenge (skips 3)
 };
 const availabilityCache = new Map();
 /** v0.22j1: the first level an availability spec opens on ("2-5" → 2, "6,9" → 6). */
@@ -2559,7 +2592,7 @@ export const PERK_AVAILABILITY_OWNED = {
  * level any more: it stays on offer on every later level until it reaches its max level.
  * (Replaces the "owned → again from level 5" rule of Gunpowder, Recruitment, Feudality and Archery.)
  */
-export const PERK_CONTINUOUS = new Set(["gunpowder", "recruit", "feudal", "archery", "lone"]); // v0.22t2: Last Guardians
+export const PERK_CONTINUOUS = new Set(["gunpowder", "recruit", "feudal", "archery", "lone", "ring"]); // v0.26cF: Ring of Life // v0.22t2: Last Guardians
 /** v0.19g1: an owned-perk extra range only counts if the perk was first taken below this level (none for now). */
 const PERK_OWNED_BEFORE = {};
 const perkAvailable = (o, level, p) => {
@@ -3471,13 +3504,14 @@ function runCommand(game, input) {
       // Each tier boss can be bought once; buying it unlocks the next tier (tier 6 is off in the source).
       p.bossBought = { ...(p.bossBought || {}), [id]: true };
       if (id === "n01T") p.infernalBossCount++;
-      if (id !== "n02R") advanceTier(game, p, item.bossTier);
+      if (id !== MOUNTAIN_GOLEM.id) advanceTier(game, p, item.bossTier);
+      else p.mountainGolems = (p.mountainGolems || 0) + 1; // v0.26cF: tier-5 creeps +5 % HP for good, no tier 6
       // v0.23b: the creeps of the tier left behind that are still in play lose 20 % speed for good (a true
       // debuff: no perk or ability that softens or shortens debuffs touches it)
       for (const pl of game.players)
         for (const c of pl.creeps || []) {
           const def = obj(c.typeId);
-          if (c.owner === p.id && !c.dead && c.hp > 0 && !c.wave && def && !def.bossTier && def.tier === item.tier) c.trueSlow = Math.max(c.trueSlow || 0, BOSS_TRUE_SLOW);
+          if (id !== MOUNTAIN_GOLEM.id && c.owner === p.id && !c.dead && c.hp > 0 && !c.wave && def && !def.bossTier && def.tier === item.tier) c.trueSlow = Math.max(c.trueSlow || 0, BOSS_TRUE_SLOW);
         }
     }
     return { ok: true, count: item.spawnIds.length };
@@ -3579,6 +3613,11 @@ function stockTier(game, p, tier, now) {
       return;
     }
     // Tier 2+: first six creeps wait half as long, the rest a third less; tier 1: a third less.
+    // v0.26bF: noStartDelay (mission rule): every creep opens like a lock that just opened
+    if (p.rules?.noStartDelay) {
+      p.stock[s.id] = { count: 0, next: now };
+      return;
+    }
     const delay = s.stockStart * (tier >= 2 && i < 6 ? 0.5 : 2 / 3),
       // v0.15: the start delay counts in rounds (income ticks), not seconds; the first recruit
       // arrives the moment the lock opens
@@ -5049,6 +5088,7 @@ function killCreep(game, p, c) {
   const item = obj(c.typeId),
     tower = p.towers.find((t) => t.id === c.lastHit);
   let bounty = c.wave ? c.bounty : diceRoll(game, item.bountyBase, item.bountyDice, item.bountySides);
+  if (p.rules?.noBounty) bounty = 0; // v0.26bF: mission rule
   // v0.22j1: Bounty Bonus is a fixed +20 % on every kill (was a 50 % chance of extra gold)
   const bonus = !!tower && (obj(tower.typeId).abilities.includes("A00O") || obj(tower.typeId).abilities.includes("A072") || tower.typeId === "h02U");
   if (bonus) bounty *= 1 + BOUNTY_BONUS;
@@ -5144,6 +5184,7 @@ function touchdown(game, p, c) {
   }
   bloodCheck(game, sender); // v0.19j
   emit(game, "leak", { player: p.id, owner: sender.id, creepId: c.id, lives: p.lives, x: c.x, y: c.y });
+  if (p.lives > 0 && !p.out && !sender.out && perkLevel(p, "revenge")) spawnFireWolf(game, p, sender); // v0.26cF: Revenge
   if (p.lives <= 0) {
     gainExp(game, sender, RULES.defeatWood, "defeat");
     defeat(game, p, sender);
@@ -5348,6 +5389,27 @@ function spawnSpiritWolves(game, p, level) {
   }
   p.income += Math.trunc(p.incomeDecimal / 100);
   p.incomeDecimal %= 100;
+}
+/** v0.26cF: Revenge: a Fire Wolf of the defender's tier runs onto the field of the player whose creep breached. */
+function spawnFireWolf(game, p, sender) {
+  const level = Math.min(3, perkLevel(p, "revenge")),
+    id = WOLVES.ids[Math.max(1, Math.min(WOLVES.ids.length - 1, p.tier || 1)) - 1],
+    item = obj(id);
+  if (!item || !item.hp) return;
+  const wolf = spawnCreep(game, p.id, id, null, sender.id, true);
+  if (!wolf) return;
+  const perkHp = wolf.maxHp / item.hp, // the defender's own creep HP perks still count
+    speedMul = REVENGE.speed / (item.speed || 240);
+  Object.assign(wolf, { summoned: true, fireWolf: true, name: "Fire Wolf" });
+  wolf.maxHp = revengeHp(p, level) * perkHp;
+  wolf.hp = wolf.maxHp;
+  wolf.speed *= speedMul;
+  wolf.baseSpeed *= speedMul;
+  p.incomeDecimal += Math.round(revengeIncome(p, level) * 100);
+  p.income += Math.trunc(p.incomeDecimal / 100);
+  p.incomeDecimal %= 100;
+  (p.stats.fireWolves ||= 0), p.stats.fireWolves++;
+  emit(game, "skill", { player: sender.id, owner: p.id, kind: "revenge", x: wolf.x, y: wolf.y }); // shown on the board the wolf runs on
 }
 /** v0.19d2: EXP per tick of all finished EXP generators of a player (before High Voltage). */
 function expGenBase(p) {
@@ -6462,6 +6524,30 @@ function adaptPersona(game, p, enemy, persona) {
 }
 /** Thresholds of the Insane bot's reading (tuned in self-play against bots that play like humans). */
 export const AI_ADAPT = { thin: 2.5, strong: -1, punishPush: 0.5, killShot: 15, ecoGreed: 1.25, bank: 1.2, bankWatch: 1.0, bankFast: 1.5, air: 0.25, airCaution: 1.4, earlyRounds: 10, earlyCaution: 0.9, airMargin: 2, tierIncome: 0.5, tierIncomes: [0.5, 0.3, 0.3, 0.3], tierSaveRounds: 2, bossBank: 1, crowdCount: 12, tierSave: 0, threatMargin: 1.25, centerTowers: 4, centerBonus: 1.2 };
+/**
+ * v0.26bF: mission rule `archers: { total, early, by }`: the bot owns at least `early` Archer-Line towers
+ * before the end of round `by` and at least `total` after that. A missing archer is built first, on the
+ * maze plan if there is one, else on the free cell that lengthens the path most. True = built one.
+ */
+function missionArchers(game, p) {
+  const r = p.rules.archers,
+    line = archerLine(),
+    have = p.towers.filter((t) => line.has(t.typeId)).length,
+    need = game.round <= (r.by || 0) ? r.early || 0 : r.total || 0;
+  if (have >= need || !available(game, p.id, "build", "h003").ok) return false;
+  const maze = mazePlan(game, p, aiLevel(game, p));
+  if (maze.template) {
+    const spots = templateCandidates(game, p, maze, {}).sort((a, b) => Number(b.plan) - Number(a.plan));
+    for (const c of spots) if (previewBuild(game, p.id, c.x, c.y, "h003").ok && command(game, { type: "build", player: p.id, id: "h003", gridX: c.x, gridY: c.y }).ok) return true;
+  }
+  let best = null;
+  for (let y = 0; y < laneRows(game, p); y++)
+    for (let x = 0; x < game.grid.cols; x++) {
+      const pv = previewBuild(game, p.id, x, y, "h003");
+      if (pv.ok && pv.path?.length && (!best || pv.path.length > best.n)) best = { x, y, n: pv.path.length };
+    }
+  return !!best && command(game, { type: "build", player: p.id, id: "h003", gridX: best.x, gridY: best.y }).ok;
+}
 function think(game, p) {
   if (game.tick < p.nextAiTick) return;
   const level = aiLevel(game, p),
@@ -6469,6 +6555,7 @@ function think(game, p) {
     style = AI_STYLE[level] || AI_STYLE.normal;
   p.nextAiTick = game.tick + interval;
   if (p.rules?.sleep && game.time < p.rules.sleep) return; // v0.17: a sleepy mission enemy
+  if (p.rules?.archers && missionArchers(game, p)) return; // v0.26bF
   const rolled = aiPersonality(game, p),
     enemy = targetOf(game, p.id), // the player this bot sends to
     humanFoe = enemy && (!enemy.ai || enemy.simHuman), // simHuman: test bots that stand in for a human

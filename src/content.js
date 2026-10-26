@@ -610,6 +610,8 @@ export const CUSTOM_ABILITIES = [
   // v0.22n2: Tier Boss (every tier boss golem) replaces Scale Armor, Nerf Resistance and Magic Resistance: debuffs last
   // 50 % shorter, every tower attack does 1 / 5 / 10 / 20 / 30 less damage (never below 1; simulation.js TIER_BOSS)
   { id: "XA12", baseId: "Xtbs", custom: true, fields: { anam: { 0: "Tier Boss" }, aub1: { 1: "Reduced damage from attacks, 50% less duration for debuffs, 30% slow resistance" } } },
+  // v0.26cF: Mountain Golem: unlocks no tier; display only (the effect runs in simulation.js MOUNTAIN_GOLEM)
+  { id: "XA13", baseId: "Xinf", custom: true, fields: { anam: { 0: "Mountain Might" }, aub1: { 1: "Can be recruited again. Each one gives your tier 5 creeps +5% HP for good" } } },
   { id: "XA06", baseId: "Xfoc", custom: true, step: 0.09, interval: 0.25, max: 5, fields: { anam: { 0: "Focus Fire" }, aub1: { 1: "Damage +9% every 0.25 s while attacking the same target, up to 500%" } } },
 ];
 /**
@@ -676,7 +678,7 @@ const UNIT_ABILITY_SWAP = {
   n01D: { A09U: "XA01" },
 };
 /** Per unit: abilities added in front. */
-const UNIT_ABILITY_ADD = { n02P: ["XA08"], n01R: ["XA08"], n00Y: ["XA10", "XA09"], n01H: ["XA11", "XA12"], n00T: ["XA12"], n015: ["XA12"], n01T: ["XA12"], n02R: ["XA12"], n02I: ["A03D"] }; // v0.23: Lord Garithos shows his Divine Shield // v0.22n2: Tier Boss // v0.21z: Treant EXP Bonus and Spawn Wisp, Meat Golem Enrage // v0.21k: Slow Resistance for Warden and Eredar Warlock
+const UNIT_ABILITY_ADD = { n02P: ["XA08"], n01R: ["XA08"], n00Y: ["XA10", "XA09"], n01H: ["XA11", "XA12"], n00T: ["XA12"], n015: ["XA12"], n01T: ["XA12"], n02R: ["XA12", "XA13"], n02I: ["A03D"] }; // v0.23: Lord Garithos shows his Divine Shield // v0.22n2: Tier Boss // v0.21z: Treant EXP Bonus and Spawn Wisp, Meat Golem Enrage // v0.21k: Slow Resistance for Warden and Eredar Warlock
 /**
  * v0.18a: tower damage buffs in percent of the average damage, rounded up to the next whole number.
  * The difference is added to the flat damage part, so the dice spread stays the same.
@@ -727,7 +729,7 @@ export const CREEP_TUNING = {
   n00M: { hp: 250, speed: 180, stockRegen: 7, stockMax: 8, // v0.26a: stock max 8
     count: 1, bountyBase: 11, name: "[06] Orc", shortName: "Orc", abilities: ["A01A", "XA02"] }, // Grunt → Orc (v0.17b): hit points +30 %, 120 → 156 (v0.09s); Siege Resistance 33 % (v0.17b), v0.22za2: Splash Resistance, 260 HP; v0.18e: one Orc per purchase (heavy), hit points 156 → 312, bounty 5+1d1 → 11+1d1 (12 per purchase as before), restocks 1 Goblin; v0.21m: hit points 312 → 300, speed 190 → 180 (−5 %); v0.21p: 280 hit points, restock 6 → 7 s; v0.24s: 250 HP
   n00R: { hp: 60, abilities: ["A01A", "XA01"] }, // v0.26a: 55 → 60 HP; // Skeleton: Arrow Resistance now 33 % less damage from Archer-Line towers (v0.17b, was: ignores 1 ranged damage)
-  n00N: { hp: 185, abilities: ["A01A", "XA03"] }, // Necromancer: hit points 170 → 180 (v0.17f), 185 (v0.21p); Unholy Aura removed, Deathrattle shown (v0.17g)
+  n00N: { hp: 200, abilities: ["A01A", "XA03", "XA01"] }, // v0.26cF: 200 HP, Arrow Resistance 33 %; Necromancer: hit points 170 → 180 (v0.17f), 185 (v0.21p); Unholy Aura removed, Deathrattle shown (v0.17g)
   n00P: { hp: 85, speed: 138.56, stockRegen: 11 }, // Flying Sheep: hit points 80 → 85, speed 1.06 → 1.08 fields/s (v0.17b); restock 10 → 11 s (v0.17o)
   n00W: { speed: 227.55, hp: 175 }, // v0.24k: Boar Scout 0.84 → 0.80 fields/s, hit points 180 → 175
   n016: { hp: 675, speed: 170.66 }, // v0.24k: Zombie hit points −10 % (750 → 675); v0.24s: 0.60 fields/s
@@ -739,7 +741,7 @@ export const CREEP_TUNING = {
   // plants a Siege Plank once (simulation.js SIEGE_OGRE)
   n01G: { name: "[34] Siege Ogre", shortName: "Siege Ogre", count: 1, hp: 16000, armor: 3, bountyBase: 718, abilities: ["A08S", "A01A"], stockMax: 2, stockRegen: 17 }, // v0.22o2: was Spiritwalker → Shieldbearer; v0.24i: stock 5 → 2, restock 15 → 17 s
   n025: { income: 30 }, // v0.24j: Raven earns a little income (0.3 % of its price; flyers pay less than ground creeps)
-  n00L: { speed: 375, cost: 30 }, // Wolf: 25 % faster, 300 → 375 (v0.08d); v0.24s: cost 30
+  n00L: { speed: 394, cost: 30, hp: 35 }, // Wolf: 25 % faster, 300 → 375 (v0.08d); v0.24s: cost 30; v0.26bF: HP 32 → 35, 5 % faster (375 → 394)
   n00S: { speed: 420, stockRegen: 13, income: 8, name: "[10] Wolfrider", shortName: "Wolfrider" }, // v0.24s: Raider → Wolfrider; Raider: 25 % faster (v0.07b); restock 12 → 13 s (v0.17o); income 9 → 8 (v0.17q)
   n012: { name: "[21] Giant Bat", shortName: "Giant Bat" }, // v0.23zq: the Zeppelin is the Giant Bat
   n025: { name: "[52] Raven", shortName: "Raven" }, // v0.23zo: the Gryphon Rider is the Raven
