@@ -3520,7 +3520,15 @@ function stockTier(game, p, tier, now) {
     prevRounds = rounds;
     p.stock[s.id] = rounds > 0 ? { count: 0, next: LOCKED_NEXT, lockRound: game.round + rounds } : { count: delay > 0 ? 0 : stockMaxOf(p, s), next: now + delay };
   });
+  // v0.25j: tier 1 opens with a fixed stock for the cheapest creeps (FIRST_STOCK), capped by the stock maximum
+  if (tier === 1)
+    tierSends(1).forEach((s) => {
+      const n = FIRST_STOCK[s.id];
+      if (n != null) p.stock[s.id] = { count: Math.min(n, stockMaxOf(p, s)), next: now + Math.max(0.05, s.stockRegen) };
+    });
 }
+/** v0.25j: opening stock of the first tier-1 creeps (Goblin 10, Pony 5, Gnoll 2, Wolf 2). */
+const FIRST_STOCK = Object.freeze({ n00E: 10, n007: 5, n00K: 2, n00L: 2 });
 /** v0.15: placeholder restock time of a creep still locked by its start delay (JSON-safe). */
 const LOCKED_NEXT = 1e9;
 /** v0.15: rounds until a locked creep is ready (0 = not locked). */
@@ -3547,6 +3555,7 @@ function advanceTier(game, p, tier) {
     gainExp(game, p, 75, "achievement");
     emit(game, "achievement", { player: p.id, achievement: "tier", tier, name: `First to Tier ${tier}`, exp: 75 }); // v0.19d2: named for the notification
   }
+  (p.stats.tierAt ||= []).push([tier, game.round]); // v0.25k: tier markers in the income chart
   emit(game, "tier", { player: p.id, tier, message: `Tier ${tier} unlocked` });
   growMaze(game, p, rowsForTier(game, tier)); // v0.24r
 }
@@ -5516,6 +5525,16 @@ let aiTuning = AI_DEFAULTS;
 export function tuneAi(values = null) {
   aiTuning = values ? { ...AI_DEFAULTS, ...values } : AI_DEFAULTS;
 }
+/**
+ * v0.25l: Hardo's trained styles (persona traits from self-play). One is picked per match by the seed; the style id is
+ * recorded with the match. archer-opener is listed twice, so it comes up twice as often.
+ */
+const HARDO_STYLES = Object.freeze([
+  { id: "archer-opener", p: { greed: 2.486, splash: 1.228, push: 0.228, pushSize: 2.346, pushMargin: 1.704, bossRound: 5.075, expGen: 1.04, upgradeBias: 0.921, caution: 1.17, rateShare: 0.226, waveShare: 0.534, airThreshold: 0.18, researchBias: 1.404, flyerBias: 1.186, mazeRush: 0.344, mazeValue: 0.888, bankWatch: 0.805, killShot: 6.135, sendPick: 1.856, rowAware: 2, opener: 1 } },
+  { id: "archer-opener", p: { greed: 2.486, splash: 1.228, push: 0.228, pushSize: 2.346, pushMargin: 1.704, bossRound: 5.075, expGen: 1.04, upgradeBias: 0.921, caution: 1.17, rateShare: 0.226, waveShare: 0.534, airThreshold: 0.18, researchBias: 1.404, flyerBias: 1.186, mazeRush: 0.344, mazeValue: 0.888, bankWatch: 0.805, killShot: 6.135, sendPick: 1.856, rowAware: 2, opener: 1 } },
+  { id: "economy", p: { greed: 3.374, splash: 1.966, push: 0.076, pushSize: 1.126, pushMargin: 1.258, bossRound: 6.646, expGen: 1.175, upgradeBias: 1.295, caution: 1.183, rateShare: 0.29, waveShare: 0.45, airThreshold: 0.159, researchBias: 1.248, flyerBias: 1.294, mazeRush: 0.181, mazeValue: 1.079, bankWatch: 0.647, killShot: 8.03, sendPick: 1.063 } },
+  { id: "pressure", p: { greed: 2.486, splash: 1.228, push: 0.228, pushSize: 2.346, pushMargin: 1.704, bossRound: 5.075, expGen: 1.04, upgradeBias: 0.921, caution: 1.17, rateShare: 0.226, waveShare: 0.534, airThreshold: 0.18, researchBias: 1.404, flyerBias: 1.186, mazeRush: 0.344, mazeValue: 0.888, bankWatch: 0.805, killShot: 6.135, sendPick: 1.856 } },
+]);
 function aiPersonality(game, p) {
   if (p.aiPersona) return p.aiPersona;
   const roll = ([a, b]) => a + (b - a) * random(game);
@@ -5532,6 +5551,12 @@ function aiPersonality(game, p) {
   for (const [k, f] of Object.entries(AI_STYLE[aiLevel(game, p)]?.persona || {})) p.aiPersona[k] *= f;
   Object.assign(p.aiPersona, AI_STYLE[aiLevel(game, p)]?.fixed || {}); // v0.21v: fixed traits, no dice roll
   if (p.rules?.persona) Object.assign(p.aiPersona, p.rules.persona); // v0.17: mission personality
+  // v0.25l: Hardo plays one of his trained styles per match (picked by the seed, recorded with the match)
+  else if (aiLevel(game, p) === "insane") {
+    const style = HARDO_STYLES[game.seed % HARDO_STYLES.length];
+    p.hardoStyle = style.id;
+    Object.assign(p.aiPersona, style.p);
+  }
   return p.aiPersona;
 }
 /**
@@ -5586,10 +5611,19 @@ const isSplashTower = (item) => !!item && (isCannonTower(item) || item.splashFul
  * splashView is set at the start of think() for the bot whose turn it is; other bots keep the flat ×1.8.
  */
 let splashView = 0,
-  crowdView = 1; // v0.22u2: Hardo scales the splash bonus by how many creeps the opponent really sends (few big tier-3 creeps: little splash)
+  crowdView = 1, // v0.22u2: Hardo scales the splash bonus by how many creeps the opponent really sends (few big tier-3 creeps: little splash)
+  rowView = 0; // v0.25l: persona.rowAware – value towers by row (melee splash near the spawn, ranged lower down)
 /** Measured splash curve over the rows, scaled to an average of 1 (top row ×1.3, bottom ×0.86). */
 const splashShape = (game, y) => (1.9 + 1.2 * (1 - Math.min(1, y / baseRows(game))) ** 3) / 2.2; // v0.24r: shape of a fresh maze
 function splashFactor(game, item, y, size, air = false) {
+  if (rowView && !air && splashView === 1) {
+    const depth = Math.min(1, Math.max(0, (y + size / 2) / baseRows(game))),
+      melee = isMeleeTower(item),
+      splash = item.splashFull > 0 || item.splashMedium > 0 || item.splashSmall > 0;
+    if (melee && splash) return 1 + ((y + size / 2 < 3 ? 2.4 : 1.3) - 1) * crowdView;
+    if (isSplashTower(item)) return 1 + (0.8 + 1.8 * (1 - depth) ** 2 - 1) * crowdView;
+    return melee ? 1 : 0.9 + 0.4 * depth;
+  }
   if (!isSplashTower(item)) return 1;
   if (splashView !== 1 || air) return 1 + 0.8 * crowdView;
   return 1 + (1.8 * splashShape(game, y + size / 2) - 1) * crowdView;
@@ -6210,6 +6244,9 @@ function defenceOptions(game, p, persona, level, style, cap, wantAir, onlyBuild 
     const spot = bestSpot(game, p, item, persona, wantAir, ctx);
     if (spot) options.push({ id: item.id, value: spot.value / item.cost, cost: item.cost, plan: spot.plan, run: () => command(game, { type: "build", player: p.id, id: item.id, gridX: spot.x, gridY: spot.y }) });
   }
+  // v0.25l: persona.opener – the first two fighting towers are archers
+  if (persona.opener && !wantAir && p.towers.filter((t) => t.typeId !== ROCK_ID && obj(t.typeId)?.attacks).length < 2 && !p.towers.some((t) => t.typeId === "h003"))
+    for (const o of options) if (o.id === "h003") o.value *= 4;
   return options.sort((a, b) => b.value - a.value);
 }
 /** v0.19f: next step of the line from tower type `from` towards `goal` (null when not on the way). */
@@ -6360,7 +6397,7 @@ export const AI_ADAPT = { thin: 2.5, strong: -1, punishPush: 0.5, killShot: 15, 
 function think(game, p) {
   if (game.tick < p.nextAiTick) return;
   const level = aiLevel(game, p),
-    interval = { veryEasy: 80, easy: 40, normal: 20, hard: 10, insane: 5 }[level] || 20,
+    interval = { veryEasy: 80, easy: 40, normal: 20, hard: 10, insane: 1 }[level] || 20, // v0.25l: Hardo thinks every tick
     style = AI_STYLE[level] || AI_STYLE.normal;
   p.nextAiTick = game.tick + interval;
   if (p.rules?.sleep && game.time < p.rules.sleep) return; // v0.17: a sleepy mission enemy
@@ -6371,6 +6408,7 @@ function think(game, p) {
     _splash = (splashView = rolled.splashTop || 0), // v0.22m2
     attackers = attackersOf(game, p.id), // the players sending into this bot's lane
     seen = observeEnemy(game, p, persona);
+  rowView = persona.rowAware ? 1 : 0;
   crowdView = persona.adaptive && persona.humanFoe && game.round >= 10 ? clamp((seen.nRate ?? AI_ADAPT.crowdCount) / AI_ADAPT.crowdCount, 0.4, 1) : 1;
   for (let guard = 12; p.picks.length && guard > 0; guard--) aiPick(game, p, persona); // v0.15: never loop on a refused choice
   aiConditions(game, p); // v0.23b: conditionalPerk

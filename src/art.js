@@ -436,7 +436,7 @@ export const ANIM_MANIFEST = Object.freeze({
   "creep-n-druid-death": { kind: "death", in: "creep-n-druid", first: 64, frames: 7, cols: 8, fw: 120, fh: 115, footX: 60, footY: 104, ms: 110 },
   "creep-n-zombie-ogre": { kind: "walk", dirs: 8, frames: 8, cols: 8, fw: 150, fh: 130, footX: 75, footY: 104, figH: 97, ms: 95, figS: 97, bob: 0.02, bobSteps: 2 }, // v0.25a: a light step bob (little leg movement in the sheet); // v0.23zh: tier 5 Zombie Ogre (was Abomination); 7 walk rows on the sheet (front-right, back-right and left mirrored), walk and death in one sheet
   "creep-n-zombie-ogre-death": { kind: "death", in: "creep-n-zombie-ogre", first: 64, frames: 6, cols: 8, fw: 150, fh: 130, footX: 75, footY: 104, ms: 110 },
-  "creep-n-minotaurus": { kind: "walk", dirs: 8, frames: 8, cols: 8, fw: 112, fh: 112, footX: 56, footY: 100, figH: 93, ms: 95, figS: 93 }, // v0.23zf: tier 3 Minotaurus (was Cairne Bloodhoof); walk and death in one sheet
+  "creep-n-minotaurus": { kind: "walk", dirs: 8, frames: 8, cols: 8, fw: 112, fh: 112, footX: 56, footY: 100, figH: 93, ms: 95, figS: 93, scale: 1.1 }, // v0.25n: 10 % larger; v0.23zf: tier 3 Minotaurus (was Cairne Bloodhoof); walk and death in one sheet
   "creep-n-minotaurus-death": { kind: "death", in: "creep-n-minotaurus", first: 64, frames: 7, cols: 8, fw: 112, fh: 112, footX: 56, footY: 100, ms: 110 },
   "creep-n-scarabaeus": { kind: "walk", dirs: 8, frames: 8, cols: 8, fw: 104, fh: 94, footX: 52, footY: 74, figH: 73, ms: 95, figS: 73 }, // v0.23zf: tier 5 Scarabaeus; walk and death in one sheet
   "creep-n-scarabaeus-death": { kind: "death", in: "creep-n-scarabaeus", first: 64, frames: 7, cols: 8, fw: 104, fh: 94, footX: 52, footY: 74, ms: 110 },

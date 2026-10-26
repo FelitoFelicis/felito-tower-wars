@@ -173,7 +173,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.25i",
+const APP_VERSION = "0.25p",
   APP_BRANCH = "F", // v0.23q: author marker (F = Felix, S = Steven) and branch text, shown behind the version; APP_VERSION stays plain for online matches (VersionPublishingRules.md)
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "23.10.2026";
@@ -3147,10 +3147,10 @@ function matchSummary(me, place = 0) {
       b.onclick = () => {
         const box = $("income-chart"),
           open = box.hidden;
-        if (open && !box.innerHTML) box.innerHTML = incomeChart(log);
+        if (open && !box.innerHTML) box.innerHTML = incomeChart(log, st.tierAt);
         box.hidden = !open;
         b.setAttribute("aria-expanded", String(open));
-        if (open) wireIncomeChart(box, log);
+        if (open) wireIncomeChart(box, log, st.tierAt);
         tone("tap");
       };
     },
@@ -3175,14 +3175,15 @@ function nemesisHtml(me) {
   return `<div class="nemesis" style="--nc:${color}"><img class="portrait" src="${portraitFor(best.q)}" alt=""><div><p class="nem-head"><span>${t("Nemesis")}</span><b>${esc(best.q.ai && !best.q.missionName ? `${t(AI_NAMES[best.q.aiLevel || game.aiLevel] || "")} ${t("AI")} ${seatName(best.q.id)}`.trim() : seatName(best.q.id))}</b></p><small>${t("{a} lives taken from you · {b} taken by you", { a: `<em class="nem-lost">${best.lost}</em>`, b: `<em class="nem-won">${best.stole}</em>` })}</small></div></div>`;
 }
 const RULES_START_INCOME = 20;
-/** Bar chart of income per round (single series, green bars, hover/tap tooltip). */
-function incomeChart(log) {
+/** Bar chart of income per round (single series, green bars, hover/tap tooltip). v0.25k: tierAt = [[tier, round], …] marks tier-ups. */
+function incomeChart(log, tierAt = []) {
+  tierAt = (tierAt || []).filter((m) => m[1] >= 0 && m[1] < log.length);
   const n = log.length,
     W = 320,
     H = 150,
     L = 34,
     R = 6,
-    T = 10,
+    T = tierAt.length ? 28 : 10, // v0.25k: room for the tier tags
     B = 22,
     max = Math.max(1, ...log),
     nice = Math.pow(10, Math.floor(Math.log10(max))),
@@ -3202,10 +3203,19 @@ function incomeChart(log) {
   const grid = ticks.map((v) => `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" class="ic-grid"/><text x="${L - 4}" y="${y(v) + 3}" class="ic-axis" text-anchor="end">${goldShort(v)}</text>`).join("");
   const every = Math.max(1, Math.ceil(n / 8)),
     labels = log.map((_, i) => (i % every === 0 || i === n - 1 ? `<text x="${L + i * bw + bw / 2}" y="${H - 6}" class="ic-axis" text-anchor="middle">${i}</text>` : "")).join("");
-  return `<div class="ic-head"><b>${t("Income per round")}</b><span id="ic-readout">${t("Tap a bar")}</span></div><svg viewBox="0 0 ${W} ${H}" class="ic-svg" role="img" aria-label="${t("Income per round")}">${grid}${bars}${labels}<rect class="ic-hit" x="${L}" y="${T}" width="${W - L - R}" height="${H - T - B}"/></svg>`; // v0.17c: no caption below the chart
+  return `<div class="ic-head"><b>${t("Income per round")}</b><span id="ic-readout">${t("Tap a bar")}</span></div><svg viewBox="0 0 ${W} ${H}" class="ic-svg" role="img" aria-label="${t("Income per round")}">${grid}${bars}${tierAt
+    .map(([tier, i]) => {
+      // v0.25k: an orange tier tag above the bar of the round the player reached that tier
+      const x = L + i * bw + bw / 2,
+        top = Math.max(T, y(log[i])) - 5,
+        label = tierRoman(tier),
+        w = Math.max(14, label.length * 6 + 6);
+      return `<g class="ic-tier" aria-label="${t("Tier {n}", { n: tier })}"><line x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="${(top + 1).toFixed(1)}" y2="${(H - B).toFixed(1)}" stroke="#ff8a4f" stroke-width="1" stroke-dasharray="2 2" opacity=".8"/><rect x="${(x - w / 2).toFixed(1)}" y="${(top - 13).toFixed(1)}" width="${w}" height="13" rx="3" fill="#f0641e" stroke="#8a2a0c" stroke-width="1"/><text x="${x.toFixed(1)}" y="${(top - 3).toFixed(1)}" text-anchor="middle" fill="#fff" style="font:800 9.5px var(--font-display,system-ui);letter-spacing:.04em">${label}</text></g>`;
+    })
+    .join("")}${labels}<rect class="ic-hit" x="${L}" y="${T}" width="${W - L - R}" height="${H - T - B}"/></svg>`; // v0.17c: no caption below the chart
 }
 const goldShort = (v) => (v >= 1000 ? format(Math.round(v / 100) / 10) + "k" : format(Math.round(v)));
-function wireIncomeChart(box, log) {
+function wireIncomeChart(box, log, tierAt = []) {
   const svg = box.querySelector(".ic-svg"),
     hit = box.querySelector(".ic-hit"),
     out = box.querySelector("#ic-readout");
@@ -3218,7 +3228,10 @@ function wireIncomeChart(box, log) {
       d = prev === null ? null : v - prev,
       pc = prev ? (d / prev) * 100 : null;
     svg.querySelectorAll(".ic-bar").forEach((b) => b.classList.toggle("on", Number(b.dataset.i) === i));
-    out.innerHTML = `${i ? t("Round {n}", { n: i }) : t("Start")}: <b>+${format(v)}</b>${d === null ? "" : ` · ${d >= 0 ? "+" : "−"}${format(Math.abs(d))} (${pc >= 0 ? "+" : "−"}${format(Math.abs(Math.round(pc * 10) / 10))}%)`}`;
+    out.innerHTML = `${i ? t("Round {n}", { n: i }) : t("Start")}: <b>+${format(v)}</b>${d === null ? "" : ` · ${d >= 0 ? "+" : "−"}${format(Math.abs(d))} (${pc >= 0 ? "+" : "−"}${format(Math.abs(Math.round(pc * 10) / 10))}%)`}${(tierAt || [])
+      .filter((m) => m[1] === i)
+      .map((m) => ` · ${t("Tier {n}", { n: tierRoman(m[0]) })}`)
+      .join("")}`;
   };
   hit.onpointermove = show;
   hit.onpointerdown = show;
@@ -3569,12 +3582,15 @@ function hardoTalk() {
   if (game.round !== st.round) {
     st.round = game.round;
     st.rich = me.income >= h.income * 1.35 && me.income - h.income >= 40 ? st.rich + 1 : 0;
+    (st.hist ||= []).push([h.lives, me.lives]); // v0.25o: lives per round for hardoOdds()
   }
   if (st.said >= 2 || game.time - st.last < 45 || game.round < 5) return;
   const boss = tierSends(me.tier).find((x) => x.bossTier),
     rush = h.creeps.filter((c) => !c.dead && c.hp > 0 && c.owner !== h.id && c.progress > 0.4),
     rushHp = rush.reduce((sum, c) => sum + c.hp, 0),
+    odds = hardoOdds(h, me, st),
     checks = [
+      ["odds", game.round >= 8 && (odds >= 0.8 || odds <= 0.2)], // v0.25o: Hardo's own estimate, counts as one of his 0–2 lines
       ["desperate", h.lives <= 6 && me.lives > h.lives * 2],
       ["threat", rush.length >= Math.max(4, h.lives * 0.3) && rushHp > (h.aiDebug?.capG || 0) * 1.2],
       ["income", st.rich >= 3],
@@ -3586,6 +3602,11 @@ function hardoTalk() {
     st.used.add(key);
     st.said++;
     st.last = game.time;
+    if (key === "odds") {
+      const pct = Math.round(100 * Math.max(odds, 1 - odds));
+      hardoSay(t(odds >= 0.5 ? "Hardo estimates he will win with {n}% certainty." : "Hardo estimates he will lose with {n}% certainty.").replace("{n}", Math.min(99, pct)));
+      return;
+    }
     const pool = HARDO_LINES[key];
     hardoSay(pool[Math.floor(Math.random() * pool.length)].replace("{n}", me.tier + 1));
     return;
@@ -3628,11 +3649,13 @@ function recWrite(path, data) {
   const r = rec;
   r.queue = r.queue.then(async () => {
     const db = await recDb();
-    if (!db) return;
+    // v0.25o: without the database (the game outside claude.ai) or on a failed write the record is kept on the device
+    if (!db) return keepRecord(path, data);
     try {
       await db.doc(path).set(JSON.parse(JSON.stringify(data)));
     } catch (e) {
       r.errors = (r.errors || 0) + 1;
+      keepRecord(path, data);
     }
   });
 }
@@ -3666,8 +3689,8 @@ function recSnap() {
 }
 function recStart() {
   rec = null;
-  // v0.22zb2: Training against Normal and Hard is recorded too, not only Hardo
-  if (!game || !game.players.some((q) => q.ai && ["normal", "hard", "insane"].includes(q.aiLevel || game.aiLevel))) return;
+  // v0.22zb2: Training against Normal and Hard is recorded too, not only Hardo; v0.25o: every match against the AI
+  if (!game || !game.players.some((q) => q.ai)) return;
   const id = "m" + Date.now().toString(36) + Math.floor(Math.random() * 1296).toString(36);
   rec = { id, game, cmds: [], snaps: [], chunk: 0, round: game.round, queue: Promise.resolve(), done: false, started: Date.now() };
   rec.meta = {
@@ -3675,7 +3698,7 @@ function recStart() {
     version: APP_VERSION,
     startedAt: new Date().toISOString(),
     seed: game.seed,
-    options: { mode: game.mode, faction: chosenFaction, aiLevel: game.aiLevel, aiLevels: game.players.map((q) => (q.ai ? q.aiLevel || game.aiLevel : null)), waves: game.waves, seats: game.players.length, training: !!game.training },
+    options: { mode: game.mode, faction: chosenFaction, aiLevel: game.aiLevel, aiLevels: game.players.map((q) => (q.ai ? q.aiLevel || game.aiLevel : null)), waves: game.waves, seats: game.players.length, training: !!game.training, hardo: game.players.find((q) => q.hardoStyle)?.hardoStyle || null }, // v0.25l: Hardo's style
     status: "running",
     chunks: 0,
   };
@@ -3689,6 +3712,7 @@ function recFlush(final = false) {
   rec.snaps = [];
   rec.meta.chunks = rec.chunk;
   rec.meta.lastRound = game.round;
+  rec.meta.options.hardo = game.players.find((q) => q.hardoStyle)?.hardoStyle || null; // v0.25l
   if (final) {
     rec.meta.status = "ended";
     rec.meta.result = { winner: game.winner, time: Math.round(game.time), round: game.round, lives: game.players.map((q) => q.lives), endTick: game.tick };
@@ -3796,6 +3820,7 @@ function startLocal({ hotseat = false, ffa = false, seats = 4, mission = null, r
   tone("select");
   coach("start");
   recStart(); // v0.22b
+  warmMatchArt(); // v0.25m
 }
 function dispatch(input, { quiet = false, fromQueue = false } = {}) {
   if (!begun) return;
@@ -3900,6 +3925,9 @@ function prefetchArt() {
   for (const x of catalog.towers) if (x.isRoot && x.playable && x.support !== "farm" && !isLocked(available(game, own, "build", x.id))) items.add(x);
   for (const tw of p.towers) for (const id of catalog.byId[tw.typeId]?.upgrades || []) if (catalog.byId[id]) items.add(catalog.byId[id]);
   for (const x of catalog.sends) if (x.playable && x.tier === p.tier) items.add(x);
+  // v0.25m: the creeps of the next neutral wave (drawn in the neutral colour)
+  const wave = game.waves && nextWave(game);
+  items.neutral = wave?.groups ? wave.groups.map((g) => catalog.byId[g.model]).filter(Boolean) : [];
   return items;
 }
 function upgradeTower() {
@@ -6577,7 +6605,7 @@ function menu() {
 /** Options from the main menu; closing returns to the main menu. */
 function optionsModal() {
   showModal(
-    `${modalHeader(t("Options"))}${settingsButtons()}<button class="secondary-button" id="menu-catalog">${t("Card book")}</button><button class="secondary-button" id="menu-rules">${t("Rules & development status")}</button>`,
+    `${modalHeader(t("Options"))}${settingsButtons()}<button class="secondary-button" id="menu-catalog">${t("Card book")}</button><button class="secondary-button" id="menu-rules">${t("Rules & development status")}</button>${exportRecordsButton()}`,
   );
   wireSettings(optionsModal);
   $("menu-catalog").onclick = () => catalogModal({ back: optionsModal }); // v0.21z: the card book from the main menu too; v0.22n2: with Back
@@ -8195,7 +8223,7 @@ function tick(dt) {
           : `${won ? `<img class="modal-hero result-hero" src="${artUrl("tower-archer")}" alt="">` : ""}<h2 class="welcome-title">${won ? t("Your line.<br><span>Your victory.</span>") : t("Well fought.<br><span>Another round?</span>")}</h2>`;
     if (sessionMode !== "online") presenceState("menu");
     showModal(
-      `${resultClock()}<div class="result-banner ${won ? "win" : "lose"}">${t(won ? "Victory" : "Defeat")}</div>${hero}${rankLine}${summary.html}${sessionMode === "training" ? `<p class="modal-copy" style="text-align:center">${t("AI")} ${t(AI_NAMES[game.aiLevel] || "Normal")}</p>` : ""}${tip ? `<p class="modal-note result-tip">${tip}</p>` : ""}<div class="result-pair"><button class="secondary-button" id="play-again">${t("Play again")}</button>${sessionMode === "training" && !game.rankedBot && game.aiLevel !== (hardoUnlocked ? "insane" : "hard") && won ? `<button class="secondary-button" id="play-harder">${t("Harder AI")}</button>` : ""}</div><button class="primary-button" id="to-menu">${t("Main menu")}</button>`,
+      `${resultClock()}<div class="result-banner ${won ? "win" : "lose"}">${t(won ? "Victory" : "Defeat")}</div>${hero}${rankLine}${summary.html}${sessionMode === "training" ? `<p class="modal-copy" style="text-align:center">${t("AI")} ${t(AI_NAMES[game.aiLevel] || "Normal")}</p>` : ""}${tip ? `<p class="modal-note result-tip">${tip}</p>` : ""}<div class="result-pair"><button class="secondary-button" id="play-again">${t("Play again")}</button>${sessionMode === "training" && !game.rankedBot && game.aiLevel !== (hardoUnlocked ? "insane" : "hard") && won ? `<button class="secondary-button" id="play-harder">${t("Harder AI")}</button>` : ""}</div><button class="primary-button" id="to-menu">${t("Main menu")}</button>${exportRecordsButton()}`,
       { pauseGame: false },
     );
     summary.wire();
@@ -8626,6 +8654,7 @@ async function init() {
     };
     setPage("build");
     swapStaticIcons(); // design variants: HUD icons in the chosen look
+    await bootArt(); // v0.25m: all art is there before the main menu shows
     welcome();
     setTimeout(() => music.preload("menu"), 1500);
     // v0.23: no service worker registration (there is no sw.js; it only caused a 404)
@@ -8940,3 +8969,270 @@ setInterval(() => {
   document.addEventListener("pointerup", end);
   document.addEventListener("pointercancel", end);
 })();
+// ---- v0.25m: art loads before it is needed -----------------------------------------------------
+/** Resolves with the promise or after ms milliseconds, whichever comes first (a slow picture never blocks the game). */
+function capWait(promise, ms) {
+  return Promise.race([promise, new Promise((r) => setTimeout(r, ms))]);
+}
+/**
+ * v0.25m: the loading screen waits for the art: the packs (40 %), every picture the page and the style sheet use
+ * (30 %), the card art in the player's colour and the board's first textures (29 %). Each step has a time cap.
+ */
+async function bootArt() {
+  const bar = (part, text) => window.felitoBoot?.(75 + 24 * part, text);
+  try {
+    if (!packsDone()) {
+      const off = onPackProgress((v) => bar(0.4 * v, t("Loading art …")));
+      bar(0.4 * packProgress(), t("Loading art …"));
+      await capWait(loadPacks(), 60000);
+      off();
+    }
+    const urls = new Set(),
+      addUrl = (u) => {
+        if (!u || u.startsWith("data:") || u.startsWith("blob:")) return;
+        try {
+          urls.add(new URL(u, location.href).href);
+        } catch {}
+      };
+    document.querySelectorAll("img").forEach((img) => addUrl(img.getAttribute("src") && (img.currentSrc || img.src)));
+    for (const sheet of document.styleSheets) {
+      let rules;
+      try {
+        rules = sheet.cssRules;
+      } catch {
+        continue;
+      }
+      for (const rule of rules || [])
+        for (const m of rule.cssText.matchAll(/url\("?([^")]+?\.(?:webp|png|jpe?g|svg|gif)(?:\?[^")]*)?)"?\)/g))
+          if (!m[1].startsWith("data:"))
+            try {
+              urls.add(new URL(m[1], sheet.href || location.href).href);
+            } catch {}
+    }
+    const kept = [...preloadedArt],
+      list = [...urls];
+    let done = 0;
+    const total = list.length + kept.length || 1,
+      step = () => {
+        done++;
+        bar(0.4 + (0.3 * done) / total, t("Loading graphics …"));
+      };
+    await capWait(
+      Promise.all([
+        ...list.map((u) => {
+          const img = new Image();
+          img.decoding = "async";
+          img.src = u;
+          preloadedArt.push(img);
+          return (img.decode ? img.decode() : new Promise((ok, no) => ((img.onload = ok), (img.onerror = no)))).catch(() => {}).finally(step);
+        }),
+        ...kept.map((img) => (img.decode?.() || Promise.resolve()).catch(() => {}).finally(step)),
+      ]),
+      30000,
+    );
+    await capWait(cardArt(), 20000);
+    if (arena?.warm) await capWait(arena.warm(prefetchArt() || [], (v) => bar(0.7 + 0.29 * v, t("Preparing the arena …"))), 60000);
+    bar(1, t("Ready"));
+  } catch (e) {
+    console.warn("Art preload:", e);
+  }
+}
+/** v0.25m: at the start of a match the game holds (with a small loading bar after 120 ms) until the board's art is there. */
+function warmMatchArt() {
+  if (!arena?.warm || !game || room) return;
+  const g = game;
+  let box = null;
+  setUiPause("art", true);
+  const show = setTimeout(() => {
+    box = document.createElement("div");
+    box.id = "art-loader";
+    box.className = "boot-screen pack-loader";
+    box.innerHTML = `<div class="boot-bar" aria-hidden="true"><i></i></div><span>${t("Loading art …")}</span>`;
+    document.body.appendChild(box);
+  }, 120);
+  capWait(
+    arena.warm(prefetchArt() || [], (v) => {
+      if (!box) return;
+      box.querySelector("i").style.width = Math.round(v * 100) + "%";
+      box.querySelector("span").textContent = `${t("Loading art …")} ${Math.round(v * 100)} %`;
+    }),
+    30000,
+  )
+    .catch(() => {})
+    .then(() => {
+      clearTimeout(show);
+      box?.remove();
+      if (game === g) setUiPause("art", false);
+    });
+}
+function loadImage(url) {
+  return new Promise((done) => {
+    const img = new Image();
+    img.decoding = "async";
+    img.onload = img.onerror = () => done(img);
+    img.src = url;
+    preloadedArt.push(img);
+  }).then((img) => img.decode?.().catch(() => {}));
+}
+/** v0.25m: the tower and tier-1 creep cards (portraits too), recoloured in the player's colour. */
+function cardArt() {
+  const keys = new Set();
+  for (const x of catalog?.towers || []) if (x.isRoot && x.playable) keys.add(artFor(x));
+  for (const x of catalog?.sends || [])
+    if (x.playable && x.tier === 1) {
+      const key = artFor(x);
+      keys.add(key);
+      keys.add((!activeArtSet() && CREEP_PORTRAIT[key]) || key);
+    }
+  const recolor = TEAM_COLORS[colorChoice]?.hue != null;
+  return Promise.all(
+    [...keys].filter(Boolean).map((key) =>
+      loadImage(artUrl(key)).then(() => {
+        if (!recolor || !/^(tower|creep)-/.test(key)) return;
+        towerArtUrl(key, true);
+        const id = artUrl(key) + "#" + colorChoice,
+          t0 = performance.now();
+        return new Promise((done) => {
+          (function wait() {
+            typeof teamArt.get(id) == "string" || performance.now() - t0 > 8000 ? done() : setTimeout(wait, 40);
+          })();
+        });
+      }),
+    ),
+  );
+}
+// ---- v0.25o: match records kept on the device -----------------------------------------------------
+// Outside claude.ai (GitHub Pages, home-screen app) there is no database: records stay in localStorage, are sent
+// to the database when the game next runs inside claude.ai, or the player shares them ("Share match data").
+const KEEP_RECORDS = "felito.pendingRecords";
+function keepRecord(path, data) {
+  try {
+    const all = JSON.parse(localStorage.getItem(KEEP_RECORDS) || "{}");
+    all[path] = JSON.parse(JSON.stringify(data));
+    let text = JSON.stringify(all);
+    for (const k of Object.keys(all)) {
+      if (text.length < 3e6) break; // the oldest go first when the store gets too big
+      delete all[k];
+      text = JSON.stringify(all);
+    }
+    localStorage.setItem(KEEP_RECORDS, text);
+    window.felitoRecordLocal = true;
+  } catch {}
+}
+async function flushRecords() {
+  let all;
+  try {
+    all = JSON.parse(localStorage.getItem(KEEP_RECORDS) || "{}");
+  } catch {
+    return;
+  }
+  const keys = Object.keys(all);
+  if (!keys.length) return;
+  const db = await recDb();
+  if (!db) return;
+  for (const k of keys)
+    try {
+      await db.doc(k).set(all[k]);
+      delete all[k];
+    } catch {
+      break;
+    }
+  try {
+    if (Object.keys(all).length) localStorage.setItem(KEEP_RECORDS, JSON.stringify(all));
+    else localStorage.removeItem(KEEP_RECORDS);
+  } catch {}
+}
+setTimeout(() => flushRecords(), 4000);
+/** Number of kept matches (chunks not counted). */
+function pendingRecords() {
+  try {
+    const all = JSON.parse(localStorage.getItem(KEEP_RECORDS) || "{}");
+    return Object.keys(all).filter((k) => !k.includes("/chunks/")).length;
+  } catch {
+    return 0;
+  }
+}
+function exportRecordsButton() {
+  const n = pendingRecords();
+  return n ? `<button class="secondary-button" id="export-records" type="button">${t("Share match data")} (${n})</button>` : "";
+}
+/** Share sheet (phones), else clipboard, else a download. */
+async function exportRecords() {
+  let text;
+  try {
+    text = localStorage.getItem(KEEP_RECORDS) || "{}";
+  } catch {
+    return;
+  }
+  const name = `felito-matches-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-")}.json`,
+    file = new File([text], name, { type: "application/json" });
+  try {
+    if (navigator.canShare?.({ files: [file] })) {
+      await navigator.share({ files: [file], title: "Felito match data" });
+      recordsCleared();
+      return;
+    }
+  } catch (e) {
+    if (e?.name === "AbortError") return;
+  }
+  try {
+    await navigator.clipboard.writeText(text);
+    recordsCleared(t("Match data copied – paste it into the chat"));
+    toast(t("Match data copied – paste it into the chat"));
+    return;
+  } catch {}
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(file);
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  recordsCleared();
+  setTimeout(() => {
+    URL.revokeObjectURL(a.href);
+    a.remove();
+  }, 2000);
+}
+document.addEventListener("click", (e) => {
+  if (e.target.closest?.("#export-records")) {
+    e.preventDefault();
+    exportRecords();
+  }
+});
+/** Drops the shared records (keeps the running match) and marks the buttons. */
+function recordsCleared(label) {
+  try {
+    const all = JSON.parse(localStorage.getItem(KEEP_RECORDS) || "{}"),
+      running = rec && !rec.done ? rec.id : null;
+    for (const k of Object.keys(all)) if (!(running && k.includes(running))) delete all[k];
+    localStorage.setItem(KEEP_RECORDS, JSON.stringify(all));
+  } catch {}
+  document.querySelectorAll("#export-records").forEach((b) => {
+    b.textContent = label || t("Match data shared ✓");
+    b.disabled = true;
+  });
+}
+// ---- v0.25o: Hardo's win estimate ---------------------------------------------------------------
+/** Logistic model (fitted on recorded matches): lives, income, tower value, tier and the life swing of the last rounds. */
+const HARDO_ODDS = { b: 0, w: [0.515, 3.203, 1.186, 0.684, 0.328] };
+function hardoOdds(h, me, st) {
+  const towerGold = (q) =>
+      q.towers.reduce((sum, tw) => {
+        try {
+          return sum + (getSellBase(game, q.id, tw.id) || 0);
+        } catch {
+          return sum;
+        }
+      }, 0),
+    hist = st?.hist || [],
+    then = hist[Math.max(0, hist.length - 4)] || [h.lives, me.lives],
+    w = HARDO_ODDS,
+    x = [
+      Math.log((h.lives + 1) / (me.lives + 1)),
+      Math.log((h.income + 20) / (me.income + 20)),
+      Math.log((towerGold(h) + 60) / (towerGold(me) + 60)),
+      (h.tier || 1) - (me.tier || 1),
+      (then[1] - me.lives - (then[0] - h.lives)) / 10,
+    ],
+    z = w.b + x.reduce((sum, v, i) => sum + v * w.w[i], 0);
+  return 1 / (1 + Math.exp(-z));
+}

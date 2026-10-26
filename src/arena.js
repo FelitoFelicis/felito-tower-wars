@@ -624,6 +624,67 @@ export function mountArena({
       }
       return L;
     }
+    /** v0.25m: like need(), but resolves once the texture is there (key, or null if it cannot load yet). */
+    want(key, colorId) {
+      const still = !key.startsWith("anim:");
+      if (still) key = this.fold(key);
+      const color = CLOTH_COLORS[colorId],
+        recolor = !!color && color.hue !== null;
+      let tex = key;
+      if (recolor) {
+        let byColor = this.skinKeys.get(key);
+        if (!byColor) this.skinKeys.set(key, (byColor = new Map()));
+        tex = byColor.get(colorId);
+        if (!tex) byColor.set(colorId, (tex = key + "#" + colorId));
+      }
+      if (this.stage.hasTexture(tex)) return Promise.resolve(tex);
+      const sheet = key.startsWith("anim:") ? ANIM_MANIFEST[key.slice(5)] : null,
+        url = sheet ? animUrl(key.slice(5)) : artUrl(key);
+      if (url.startsWith("data:image/gif")) return Promise.resolve(null);
+      return this.stage.load(tex, url, {
+        fw: sheet?.fw || 0,
+        fh: sheet?.fh || 0,
+        paint: recolor ? (this.painters[colorId] ||= (d) => recolorTeam(d, colorId)) : null,
+        meta: still ? this.setMeta(key) : null,
+      });
+    }
+    /**
+     * v0.25m: loads (and colours) everything a match shows before it starts: the items given (the player's cards,
+     * items.neutral: the neutral waves), and for every player the creeps of their tier and the root towers.
+     * progress(0..1) is called as pictures arrive; resolves when all are there (or failed).
+     */
+    warm(items, progress) {
+      const jobs = [],
+        seen = new Set(),
+        add = (key, colorId) => {
+          if (!key || !ART_MANIFEST[key]) return;
+          const id = key + "|" + colorId;
+          if (seen.has(id)) return;
+          seen.add(id);
+          jobs.push(this.want(key, colorId));
+          if (ANIM_MANIFEST[key] && !activeArtSet()) {
+            jobs.push(this.want("anim:" + key, colorId));
+            const death = ANIM_MANIFEST[key + "-death"];
+            if (death && !death.in) jobs.push(this.want("anim:" + key + "-death", colorId));
+          }
+        },
+        game = getState(),
+        catalog = getCatalog(),
+        own = colorOf(getOwnPlayer()),
+        players = (game?.players || []).filter((pl) => pl && !pl.out);
+      for (const item of items || []) add(artFor(item), own);
+      for (const item of items?.neutral || []) add(artFor(item), "neutral");
+      if (catalog)
+        for (const pl of players) {
+          const pc = colorOf(pl.id);
+          for (const item of catalog.sends || []) if (item.playable && item.tier === pl.tier) add(artFor(item), pc);
+          for (const item of catalog.towers || []) if (item.isRoot && item.playable && item.support !== "farm") add(artFor(item), pc);
+        }
+      let done = 0;
+      const total = jobs.length || 1;
+      progress?.(0);
+      return Promise.all(jobs.map((j) => Promise.resolve(j).catch(() => null).then((r) => (done++, progress?.(done / total), r))));
+    }
     /** v0.23: fetch ahead the art of what the player can build and send now (in their colour), once a second. */
     prefetch(now) {
       if (now - (this.prefetchAt || 0) < 1000) return;
@@ -638,6 +699,13 @@ export function mountArena({
         this.need(key, color, false);
         if (ANIM_MANIFEST[key] && !activeArtSet()) this.need("anim:" + key, color, false); // v0.23a: art sets have no frame animations
       }
+      // v0.25m: the neutral waves to come
+      for (const item of items.neutral || []) {
+        const key = artFor(item);
+        if (!ART_MANIFEST[key]) continue;
+        this.need(key, "neutral", false);
+        if (ANIM_MANIFEST[key] && !activeArtSet()) this.need("anim:" + key, "neutral", false);
+      }
       // v0.23b: the creeps every player can send now, in that player's colour (a bought boss moves its buyer to the
       // next tier at once, so that tier loads right away): the standing picture first, then the walk sheet
       const game = getState();
@@ -646,12 +714,19 @@ export function mountArena({
         if (!pl || pl.out) continue;
         const pc = colorOf(pl.id);
         for (const item of catalog.sends || []) {
-          if (!item.playable || item.tier !== pl.tier) continue;
+          if (!item.playable || (item.tier !== pl.tier && item.tier !== pl.tier + 1)) continue; // v0.25m: and the next tier
           const key = artFor(item);
           if (!ART_MANIFEST[key]) continue;
           this.need(key, pc, false);
           if (ANIM_MANIFEST[key] && !activeArtSet()) this.need("anim:" + key, pc, false);
         }
+        // v0.25m: the upgrades of the towers on the board
+        for (const t of pl.towers || [])
+          for (const up of catalog.byId?.[t.typeId]?.upgrades || []) {
+            const next = catalog.byId[up],
+              key = next && artFor(next);
+            if (key && ART_MANIFEST[key]) this.need(key, pc, false);
+          }
       }
     }
     /**
@@ -3645,13 +3720,16 @@ export function mountArena({
   if (/^(127\.0\.0\.1|localhost)$/.test(location.hostname)) window.felitoArena = arena; // local debugging only
   let started = false,
     destroyed = false;
-  arena.preload().then(() => {
-    if (destroyed) return;
-    arena.create();
-    started = true;
-    arena.switchArt(); // design variants: a design picked while the board was still loading
-    stage.start((time, delta, redraw) => arena.update(time, delta, redraw));
-  });
+  const preloaded = arena
+    .preload()
+    .catch(() => {})
+    .then(() => {
+      if (destroyed) return;
+      arena.create();
+      started = true;
+      arena.switchArt(); // design variants: a design picked while the board was still loading
+      stage.start((time, delta, redraw) => arena.update(time, delta, redraw));
+    });
   // The board follows its container and the HUD/dock around it.
   const resize = new ResizeObserver(() => {
     measureInsets();
@@ -3670,6 +3748,13 @@ export function mountArena({
     if (el) resize.observe(el);
   const scene = () => (started ? arena : null);
   return {
+    /** v0.25m: load a match's art before it starts (see Arena.warm); resolves when done. */
+    warm(items, progress) {
+      return preloaded.then(() => {
+        const sc = scene();
+        return sc ? sc.warm(items, progress) : [];
+      });
+    },
     /** v0.15: roll the view to another field (apply switches it). */
     roll(step, info, apply, back) {
       const sc = scene();
