@@ -570,6 +570,7 @@ function placeFree(game, p, id, x, y) {
   const t = newTower(game, p, id, x, y);
   t.buildRemaining = 0;
   t.preset = true;
+  markSummoned(t); // v0.26fF: placed for free
   p.towers.push(t);
   p.path = findPath(game, p.id) || [];
   completeTower(game, p, t);
@@ -1072,6 +1073,7 @@ function newTower(game, p, id, gx, gy) {
     spellCooldowns: {},
     kills: 0,
     totalSpent: item.cost,
+    value: item.cost || 0, // v0.26fF: tower value (full price of every level)
     woodSpent: item.woodCost,
     completed: false,
   };
@@ -1088,7 +1090,7 @@ export const PERKS = Object.freeze({
   militia: { name: "Militia", max: 1, powerup: true, text: "2 free Footman. Footman-Line +1 damage", detail: "Spawn 2 Footman on random fields. Footman-Line +1 damage" }, // v0.22g1: +1 damage // v0.17h: once per player; v0.19e2: powerup
   evolution: { name: "Upgrade Tower", max: 1, powerup: true, text: "Upgrades a random level 1–2 tower and copies it", detail: "Upgrades a random level 1 or 2 tower and summons a copy to a random field" }, // v0.22o2: renamed from Evolution; v0.19g1: level 2 towers first, the copy sells for 10 %
   gold: { name: "Gold", max: 1, powerup: true, text: "Instantly +{gold} gold" }, // v0.10u: powerup = instant reward, no tile once taken
-  novice: { name: "Novice", max: 5, text: "EXP +{novice}. Next EXP generator free", detail: "Increases EXP gain +{novice}. Next EXP generator is free" }, // v0.22m2: 15 / 30 / 45 / 60 / 75 %, every level one free level 1 EXP generator
+  novice: { name: "Novice", max: 3, text: "EXP +{novice}. Next EXP generator free", detail: "Increases EXP gain +{novice}. Next EXP generator is free" }, // v0.22m2: 15 / 30 / 45 / 60 / 75 %, every level one free level 1 EXP generator
   volley: { name: "Arrow Volley", max: 5, text: "Arrows rain on an area dealing {volleyDmg} damage each" }, // v0.20e: shorter tooltip
   wings: { name: "Wings of War", max: 10, element: "storm", text: "Flyers +{wingsHp} HP, +{wingsSpeed} speed, +{wingsInc} income", detail: "Flying creeps +{wingsHp} HP, +{wingsSpeed} speed, +{wingsInc} income" }, // v0.10p
   hellfire: { name: "Lava Floor", max: 10, element: "fire", text: "Ground creeps on lava burn for {hellfire} damage/s", detail: "6 lava tiles appear on random fields of your board (2 in the upper half, 2 in the lower half, 2 anywhere), one more for each level from 2 on. Ground creeps on lava burn for {hellfire} damage per second" }, // v0.23k: random tiles instead of the 6th row // v0.10p, v0.16g
@@ -1121,15 +1123,15 @@ export const PERKS = Object.freeze({
   nobility: { name: "Heavy Nobility", max: 3, element: "earth", text: "Heavy creeps {nobility} cheaper, +{nobilityHp} HP", detail: "Heavy creeps {nobility} cheaper, +{nobilityHp} HP, restock 10% faster" },
   breeding: { name: "Breeding Pools", max: 3, element: "plague", text: "Deathrattles: {breeding} chance for an extra creep", detail: "Deathrattles have {breeding} chance to spawn an extra creep. Summoned creeps +{breedingHp} HP" }, // v0.19j: tooltip
   pillar: { name: "Pillar of Fire", max: 5, element: "fire", text: "Active: fire pillar, {pillar} damage every 0.3 s", detail: "Active ability: a pillar of fire burns an area, {pillar} damage every 0.3 s" }, // v0.19j: shorter tooltip
-  fort: { name: "Fortifications", max: 1, text: "Unlocks the Wall: 4 gold, no attack", detail: "Unlocks the Wall: 4 gold, no attack. Double-tap sells it for 1 gold" },
+  fort: { name: "Fortifications", max: 1, text: "Builds a row of Walls with one gap. Unlocks the Wall: 4 gold", detail: "Builds a full row of Walls with one free field at its left or right end, on the free row farthest from your towers. Unlocks the Wall: 4 gold, no attack. Double-tap sells it for 1 gold" }, // v0.26fF: a row of walls
   agolem: { name: "Arcane Golem", max: 5, element: "arcane", text: "Active: a golem knocks creeps back up your path", detail: "Active ability: a golem walks up your path, knocks creeps back, then runs on to the next lane" },
   // v0.14: two new perks
   slave: { name: "Slave Labour", max: 3, element: "plague", text: "1st creep: +{slaveStock} stock, recruits {slaveSpeed} faster", detail: "1st creep of every tier: +{slaveStock} max stock, recruits {slaveSpeed} faster" },
   guardian: { name: "River Guardian", max: 10, element: "water", text: "Every {guardCd} s your strongest new creep gets a {guardShield} HP shield", detail: "Every {guardCd} s your strongest new creep gets a water shield of {guardShield} HP, magic damage −{guardMagic} while it holds" },
   // v0.18h: four new perks; "unpopular" = the share by which the offer chance drops after each refusal
   quarry: { name: "Quarry", max: 1, element: "earth", powerup: true, unpopular: 0.5, text: "+{quarryGold} gold and 8 stones. Clear them for an Earth perk", detail: "Instantly +{quarryGold} gold and 8 stones on your field. Clear them all for a random Earth perk" }, // v0.24s: gold by round
-  backup: { name: "Backup Line", max: 3, element: "storm", unpopular: 0.5, text: "Archer-Line +{backup} attack speed while top {backupRows} rows are empty", detail: "Archer-Line towers +{backup} attack speed while your top {backupRows} rows hold no tower. Level 3: one mist row less" }, // v0.24q
-  tides: { name: "Low Tides", max: 3, element: "water", unpopular: 0.5, text: "Melee towers +{tides} damage while bottom {tidesRows} rows are empty", detail: "Melee towers +{tides} damage while your bottom {tidesRows} rows hold no tower. Level 3: one water row less" }, // v0.24q
+  backup: { name: "Backup Line", max: 3, element: "storm", unpopular: 0.5, text: "Archer-Line +{backup} attack speed while top {backupRows} rows are empty", detail: "Archer-Line towers +{backup} attack speed while your top {backupRows} rows hold no tower. Lv. 3: one mist row less" }, // v0.24q
+  tides: { name: "Low Tides", max: 3, element: "water", unpopular: 0.5, text: "Melee towers +{tides} damage while bottom {tidesRows} rows are empty", detail: "Melee towers +{tides} damage while your bottom {tidesRows} rows hold no tower. Lv. 3: one water row less" }, // v0.24q
   sanction: { name: "Sanction Policy", max: 1, element: "arcane", text: "Every 2nd creep locked, others +15% income, 1st only +7.5%, cooldowns −15%", detail: "Every 2nd creep locked for 20 rounds, other creeps +15% income, the 1st creep only +7.5%. Abilities cooldown 15% faster permanently" }, // v0.23: the 1st creep's +7.5 % named // v0.19h1: no gold, cooldown 15 % (the tier boss is still locked)
   monsun: { name: "Monsun", max: 5, element: "storm", text: "Active: pushes creeps back for {monsun} s", detail: "Active ability: Push creeps back for {monsun} s, lightning strikes flyers" },
   // v0.21: the former level-up upgrades (Warcraft researches) are ordinary perks now. "element" = needs that
@@ -1159,7 +1161,7 @@ export const VOLLEY = { cooldown: 20, cdStep: 1, radius: 1.5, perLevel: 3, bonus
 /** v0.21c: Arrow Volley cooldown by perk level: 20 s at level 1, 1 s less per further level. */
 export const volleyCd = (level) => VOLLEY.cooldown - VOLLEY.cdStep * Math.max(0, (level | 0) - 1);
 /** v0.19g1: Novice: EXP gain per perk level (1–5). */
-export const NOVICE = [0, 0.15, 0.3, 0.45, 0.6, 0.75]; // v0.22m2: 15 / 30 / 45 / 60 / 75 % (was 20 / 35 / 50 / 60 / 70)
+export const NOVICE = [0, 0.12, 0.24, 0.36]; // v0.26fF: +12 % per level, max level 3; // v0.22m2: 15 / 30 / 45 / 60 / 75 % (was 20 / 35 / 50 / 60 / 70)
 /** v0.19h1: Pillage: share of the breached player's gold per level. */
 export const PILLAGE = { shares: [0, 0.14, 0.24, 0.3], max: 3 }; // v0.22m2: 14 / 24 / 30 % (was 12 % per level)
 /** Research that only an element unlocks: its element (for colour and frame in the dialog). */
@@ -1260,7 +1262,7 @@ export const monsunDamage = (p, level = perkLevel(p, "monsun")) => 30 + 20 * lev
 /** v0.20c: perks that sit out more than one level after a pick (Supergrowth: two). */
 /** v0.26dF: levels a perk sits out after a pick when PERK_SKIP_LEVELS has no value for it. */
 const PERK_SKIP_DEFAULT = 2;
-const PERK_SKIP_LEVELS = { wolves: 3, mind: 3, exhume: 3, ring: 2, revenge: 3, backup: 3, tides: 3, supergrowth: 2, hellfire: 2, frostbolt: 2, clones: 2, infested: 2, lone: 2, bank: 3, monsun: 2 }; // v0.26cF: Spirit Wolves, Obsession, Exhumination, Revenge skip 3, Ring of Life skips 2 // v0.24q: Backup Line, Low Tides skip 3 // v0.24j: Monsun skips 2 // v0.24i: Magic Bank skips 3 // v0.23zi: Spartans skip 2 // v0.23w: Frost Bolt, Clones // v0.21x: Lava Floor skips 2
+const PERK_SKIP_LEVELS = { novice: 3, wolves: 3, mind: 3, exhume: 3, ring: 2, revenge: 3, backup: 3, tides: 3, supergrowth: 2, hellfire: 2, frostbolt: 2, clones: 2, infested: 2, lone: 2, bank: 3, monsun: 2 }; // v0.26cF: Spirit Wolves, Obsession, Exhumination, Revenge skip 3, Ring of Life skips 2 // v0.24q: Backup Line, Low Tides skip 3 // v0.24j: Monsun skips 2 // v0.24i: Magic Bank skips 3 // v0.23zi: Spartans skip 2 // v0.23w: Frost Bolt, Clones // v0.21x: Lava Floor skips 2
 const PERK_SKIP = new Set(["pillar", "agolem", "monsun", "slave", "guardian", "mind", "tailwind", "carmor", "owl", "autoloader", "hills"]); // v0.22g1: Autoloader // v0.19a1: Mind Control, Tailwind, Creep Armor, Watcher Owl
 /**
  * v0.19a1: reworked level-up upgrades (research perks). Their effects live here instead of the map
@@ -1535,6 +1537,7 @@ function tickSummons(game, p) {
     else if (s.kind === "militia") placeMilitia(game, p, 2);
     else if (s.kind === "quarry") placeQuarry(game, p, s.left ?? null, s.large ?? null, s.tries || 0); // v0.18h; v0.22o2: retries
     else if (s.kind === "copy") placeCopy(game, p, s.id); // v0.19g1: Evolution
+    else if (s.kind === "fort") placeWallRow(game, p); // v0.26fF
   }
 }
 // ---- v0.18h: Quarry, Backup Line, Low Tides, Sanction Policy ----------------------------------
@@ -1726,6 +1729,7 @@ function summonTower(game, p) {
   tower.summoned = true;
   tower.summonValue = item.pointValue || 0;
   tower.totalSpent = 0;
+  markSummoned(tower); // v0.26fF
   p.towers.push(tower);
   p.stats.built++;
   repath(game, p);
@@ -2474,7 +2478,7 @@ export function expNeeded(level) {
 }
 function gainExp(game, p, amount, source = "other") {
   if (!(amount > 0)) return;
-  amount *= 1 + NOVICE[Math.min(5, perkLevel(p, "novice"))] + SCHOLAR.exp * Math.min(10, perkLevel(p, "scholar")); // v0.21e: up to level 10 // v0.19g1: Novice 20 / 35 / 50 / 60 / 70 %; v0.20d: Scholar +10 % per level
+  amount *= 1 + NOVICE[Math.min(3, perkLevel(p, "novice"))] + SCHOLAR.exp * Math.min(10, perkLevel(p, "scholar")); // v0.21e: up to level 10 // v0.19g1: Novice 20 / 35 / 50 / 60 / 70 %; v0.20d: Scholar +10 % per level
   p.exp += amount;
   p.stats.expEarned += amount;
   (p.stats.expBy ||= {})[source] = (p.stats.expBy[source] || 0) + amount; // v0.24oF: EXP per source (stats and tests)
@@ -2758,6 +2762,7 @@ function applyOption(game, p, option, level) {
     if (option.id === "monsun" && !(p.monsunReady > game.time)) p.monsunReady = game.time;
     if (option.id === "archery") p.freeArchers = (p.freeArchers || 0) + 1; // v0.19h1: was Forest Patrol; v0.20a: every pick, one free archer
     if (option.id === "militia") queueSummon(game, p, "militia"); // v0.17q
+    if (option.id === "fort") queueSummon(game, p, "fort"); // v0.26fF: a row of walls
     if (option.id === "quarry") {
       const gold = quarryGold(pick.level, p, game); // v0.24s: by round
       p.gold += gold;
@@ -3038,6 +3043,79 @@ export const quarryGold = (level, p = null, game = null) => Math.max(60, (p?.lev
 /** v0.22: Gold perk: round × 5 + 20, with the round in which the player reached that level. */
 export const perkGold = (level, p = null, game = null) => (p?.levelRound?.[level] ?? game?.round ?? 0) * 5 + 20;
 /** Militia: footmen that stand at once on random free fields (never blocking the path). */
+/**
+ * v0.26fF: tower value. Every tower keeps the gold its levels cost (t.value): built and upgraded levels count in
+ * full (discounts and free towers too); a tower summoned for free (perks, mission presets) counts its level 1 at
+ * 50 % and every higher level at 25 %. Paid upgrades on top count in full. Selling returns 50 % of the value
+ * (more against Very Easy / Easy bots, SELL_RELIEF).
+ */
+export const TOWER_VALUE = { summonFirst: 0.5, summonLater: 0.25, sell: 0.5 };
+let TOWER_PARENT = null;
+function towerChain(id) {
+  if (!TOWER_PARENT) {
+    TOWER_PARENT = new Map();
+    for (const u of getCatalog().towers) for (const up of u.upgrades || []) if (!TOWER_PARENT.has(up)) TOWER_PARENT.set(up, u.id);
+  }
+  const chain = [id];
+  for (let cur = id, n = 0; !obj(cur)?.isRoot && TOWER_PARENT.has(cur) && n < 20; n++) chain.unshift((cur = TOWER_PARENT.get(cur))); // up to the buildable root
+  return chain;
+}
+export function summonedValue(id) {
+  return towerChain(id).reduce((sum, x, i) => sum + (obj(x)?.cost || 0) * (i ? TOWER_VALUE.summonLater : TOWER_VALUE.summonFirst), 0);
+}
+/** v0.26fF: a tower's value (older saves without one: the full price, summoned towers by the summon rule). */
+export function towerValue(t) {
+  if (Number.isFinite(t?.value)) return t.value;
+  const item = obj(t?.typeId);
+  return t?.summoned || t?.preset || t?.militia ? summonedValue(t.typeId) : item?.pointValue || item?.cost || 0;
+}
+function markSummoned(t) {
+  t.value = summonedValue(t.typeId);
+  t.freeBase = t.value; // what the tower was worth for free (left out of Tower Worth achievements)
+}
+/** v0.26fF: Fortifications: a full row of walls with one free field at its left or right end, on the free row farthest from the own towers. */
+function placeWallRow(game, p) {
+  const cols = game.grid.cols,
+    rows = laneRows(game, p),
+    towerRows = p.towers.map((t) => gridAt(game, t).y),
+    rowsFree = [];
+  for (let y = 0; y < rows; y++) {
+    let ok = true;
+    for (let x = 0; x < cols && ok; x++) if (towerAt(p, x, y) || !canBuild(game, p.id, x, y, WALL_ID).ok) ok = false;
+    if (ok) rowsFree.push({ y, far: towerRows.length ? Math.min(...towerRows.map((ty) => Math.abs(ty - y))) : rows });
+  }
+  rowsFree.sort((a, b) => b.far - a.far);
+  const best = rowsFree.filter((r) => r.far === rowsFree[0]?.far);
+  // ties: random order; each row tries the gap on the side that makes the path longer first
+  while (best.length) {
+    const { y } = best.splice(Math.floor(random(game) * best.length), 1)[0],
+      sides = [0, cols - 1].map((gap) => ({ gap, len: findPath(game, p.id, null, Array.from({ length: cols }, (_, x) => ({ x, y })).filter((c) => c.x !== gap))?.length || 0 }))
+        .filter((s) => s.len > 0)
+        .sort((a, b) => b.len - a.len || random(game) - 0.5);
+    for (const { gap } of sides) {
+      const cells = Array.from({ length: cols }, (_, x) => x).filter((x) => x !== gap);
+      if (!cells.every((x) => canBuild(game, p.id, x, y, WALL_ID).ok)) continue;
+      const placed = [];
+      for (const x of cells) {
+        if (!canBuild(game, p.id, x, y, WALL_ID).ok) break;
+        const w = newTower(game, p, WALL_ID, x, y);
+        w.buildRemaining = 0;
+        w.summoned = true;
+        markSummoned(w);
+        p.towers.push(w);
+        placed.push(w);
+        p.stats.built++;
+        repath(game, p);
+        emit(game, "build", { player: p.id, id: WALL_ID, towerId: w.id, x: w.x, y: w.y, summoned: true });
+        completeTower(game, p, w);
+      }
+      if (placed.length) {
+        emit(game, "summon", { player: p.id, id: WALL_ID, towerId: placed[0].id, x: placed[0].x, y: placed[0].y, level: 1, walls: placed.length });
+        return;
+      }
+    }
+  }
+}
 function placeMilitia(game, p, count) {
   for (let k = 0; k < count; k++) {
     const cells = [];
@@ -3048,6 +3126,7 @@ function placeMilitia(game, p, count) {
       tower = newTower(game, p, "h000", x, y);
     tower.buildRemaining = 0;
     tower.militia = true;
+    markSummoned(tower); // v0.26fF: summoned for free
     p.towers.push(tower);
     p.stats.built++;
     repath(game, p);
@@ -3089,6 +3168,7 @@ function evolveTower(game, p) {
     old = obj(t.typeId),
     ratio = t.hp / t.maxHp;
   if (t.completed && old.woodIncome) p.woodIncome -= old.woodIncome;
+  t.value = towerValue(t) + (item.cost || 0); // v0.26fF: a free upgrade counts in full
   t.previousTypeId = t.typeId;
   t.typeId = id;
   t.name = item.shortName;
@@ -3118,6 +3198,7 @@ function placeCopy(game, p, id) {
   tower.summoned = true;
   tower.summonValue = item.pointValue || 0;
   tower.totalSpent = 0;
+  markSummoned(tower); // v0.26fF
   p.towers.push(tower);
   p.stats.built++;
   repath(game, p);
@@ -3284,7 +3365,7 @@ export function towerWorth(p) {
     if (t.typeId === ROCK_ID) continue;
     const item = obj(t.typeId);
     if (!item || item.support === "farm") continue;
-    sum += Math.max(0, (item.pointValue || 0) - (t.discount || 0) - (t.summonValue || 0) - (t.freeValue || 0));
+    sum += Math.max(0, towerValue(t) - (t.freeBase || 0)); // v0.26fF: tower value without what perks gave for free
   }
   return sum;
 }
@@ -3477,7 +3558,8 @@ function runCommand(game, input) {
       ratio = t.hp / t.maxHp;
     pay(p, check.cost);
     // v0.25j: what a sale during the upgrade has to undo (the upgrade is cancelled and paid back in full first)
-    t.upgradeUndo = { from: t.typeId, name: t.name, gold: check.cost.gold, spent: item.cost, wood: item.woodCost, woodBack: t.completed && old.woodIncome ? old.woodIncome : 0 };
+    t.value = towerValue(t) + (item.cost || 0); // v0.26fF
+    t.upgradeUndo = { from: t.typeId, name: t.name, gold: check.cost.gold, spent: item.cost, value: item.cost || 0, wood: item.woodCost, woodBack: t.completed && old.woodIncome ? old.woodIncome : 0 };
     if (t.completed && old.woodIncome) p.woodIncome -= old.woodIncome;
     t.previousTypeId = t.typeId;
     t.typeId = id;
@@ -3742,15 +3824,10 @@ export function getSellValue(game, playerIndex, towerId) {
   if (t.typeId === ROCK_ID) return -(t.stonePrice ?? game.mission?.rockCost ?? 40); // v0.17: clearing a rock costs gold (v0.18h: Quarry stones 50 / 200)
   if (item.support === "farm") return 0;
   if (t.typeId === WALL_ID) return 1; // v0.22zk: a wall always sells for 1 gold
+  // v0.26fF: 50 % of the tower value (less loss against Very Easy / Easy bots)
   const relief = sellRelief(game, playerIndex),
-    rate = item.sellRate + (1 - item.sellRate) * relief, // v0.19d2: smaller sell penalty against very easy / easy bots
-    value = Math.trunc((item.pointValue - (t.discount || 0)) * rate);
-  // v0.12: a summoned tower gives back only 10 % of its own value (paid upgrades in full)
-  if (t.summoned) return Math.max(0, value - Math.trunc((t.summonValue || 0) * item.sellRate) + Math.trunc((t.summonValue || 0) * 0.1));
-  // v0.19h1: free towers (Archery archers, Novice EXP generators) the same way
-  if (t.freeValue) return Math.max(0, value - Math.trunc(t.freeValue * rate) + Math.trunc(t.freeValue * 0.1));
-  if (t.free && t.typeId === "h003") return Math.trunc(item.pointValue * 0.1); // older saves: a free archer without its value
-  return value;
+    rate = TOWER_VALUE.sell + (1 - TOWER_VALUE.sell) * relief;
+  return Math.max(0, Math.trunc(towerValue(t) * rate + 1e-9));
 }
 /** v0.19h1: what the tower would sell for without a penalty (summoned, free or discounted); the app shows it in brackets. */
 export function getSellBase(game, playerIndex, towerId) {
@@ -3772,6 +3849,7 @@ function sellTower(game, p, towerId) {
     p.gold += u.gold;
     p.woodIncome += u.woodBack;
     t.totalSpent -= u.spent;
+    t.value = towerValue(t) - (u.value ?? u.spent ?? 0); // v0.26fF
     t.woodSpent -= u.wood;
     t.typeId = u.from;
     t.name = u.name;

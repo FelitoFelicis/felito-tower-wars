@@ -178,7 +178,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.26e",
+const APP_VERSION = "0.26f",
   APP_BRANCH = "F", // v0.23q: author marker (F = Felix, S = Steven) and branch text, shown behind the version; APP_VERSION stays plain for online matches (VersionPublishingRules.md)
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "26.10.2026";
@@ -1802,7 +1802,7 @@ function cardStatus(item) {
     if (stock && stock.count < 1) return `${Math.max(1, Math.ceil(stock.next - game.time))}s`;
   }
   const level = researchLevel(p, item.id); // v0.21k
-  return item.kind === "research" && level ? t("Level {n}", { n: level }) : "";
+  return item.kind === "research" && level ? t("Lv. {n}", { n: level }) : "";
 }
 function setUiPause(reason, value) {
   value ? uiPauses.add(reason) : uiPauses.delete(reason);
@@ -2227,7 +2227,7 @@ function playerTip(q) {
       row(t("Lives"), String(q.lives)) +
       row(t("Gold"), q.out ? "–" : format(goldShown(q.gold))) + // v0.25: full number
       row(t("Income"), q.out ? "–" : "+" + resourceNumber(Math.floor(q.income)), " tip-inc") +
-      row(t("Level"), String(q.level || 1)) +
+      row(t("Lv."), String(q.level || 1)) +
       row(t("Tier"), String(q.tier || 1)) + // v0.22u2
       row(t("Maze value"), format(Math.floor(towerWorth(q))), " tip-gold") + // v0.19k: what the player's towers cost
       (els.length ? `<div class="tip-icons tip-elements">${els.map((f) => `<span class="tip-icon el-${f.id}" style="--el:${f.color}" title="${esc(t(f.name))}"><img src="${iconUrl(ELEMENT_ICON[f.id])}" alt="${esc(t(f.name))}"></span>`).join("")}</div>` : ""),
@@ -2265,7 +2265,7 @@ function abilityTip(id) {
   const [desc, rows] = tips[id]();
   return {
     html:
-      `<div class="tip-head"><b>${esc(t(abilityName(id)))}</b>${p?.perks?.[id] ? `<span class="tip-level">${esc(t("Level {n}", { n: lv }))}</span>` : ""}</div>` +
+      `<div class="tip-head"><b>${esc(t(abilityName(id)))}</b>${p?.perks?.[id] ? `<span class="tip-level">${esc(t("Lv. {n}", { n: lv }))}</span>` : ""}</div>` +
       `<div class="tip-text">${esc(t(desc))}</div>` +
       rows.map(([k, v]) => `<div class="tip-row"><span>${esc(t(k))}</span><b>${lineHtml(esc(v))}</b></div>`).join(""),
   };
@@ -2364,7 +2364,7 @@ helpTip.addEventListener("pointerover", (e) => {
   clearTimeout(tipGrace);
   if (!icon) return;
   buffTip.innerHTML =
-    `<div class="tip-head"><b>${icon.dataset.buffName}</b><span class="tip-level">${esc(t("Level {n}", { n: icon.dataset.buffLevel }))}</span></div>` +
+    `<div class="tip-head"><b>${icon.dataset.buffName}</b><span class="tip-level">${esc(t("Lv. {n}", { n: icon.dataset.buffLevel }))}</span></div>` +
     `<div class="tip-text">${valHtml(icon.dataset.buffText)}</div>`;
   buffTip.hidden = false;
   const r = icon.getBoundingClientRect(),
@@ -2431,7 +2431,7 @@ function showDialogTip(el) {
   if (dialogTip.parentNode !== host) host.append(dialogTip);
   const level = el.dataset.tipLevel;
   dialogTip.innerHTML =
-    `<div class="tip-head"><b>${esc(el.dataset.tip)}</b>${level ? `<span class="tip-level">${esc(t("Level {n}", { n: level }))}</span>` : ""}</div>` +
+    `<div class="tip-head"><b>${esc(el.dataset.tip)}</b>${level ? `<span class="tip-level">${esc(t("Lv. {n}", { n: level }))}</span>` : ""}</div>` +
     (el.dataset.tipText ? `<div class="tip-text">${valHtml(el.dataset.tipText)}</div>` : "");
   dialogTip.hidden = false;
   dialogTipFor = el;
@@ -4087,7 +4087,7 @@ function doubleUpgrade(tw, advanced = false) {
   runQueue();
   showTower(tw);
   renderCards();
-  if (chain.length > 1) note(t("{n} upgrades queued up to {name}", { n: chain.length, name: `${itemName(goal)} Level ${goal.level || 1}` }));
+  if (chain.length > 1) note(t("{n} upgrades queued up to {name}", { n: chain.length, name: `${itemName(goal)} Lv. ${goal.level || 1}` }));
   else if (upQueue.some((q) => q.towerId === tw.id)) note("Upgrade queued: starts as soon as you have enough gold.");
   tone("upgrade");
 }
@@ -4121,7 +4121,7 @@ function upgradeDeck(tw) {
         const a = available(game, own, "upgrade", u.id, tw.id),
           locked = false,
           waiting = upQueue.some((q) => q.towerId === tw.id && q.id === u.id),
-          name = `${itemName(u)} Level ${u.level || 1}`;
+          name = `${itemName(u)} Lv. ${u.level || 1}`;
         const afterBuild = /Still under construction/.test(a.reason || "");
         return `<button class="unit-card up-card ${a.ok || afterBuild ? "" : "unaffordable"} ${isPoor(a) ? "poor" : ""} ${waiting ? "queued" : ""}" data-upgrade="${u.id}" aria-label="${esc(t("Upgrade to {name}, {cost} gold", { name, cost: format(u.cost) }))}${a.ok ? "" : ", " + esc(t(a.reason))}" title="${esc(a.ok ? name : t(a.reason))}"><span class="up-title">${esc(name)}</span><span class="up-art"><img src="${towerArtUrl(artFor(u))}" alt=""></span><span class="up-cost"><span class="price">${format(u.cost)}</span>${u.woodCost ? `<span class="price wood-price">${format(u.woodCost)}</span>` : ""}</span><i class="up-arrow" aria-hidden="true"></i>${waiting ? '<span class="up-queued">⏳</span>' : ""}${locked ? `<span class="up-lock">${esc(t(a.reason))}</span>` : ""}${elementFrame(u)}</button>`;
       })
@@ -4698,7 +4698,7 @@ const perkVars = (level, q, lv, next) => {
     archery: pct(0.05 * lv),
     gunpowder: format(gunpowderTiles(lv)), // v0.21u: table per level
     archeryFree: next && lv === 1 ? ". " + t("Next 2 Archer Towers are free") : "", // v0.19h1: only when first offered
-    novice: pct(NOVICE[Math.min(5, lv)]), // v0.19g1
+    novice: pct(NOVICE[Math.min(3, lv)]), // v0.19g1; v0.26fF: max level 3
     volleyArrows: VOLLEY.perLevel * lv,
     volleyDmg: format(Math.round((VOLLEY.bonus + (game ? getStats(game, q?.id ?? own, "h003").damage : 0)) * (1 + VOLLEY.perRound * Math.max(0, game?.round || 0)))), // v0.19l: damage per arrow
     volleyCd: format(abilityCd(q, volleyCd(lv))), // v0.21c: by level
@@ -4743,13 +4743,13 @@ function pickCard(o, i, p) {
       els = perkLook(o.id), // v0.21: frame also for "look" perks
       pel = els.length ? elementOf(els.find((e) => p.research[elementOf(e)?.unlock]) || els[0]) : null; // v0.10n: element perks get the element frame
     // v0.23: "pick-up": offered at level 2 or higher, its text shows "old → new" values (perkText)
-    return `<button class="pick-card pick-perk perk-${o.id}${pel ? " pick-element el-" + pel.id : ""}${level ? " pick-up" : ""}${ACTIVE_PERKS.has(o.id) ? " pick-active" : ""}" data-pick="${i}"${pel ? ` style="--el:${pel.color}"` : ""}>${ACTIVE_PERKS.has(o.id) ? `<span class="pick-book" aria-hidden="true"><img src="${PERK_ART[o.id](level + 1)}" alt="" decoding="sync"></span>` : `<img src="${PERK_ART[o.id](level + 1)}" alt="" decoding="sync">`}<b>${esc(t(d.name))}</b><span>${valHtml(perkText(o.id, p.picks[0]?.level || p.level, p, true))}</span>${perkCd(o.id, p, true) ? `<small class="pick-cd">${valHtml(perkCd(o.id, p, true))}</small>` : ""}<small>${t("Level {a} → {b}", { a: level, b: level + 1 })}</small></button>`;
+    return `<button class="pick-card pick-perk perk-${o.id}${pel ? " pick-element el-" + pel.id : ""}${level ? " pick-up" : ""}${ACTIVE_PERKS.has(o.id) ? " pick-active" : ""}" data-pick="${i}"${pel ? ` style="--el:${pel.color}"` : ""}>${ACTIVE_PERKS.has(o.id) ? `<span class="pick-book" aria-hidden="true"><img src="${PERK_ART[o.id](level + 1)}" alt="" decoding="sync"></span>` : `<img src="${PERK_ART[o.id](level + 1)}" alt="" decoding="sync">`}<b>${esc(t(d.name))}</b><span>${valHtml(perkText(o.id, p.picks[0]?.level || p.level, p, true))}</span>${perkCd(o.id, p, true) ? `<small class="pick-cd">${valHtml(perkCd(o.id, p, true))}</small>` : ""}<small>${t("Lv. {a} → {b}", { a: level, b: level + 1 })}</small></button>`;
   }
   if (o.type === "forget") {
     // v0.26eF: Amnesia: an owned perk to forget, with the rewards it brings
     const d = PERKS[o.id],
       level = p.perks?.[o.id] || 0;
-    return `<button class="pick-card pick-perk pick-forget perk-${o.id}" data-pick="${i}"><img src="${PERK_ART[o.id](level)}" alt="" decoding="sync" style="filter:grayscale(.6)"><b>${esc(t(d.name))}</b><span>${t("Forget it: +{n} rewards", { n: 1 + level })}</span><small>${t("Level {n}", { n: level })}</small></button>`;
+    return `<button class="pick-card pick-perk pick-forget perk-${o.id}" data-pick="${i}"><img src="${PERK_ART[o.id](level)}" alt="" decoding="sync" style="filter:grayscale(.6)"><b>${esc(t(d.name))}</b><span>${t("Forget it: +{n} rewards", { n: 1 + level })}</span><small>${t("Lv. {n}", { n: level })}</small></button>`;
   }
   if (o.type === "quest") {
     const q = QUESTS[o.id];
@@ -4877,7 +4877,7 @@ function abilitiesModal() {
     section = (q) =>
       `<div class="abil-player${q.out ? " out" : ""}" style="--pc:${TEAM_COLORS[colors[q.id]]?.css || "#6a8496"}"><div class="abil-head"><b>${esc(playerName(q))}</b><span>Lv ${q.level} · ${format(Math.floor(q.exp))}/${format(q.expNext)} EXP</span></div>${ownedTiles(q, { names: true, label: false }) || `<p class="modal-note">${t("No abilities chosen yet.")}</p>`}</div>`;
   showModal(
-    `${modalHeader(t("Abilities"))}${order.map(section).join("")}<p class="modal-note">${t("Level {n}: collect EXP for the next reward.", { n: p.level })}</p>`,
+    `${modalHeader(t("Abilities"))}${order.map(section).join("")}<p class="modal-note">${t("Lv. {n}: collect EXP for the next reward.", { n: p.level })}</p>`,
     { pauseGame: sessionMode !== "online" },
   );
 }
@@ -4933,7 +4933,7 @@ function pickModal() {
   const p = game?.players[own],
     pick = p?.picks[0];
   if (!pick) return abilitiesModal();
-  const title = pick.kind === "amnesia" ? t("Amnesia: choose a perk to forget") : pick.kind === "element" ? (pick.level <= 1 ? t("Choose your first element") : t("Level {n}: new element", { n: pick.level })) : t("Level {n}: choose a reward", { n: pick.level });
+  const title = pick.kind === "amnesia" ? t("Amnesia: choose a perk to forget") : pick.kind === "element" ? (pick.level <= 1 ? t("Choose your first element") : t("Lv. {n}: new element", { n: pick.level })) : t("Lv. {n}: choose a reward", { n: pick.level });
   showModal(
     `${modalHeader(title)}<div class="pick-grid">${pick.options.map((o, i) => pickCard(o, i, p)).join("")}</div>${ownedTiles(p)}${p.picks.length > 2 ? `<p class="modal-note">${t("{n} more rewards after this.", { n: p.picks.length - 1 })}</p>` : p.picks.length > 1 ? `<p class="modal-note">${t("One more reward after this.")}</p>` : pick.kind === "element" && pick.level <= 1 ? "" : `<p class="modal-note">${t("EXP comes from breakthroughs, boss creeps and achievements.")}</p>`}`,
     { pauseGame: sessionMode !== "online" },
@@ -5901,7 +5901,7 @@ function showTower(towerOrId) {
             })
             .join(
               "",
-            )}<button class="sell" id="sell-tower">${t("Sell")}<br>${sellText(typeof sell === "number" ? sell : sell?.gold || 0, getSellBase(game, view, id))} Gold</button></div>`
+            )}<button class="sell" id="sell-tower">${t("Sell")}<br>${sellText(typeof sell === "number" ? sell : sell?.gold || 0, null)} Gold</button></div>`
         : ""
     }<button id="tower-more" class="text-button">${t("All stats, abilities & upgrade paths ↗")}</button>`;
   $("tower-panel").querySelector(".close-tower").onclick = () => {
@@ -5926,7 +5926,7 @@ function researchDetail(id) {
   const item = catalog.byId[id],
     owned = researchLevel(game.players[own], id) > 0; // v0.21k
   showModal(
-    `${modalHeader(itemName(item))}<img class="modal-hero" src="${researchArt(item)}" alt=""><p class="modal-copy">${valHtml(cardHint(item))}</p><div class="rule-row"><strong>${t(owned ? "Already unlocked" : "Level reward")}</strong>${t(owned ? "Active in this match." : "Upgrades come with level-ups: collect EXP from breakthroughs, creeps and EXP generators.")}</div><details class="info-disclosure"><summary>${t("Exact values")}</summary><p class="modal-copy">${esc(item.description).replace(/\n/g, "<br>")}</p></details><button class="primary-button" data-close>${t("Back")}</button>`,
+    `${modalHeader(itemName(item))}<img class="modal-hero" src="${researchArt(item)}" alt=""><p class="modal-copy">${valHtml(cardHint(item))}</p><div class="rule-row"><strong>${t(owned ? "Already unlocked" : "Lv. reward")}</strong>${t(owned ? "Active in this match." : "Upgrades come with level-ups: collect EXP from breakthroughs, creeps and EXP generators.")}</div><details class="info-disclosure"><summary>${t("Exact values")}</summary><p class="modal-copy">${esc(item.description).replace(/\n/g, "<br>")}</p></details><button class="primary-button" data-close>${t("Back")}</button>`,
   );
 }
 /** `back` (v0.22): opened from the card book, a Back button returns there. */
@@ -6088,13 +6088,13 @@ function perkBookEntries() {
   for (const f of catalog.factions) out.push({ kind: "element", groups: [f.id], type: "element", id: f.id, name: t(f.name) });
   return out;
 }
-const levelsText = (spec) => t("Levels {l}", { l: String(spec ?? "1+").replace(/-/g, "–") });
+const levelsText = (spec) => t("Lv. {l}", { l: String(spec ?? "1+").replace(/-/g, "–") });
 /**
  * v0.19e2: bottom lines of a perk card in the card book, in white: "Max Level 3" (not for powerups or
  * single-level perks) and "Available in Lv 2-5", then the element(s) as before.
  */
 const bookMeta = (max, spec, extra = "", cd = "", cont = false) => // v0.22j1: cont = ContinousPick
-  `<small class="book-meta">${cd ? `<span class="meta-line">${cd}</span>` : ""}${max > 1 ? `<span class="meta-line">${t("Max Level {n}", { n: max })}</span>` : ""}<span class="meta-line">${t("Available in Lv {l}", { l: String(spec ?? "1+") })}</span>${cont ? `<span class="meta-line meta-cont">${t("Continous Pick")}</span>` : ""}${extra ? `<span class="meta-extra">${extra}</span>` : ""}</small>`;
+  `<small class="book-meta">${cd ? `<span class="meta-line">${cd}</span>` : ""}${max > 1 ? `<span class="meta-line">${t("Max Lv. {n}", { n: max })}</span>` : ""}<span class="meta-line">${t("Available in Lv. {l}", { l: String(spec ?? "1+") })}</span>${cont ? `<span class="meta-line meta-cont">${t("Continous Pick")}</span>` : ""}${extra ? `<span class="meta-extra">${extra}</span>` : ""}</small>`;
 function perkBookCard(e, p, section = null) {
   if (e.type === "element") {
     const f = elementOf(e.id);
@@ -8185,7 +8185,7 @@ function tick(dt) {
       if (e.type === "quest" && e.player === own) questEvent(e);
       if (e.type === "questWave" && e.player === own) toast(t("{name}: wave {a} of {b}", { name: t(QUESTS[e.id].name), a: e.wave, b: e.of }), e.wave === e.of ? "boss" : "level");
       if (e.type === "levelUp" && e.player === own) {
-        note(t(e.kind === "element" ? "Level {n}: a new element awaits" : "Level {n}: choose a reward", { n: e.level }), "level");
+        note(t(e.kind === "element" ? "Lv. {n}: a new element awaits" : "Lv. {n}: choose a reward", { n: e.level }), "level");
         tone("tier");
       }
       if (e.type === "rotate" && isFfa() && !game.players[own].out) {
