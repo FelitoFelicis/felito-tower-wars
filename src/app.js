@@ -57,6 +57,9 @@ import {
   loneSpeed,
   FRENZY,
   LEADERSHIP,
+  LEADERSHIP_INCOME,
+  ALCHEMIST,
+  breedingHp,
   HEAVY_WEAPONS,
   towerWorth,
   deathSpawnTypes, // v0.24s
@@ -78,6 +81,7 @@ import {
   ringHp,
   revengeHp,
   revengeIncome,
+  SCOUTING,
   WATERBLOCK,
   AIRBLOCK, // v0.20c
   SYNTHESIZER, // v0.20d
@@ -133,6 +137,8 @@ import {
   BANTER,
   UNTOUCHABLE,
   tierSends,
+  sendHidden,
+  MINI_BOSS,
   fireArcher,
   fatHp,
   PERK_AVAILABILITY,
@@ -178,10 +184,10 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.26f",
+const APP_VERSION = "0.27b",
   APP_BRANCH = "F", // v0.23q: author marker (F = Felix, S = Steven) and branch text, shown behind the version; APP_VERSION stays plain for online matches (VersionPublishingRules.md)
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
-  APP_DATE = "26.10.2026";
+  APP_DATE = "27.10.2026";
 // v0.18: the version also stands in the page title (browser tab and the artifact window in chats)
 try {
   document.title = `${currentDesign() === "original" ? "Felito" : "Circle"} Tower Wars · v${APP_VERSION}${APP_BRANCH}`; // design variants: the new looks are called Circle Tower Wars
@@ -1689,7 +1695,7 @@ const pctOf = (x) => format(Math.round(x * 1000) / 10) + "%";
 const REWORK_HINT = {
   R005: (lv) => t("Footman-Line and Bombard-Line +{v} damage", { v: pctOf(HEAVY_WEAPONS * lv) }), // v0.19j
   R002: (lv) => t("Melee attack speed +{v}", { v: pctOf(MELEE_PROTOCOL * lv) }), // v0.19l: shorter
-  R00V: (lv) => t("Creeps +{v} HP", { v: pctOf(LEADERSHIP * lv) }),
+  R00V: (lv) => t("Creeps +{v} HP, creep income +{i}", { v: pctOf(LEADERSHIP * lv), i: pctOf(LEADERSHIP_INCOME * lv) }), // v0.27aF
   R00D: () => t("1 Spirit Wolf per round, stronger every level. It gives income"), // v0.21k
   R00C: (lv) => t("All towers attack speed +{v}", { v: pctOf(FRENZY * lv) }),
   R001: (lv) => t("Creep HP +{a}, creep income +{b}", { a: pctOf(HEALING.hp * lv), b: pctOf(HEALING.income * lv) }), // v0.20c
@@ -3940,7 +3946,7 @@ function deckItems() {
     const p = game.players[own];
     // Current tier only (12 monsters incl. its boss), cheapest first, boss last; a bought boss disappears.
     return catalog.sends
-      .filter((x) => x.playable && x.tier === p.tier && !(x.bossTier && x.id !== "n02R" && p.bossBought?.[x.id])) // v0.26cF: the Mountain Golem stays
+      .filter((x) => x.playable && x.tier === p.tier && !(x.bossTier && x.id !== "n02R" && p.bossBought?.[x.id]) && !sendHidden(p, x)) // v0.26cF: the Mountain Golem stays; v0.27F: tier 1 opens with five cards
       .sort((a, b) => a.tier - b.tier || Number(!!a.bossTier) - Number(!!b.bossTier) || a.cost - b.cost);
   }
   const p = game.players[own],
@@ -3961,7 +3967,7 @@ function prefetchArt() {
   const items = new Set();
   for (const x of catalog.towers) if (x.isRoot && x.playable && x.support !== "farm" && !isLocked(available(game, own, "build", x.id))) items.add(x);
   for (const tw of p.towers) for (const id of catalog.byId[tw.typeId]?.upgrades || []) if (catalog.byId[id]) items.add(catalog.byId[id]);
-  for (const x of catalog.sends) if (x.playable && x.tier === p.tier) items.add(x);
+  for (const x of catalog.sends) if (x.playable && x.tier === p.tier && !sendHidden(p, x)) items.add(x);
   // v0.25m: the creeps of the next neutral wave (drawn in the neutral colour)
   const wave = game.waves && nextWave(game);
   items.neutral = wave?.groups ? wave.groups.map((g) => catalog.byId[g.model]).filter(Boolean) : [];
@@ -4298,7 +4304,7 @@ function renderCards() {
   if (upTower) return upgradeDeck(upTower);
   const list = deckItems();
   // v0.22n2: tiers with 10 creeps (two removed) get 5 slightly larger cards per row
-  const tierSize = tab === "send" ? catalog.sends.filter((x) => x.playable && x.tier === game.players[own].tier).length : 0;
+  const tierSize = tab === "send" ? catalog.sends.filter((x) => x.playable && x.tier === game.players[own].tier && !sendHidden(game.players[own], x)).length : 0;
   $("cards").classList.toggle("five", tab === "send" && tierSize > 0 && tierSize <= 10);
   $("cards").classList.toggle("grid-build", tab === "build"); // v0.23zi: the build deck is laid out like the send deck (5 per row)
   deckSignature = deckSig();
@@ -4378,7 +4384,7 @@ function renderSendDeck() {
   tab = "send";
   try {
     const list = deckItems(),
-      tierSize = catalog.sends.filter((x) => x.playable && x.tier === game.players[own].tier).length;
+      tierSize = catalog.sends.filter((x) => x.playable && x.tier === game.players[own].tier && !sendHidden(game.players[own], x)).length;
     sendDeckSignature = deckSig();
     box.classList.toggle("five", tierSize > 0 && tierSize <= 10);
     box.innerHTML = list.map(cardMarkup).join("");
@@ -4566,8 +4572,10 @@ const PERK_ART = {
   backup: () => elPerkArt("backup"),
   tides: () => elPerkArt("tides"),
   sanction: () => elPerkArt("sanction"),
+  alchemist: () => uiArt("assets/art/perks/alchemist.webp?v=v027a"), // v0.27aF: poison bottle with skull label, knife and arrowhead
   ring: () => uiArt("assets/art/perks/ring.webp?v=v026c"), // v0.26cF: gold ring with an emerald heart
   revenge: () => uiArt("assets/art/perks/revenge.webp?v=v026c"), // v0.26cF: fire wolves
+  scouting: () => uiArt("assets/art/perks/scouting.webp?v=v027b"), // v0.27bF: spyglass before a storm cloud
   amnesia: () => uiArt("assets/art/perks/amnesia.webp?v=v026e"), // v0.26eF: a scroll whose writing fades away
 };
 // v0.22h1: the perk icons load a moment after a match starts, so a reward dialog never waits for them
@@ -4631,6 +4639,9 @@ const perkVars = (level, q, lv, next) => {
     carmorHp: pctOf(CREEP_ARMOR.hp * lv),
     carmorInc: pctOf(CREEP_ARMOR.income * lv),
     leadership: pctOf(LEADERSHIP * lv),
+    leadershipInc: pctOf(LEADERSHIP_INCOME * lv), // v0.27aF
+    alchemistDur: pctOf(ALCHEMIST.duration * lv), // v0.27aF: Poison Alchemist
+    alchemistStacks: ALCHEMIST.stacks * lv,
     tailwind: pctOf(TAILWIND.speed * lv),
     mindHp: pctOf(MIND.hp * lv),
     mindSpeed: pctOf(MIND.speed * lv),
@@ -4650,8 +4661,8 @@ const perkVars = (level, q, lv, next) => {
     scholar: pct(SCHOLAR.exp * Math.min(10, lv)), // v0.21e
     nobility: pct(NOBILITY.discount[l3]),
     nobilityHp: pct(NOBILITY.hp * Math.min(3, lv)),
-    breeding: pct(BREEDING.chance[l3]),
-    breedingHp: pct(BREEDING.hp * Math.min(3, lv)),
+    breedingCost: pct(BREEDING.discount), // v0.27aF
+    breedingHp: pct(breedingHp(Math.max(2, lv))),
     pillar: format(pillarDamage(q, lv)),
     monsun: MONSUN.duration[Math.min(5, lv) - 1],
     // v0.16g: values of the current (or offered) level instead of "a / b / c" lists
@@ -4673,6 +4684,7 @@ const perkVars = (level, q, lv, next) => {
     ringInc: pctOf(RING.income[l3]), // 5 / 7.5 / 10 %
     revengeHp: format(revengeHp(q, Math.min(3, lv))), // v0.26cF: Revenge
     revengeInc: format(revengeIncome(q, Math.min(3, lv))),
+    scouting: pct(SCOUTING.perLevel * Math.min(SCOUTING.max, lv)), // v0.27bF
     blockCd: WATERBLOCK.cooldown[l3],
     fireBlockCd: FIREBLOCK.cooldown[l3], // v0.19j
     fireBlock: format(fireBlockDamage(q, Math.min(3, lv))),
@@ -6040,7 +6052,8 @@ function techTree(kind) {
   if (kind === "send")
     return [1, 2, 3, 4, 5]
       .map((tier) => {
-        const list = tierSends(tier);
+        const list = [...tierSends(tier)];
+        if (tier === 1 && catalog.byId[MINI_BOSS.id]) list.splice(MINI_BOSS.slot, 0, catalog.byId[MINI_BOSS.id]); // v0.27F: the Mud Golem in the fifth slot
         if (!list.length) return "";
         return `<section class="tt-tree"><h3>${t("Tier {n}", { n: tier })}</h3><div class="tt-chain tt-wrap">${list.map((c) => node(c)).join(arrow)}</div></section>`;
       })
@@ -6335,7 +6348,7 @@ const RULES_DE = [
 ];
 function rulesModal(back = null) {
   showModal(
-    `${back ? subHeader(t("The rulebook")) : modalHeader(t("The rulebook"))}<div class="rules-credits"><b>${t("Created by Stevito and Felito in October 2026")}</b><div class="credits-team"><b>${t("Team")}</b><span>Uschi · ${t("Head of In-Game AI Development")}</span><span>Aldi · ${t("Diversity, Equity and Inclusion Manager and Makeup")}</span><span>Clarence · ${t("Human Resources")}</span><span>Jette · ${t("Animal Welfare Officer")}</span><span>Daddy Trash · ${t("Head of Audio Design and Vice Animal Welfare Officer")}</span><span>Heini · Heini</span></div><div class="credits-team"><b>${t("Obituary")}</b><span style="font-style:italic">${t("In loving memory of our friend Kos, who was terrible at Line Tower Wars but excelled at being a good-hearted and patient version of himself.")}</span></div></div>${RULES_DE.filter(([h]) => h !== "Neutral waves" || !game || game.waves).map(([h, text]) => `<div class="rule-row"><strong>${t(h)}</strong>${t(text)}</div>`).join("")}<button class="primary-button" data-close>${t("Back to the arena")}</button>`,
+    `${back ? subHeader(t("The rulebook")) : modalHeader(t("The rulebook"))}<div class="rules-credits"><b>${t("Created by Stevito and Felito in October 2026")}</b><div class="credits-team"><b>${t("Team")}</b><span>Chris · ${t("Campaign Design and Testing")}</span><span>Uschi · ${t("Head of In-Game AI Development")}</span><span>Aldi · ${t("Diversity, Equity and Inclusion Manager and Makeup")}</span><span>Clarence · ${t("Human Resources")}</span><span>Jette · ${t("Animal Welfare Officer")}</span><span>Daddy Trash · ${t("Head of Audio Design and Vice Animal Welfare Officer")}</span><span>Heini · Heini</span></div><div class="credits-team"><b>${t("Obituary")}</b><span style="font-style:italic">${t("In loving memory of our friend Kos, who was terrible at Line Tower Wars but excelled at being a good-hearted and patient version of himself.")}</span></div></div>${RULES_DE.filter(([h]) => h !== "Neutral waves" || !game || game.waves).map(([h, text]) => `<div class="rule-row"><strong>${t(h)}</strong>${t(text)}</div>`).join("")}<button class="primary-button" data-close>${t("Back to the arena")}</button>`,
   );
   if (back && $("sub-back")) $("sub-back").onclick = back; // v0.22n2
 }

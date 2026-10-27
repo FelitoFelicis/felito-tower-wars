@@ -20,7 +20,8 @@ const n = (value, fallback = null) =>
 /** v0.12: Wall (Fortifications) and Arcane Golem, units of the port itself. */
 export const WALL_ID = "hWAL",
   EXP_GEN_TOP_ID = "hXG5", // v0.24oF: fifth EXP generator level
-  GOLEM_ID = "nAGO";
+  GOLEM_ID = "nAGO",
+  MUD_GOLEM_ID = "nMDG"; // v0.27F: tier 1 mini boss (send card; the Rock Golem's escort n01U stays its own unit)
 export const FACTIONS = [
   { id: "water", name: "Water", color: "#68caff", research: "R00N", unlock: "R01D" },
   { id: "fire", name: "Fire", color: "#ff9169", research: "R00M", unlock: "R01G" },
@@ -83,6 +84,20 @@ export function configureContent(data) {
     rawAbilities = mergeObjects(data.abilities);
   // v0.17b: own creep abilities (not in the map data): damage resistance against one tower line
   for (const a of CUSTOM_ABILITIES) rawAbilities.set(a.id, { ...a, fields: { ...a.fields } });
+  // v0.27F: Mud Golem as a tier 1 send card (mini boss): 200 gold, +10 income, unlocks the upper half of tier 1
+  {
+    const escort = rawUnits.get("n01U"),
+      shop = rawUnits.get(SHOPS[0]);
+    if (escort && shop) {
+      rawUnits.set(MUD_GOLEM_ID, {
+        ...escort,
+        id: MUD_GOLEM_ID,
+        custom: true,
+        fields: { ...escort.fields, unam: "[05] Mud Golem", ugol: 200, upoi: 10, uhpm: 600, usma: 1, usrg: 1, usst: 0, uabi: "A01A,XA14", utyp: "ancient" },
+      });
+      shop.fields.useu = (shop.fields.useu || "") + "," + MUD_GOLEM_ID;
+    }
+  }
   // v0.24j: melee poison (Zombie Tower, Death Knight) is the same "Poison Attack" as the ranged poison towers (Poison
   // Archer): the ranged ability's fields with the melee poison's own numbers (damage, slow, duration per level)
   {
@@ -610,6 +625,8 @@ export const CUSTOM_ABILITIES = [
   // v0.22n2: Tier Boss (every tier boss golem) replaces Scale Armor, Nerf Resistance and Magic Resistance: debuffs last
   // 50 % shorter, every tower attack does 1 / 5 / 10 / 20 / 30 less damage (never below 1; simulation.js TIER_BOSS)
   { id: "XA12", baseId: "Xtbs", custom: true, fields: { anam: { 0: "Tier Boss" }, aub1: { 1: "Reduced damage from attacks, 50% less duration for debuffs, 30% slow resistance" } } },
+  // v0.27F: Mud Golem (tier 1 mini boss): half of the Rock Golem's Tier Boss resistances (simulation.js MINI_BOSS)
+  { id: "XA14", baseId: "Xmbs", custom: true, fields: { anam: { 0: "Mini Boss" }, aub1: { 1: "Half the resistances of a Tier Boss. Recruiting it unlocks the rest of tier 1" } } },
   // v0.26cF: Mountain Golem: unlocks no tier; display only (the effect runs in simulation.js MOUNTAIN_GOLEM)
   { id: "XA13", baseId: "Xinf", custom: true, fields: { anam: { 0: "Mountain Might" }, aub1: { 1: "Can be recruited again. Each one gives your tier 5 creeps +5% HP for good" } } },
   { id: "XA06", baseId: "Xfoc", custom: true, step: 0.09, interval: 0.25, max: 5, fields: { anam: { 0: "Focus Fire" }, aub1: { 1: "Damage +9% every 0.25 s while attacking the same target, up to 500%" } } },
@@ -713,6 +730,7 @@ function applyTowerDamageBuff(byId) {
 // v0.24p: fixed average damage per tower (Footman level 2: 11)
 export const TOWER_DAMAGE_PIN = { h02U: 11 };
 export const CREEP_TUNING = {
+  nMDG: { bountyBase: 18, bountyDice: 0 }, // v0.27F: Mud Golem bounty like a tier 1 creep of its price
   n01Y: { armor: 4 }, // v0.24s: Dark Monk armor 4
   n01D: { income: 60 }, // v0.21p: Ghoul earns income now (1500 gold: 4 %, like Demon Hound)
   // v0.21p: Naga Siren's death spawns +50 % hit points (they look like little Naga Sirens, art.js / arena.js)
@@ -741,7 +759,7 @@ export const CREEP_TUNING = {
   // plants a Siege Plank once (simulation.js SIEGE_OGRE)
   n01G: { name: "[34] Siege Ogre", shortName: "Siege Ogre", count: 1, hp: 16000, armor: 3, bountyBase: 718, abilities: ["A08S", "A01A"], stockMax: 2, stockRegen: 17 }, // v0.22o2: was Spiritwalker → Shieldbearer; v0.24i: stock 5 → 2, restock 15 → 17 s
   n025: { income: 30 }, // v0.24j: Raven earns a little income (0.3 % of its price; flyers pay less than ground creeps)
-  n00L: { speed: 394, cost: 30, hp: 35 }, // Wolf: 25 % faster, 300 → 375 (v0.08d); v0.24s: cost 30; v0.26bF: HP 32 → 35, 5 % faster (375 → 394)
+  n00L: { speed: 398.22, cost: 30, hp: 40, income: 3, stockMax: 8 }, // v0.27bF: 1.40 fields/s (398 × 0.45 / 128), HP 35 → 40, income 4 → 3, stock max 12 → 8; locked 5 rounds, opens with 2 (simulation.js START_LOCK); Wolf: 25 % faster, 300 → 375 (v0.08d); v0.24s: cost 30; v0.26bF: HP 32 → 35, 5 % faster (375 → 394)
   n00S: { speed: 420, stockRegen: 13, income: 8, name: "[10] Wolfrider", shortName: "Wolfrider" }, // v0.24s: Raider → Wolfrider; Raider: 25 % faster (v0.07b); restock 12 → 13 s (v0.17o); income 9 → 8 (v0.17q)
   n012: { name: "[21] Giant Bat", shortName: "Giant Bat" }, // v0.23zq: the Zeppelin is the Giant Bat
   n025: { name: "[52] Raven", shortName: "Raven" }, // v0.23zo: the Gryphon Rider is the Raven

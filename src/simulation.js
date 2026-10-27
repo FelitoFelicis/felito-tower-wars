@@ -1,5 +1,5 @@
 /** Deterministic, renderer-independent 1v1 simulation. Time is in seconds. */
-import { getCatalog, getResearchCost, FACTIONS, RULES, field, splitIds, cleanText, WALL_ID, GOLEM_ID } from "./content.js";
+import { getCatalog, getResearchCost, FACTIONS, RULES, field, splitIds, cleanText, WALL_ID, GOLEM_ID, MUD_GOLEM_ID } from "./content.js";
 
 export const TICK = 0.05;
 export const SAVE_VERSION = 6; // v0.24r: growing mazes
@@ -675,8 +675,22 @@ function spawnAuxCreep(game, entry) {
   }
   return c;
 }
-/** v0.17: is this send allowed for the player (mission rules)? Bosses always are. */
-const sendAllowed = (p, s) => !p.rules?.sends || s.bossTier || p.rules.sends.includes(s.id);
+/**
+ * v0.27F: tier 1 opens with five cards: the four cheapest creeps and the Mud Golem (mini boss) in the fifth slot.
+ * Recruiting the Mud Golem swaps it for the fifth creep and unlocks the upper half of tier 1 (creeps 6–10 and the
+ * Rock Golem). Mini Boss: half of the Rock Golem's Tier Boss resistances. Missions with their own send list keep tier 1 whole.
+ */
+export const MINI_BOSS = Object.freeze({ id: MUD_GOLEM_ID, slot: 4, share: 0.5, exp: 125, aiRound: { veryEasy: 8, easy: 5, normal: 3, hard: 3, insane: 3 }, aiIncome: 50, aiSave: 9 }); // exp: half the Rock Golem's 250
+export const tierOneLocked = (p) => !!p && p.tier === 1 && !p.mudGolem && !p.rules?.sends;
+/** v0.27F: send cards not offered right now (tier 1 before the Mud Golem, or the Mud Golem afterwards). */
+export function sendHidden(p, s) {
+  if (!s?.isSend) return false;
+  if (s.id === MINI_BOSS.id) return !tierOneLocked(p);
+  if (s.tier !== 1 || !tierOneLocked(p)) return false;
+  return !!s.bossTier || tierSends(1).filter((x) => !x.bossTier).indexOf(s) >= MINI_BOSS.slot;
+}
+/** v0.17: is this send allowed for the player (mission rules)? Bosses always are. v0.27F: hidden tier 1 cards are not. */
+const sendAllowed = (p, s) => !sendHidden(p, s) && (!p.rules?.sends || s.bossTier || p.rules.sends.includes(s.id));
 /** v0.17: goal checks after every new round: survive N rounds, or win before round N. */
 function missionRound(game) {
   const goal = game.mission?.goal;
@@ -741,6 +755,7 @@ export function available(game, playerIndex, type, id, towerId = null, viaPick =
     if (item.tier < p.tier) return { ok: false, reason: "Replaced by the next tier" };
     if (item.inactiveInSource) return { ok: false, reason: "Disabled in the source map (tier 6 off)" };
     if (item.bossTier && id !== MOUNTAIN_GOLEM.id && (p.bossBought?.[id] || p.tier >= item.bossTier)) return { ok: false, reason: "Boss already bought" }; // v0.26cF: the Mountain Golem can be recruited again
+    if (sendHidden(p, item)) return { ok: false, reason: item.id === MINI_BOSS.id ? "Mud Golem already recruited" : "Recruit the Mud Golem first" }; // v0.27F
     if (!sendAllowed(p, item)) return { ok: false, reason: "Not allowed in this mission" }; // v0.17
     if (game.warmup) return { ok: false, reason: `Warm up · ${Math.ceil(game.incomeRemaining)} s` };
     if (lockRoundsLeft(game, p.stock[id]) > 0) return { ok: false, reason: lockRoundsLeft(game, p.stock[id]) === 1 ? "Locked for 1 more round" : `Locked for ${lockRoundsLeft(game, p.stock[id])} more rounds` }; // v0.15
@@ -963,6 +978,7 @@ function statsForRaw(game, player, item) {
     const air = item.flying ? MIND.air : 1;
     hpPercent += (player?.growth?.[item.id] || 0); // v0.20c: Supergrowth
     hpPercent += HEALING.hp * pk("medicine") + MIND.hp * pk("mind") * air + CREEP_ARMOR.hp * pk("carmor") + LEADERSHIP * pk("leadership") + contractShare(player, item, "hp");
+    if (item.isSend && pk("breeding") >= 2 && hasDeathrattle(item.id)) hpPercent += breedingHp(pk("breeding")); // v0.27aF: Breeding Pools spawners
     speedPercent += MIND.speed * pk("mind") * air + TAILWIND.speed * pk("tailwind");
   }
   stats.speed *= 1 + speedPercent;
@@ -1020,7 +1036,7 @@ function sendIncomeParts(p, item) {
   const sanction = p.sanction?.bonus?.[item.id];
   if (sanction) decimal += Math.round((base * 100 + (item.incomeHundredths || 0)) * sanction);
   // v0.19a1: Healing Power (+2 %), Creep Armor (+1.5 %) per level, Blood / Unholy Contract
-  const creepInc = HEALING.income * perkLevel(p, "medicine") + CREEP_ARMOR.income * perkLevel(p, "carmor") + contractShare(p, item, "income");
+  const creepInc = HEALING.income * perkLevel(p, "medicine") + CREEP_ARMOR.income * perkLevel(p, "carmor") + LEADERSHIP_INCOME * perkLevel(p, "leadership") + contractShare(p, item, "income"); // v0.27aF: Leadership
   if (creepInc) decimal += Math.round((base * 100 + (item.incomeHundredths || 0)) * creepInc);
   // v0.10p: Wings of War: +10 % income per level for flying creeps
   const wings = item.flying ? perkLevel(p, "wings") : 0;
@@ -1091,7 +1107,7 @@ export const PERKS = Object.freeze({
   evolution: { name: "Upgrade Tower", max: 1, powerup: true, text: "Upgrades a random level 1–2 tower and copies it", detail: "Upgrades a random level 1 or 2 tower and summons a copy to a random field" }, // v0.22o2: renamed from Evolution; v0.19g1: level 2 towers first, the copy sells for 10 %
   gold: { name: "Gold", max: 1, powerup: true, text: "Instantly +{gold} gold" }, // v0.10u: powerup = instant reward, no tile once taken
   novice: { name: "Novice", max: 3, text: "EXP +{novice}. Next EXP generator free", detail: "Increases EXP gain +{novice}. Next EXP generator is free" }, // v0.22m2: 15 / 30 / 45 / 60 / 75 %, every level one free level 1 EXP generator
-  volley: { name: "Arrow Volley", max: 5, text: "Arrows rain on an area dealing {volleyDmg} damage each" }, // v0.20e: shorter tooltip
+  volley: { name: "Arrow Volley", max: 5, text: "Arrows rain on an area dealing {volleyDmg} Arrow damage each. Kills give 300% EXP" }, // v0.27aF: Arrow damage, triple kill EXP // v0.20e: shorter tooltip
   wings: { name: "Wings of War", max: 10, element: "storm", text: "Flyers +{wingsHp} HP, +{wingsSpeed} speed, +{wingsInc} income", detail: "Flying creeps +{wingsHp} HP, +{wingsSpeed} speed, +{wingsInc} income" }, // v0.10p
   hellfire: { name: "Lava Floor", max: 10, element: "fire", text: "Ground creeps on lava burn for {hellfire} damage/s", detail: "6 lava tiles appear on random fields of your board (2 in the upper half, 2 in the lower half, 2 anywhere), one more for each level from 2 on. Ground creeps on lava burn for {hellfire} damage per second" }, // v0.23k: random tiles instead of the 6th row // v0.10p, v0.16g
   frostbolt: { name: "Frost Bolt", max: 10, element: "water", text: "Active: frost bolt, {frostbolt} damage, slows 50% for {frostboltSlow} s", detail: "Active ability: a frost bolt hits an area for {frostbolt} damage and slows the creeps hit by 50% for {frostboltSlow} s" }, // v0.23w
@@ -1121,7 +1137,7 @@ export const PERKS = Object.freeze({
   scholar: { name: "Scholar", max: 10, element: "arcane", text: "Upgrades 2 non-Arcane perks. EXP +{scholar}", detail: "Upgrades 2 of your non-Arcane perks. EXP gain +{scholar}" }, // v0.20d
   summon: { name: "Summon Tower", max: 1, element: "arcane", powerup: true, text: "Summons a random level 1–3 tower", detail: "Summons a random level 1-3 tower on a free field" }, // v0.20c: no bracket note
   nobility: { name: "Heavy Nobility", max: 3, element: "earth", text: "Heavy creeps {nobility} cheaper, +{nobilityHp} HP", detail: "Heavy creeps {nobility} cheaper, +{nobilityHp} HP, restock 10% faster" },
-  breeding: { name: "Breeding Pools", max: 3, element: "plague", text: "Deathrattles: {breeding} chance for an extra creep", detail: "Deathrattles have {breeding} chance to spawn an extra creep. Summoned creeps +{breedingHp} HP" }, // v0.19j: tooltip
+  breeding: { name: "Breeding Pools", max: 3, element: "plague", text: "Spawner creeps {breedingCost} cheaper, +1 spawn. From Lv 2: spawners and spawns +{breedingHp} HP", detail: "Spawner creeps (creeps that spawn others on death) cost {breedingCost} less and spawn one more creep. From level 2 spawners and their spawns get +25% HP per level" }, // v0.27aF: reworked // v0.19j: tooltip
   pillar: { name: "Pillar of Fire", max: 5, element: "fire", text: "Active: fire pillar, {pillar} damage every 0.3 s", detail: "Active ability: a pillar of fire burns an area, {pillar} damage every 0.3 s" }, // v0.19j: shorter tooltip
   fort: { name: "Fortifications", max: 1, text: "Builds a row of Walls with one gap. Unlocks the Wall: 4 gold", detail: "Builds a full row of Walls with one free field at its left or right end, on the free row farthest from your towers. Unlocks the Wall: 4 gold, no attack. Double-tap sells it for 1 gold" }, // v0.26fF: a row of walls
   agolem: { name: "Arcane Golem", max: 5, element: "arcane", text: "Active: a golem knocks creeps back up your path", detail: "Active ability: a golem walks up your path, knocks creeps back, then runs on to the next lane" },
@@ -1138,7 +1154,8 @@ export const PERKS = Object.freeze({
   // element. v0.21g: every one of them needs its element now (before, six only wore the element's frame).
   owl: { name: "Watcher Owl", max: 5, element: "storm", text: "Archer-Line +{owl} range" },
   carmor: { name: "Creep Armor", max: 20, element: "earth", text: "Creep HP +{carmorHp}, income +{carmorInc}" },
-  leadership: { name: "Leadership", max: 20, element: "fire", text: "Creeps +{leadership} HP" },
+  leadership: { name: "Leadership", max: 20, element: "fire", text: "Creeps +{leadership} HP, creep income +{leadershipInc}" }, // v0.27aF: +1 % creep income per level
+  alchemist: { name: "Poison Alchemist", max: 10, element: "plague", text: "Your poisons last {alchemistDur} longer, max stacks +{alchemistStacks}" }, // v0.27aF
   tailwind: { name: "Tailwind", max: 10, element: "storm", text: "Creep Speed +{tailwind}" },
   mind: { name: "Obsession", max: 10, element: "plague", text: "Creep HP +{mindHp}, speed +{mindSpeed} (flyers half)" }, // v0.23: flyers get half (MIND.air); v0.26cF: Mind Control → Obsession
   medicine: { name: "Creep Medicine", max: 20, element: "water", text: "Creep HP +{medHp}, creep income +{medInc}" },
@@ -1154,10 +1171,11 @@ export const PERKS = Object.freeze({
   ring: { name: "Ring of Life", max: 3, weight: 0.75, element: ["xplague", "xfire", "xarcane"], text: "Creep HP +{ringHp}. 1st creep of each tier +{ringInc} income", detail: "Every creep gets more HP by its tier: +{ringHpTiers} (T1 / T2 / T3 / T4 / T5). The 1st creep of every tier gives +{ringInc} income" },
   // v0.26eF: Amnesia: forget one of 3 owned perks for good, get 1 + its level extra reward dialogs
   amnesia: { name: "Amnesia", max: 1, powerup: true, unpopular: 0.5, text: "Forget 1 of 3 of your perks. Get 1 + its level extra rewards", detail: "Choose 1 of 3 random perks you own and forget it. It is never offered again this match. You get 1 + its level extra level-up rewards" },
+  scouting: { name: "Scouting", max: 3, element: "storm", text: "Scouting EXP +{scouting}", detail: "Increases the EXP your creeps earn while crossing the lines of an enemy maze (Scouting) by {scouting}" }, // v0.27bF
   revenge: { name: "Revenge", max: 3, element: "fire", text: "Enemy breach: a Fire Wolf ({revengeHp} HP) runs onto its sender's field", detail: "Whenever an enemy creep breaches through your field, a Fire Wolf with {revengeHp} HP runs onto the field of the player who sent it. Each Fire Wolf gives +{revengeInc} income" },
 });
 /** v0.09q: Arrow Volley: cooldown, area radius in fields, arrows per perk level, extra base damage. */
-export const VOLLEY = { cooldown: 20, cdStep: 1, radius: 1.5, perLevel: 3, bonus: 3, spread: 0.9, archer: 1.5, perRound: 0.005, perTower: 2, perTowerLevel: 0.15 }; // v0.19g1: archer-tower arrows +50 %, all arrows +0.5 % per round
+export const VOLLEY = { cooldown: 20, cdStep: 1, radius: 1.5, perLevel: 3, bonus: 3, spread: 0.9, archer: 1.5, perRound: 0.005, perTower: 2, perTowerLevel: 0.15, killExp: 3 }; // v0.27aF: kills by the volley give 300 % EXP // v0.19g1: archer-tower arrows +50 %, all arrows +0.5 % per round
 /** v0.21c: Arrow Volley cooldown by perk level: 20 s at level 1, 1 s less per further level. */
 export const volleyCd = (level) => VOLLEY.cooldown - VOLLEY.cdStep * Math.max(0, (level | 0) - 1);
 /** v0.19g1: Novice: EXP gain per perk level (1–5). */
@@ -1240,7 +1258,11 @@ export const SCHOLAR = { exp: 0.1, upgrades: 2 };
 /** Heavy Nobility (Earth): discount by level, hit points per level, restock bonus. */
 export const NOBILITY = { discount: [0.1, 0.18, 0.24], hp: 0.12, restock: 1.1 };
 /** Breeding Pools (Plague): chance of an extra death spawn by level, hit points per level. */
-export const BREEDING = { chance: [0.33, 0.6, 0.75], hp: 0.1 };
+export const BREEDING = { discount: 0.1, extra: 1, hp: 0.25 }; // v0.27aF: level 1: spawners 10 % cheaper, +1 spawn; from level 2 +25 % HP per level
+export const breedingHp = (level) => BREEDING.hp * Math.max(0, Math.min(3, level | 0) - 1);
+/** v0.27aF: Poison Alchemist (Plague): +25 % poison duration and +1 max poison stack per level. */
+export const ALCHEMIST = { duration: 0.25, stacks: 1 };
+export const LEADERSHIP_INCOME = 0.01; // v0.27aF: Leadership +1 % creep income per level
 /** Pillar of Fire (Fire): cooldown, radius in fields, delay, burn time, damage interval, scorch time. */
 export const PILLAR = { cooldown: 75, radius: 2.2, core: 0.75, delay: 0.5, duration: 1.5, interval: 0.3, scorch: 15, air: 0.5, budget: 1.5 };
 // v0.19b1: grows steeply with the send tier (like creep hit points) and +5 % per player level
@@ -1262,7 +1284,7 @@ export const monsunDamage = (p, level = perkLevel(p, "monsun")) => 30 + 20 * lev
 /** v0.20c: perks that sit out more than one level after a pick (Supergrowth: two). */
 /** v0.26dF: levels a perk sits out after a pick when PERK_SKIP_LEVELS has no value for it. */
 const PERK_SKIP_DEFAULT = 2;
-const PERK_SKIP_LEVELS = { novice: 3, wolves: 3, mind: 3, exhume: 3, ring: 2, revenge: 3, backup: 3, tides: 3, supergrowth: 2, hellfire: 2, frostbolt: 2, clones: 2, infested: 2, lone: 2, bank: 3, monsun: 2 }; // v0.26cF: Spirit Wolves, Obsession, Exhumination, Revenge skip 3, Ring of Life skips 2 // v0.24q: Backup Line, Low Tides skip 3 // v0.24j: Monsun skips 2 // v0.24i: Magic Bank skips 3 // v0.23zi: Spartans skip 2 // v0.23w: Frost Bolt, Clones // v0.21x: Lava Floor skips 2
+const PERK_SKIP_LEVELS = { breeding: 3, novice: 3, wolves: 3, mind: 3, exhume: 3, ring: 2, revenge: 3, backup: 3, tides: 3, supergrowth: 2, hellfire: 2, frostbolt: 2, clones: 2, infested: 2, lone: 2, bank: 3, monsun: 2 }; // v0.26cF: Spirit Wolves, Obsession, Exhumination, Revenge skip 3, Ring of Life skips 2 // v0.24q: Backup Line, Low Tides skip 3 // v0.24j: Monsun skips 2 // v0.24i: Magic Bank skips 3 // v0.23zi: Spartans skip 2 // v0.23w: Frost Bolt, Clones // v0.21x: Lava Floor skips 2
 const PERK_SKIP = new Set(["pillar", "agolem", "monsun", "slave", "guardian", "mind", "tailwind", "carmor", "owl", "autoloader", "hills"]); // v0.22g1: Autoloader // v0.19a1: Mind Control, Tailwind, Creep Armor, Watcher Owl
 /**
  * v0.19a1: reworked level-up upgrades (research perks). Their effects live here instead of the map
@@ -1438,6 +1460,7 @@ function isBudget(id) {
 function pushBack(game, c, units, p = null) {
   if (!(units > 0) || c.dead) return;
   if (creepSkills(c).some((sk) => sk.type === "tierBoss")) units *= TIER_BOSS.push; // v0.22u2: Tier Boss: push-backs 50 % shorter
+  else if (creepSkills(c).some((sk) => sk.type === "miniBoss")) units *= 1 - (1 - TIER_BOSS.push) * MINI_BOSS.share; // v0.27F: 25 % shorter
   if (c.flying) {
     const top = c.path?.[0]?.y ?? -0.02;
     c.y = Math.max(top, c.y - units / game.grid.cellUnits / game.grid.rows);
@@ -2152,7 +2175,7 @@ function tickPocks(game, p) {
   c.statuses.push({
     abilityId: "pocks",
     poison: true,
-    remaining: (level * 3 + 2) * (tough ? 0.5 : 1),
+    remaining: (level * 3 + 2) * (tough ? 0.5 : 1) * (1 + ALCHEMIST.duration * perkLevel(p, "alchemist")), // v0.27aF
     slow: POCKS.slow * level,
     dps: level * (p.tier || 1) * 2,
     owner: p.id,
@@ -2247,6 +2270,7 @@ function bossDiscount(p, item, gold) {
   if (!item?.isSend) return gold;
   let share = 1;
   if (item.bossTier && perkLevel(p, "golem")) share *= 1 - GOLEM.discount;
+  if (perkLevel(p, "breeding") && hasDeathrattle(item.id)) share *= 1 - BREEDING.discount; // v0.27aF: Breeding Pools spawners
   if (UNDEAD_SENDS.has(item.id) && perkLevel(p, "exhume")) share *= 1 - EXHUME.discount[Math.min(3, perkLevel(p, "exhume")) - 1]; // v0.10r/s
   if (perkLevel(p, "manufacture") && eighthOf(item)) share *= 1 - MANUFACTURE.discount[Math.min(3, perkLevel(p, "manufacture")) - 1]; // v0.12; v0.20d: 8th creep
   if (perkLevel(p, "synthesizer") && fourthOf(item)) share *= 1 - SYNTHESIZER.discount[Math.min(3, perkLevel(p, "synthesizer")) - 1]; // v0.20d
@@ -2476,9 +2500,12 @@ for (let i = 4; i < EXP_STEPS.length; i++) EXP_STEPS[i] = Math.round(EXP_STEPS[i
 export function expNeeded(level) {
   return EXP_STEPS[Math.max(1, Math.min(MAX_LEVEL - 1, level)) - 1];
 }
-function gainExp(game, p, amount, source = "other") {
+/** v0.27bF: a breach gives at least this share of the EXP the sender's current level needs in total (2000 / 8000 → at least 80). */
+export const BREACH_EXP_MIN = 0.01;
+function gainExp(game, p, amount, source = "other", floor = 0) {
   if (!(amount > 0)) return;
   amount *= 1 + NOVICE[Math.min(3, perkLevel(p, "novice"))] + SCHOLAR.exp * Math.min(10, perkLevel(p, "scholar")); // v0.21e: up to level 10 // v0.19g1: Novice 20 / 35 / 50 / 60 / 70 %; v0.20d: Scholar +10 % per level
+  if (floor > amount) amount = floor; // v0.27bF: breach minimum (after the EXP bonuses)
   p.exp += amount;
   p.stats.expEarned += amount;
   (p.stats.expBy ||= {})[source] = (p.stats.expBy[source] || 0) + amount; // v0.24oF: EXP per source (stats and tests)
@@ -2546,7 +2573,8 @@ export const PERK_AVAILABILITY = {
   scholar: "6+", // v0.20d
   summon: "2",
   nobility: "2+",
-  breeding: "2+",
+  breeding: "2+", // v0.27aF: skip 3
+  alchemist: "6+", // v0.27aF: Poison Alchemist
   pillar: "6+", // v0.24d: from level 6 (was 5)
   fort: "2", // v0.19b1: level 2 only
   agolem: "5+",
@@ -2572,6 +2600,7 @@ export const PERK_AVAILABILITY = {
   firearrows: "2+", // Fire Arrows (v0.21c: from level 2)
   ring: "2", // v0.26cF: Ring of Life (ContinousPick, skips 2)
   revenge: "12+", // v0.26cF: Revenge (skips 3)
+  scouting: "2+", // v0.27bF
   amnesia: "9,12,15,20", // v0.26eF
 };
 const availabilityCache = new Map();
@@ -2617,7 +2646,7 @@ const perkAvailable = (o, level, p) => {
   return o.type === "perk" && perkLevel(p, id) >= 1 && !!PERK_AVAILABILITY_OWNED[id] && parseAvailability(PERK_AVAILABILITY_OWNED[id])(level);
 };
 /** v0.26: perks that strengthen the own defence (towers, spells and traps on the own field); a mission can leave them out. */
-export const DEFENSIVE_PERKS = new Set(["gunpowder", "archery", "militia", "evolution", "volley", "hellfire", "frostbolt", "infested", "burst", "fireblock", "airblock", "waterblock", "pocks", "permafrost", "hills", "stormfeathers", "crowd", "lone", "summon", "pillar", "fort", "agolem", "backup", "tides", "monsun", "owl", "melee", "heavy", "frenzy", "firearrows", "autoloader"]);
+export const DEFENSIVE_PERKS = new Set(["alchemist", "gunpowder", "archery", "militia", "evolution", "volley", "hellfire", "frostbolt", "infested", "burst", "fireblock", "airblock", "waterblock", "pocks", "permafrost", "hills", "stormfeathers", "crowd", "lone", "summon", "pillar", "fort", "agolem", "backup", "tides", "monsun", "owl", "melee", "heavy", "frenzy", "firearrows", "autoloader"]);
 /** v0.23k: with exactly one element owned, its element perks are 10 % more likely to be drawn than neutral perks. */
 export const ELEMENT_PERK_WEIGHT = 1.1;
 function makePick(game, p, kind, noQuest = false, focus = null) {
@@ -3240,7 +3269,18 @@ function tickVolleys(game) {
     let hit = null;
     if (inside.length) {
       hit = inside[Math.floor(random(game) * inside.length)];
-      strike(game, p, null, hit, v.damage, v.attackType);
+      // v0.27aF: Arrow damage (counts like an Archer-Line hit); a creep the volley kills gives 300 % EXP
+      const before = hit.hp;
+      volleyStrike = true;
+      try {
+        strike(game, p, null, hit, v.damage, v.attackType);
+      } finally {
+        volleyStrike = false;
+      }
+      if (before > 0 && hit.hp <= 0) {
+        hit.volleyKill = true;
+        hit.lastHit = null;
+      }
     }
     // a miss lands somewhere in the area
     const a = random(game) * Math.PI * 2,
@@ -3640,6 +3680,12 @@ function runCommand(game, input) {
           if (id !== MOUNTAIN_GOLEM.id && c.owner === p.id && !c.dead && c.hp > 0 && !c.wave && def && !def.bossTier && def.tier === item.tier) c.trueSlow = Math.max(c.trueSlow || 0, BOSS_TRUE_SLOW);
         }
     }
+    // v0.27F: the Mud Golem opens the rest of tier 1 (once)
+    if (id === MINI_BOSS.id && !p.mudGolem) {
+      p.mudGolem = true;
+      gainExp(game, p, MINI_BOSS.exp, "bossSend");
+      emit(game, "tier", { player: p.id, tier: 1, message: "Tier 1 creeps unlocked" });
+    }
     return { ok: true, count: item.spawnIds.length };
   }
   return { ok: false, reason: "Unknown command" };
@@ -3724,7 +3770,7 @@ export function tierSends(tier) {
     tierSendsCatalog = catalog;
   }
   if (!TIER_SENDS.has(tier))
-    TIER_SENDS.set(tier, Object.freeze(catalog.sends.filter((s) => s.playable && s.tier === tier).sort((a, b) => Number(!!a.bossTier) - Number(!!b.bossTier) || a.cost - b.cost)));
+    TIER_SENDS.set(tier, Object.freeze(catalog.sends.filter((s) => s.playable && s.tier === tier && s.id !== MINI_BOSS.id).sort((a, b) => Number(!!a.bossTier) - Number(!!b.bossTier) || a.cost - b.cost)));
   return TIER_SENDS.get(tier);
 }
 /**
@@ -3757,19 +3803,30 @@ function stockTier(game, p, tier, now) {
     tierSends(1).forEach((s) => {
       const n = FIRST_STOCK[s.id];
       if (n != null) p.stock[s.id] = { count: Math.min(n, stockMaxOf(p, s)), next: now + Math.max(0.05, s.stockRegen) };
+      const lock = START_LOCK[s.id];
+      if (lock && !p.rules?.noStartDelay) p.stock[s.id] = { count: 0, next: LOCKED_NEXT, lockRound: (game.round || 0) + lock.rounds, openStock: lock.stock }; // v0.27bF
     });
 }
 /** v0.25j: opening stock of the first tier-1 creeps (Goblin 10, Pony 5, Gnoll 2, Wolf 2). */
-const FIRST_STOCK = Object.freeze({ n00E: 10, n007: 5, n00K: 2, n00L: 2 });
+const FIRST_STOCK = Object.freeze({ n00E: 10, n007: 5, n00K: 2 });
+/** v0.27bF: tier-1 creeps locked for a fixed number of rounds at the start; when the lock opens they hold `stock` at once (Wolf: 5 rounds, 2). */
+export const START_LOCK = Object.freeze({ n00L: { rounds: 5, stock: 2 } });
 /** v0.15: placeholder restock time of a creep still locked by its start delay (JSON-safe). */
 const LOCKED_NEXT = 1e9;
 /** v0.15: rounds until a locked creep is ready (0 = not locked). */
 export const lockRoundsLeft = (game, stock) => (stock?.lockRound > game.round ? stock.lockRound - game.round : 0);
 function openLocks(game, p) {
-  for (const stock of Object.values(p.stock))
+  for (const [id, stock] of Object.entries(p.stock))
     if (stock.lockRound && stock.lockRound <= game.round) {
       delete stock.lockRound;
       stock.next = game.time;
+      // v0.27bF: START_LOCK creeps open with their start stock; the restock timer starts from there
+      if (stock.openStock != null) {
+        const s = obj(id);
+        stock.count = Math.min(stock.openStock, stockMaxOf(p, s));
+        stock.next = game.time + Math.max(0.05, s?.stockRegen || 1);
+        delete stock.openStock;
+      }
     }
 }
 function advanceTier(game, p, tier) {
@@ -3937,7 +3994,7 @@ function autoModeSend(game, p) {
   const budget = budgetCreeps(game, p),
     trySend = (id) => available(game, p.id, "send", id).ok && command(game, { type: "send", player: p.id, id, auto: true }).ok;
   if (p.autoMode === "tierup") {
-    const boss = tierSends(p.tier).find((x) => x.bossTier),
+    const boss = tierOneLocked(p) ? obj(MINI_BOSS.id) : tierSends(p.tier).find((x) => x.bossTier), // v0.27F: first the Mud Golem
       a = boss && available(game, p.id, "send", boss.id);
     if (boss && !p.bossBought?.[boss.id] && p.tier < 6 && sendAllowed(p, boss)) {
       if (a.ok) return void command(game, { type: "send", player: p.id, id: boss.id, auto: true });
@@ -4399,6 +4456,10 @@ function skillOf(a, level = 1) {
       // v0.22n2: Tier Boss: the damage it ignores comes from TIER_BOSS by creep type
       sk = { type: "tierBoss" };
       break;
+    case "Xmbs":
+      // v0.27F: Mini Boss (Mud Golem): half of the Rock Golem's Tier Boss resistances
+      sk = { type: "miniBoss" };
+      break;
     case "Xslr":
       // v0.21k: own ability: the creep is slowed less (Warden, Eredar Warlock)
       sk = { type: "slowResist", value: a.resist || 0 };
@@ -4421,7 +4482,7 @@ function skillOf(a, level = 1) {
   return sk;
 }
 /** Abilities whose effect the port now covers (shown as implemented in the card details). */
-const COVERED_BASES = new Set(["ANre", "Xfoc", "Xhwl", "Xlrs", "Xspr", "Xslr", "Xtbs", "Xinf", "AHfa", "Avul", "Aslo", "ANca", "Aroc", "Afra", "AIcf", "Afbt", "AHbh", "AHab", "Adtg", "Abof", "Amgl", "ACat", "AUau", "ACes", "Ansk", "AIsr", "Apiv", "Arsk", "Aspt", "Asal", "Aimp"]);
+const COVERED_BASES = new Set(["ANre", "Xfoc", "Xhwl", "Xlrs", "Xspr", "Xslr", "Xtbs", "Xmbs", "Xinf", "AHfa", "Avul", "Aslo", "ANca", "Aroc", "Afra", "AIcf", "Afbt", "AHbh", "AHab", "Adtg", "Abof", "Amgl", "ACat", "AUau", "ACes", "Ansk", "AIsr", "Apiv", "Arsk", "Aspt", "Asal", "Aimp"]);
 const VISUAL_ONLY = (a) => (a.baseId === "Aasl" && fval(a, "Slo1", 1) === 0) || ["Aroa", "Aeth"].includes(a.baseId) || a.id === "A06Z";
 // v0.21l: a tower's skills are asked for up to three times per tick: kept for that tick (WeakMap, never saved)
 const TOWER_SKILLS = new WeakMap();
@@ -4477,7 +4538,7 @@ function nerfClass(c) {
 /** Nerf Resistance shortens negative effects by 75 % (A02U); v0.22n2: Tier Boss by 50 %. */
 function negativeDuration(c, normal, hero = null) {
   const cls = nerfClass(c);
-  if (cls === "normal") return normal;
+  if (cls === "normal") return creepSkills(c).some((sk) => sk.type === "miniBoss") ? normal * (1 - (1 - TIER_BOSS.shorter) * MINI_BOSS.share) : normal; // v0.27F: Mini Boss 25 % shorter
   if (cls === "boss" && creepSkills(c).some((sk) => sk.type === "tierBoss")) return normal * TIER_BOSS.shorter;
   return hero != null ? hero : normal * 0.25; // v0.24j: the ability's own hero/boss duration counts when it has one (bash, stomp)
 }
@@ -4495,7 +4556,11 @@ const splashStrike = (game, p, tower, c, damage, attackType) => {
     splashHit = false;
   }
 };
+/** v0.27aF: set while an Arrow Volley arrow strikes: it counts as Arrow damage (like a basic Archer tower's hit). */
+let volleyStrike = false;
+const VOLLEY_TOWER = { typeId: "h003" };
 function strike(game, p, tower, c, damage, attackType, spell = false, extraArmor = c.auraArmor || 0) {
+  const arrowHit = tower || (volleyStrike ? VOLLEY_TOWER : null);
   if (c.dead || damage <= 0 || divineShield(game, c)) return 0;
   const cs = creepSkills(c);
   if (!spell) {
@@ -4511,7 +4576,8 @@ function strike(game, p, tower, c, damage, attackType, spell = false, extraArmor
     const scales = cs.find((sk) => sk.type === "scales");
     if (scales) dealt = Math.max(scales.min, dealt - scales.ignore);
     // v0.22n2: Tier Boss ignores part of every tower attack, never below 1
-    if (tower && cs.some((sk) => sk.type === "tierBoss")) dealt = Math.max(1, dealt - (TIER_BOSS.ignore[c.typeId] || 0)); // like Scale Armor: at least 1 per hit
+    if (arrowHit && cs.some((sk) => sk.type === "tierBoss")) dealt = Math.max(1, dealt - (TIER_BOSS.ignore[c.typeId] || 0)); // like Scale Armor: at least 1 per hit
+    else if (arrowHit && cs.some((sk) => sk.type === "miniBoss")) dealt = Math.max(1, dealt - TIER_BOSS.ignore.n00T * MINI_BOSS.share); // v0.27F: half the Rock Golem's
   }
   if (spell || attackType === "magic") {
     const resist = cs.find((sk) => sk.type === "magicResist");
@@ -4527,6 +4593,12 @@ function strike(game, p, tower, c, damage, attackType, spell = false, extraArmor
     const lr = cs.find((sk) => sk.type === "lineResist");
     if (lr && lineSet(lr.root).has(tower.typeId)) dealt *= 1 - lr.reduce;
     // v0.17p: Howl: more damage from towers
+    const howl = c.statuses.find((st) => st.amp);
+    if (howl) dealt *= 1 + howl.amp;
+  } else if (volleyStrike) {
+    // v0.27aF: Arrow Volley arrows: Arrow Resistance and Howl count as for an Archer tower's hit
+    const lr = cs.find((sk) => sk.type === "lineResist");
+    if (lr && lineSet(lr.root).has(VOLLEY_TOWER.typeId)) dealt *= 1 - lr.reduce;
     const howl = c.statuses.find((st) => st.amp);
     if (howl) dealt *= 1 + howl.amp;
   }
@@ -4837,11 +4909,12 @@ function applyOnHit(game, player, tower, target) {
     } else if (ability.baseId === "Aspo") {
       // Poison stacks: each hit adds damage over time and a little slow; the oldest stack drops at the cap.
       // v0.13: the slow per stack is the ability's own value (Spo2), capped as before.
-      const duration = negativeDuration(target, fval(ability, "adur", level) || 6),
+      const alch = perkLevel(player, "alchemist"), // v0.27aF: Poison Alchemist
+        duration = negativeDuration(target, fval(ability, "adur", level) || 6) * (1 + ALCHEMIST.duration * alch),
         dps = Math.max(1, fval(ability, "Spo1", level)),
         stackSlow = fval(ability, "Spo2", level) || POISON_SLOW_PER_STACK;
       const mine = target.statuses.filter((s) => s.poison && s.stack === "Aspo"); // v0.24j: melee and ranged poison share one pool of stacks
-      if (mine.length >= POISON_MAX_STACKS) {
+      if (mine.length >= POISON_MAX_STACKS + ALCHEMIST.stacks * alch) {
         const oldest = mine.reduce((a, b) => (b.remaining < a.remaining ? b : a));
         target.statuses.splice(target.statuses.indexOf(oldest), 1);
       }
@@ -5221,7 +5294,7 @@ function killCreep(game, p, c) {
     tower.kills++;
     (p.stats.towerKills ||= {})[tower.typeId] = (p.stats.towerKills[tower.typeId] || 0) + 1; // v0.22j1: kills by tower type, sold towers included
   }
-  const exp = (c.summoned ? summonExp(c.maxHp || 0) : killExp(item)) * (c.clone ? CLONE_KILL_EXP : 1); // v0.24oF: summoned creeps by health, Clones copies −25 %
+  const exp = (c.summoned ? summonExp(c.maxHp || 0) : killExp(item)) * (c.clone ? CLONE_KILL_EXP : 1) * (c.volleyKill ? VOLLEY.killExp : 1); // v0.27aF: Arrow Volley kills 300 % // v0.24oF: summoned creeps by health, Clones copies −25 %
   if (exp > 0) gainExp(game, p, exp, c.summoned ? "summonKills" : "kills"); // v0.23v: a little EXP for every kill
   emit(game, "kill", { player: p.id, id: c.typeId, creepId: c.id, x: c.x, y: c.y, bounty, bonus, wave: c.wave || 0, boss: !!c.waveBoss });
   if (c.wave) waveDeath(game, p, c);
@@ -5242,12 +5315,11 @@ function deathrattle(game, c) {
   const sender = c.owner >= 0 ? game.players[c.owner] : null,
     breed = Math.min(3, perkLevel(sender, "breeding"));
   let boost = 1;
-  if (breed && plan.length) {
-    boost = 1 + BREEDING.hp * breed;
-    if (random(game) < BREEDING.chance[breed - 1]) {
-      const [id, delay, health = 1] = plan[0];
-      plan.push([id, Math.max(...plan.map((x) => x[1])) + 0.2, health]);
-    }
+  // v0.27aF: one sure extra spawn; spawns +25 % HP per level from level 2
+  if (breed && plan.length && !c.wave) {
+    boost = 1 + breedingHp(breed);
+    const [id, , health = 1] = plan[0];
+    for (let k = 0; k < BREEDING.extra; k++) plan.push([id, Math.max(...plan.map((x) => x[1])) + 0.2, health]);
   }
   for (const [id, delay, health = 1] of plan)
     game.pendingSpawns.push({ owner: c.owner, lane: c.defender, id, time: game.time + delay, x: c.x, y: c.y, health, ...(boost > 1 ? { boost } : {}) });
@@ -5293,7 +5365,7 @@ function touchdown(game, p, c) {
       emit(game, "pillage", { player: p.id, owner: sender.id, gold: loot, x: c.x, y: c.y });
     }
   }
-  gainExp(game, sender, (["n00S", "n01C"].includes(c.typeId) ? 30 : RULES.touchdownWood) * creepTierExp(c), "breach"); // v0.24oF: +10 % per tier above 1
+  gainExp(game, sender, (["n00S", "n01C"].includes(c.typeId) ? 30 : RULES.touchdownWood) * creepTierExp(c), "breach", BREACH_EXP_MIN * (sender.expNext || 0)); // v0.24oF: +10 % per tier above 1; v0.27bF: at least 1 % of the sender's current level step
   if (["n01R", "n02P"].includes(c.typeId)) {
     const stolen = Math.trunc(p.income / 100);
     p.income -= stolen;
@@ -5382,7 +5454,7 @@ function moveCreep(game, p, c, dt) {
   // This equals clamp(original speed with modifiers,24,1000)*modeMultiplier.
   const mobility = movementMultiplier(game);
   // v0.10r: Red Boots of the sender: ground creeps 25 % less slowed per level
-  const boots = (c.flying || c.owner < 0 ? 1 : bootsResist(game.players[c.owner])) * (1 - (creepSkills(c).find((sk) => sk.type === "slowResist")?.value || 0)) * (creepSkills(c).some((sk) => sk.type === "tierBoss") ? 1 - TIER_BOSS.slowResist : 1); // v0.21k: Slow Resistance; v0.24s: tier bosses 30 %
+  const boots = (c.flying || c.owner < 0 ? 1 : bootsResist(game.players[c.owner])) * (1 - (creepSkills(c).find((sk) => sk.type === "slowResist")?.value || 0)) * (creepSkills(c).some((sk) => sk.type === "tierBoss") ? 1 - TIER_BOSS.slowResist : creepSkills(c).some((sk) => sk.type === "miniBoss") ? 1 - TIER_BOSS.slowResist * MINI_BOSS.share : 1); // v0.21k: Slow Resistance; v0.24s: tier bosses 30 %
   const frozen = c.flying ? 1 : 1 - FROZEN_GROUND * perkLevel(p, "permafrost") * boots; // v0.10o: Frozen Ground (was Permafrost) of the defender
   const auraSpeed = aura.speed < 1 ? 1 - (1 - aura.speed) * boots : aura.speed; // v0.17n: Red Boots also soften aura slows
   // v0.18h: Backup Line mist / Low Tides water of the defender (Red Boots soften the slow part)
@@ -5464,6 +5536,8 @@ function moveCreep(game, p, c, dt) {
  * `lineEvery` rows reached). Times the creep-tier bonus.
  */
 export const SCOUT_EXP = { fromLine: 4, field: 0.3, lineEvery: 8, line: 1, fieldBoost: 0.5 };
+/** v0.27bF: Scouting perk (Storm, levels 1-3): +50 % scout EXP per level. */
+export const SCOUTING = { perLevel: 0.5, max: 3 };
 function scoutExp(game, c) {
   if (c.owner < 0 || c.wave) return;
   const owner = game.players[c.owner];
@@ -5484,7 +5558,7 @@ function scoutExp(game, c) {
       exp += SCOUT_EXP.field * (1 + SCOUT_EXP.fieldBoost * Math.floor((c.scoutLine || 0) / SCOUT_EXP.lineEvery));
     }
   }
-  if (exp > 0) gainExp(game, owner, exp * tierBonus, "scout");
+  if (exp > 0) gainExp(game, owner, exp * tierBonus * (1 + SCOUTING.perLevel * Math.min(SCOUTING.max, perkLevel(owner, "scouting"))), "scout"); // v0.27bF: Scouting
 }
 
 /** v0.19a1: Spirit Wolves: one wolf per round (v0.21k; was one per perk level); each one adds its income for good. */
@@ -6826,6 +6900,15 @@ function think(game, p) {
     p[scale] = clamp((p[scale] || 1) * (got <= 0 ? 1.6 : got >= 3 ? 0.85 : 1), 1, 5);
     p.aiPushCheck = null;
   }
+  // v0.27F: tier 1 starts with five cards; bots recruit the Mud Golem as soon as they can spare the gold
+  // (it saves for it, no creep sends or extras, once its income has grown or the round is late)
+  if (tierOneLocked(p) && game.round >= (MINI_BOSS.aiRound[level] ?? 3)) {
+    const mud = obj(MINI_BOSS.id);
+    if (mud && sendAllowed(p, mud)) {
+      if (p.gold >= mud.cost + Math.min(p.income, 20) && available(game, p.id, "send", mud.id).ok && command(game, { type: "send", player: p.id, id: mud.id }).ok) return;
+      if (p.income >= MINI_BOSS.aiIncome || game.round >= MINI_BOSS.aiSave) return;
+    }
+  }
   const sends = tierSends(p.tier).filter((s) => available(game, p.id, "send", s.id).ok),
     reserve = p.income * (0.4 / persona.greed);
   if (p.aiPush) {
@@ -7195,7 +7278,7 @@ const WAVE_POOLS = {
 };
 /** The real creep whose hit points are closest (log scale) to `target`, and how many fit the budget. */
 function waveGroup(poolName, budget, target, maxCount = 30) {
-  const pool = getCatalog().sends.filter((s) => s.playable && s.hp > 0 && WAVE_POOLS[poolName](s));
+  const pool = getCatalog().sends.filter((s) => s.playable && s.hp > 0 && s.id !== MINI_BOSS.id && WAVE_POOLS[poolName](s)); // v0.27F: no Mud Golem in neutral waves
   let best = null;
   for (const s of pool) {
     const d = Math.abs(Math.log(s.hp / Math.max(1, target)));
