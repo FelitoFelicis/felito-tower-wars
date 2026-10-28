@@ -1142,7 +1142,7 @@ export const PERKS = Object.freeze({
   fort: { name: "Fortifications", max: 1, text: "Builds a row of Walls with one gap. Unlocks the Wall: 4 gold", detail: "Builds a full row of Walls with one free field at its left or right end, on the free row farthest from your towers. Unlocks the Wall: 4 gold, no attack. Double-tap sells it for 1 gold" }, // v0.26fF: a row of walls
   agolem: { name: "Arcane Golem", max: 5, element: "arcane", text: "Active: a golem knocks creeps back up your path", detail: "Active ability: a golem walks up your path, knocks creeps back, then runs on to the next lane" },
   // v0.14: two new perks
-  slave: { name: "Slave Labour", max: 3, element: "plague", text: "1st creep: +{slaveStock} stock, recruits {slaveSpeed} faster", detail: "1st creep of every tier: +{slaveStock} max stock, recruits {slaveSpeed} faster" },
+  slave: { name: "Slave Labour", max: 5, element: "plague", text: "1st creep: +{slaveStock} stock, recruits {slaveSpeed} faster", detail: "1st creep of every tier: +{slaveStock} max stock, recruits {slaveSpeed} faster" },
   guardian: { name: "River Guardian", max: 10, element: "water", text: "Every {guardCd} s your strongest new creep gets a {guardShield} HP shield", detail: "Every {guardCd} s your strongest new creep gets a water shield of {guardShield} HP, magic damage −{guardMagic} while it holds" },
   // v0.18h: four new perks; "unpopular" = the share by which the offer chance drops after each refusal
   quarry: { name: "Quarry", max: 1, element: "earth", powerup: true, unpopular: 0.5, text: "+{quarryGold} gold and 8 stones. Clear them for an Earth perk", detail: "Instantly +{quarryGold} gold and 8 stones on your field. Clear them all for a random Earth perk" }, // v0.24s: gold by round
@@ -1344,9 +1344,9 @@ function contractShare(p, item, kind = "hp") {
   }
   return share;
 }
-/** v0.14: Slave Labour (Plague): +2 stock per level and faster restock (20 / 15 / 10 % per level, added up) for the first creep of every tier. */
-export const SLAVE = { stock: 2, speed: [0.2, 0.15, 0.1] };
-export const slaveSpeed = (level) => SLAVE.speed.slice(0, Math.max(0, Math.min(3, level))).reduce((a, b) => a + b, 0);
+/** v0.14: Slave Labour (Plague): first creep of every tier gets more stock and faster restock. v0.27dF: +1 stock per level, 20 / 35 / 45 / 50 / 55 % faster, max level 5. */
+export const SLAVE = { stock: 1, speed: [0.2, 0.15, 0.1, 0.05, 0.05], max: 5 };
+export const slaveSpeed = (level) => SLAVE.speed.slice(0, Math.max(0, Math.min(SLAVE.max, level))).reduce((a, b) => a + b, 0);
 const firstOfTier = (item) => !!item?.isSend && !item.bossTier && tierSends(item.tier)[0]?.id === item.id;
 /**
  * v0.14: River Guardian (Water): every 15 s the strongest creep among those sent in the next
@@ -2476,7 +2476,7 @@ export function stockRegenOf(p, s) {
 }
 /** Highest stock of a send for this player (v0.10i: Recruitment no longer adds stock). */
 export function stockMaxOf(p, s) {
-  return s ? s.stockMax + (perkLevel(p, "slave") && firstOfTier(s) ? SLAVE.stock * Math.min(3, perkLevel(p, "slave")) : 0) : 0; // v0.14: Slave Labour
+  return s ? s.stockMax + (perkLevel(p, "slave") && firstOfTier(s) ? SLAVE.stock * Math.min(SLAVE.max, perkLevel(p, "slave")) : 0) : 0; // v0.14: Slave Labour
 }
 // ---- Experience and level picks (v0.06, replaces wood) --------------------------------
 // EXP comes from everything that used to give wood: breakthroughs, creeps crossing the enemy

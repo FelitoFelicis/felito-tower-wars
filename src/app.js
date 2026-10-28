@@ -184,7 +184,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.27c",
+const APP_VERSION = "0.27d",
   APP_BRANCH = "F", // v0.23q: author marker (F = Felix, S = Steven) and branch text, shown behind the version; APP_VERSION stays plain for online matches (VersionPublishingRules.md)
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "28.10.2026";
@@ -4699,7 +4699,7 @@ const perkVars = (level, q, lv, next) => {
     quarryGold: format(quarryGold(level, q, game)), // v0.24s; v0.25c: argument order fixed (was a ReferenceError)
     airBlock: format(airBlockDamage(q, l3 + 1)),
     growth: format(Math.round(SUPERGROWTH[l3 + 1] * 1000) / 10) + "%",
-    slaveStock: SLAVE.stock * Math.min(3, lv),
+    slaveStock: SLAVE.stock * Math.min(SLAVE.max, lv), // v0.27dF
     slaveSpeed: pct(slaveSpeed(lv)),
     guardCd: GUARDIAN.cooldown,
     guardShield: format(guardShieldHp(q, game, Math.min(10, lv))), // v0.20c: from level, tier and round
