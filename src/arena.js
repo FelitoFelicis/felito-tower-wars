@@ -1691,10 +1691,6 @@ export function mountArena({
           const tip = !e.bounce && this.tips.get(view + ":" + e.towerId),
             sx = tip ? tip.x : from.x,
             sy = tip ? tip.y : from.y - cell * 0.55;
-          if (tip && /glaive/i.test(def?.name || "")) {
-            this.burst(tip.x, tip.y, 0xfff0c8, 6, 70, 2.4, 0.16, 0, true); // muzzle flash
-            this.burst(tip.x, tip.y, 0x9aa0a8, 4, 22, 3.4, 0.55, -25, false); // a puff of smoke
-          }
           if (e.focus) {
             // v0.18b: Focus Fire: a steady beam from the tower to its target, stronger the longer it holds
             const to = this.point(e.to.x, e.to.y),
@@ -3112,8 +3108,8 @@ export function mountArena({
         seg = (a, b) => clamp((k - a) / (b - a), 0, 1);
       let lean = 0,
         stretch = 1;
-      // v0.27ziF: Glaive Tower: the launcher fires with a hard recoil, always away from its muzzle, and springs back
-      if (/glaive/i.test(def.name || "")) {
+      // v0.27ziF: Bouncing Shot (Glaive Tower): the launcher fires with a hard recoil, always away from its muzzle, and springs back
+      if (/glaive|bouncing shot/i.test(def.name || "")) {
         const y = seg(0, 1),
           kick = k < 0.05 ? ease(seg(0, 0.05)) : Math.exp(-5.5 * (y - 0.05)) * Math.cos(12 * (y - 0.05));
         return { lean: -2.1 * kick, stretch: 1 - 0.09 * Math.max(0, kick) };

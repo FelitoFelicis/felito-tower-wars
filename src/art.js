@@ -753,7 +753,7 @@ const TOWER_PATTERNS = [
   [/flame crusader/i, () => "tower-flame-crusader"],
   [/bash/i, () => "tower-bash"],
   [/zombie/i, () => "tower-zombie"],
-  [/glaive/i, () => "tower-glaive"],
+  [/glaive|bouncing shot/i, () => "tower-glaive"], // v0.27zjF: the Glaive Tower is called Bouncing Shot
   [/treant/i, () => "tower-treant"],
   [/disease/i, () => "tower-disease"],
   [/lumbermill|exp[- ]generator/i, () => "tower-exp-generator"], // v0.21m: Lumbermill is called EXP Generator
@@ -798,7 +798,7 @@ function baseArtFor(item) {
     }
   if (ROOT_TOWER[item.id]) return ROOT_TOWER[item.id];
   if (ELEMENT_TOWER[item.element]) return ELEMENT_TOWER[item.element];
-  if (/footman|knight|guard|soldier|bash|glaive|crusader/i.test(name)) return "tower-guard";
+  if (/footman|knight|guard|soldier|bash|glaive|bouncing shot|crusader/i.test(name)) return "tower-guard";
   if (/cannon|canon|bombard|siege|stomp|launcher|robogoblin|battle mech|laser/i.test(name)) return "tower-cannon";
   if (/mage|magic|wizard|kel|frostbite|death knight|archangel|phoenix/i.test(name)) return "tower-arcane";
   if (/lumbermill|exp generator|tree|treant|ogre/i.test(name)) return "tower-earth";
