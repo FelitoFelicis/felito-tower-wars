@@ -5830,9 +5830,6 @@ dialog.welcome-modal.hard-eyes .welcome-eyes {
 .welcome-options.welcome-mute {
   left: 58px;
 }
-.welcome-mute[aria-pressed="true"] {
-  filter: saturate(0.6);
-}
 /* Nemesis box in the match summary (3+ players), framed in that player's colour */
 .nemesis {
   display: flex;
@@ -7001,9 +6998,6 @@ html.layout-full .game-shell .bottom-nav {
   width: 40px;
   height: 40px;
   margin-left: -6px;
-}
-.header-mute[aria-pressed="true"] {
-  filter: saturate(0.6);
 }
 /* PvP submenu: player name above the match buttons */
 .welcome-group .pvp-name {
@@ -9473,9 +9467,9 @@ html.creep-scroll .game-shell[data-page="send"] .cards > .unit-card {
 .welcome-options.welcome-mute {
   left: auto;
   right: 10px;
-  width: 48px;
-  height: 48px;
-  border-radius: 14px;
+  width: 58px; /* v0.27zcF: options and speaker 20 % larger */
+  height: 58px;
+  border-radius: 17px;
   border-color: #0f2c48;
   background: linear-gradient(#5b9ad0, #24578a);
   box-shadow:
@@ -9483,15 +9477,15 @@ html.creep-scroll .game-shell[data-page="send"] .cards > .unit-card {
     0 3px 0 #0f2c48;
 }
 .welcome-options.welcome-mute {
-  top: calc(64px + env(safe-area-inset-top));
+  top: calc(74px + env(safe-area-inset-top));
 }
 .welcome-options img {
-  width: 29px;
-  height: 29px;
+  width: 35px;
+  height: 35px;
 }
 .welcome-mute svg {
-  width: 38px;
-  height: 38px;
+  width: 46px;
+  height: 46px;
 }
 .welcome-options.welcome-install {
   left: 10px;

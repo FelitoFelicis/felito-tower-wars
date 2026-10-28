@@ -187,7 +187,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.27zb",
+const APP_VERSION = "0.27zd",
   APP_BRANCH = "F", // v0.23q: author marker (F = Felix, S = Steven) and branch text, shown behind the version; APP_VERSION stays plain for online matches (VersionPublishingRules.md)
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "28.10.2026";
@@ -1454,8 +1454,75 @@ function applyMenuColor() {
   // labels and lines on the dark dialog: dark colours (black, brown, purple) lifted so they stay readable
   root.style.setProperty("--mc-accent", lum < 0.3 ? `color-mix(in srgb, ${c.css} 45%, #ffffff)` : c.css);
 }
+/** v0.27zdF: the main-menu logo in the chosen player colour (its blue parts: shield, banner, gem, arrow, glow). Blue and Random keep the original. */
+const menuLogos = new Map();
+function recolorLogo(data, color) {
+  const c = TEAM_COLORS[color];
+  if (!c || c.hue == null) return;
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i + 3] < 8) continue;
+    const r = data[i],
+      g = data[i + 1],
+      b = data[i + 2],
+      max = Math.max(r, g, b),
+      span = max - Math.min(r, g, b);
+    if (max !== b || span < 0.16 * max || max < 24) continue;
+    const hue = ((r - g) / span + 4) * 60;
+    if (hue < 172 || hue > 268) continue;
+    // soft edges, so faint glows and the ends of the blue range blend in
+    const weight = Math.min(1, (span / max - 0.16) / 0.14) * Math.min(1, (hue - 172) / 12, (268 - hue) / 10),
+      v = Math.min(255, max * (c.val || 1)),
+      s = Math.min(1, (span / max) * (c.sat || 1)),
+      h = ((((c.hue + (hue - 225) * 0.2) % 360) + 360) % 360) / 60,
+      sector = Math.floor(h),
+      f = h - sector,
+      p = v * (1 - s),
+      q = v * (1 - s * f),
+      u = v * (1 - s * (1 - f)),
+      rgb = [[v, u, p], [q, v, p], [p, v, u], [p, q, v], [u, p, v], [v, p, q]][sector % 6];
+    data[i] = r + (rgb[0] - r) * weight;
+    data[i + 1] = g + (rgb[1] - g) * weight;
+    data[i + 2] = b + (rgb[2] - b) * weight;
+  }
+}
+function menuLogoUrl() {
+  const url = logoUrl(),
+    color = colorPick === "random" ? null : colorPick;
+  if (currentDesign() !== "original" || !color || TEAM_COLORS[color]?.hue == null) return url;
+  const id = url + "#" + color,
+    hit = menuLogos.get(id);
+  if (typeof hit === "string") return hit;
+  if (!hit) {
+    menuLogos.set(id, true);
+    const img = new Image();
+    img.onerror = () => menuLogos.set(id, url);
+    img.onload = () => {
+      try {
+        const canvas = Object.assign(document.createElement("canvas"), { width: img.naturalWidth, height: img.naturalHeight }),
+          ctx = canvas.getContext("2d", { willReadFrequently: true });
+        ctx.drawImage(img, 0, 0);
+        const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        recolorLogo(pixels.data, color);
+        ctx.putImageData(pixels, 0, 0);
+        const data = canvas.toDataURL("image/webp", 0.92);
+        canvas.width = canvas.height = 0;
+        menuLogos.set(id, /^data:image\/[a-z]+;base64,./.test(data) && data.length > 200 ? data : url);
+      } catch {
+        menuLogos.set(id, url);
+      }
+      showMenuLogo();
+    };
+    img.src = url;
+  }
+  return url;
+}
+function showMenuLogo() {
+  const url = menuLogoUrl();
+  for (const img of document.querySelectorAll(".welcome-logo")) if (img.getAttribute("src") !== url) img.src = url;
+}
 function applyColors() {
   applyMenuColor();
+  showMenuLogo();
   const shell = document.querySelector(".game-shell");
   shell?.style.setProperty("--own-color", TEAM_COLORS[colorChoice].css);
   shell?.style.setProperty("--rival-color", TEAM_COLORS[game && begun ? seatColors()[rivalIndex()] : rivalColor()].css);
@@ -2885,6 +2952,9 @@ function showModal(body, { pauseGame = true, welcome = false } = {}) {
   $("modal").classList.remove("with-flag");
   $("modal-body").innerHTML = body;
   if (!$("modal").open) $("modal").showModal();
+  // v0.27zdF: no focus ring on the button a dialog happens to open with (the main menu opened with the options button ringed)
+  const focused = document.activeElement;
+  if (focused?.tagName === "BUTTON" && $("modal-body").contains(focused)) focused.blur();
   if (document.getElementById("boot-screen")) window.felitoBoot?.(100, t("Ready"));
   document.getElementById("boot-screen")?.remove(); // v0.18b: the boot cover hides the board until the first dialog (main menu) is up
   $("modal-body")
@@ -2986,7 +3056,7 @@ function welcome() {
   }
   const saved = unusableSave ? null : localStorage.getItem(SAVE);
   showModal(
-    `<div class="welcome-eyes" aria-hidden="true"></div><div class="welcome-mood mood-easy" aria-hidden="true"></div><div class="welcome-mood mood-hard" aria-hidden="true"></div><div class="welcome-mood mood-hard-glow" aria-hidden="true"></div><div class="welcome-art" aria-hidden="true"></div><button class="welcome-options" id="welcome-options" type="button" aria-label="${t("Options")}"><img src="${iconUrl("gear")}" alt=""></button><button class="welcome-options welcome-mute" id="welcome-mute" type="button" aria-pressed="${muted}" aria-label="${t(muted ? "Sound off" : "Sound on")}">${speakerSvg(muted)}</button>${standaloneApp() ? "" : `<button class="welcome-options welcome-install" id="welcome-install" type="button" aria-label="${t("Add to Home Screen")}" title="${t("Add to Home Screen")}">${installSvg()}</button>`}<span class="app-version">v${APP_VERSION}${APP_BRANCH} · ${APP_DATE}${APP_NOTE ? `<small class="app-version-note">${esc(APP_NOTE)}</small>` : ""}</span><img class="welcome-logo" src="${logoUrl()}" alt="${gameName()}">${castMarkup()}<div class="welcome-panel" id="welcome-panel" data-view="home"><div class="welcome-home"><span class="modal-label">${t("Your color")}: <b id="color-name">${colorLabel()}</b></span><div class="color-picker" role="radiogroup" aria-label="${t("Your color")}">${Object.entries(TEAM_COLORS).map(([id, c]) => `<button role="radio" data-color="${id}" aria-checked="${id === colorPick}" aria-label="${t(c.name)}" title="${t(c.name)}" class="${id === colorPick ? "active" : ""}" style="--c:${c.css}"></button>`).join("")}</div><div class="welcome-modes"><button class="primary-button big welcome-mode alt" data-open="player"><img class="mode-icon" src="${iconUrl("attack")}" alt=""><span class="keep-case">${t("PvP")}</span></button><button class="primary-button big welcome-mode alt" data-open="ai"><img class="mode-icon" src="${iconUrl("attack")}" alt="">${t("Training")}</button></div></div><section class="welcome-group" data-sub="ai" aria-label="${t("Training")}"><h3 class="welcome-group-title"><button class="welcome-back" type="button" data-back aria-label="${t("Back")}">${t("Back")}</button>${t("Training")}</h3><div class="segmented ai-levels${hardoUnlocked ? " hardo-mode" : ""}" role="radiogroup" aria-label="${t("Difficulty")}">${Object.entries(AI_NAMES).map(([id, name]) => `<button role="radio" data-ai="${id}" aria-checked="${id === aiChoice}" class="${id === aiChoice ? "active" : ""}${id === "insane" ? " hardo-level" : hardoUnlocked ? " hardo-gone" : ""}"${id === "insane" && !hardoUnlocked ? " hidden" : ""}${id !== "insane" && hardoUnlocked ? " disabled" : ""}>${t(name)}</button>`).join("")}<button type="button" class="ai-mixed${aiMixed ? " active" : ""}${hardoUnlocked ? " hardo-gone" : ""}" id="ai-mixed" aria-pressed="${aiMixed}"${hardoUnlocked ? " disabled" : ""} title="${t("Shuffles AI enemies of different difficulties into the match, up to the chosen one")}">${t("Mixed")}</button></div>${hardoUnlocked ? hardoNoteHtml() : ""}<div class="welcome-inline"><span class="modal-label">${t("Neutral waves")}</span><div class="segmented" role="radiogroup" aria-label="${t("Neutral waves")}">${[["on", "On"], ["off", "Off"]].map(([id, name]) => `<button role="radio" data-waves="${id}" aria-checked="${(id === "on") === wavesOn}" class="${(id === "on") === wavesOn ? "active" : ""}">${t(name)}</button>`).join("")}</div></div><span class="modal-label">${t("Number of AI enemies")}</span><div class="segmented ai-count" role="radiogroup" aria-label="${t("Number of AI enemies")}">${hardoUnlocked ? hardoJustHtml() : AI_COUNTS.map((n) => `<button role="radio" data-aicount="${n}" aria-checked="${n === aiCount}" class="${n === aiCount ? "active" : ""}">${n}</button>`).join("")}</div><button class="primary-button big" id="start-training">${t("Start")}</button><button class="secondary-button big campaign-open" id="start-campaign">${t("Campaign")} · ${campaignDone().size}/${MISSIONS.length}</button></section><section class="welcome-group" data-sub="player" aria-label="${t("PvP")}"><h3 class="welcome-group-title"><button class="welcome-back" type="button" data-back aria-label="${t("Back")}">${t("Back")}</button><span class="keep-case">${t("PvP")}</span></h3><label class="modal-label name-label pvp-name" for="player-name">${t("Player name")}</label><div class="name-row"><input id="player-name" class="name-input" maxlength="16" autocomplete="nickname" spellcheck="false" placeholder="${t("Your name")}" value="${esc(playerNameChoice)}"><button type="button" class="icon-pick" id="icon-pick" aria-label="${t("Choose your player icon")}" style="--pc:${iconColor()}"><img src="${iconSrc(iconChoice)}" alt=""></button></div><div class="welcome-row pvp-row"><button class="primary-button rank-button rank-ffa" id="start-ranked-ffa" title="${t("Up to 8 players · rated")}">${t("Ranked FFA")}<small>${t(leagueOf(readRating("ffa").r))} · ${readRating("ffa").r}</small>${medalHtml(readRating("ffa").r, iconColor(), "rank-medal", true)}</button><button class="primary-button rank-button" id="start-ranked" title="${t("1v1 · rated")}">${t("Ranked 1v1")}<small>${t(leagueOf(readRating().r))} · ${readRating().r}</small>${medalHtml(readRating().r, iconColor(), "rank-medal", true)}</button><button class="secondary-button" id="start-quick">${t("Quick Match")}</button><button class="secondary-button" id="start-online">${t("Play a friend")}</button></div></section></div>`,
+    `<div class="welcome-eyes" aria-hidden="true"></div><div class="welcome-mood mood-easy" aria-hidden="true"></div><div class="welcome-mood mood-hard" aria-hidden="true"></div><div class="welcome-mood mood-hard-glow" aria-hidden="true"></div><div class="welcome-art" aria-hidden="true"></div><button class="welcome-options" id="welcome-options" type="button" aria-label="${t("Options")}"><img src="${iconUrl("gear")}" alt=""></button><button class="welcome-options welcome-mute" id="welcome-mute" type="button" aria-pressed="${muted}" aria-label="${t(muted ? "Sound off" : "Sound on")}">${speakerSvg(muted)}</button>${standaloneApp() ? "" : `<button class="welcome-options welcome-install" id="welcome-install" type="button" aria-label="${t("Add to Home Screen")}" title="${t("Add to Home Screen")}">${installSvg()}</button>`}<span class="app-version">v${APP_VERSION}${APP_BRANCH} · ${APP_DATE}${APP_NOTE ? `<small class="app-version-note">${esc(APP_NOTE)}</small>` : ""}</span><img class="welcome-logo" src="${menuLogoUrl()}" alt="${gameName()}">${castMarkup()}<div class="welcome-panel" id="welcome-panel" data-view="home"><div class="welcome-home"><span class="modal-label">${t("Your color")}: <b id="color-name">${colorLabel()}</b></span><div class="color-picker" role="radiogroup" aria-label="${t("Your color")}">${Object.entries(TEAM_COLORS).map(([id, c]) => `<button role="radio" data-color="${id}" aria-checked="${id === colorPick}" aria-label="${t(c.name)}" title="${t(c.name)}" class="${id === colorPick ? "active" : ""}" style="--c:${c.css}"></button>`).join("")}</div><div class="welcome-modes"><button class="primary-button big welcome-mode alt" data-open="player"><img class="mode-icon" src="${iconUrl("attack")}" alt=""><span class="keep-case">${t("PvP")}</span></button><button class="primary-button big welcome-mode alt" data-open="ai"><img class="mode-icon" src="${iconUrl("attack")}" alt="">${t("Training")}</button></div></div><section class="welcome-group" data-sub="ai" aria-label="${t("Training")}"><h3 class="welcome-group-title"><button class="welcome-back" type="button" data-back aria-label="${t("Back")}">${t("Back")}</button>${t("Training")}</h3><div class="segmented ai-levels${hardoUnlocked ? " hardo-mode" : ""}" role="radiogroup" aria-label="${t("Difficulty")}">${Object.entries(AI_NAMES).map(([id, name]) => `<button role="radio" data-ai="${id}" aria-checked="${id === aiChoice}" class="${id === aiChoice ? "active" : ""}${id === "insane" ? " hardo-level" : hardoUnlocked ? " hardo-gone" : ""}"${id === "insane" && !hardoUnlocked ? " hidden" : ""}${id !== "insane" && hardoUnlocked ? " disabled" : ""}>${t(name)}</button>`).join("")}<button type="button" class="ai-mixed${aiMixed ? " active" : ""}${hardoUnlocked ? " hardo-gone" : ""}" id="ai-mixed" aria-pressed="${aiMixed}"${hardoUnlocked ? " disabled" : ""} title="${t("Shuffles AI enemies of different difficulties into the match, up to the chosen one")}">${t("Mixed")}</button></div>${hardoUnlocked ? hardoNoteHtml() : ""}<div class="welcome-inline"><span class="modal-label">${t("Neutral waves")}</span><div class="segmented" role="radiogroup" aria-label="${t("Neutral waves")}">${[["on", "On"], ["off", "Off"]].map(([id, name]) => `<button role="radio" data-waves="${id}" aria-checked="${(id === "on") === wavesOn}" class="${(id === "on") === wavesOn ? "active" : ""}">${t(name)}</button>`).join("")}</div></div><span class="modal-label">${t("Number of AI enemies")}</span><div class="segmented ai-count" role="radiogroup" aria-label="${t("Number of AI enemies")}">${hardoUnlocked ? hardoJustHtml() : AI_COUNTS.map((n) => `<button role="radio" data-aicount="${n}" aria-checked="${n === aiCount}" class="${n === aiCount ? "active" : ""}">${n}</button>`).join("")}</div><button class="primary-button big" id="start-training">${t("Start")}</button><button class="secondary-button big campaign-open" id="start-campaign">${t("Campaign")} · ${campaignDone().size}/${MISSIONS.length}</button></section><section class="welcome-group" data-sub="player" aria-label="${t("PvP")}"><h3 class="welcome-group-title"><button class="welcome-back" type="button" data-back aria-label="${t("Back")}">${t("Back")}</button><span class="keep-case">${t("PvP")}</span></h3><label class="modal-label name-label pvp-name" for="player-name">${t("Player name")}</label><div class="name-row"><input id="player-name" class="name-input" maxlength="16" autocomplete="nickname" spellcheck="false" placeholder="${t("Your name")}" value="${esc(playerNameChoice)}"><button type="button" class="icon-pick" id="icon-pick" aria-label="${t("Choose your player icon")}" style="--pc:${iconColor()}"><img src="${iconSrc(iconChoice)}" alt=""></button></div><div class="welcome-row pvp-row"><button class="primary-button rank-button rank-ffa" id="start-ranked-ffa" title="${t("Up to 8 players · rated")}">${t("Ranked FFA")}<small>${t(leagueOf(readRating("ffa").r))} · ${readRating("ffa").r}</small>${medalHtml(readRating("ffa").r, iconColor(), "rank-medal", true)}</button><button class="primary-button rank-button" id="start-ranked" title="${t("1v1 · rated")}">${t("Ranked 1v1")}<small>${t(leagueOf(readRating().r))} · ${readRating().r}</small>${medalHtml(readRating().r, iconColor(), "rank-medal", true)}</button><button class="secondary-button" id="start-quick">${t("Quick Match")}</button><button class="secondary-button" id="start-online">${t("Play a friend")}</button></div></section></div>`,
     { pauseGame: false, welcome: true },
   );
   $("modal-body")
@@ -6438,7 +6508,7 @@ function toggleMute(b) {
 }
 /** v0.17: speaker symbol, crossed out when muted. */
 const speakerSvg = (off) =>
-  `<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M3 9.5h4l5-4v13l-5-4H3z" fill="#ffe27a" stroke="#3a2404" stroke-width="1.4" stroke-linejoin="round"/>${off ? '<path d="M16 9l5 6M21 9l-5 6" stroke="#ff7a6e" stroke-width="2.4" stroke-linecap="round"/>' : '<path d="M15.5 9.2a4 4 0 0 1 0 5.6M18.2 6.8a7.4 7.4 0 0 1 0 10.4" fill="none" stroke="#ffe27a" stroke-width="2" stroke-linecap="round"/>'}</svg>`;
+  `<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M3 9.5h4l5-4v13l-5-4H3z" fill="${off ? "#ff4a3d" : "#ffe27a"}" stroke="#3a2404" stroke-width="1.4" stroke-linejoin="round"/>${off ? '<path d="M16 9l5 6M21 9l-5 6" stroke="#ff7a6e" stroke-width="2.4" stroke-linecap="round"/>' : '<path d="M15.5 9.2a4 4 0 0 1 0 5.6M18.2 6.8a7.4 7.4 0 0 1 0 10.4" fill="none" stroke="#ffe27a" stroke-width="2" stroke-linecap="round"/>'}</svg>`;
 function applyVolume() {
   const master = muted ? 0 : volume.master; // v0.17: speaker button in the main menu
   musicEnabled = master > 0 && volume.music > 0;
@@ -8463,7 +8533,7 @@ function applyDesignArt() {
   swapStaticIcons();
   document.title = `${gameName()} · v${APP_VERSION}${APP_BRANCH}`;
   for (const img of document.querySelectorAll(".welcome-logo")) {
-    img.src = logoUrl();
+    img.src = menuLogoUrl();
     img.alt = gameName();
   }
   arena?.switchArt?.();
