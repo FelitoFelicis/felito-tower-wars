@@ -6741,6 +6741,11 @@ function bestSpot(game, p, item, persona, air = false, ctx = {}) {
         else if (isCannonTower(item)) value *= persona.splash * (1 + 0.6 * (1 - y / rows)); // area damage pays near the spawn
         if (wall !== undefined) value *= 1 + 0.6 * (filled / maze.size) + 0.1 * (maze.walls.length - wall);
         if (maze?.template && maze.keys.has(key)) value *= 1.6;
+        // v0.27rF: the first fighting towers stand in the middle (as in templateSpot): side towers let the early waves slip past
+        if (ctx.center && !air) {
+          const mid = (cols - size) / 2;
+          value *= 1 + AI_ADAPT.centerBonus * (1 - Math.abs(x - mid) / Math.max(1, mid));
+        }
         if (ctx.noise) value *= 1 + ctx.noise * (random(game) - 0.5) * 2;
         if (!best || value > best.value) best = { x, y, value };
       }
@@ -6775,7 +6780,7 @@ function defenceOptions(game, p, persona, level, style, cap, wantAir, onlyBuild 
   if (typed && (options.some((o) => !o.id) || p.towers.filter((t) => !maze.keys.has(t.gridX + "," + t.gridY) && t.typeId !== ROCK_ID).length >= 4))
     return options.sort((a, b) => b.value - a.value);
   // new towers on the best spot, following the maze plan
-  const ctx = { maze, strict: random(game) < style.strict || !!maze?.fun, noise: style.noise, cap, need, cellCache: new Map(), center: !!persona.adaptive && p.towers.length < AI_ADAPT.centerTowers }; // v0.16k: fun mazes keep their shape; v0.22l: Hardo starts in the middle
+  const ctx = { maze, strict: random(game) < style.strict || !!maze?.fun, noise: style.noise, cap, need, cellCache: new Map(), center: p.towers.filter((t) => t.typeId !== ROCK_ID && obj(t.typeId)?.attacks).length < AI_ADAPT.centerTowers }; // v0.27rF: every bot (was Hardo / adaptive only) starts with central towers; // v0.16k: fun mazes keep their shape; v0.22l: Hardo starts in the middle
   for (const item of getCatalog().towers) {
     if (!item.isRoot || !item.attacks || !item.playable) continue;
     if (wantAir ? !item.targets.includes("air") : !item.targets.includes("ground")) continue;
