@@ -254,7 +254,7 @@ export const ART_MANIFEST = Object.freeze({
  * v0.23: version key on every art URL (figures, animations, icons): raise it whenever pictures in
  * assets/art, assets/anim, assets/art-toy or assets/art-pets change, so browsers fetch the new ones (see the README).
  */
-export const ART_VERSION = "v027v"; // v0.27vF: silver Ogre Tower level 4; v0.27hF: Trench Orc; v0.27bF: Scouting icon; v0.27aF: Poison Alchemist icon; v0.26eF: Amnesia icon; v0.26cF: perk pack with Ring of Life and Revenge; // v0.24s: Wolf, Skeleton, Satyr, Rouge Captain, Wolfrider, Rock Golem cut out cleaner, smaller Spawn Spider spawns; v0.24a: death rows inside the walk sheets, perk and tower level art in packs, smoother edges on older sheets; v0.24: release of the v0.23 creep overhaul; v0.23zr: Banshee and Arcane Wolf cut out cleanly (no white edges or gaps); v0.23zq: Bone Dragon, Arcane Wolf, Giant Bat; v0.23zp: Naga Siren; v0.23zo: Raven; v0.23zn: Demon Lord; v0.23zm: leftover white removed from Necromancer, Meat Golem, Infernal Golem; v0.23zl: Banshee; v0.23zk: Dark Monk (was Faceless); v0.23zj: Demon Knight, Witch Hunter on the Spellbreaker, Dryad; v0.23zi: Witch Hunter, Druid; v0.23zh: Zombie Ogre; v0.23zg: left-over white background removed from creep sheets (holes between arms/legs, light edge halos)
+export const ART_VERSION = "v027w"; // v0.27wF: metal by level (bronze, iron, silver, gold) on shared tower figures, melee attack sheets; v0.27vF: silver Ogre Tower level 4; v0.27hF: Trench Orc; v0.27bF: Scouting icon; v0.27aF: Poison Alchemist icon; v0.26eF: Amnesia icon; v0.26cF: perk pack with Ring of Life and Revenge; // v0.24s: Wolf, Skeleton, Satyr, Rouge Captain, Wolfrider, Rock Golem cut out cleaner, smaller Spawn Spider spawns; v0.24a: death rows inside the walk sheets, perk and tower level art in packs, smoother edges on older sheets; v0.24: release of the v0.23 creep overhaul; v0.23zr: Banshee and Arcane Wolf cut out cleanly (no white edges or gaps); v0.23zq: Bone Dragon, Arcane Wolf, Giant Bat; v0.23zp: Naga Siren; v0.23zo: Raven; v0.23zn: Demon Lord; v0.23zm: leftover white removed from Necromancer, Meat Golem, Infernal Golem; v0.23zl: Banshee; v0.23zk: Dark Monk (was Faceless); v0.23zj: Demon Knight, Witch Hunter on the Spellbreaker, Dryad; v0.23zi: Witch Hunter, Druid; v0.23zh: Zombie Ogre; v0.23zg: left-over white background removed from creep sheets (holes between arms/legs, light edge halos)
 // ---- art sets of the Circle Tower Wars designs ------------------------------------------------------
 // Sonnenwiese and Bonbon draw every figure as a round toy ("toy"), Pfotenwelt as a cute animal ("pets").
 // A set holds one picture per figure; level variants (-v1..-v3, -l1, -l2) share their base figure there.
@@ -368,6 +368,18 @@ export const ANIM_MANIFEST = Object.freeze({
   "tower-guard": { kind: "attack", frames: 10, cols: 5, fw: 380, fh: 420, ox: 40, oy: 20, ms: 45, start: 2 },
   "tower-guard-l1": { kind: "attack", frames: 10, cols: 5, fw: 380, fh: 420, ox: 40, oy: 20, ms: 45, start: 2 },
   "tower-guard-l2": { kind: "attack", frames: 10, cols: 5, fw: 380, fh: 420, ox: 40, oy: 20, ms: 45, start: 2 },
+  // v0.27wF: weapon swings for more melee figures (cut-out rigs like the Footman; one sheet per level look)
+  "tower-guard-elite": { kind: "attack", frames: 10, cols: 5, fw: 367, fh: 440, ox: 40, oy: 20, ms: 45, start: 2 },
+  "tower-guard-champion": { kind: "attack", frames: 10, cols: 5, fw: 433, fh: 440, ox: 40, oy: 20, ms: 45, start: 2 },
+  "tower-guard-champion-v1": { kind: "attack", frames: 10, cols: 5, fw: 433, fh: 440, ox: 40, oy: 20, ms: 45, start: 2 },
+  "tower-flame-crusader": { kind: "attack", frames: 10, cols: 5, fw: 442, fh: 440, ox: 40, oy: 20, ms: 45, start: 2 },
+  "tower-flame-crusader-v1": { kind: "attack", frames: 10, cols: 5, fw: 442, fh: 440, ox: 40, oy: 20, ms: 45, start: 2 },
+  "tower-flame-crusader-v2": { kind: "attack", frames: 10, cols: 5, fw: 442, fh: 440, ox: 40, oy: 20, ms: 45, start: 2 },
+  "tower-flame-crusader-v3": { kind: "attack", frames: 10, cols: 5, fw: 442, fh: 440, ox: 40, oy: 20, ms: 45, start: 2 },
+  "tower-naga-guard": { kind: "attack", frames: 10, cols: 5, fw: 389, fh: 440, ox: 40, oy: 20, ms: 45, start: 2 },
+  "tower-naga-guard-v1": { kind: "attack", frames: 10, cols: 5, fw: 389, fh: 440, ox: 40, oy: 20, ms: 45, start: 2 },
+  "tower-naga-guard-v2": { kind: "attack", frames: 10, cols: 5, fw: 389, fh: 440, ox: 40, oy: 20, ms: 45, start: 2 },
+  "tower-naga-guard-v3": { kind: "attack", frames: 10, cols: 5, fw: 389, fh: 440, ox: 40, oy: 20, ms: 45, start: 2 },
   // v0.23a (creep graphic overhaul): 8-way walks (rows: front, front-right, right, back-right, back, back-left,
   // left, front-left; 6 frames each, foot point footX/footY, figure height figH, size figS = max(figH, width / 1.4)) and 6-frame deaths (key + "-death")
   "creep-n-arcane-golem": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 219, fh: 175, footX: 106, footY: 169, figH: 79, ms: 95, figS: 79 },
