@@ -7903,6 +7903,7 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
 /* v0.23c: Graphics: Tiles and Minimap side by side at the bottom */
 .opt-pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
 .opt-pair > .secondary-button { width: 100%; min-width: 0; padding-left: 6px; padding-right: 6px; }
+.opt-wide { width: 100%; min-width: 0; margin-top: 8px; } /* v0.27rF: Creep menu option, full width under the pair */
 /* v0.23b: player info windows: background 10 % transparent (original design; content stays opaque) */
 :root:is(:not([data-design]), [data-design="original"]) .player-plate.own {
   background: linear-gradient(180deg, color-mix(in srgb, color-mix(in srgb, var(--own-color) 30%, #0f1b26) 90%, transparent), color-mix(in srgb, color-mix(in srgb, var(--own-color) 12%, #09121a) 90%, transparent) 70%);
@@ -9416,4 +9417,29 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
   letter-spacing: 0;
   text-transform: none;
   zoom: 1.1;
+}
+
+/* ---- v0.27rF: creep menu "Scroll" (Options › Graphics): the send deck is one row to swipe sideways (5 cards in
+   view, the rest beside them), so it covers less of the field; "Full" keeps the grid with every card */
+html.creep-scroll {
+  --send-h: 80px;
+}
+html.creep-scroll .game-shell[data-page="send"] .cards,
+html.creep-scroll .game-shell[data-page="send"] .cards.five {
+  display: flex;
+  height: var(--send-h);
+  gap: 4px;
+  padding: 2px 4px 4px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  touch-action: pan-x;
+}
+html.creep-scroll .game-shell[data-page="send"] .cards > .unit-card {
+  flex: 0 0 calc((100% - 16px) / 5);
+  min-width: 0;
+  height: 100%;
+  grid-row: auto;
+  scroll-snap-align: start;
 }

@@ -187,7 +187,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.27r",
+const APP_VERSION = "0.27s",
   APP_BRANCH = "F", // v0.23q: author marker (F = Felix, S = Steven) and branch text, shown behind the version; APP_VERSION stays plain for online matches (VersionPublishingRules.md)
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "28.10.2026";
@@ -558,6 +558,14 @@ let mobileLayout = MOBILE_LAYOUTS.includes(pref(MOBILE_LAYOUT_PREF, "A")) ? pref
 /** v0.24f: Desktop Wide shows the send cards (top) and the build cards (bottom) at the same time. */
 const wideDeck = () => controlMode === "pc" && desktopWide;
 const deckCard = (id) => document.querySelector(`#cards [data-card="${id}"], #cards-send [data-card="${id}"]`);
+// v0.27rF: creep menu: "full" (every card of the tier in the grid) or "scroll" (one row to swipe sideways)
+const CREEP_MENU_PREF = "felito.creepMenu";
+let creepMenu = pref(CREEP_MENU_PREF, "full") === "scroll" ? "scroll" : "full";
+const creepMenuText = () => `${t("Creep menu")}: ${t(creepMenu === "scroll" ? "Scroll" : "Full")}`;
+function applyCreepMenu() {
+  document.documentElement.classList.toggle("creep-scroll", creepMenu === "scroll");
+}
+applyCreepMenu();
 function applyControlMode() {
   const root = document.documentElement,
     b = controlMode === "mobile" && (mobileLayout === "B" || mobileLayout === "B2"),
@@ -6423,7 +6431,7 @@ function audioModal(back) {
 }
 function graphicModal(back) {
   showModal(
-    `${subHeader(t("Graphics"))}<div id="menu-design">${designRow(t)}</div><div id="menu-controls">${controlsRow()}</div><div class="menu-pair"><button class="secondary-button" id="menu-popnum">${t("Pop-up numbers")}: ${onOff(popNumbers)}</button><button class="secondary-button" id="menu-popnote">${t("Pop-up notifications")}: ${onOff(popNotes)}</button></div><div class="opt-pair"><button class="secondary-button" id="menu-tiles">${tilesText()}</button><button class="secondary-button" id="menu-minimap">${minimapText()}</button></div>`, // v0.23c: Tiles and Minimap side by side at the bottom
+    `${subHeader(t("Graphics"))}<div id="menu-design">${designRow(t)}</div><div id="menu-controls">${controlsRow()}</div><div class="menu-pair"><button class="secondary-button" id="menu-popnum">${t("Pop-up numbers")}: ${onOff(popNumbers)}</button><button class="secondary-button" id="menu-popnote">${t("Pop-up notifications")}: ${onOff(popNotes)}</button></div><div class="opt-pair"><button class="secondary-button" id="menu-tiles">${tilesText()}</button><button class="secondary-button" id="menu-minimap">${minimapText()}</button></div><button class="secondary-button opt-wide" id="menu-creepmenu">${creepMenuText()}</button>`, // v0.23c: Tiles and Minimap side by side at the bottom
   );
   $("sub-back").onclick = back;
   $("menu-controls").onclick = (e) => {
@@ -6458,6 +6466,20 @@ function graphicModal(back) {
     savePref(MINIMAP_PREF, minimapMode);
     $("menu-minimap").textContent = minimapText();
     arena?.refresh?.();
+    tone("select");
+  };
+  $("menu-creepmenu").onclick = () => {
+    creepMenu = creepMenu === "scroll" ? "full" : "scroll";
+    savePref(CREEP_MENU_PREF, creepMenu);
+    applyCreepMenu();
+    $("menu-creepmenu").textContent = creepMenuText();
+    try {
+      deckSignature = "";
+      if (game) renderCards();
+      abilityLayoutKey = "";
+      arena?.refresh?.();
+      requestAnimationFrame(updateDeckArrows);
+    } catch {}
     tone("select");
   };
   $("menu-tiles").onclick = () => {
