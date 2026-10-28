@@ -753,7 +753,7 @@ export const TOWER_DAMAGE_PIN = { h02U: 11 };
 export const START_ROUNDS = {
   n00L: 4, n00R: 5, n00M: 6, n00N: 8, n00P: 8, n00S: 9, // tier 1 (the Wolf opens through START_LOCK)
   n011: 1, n00V: 1, n010: 2, nTRO: 4, n02V: 4, n014: 4, // tier 2
-  n03A: 2, n019: 1, n01A: 2, n01C: 3, n01G: 5, n01F: 6, // tier 3
+  n03A: 1, n019: 2, n01A: 2, n01C: 3, n01G: 5, n01F: 6, // tier 3 (v0.27jF: Naga Siren 2 → 1, Shade 1 → 2)
   n00F: 1, n01L: 1, n01N: 2, n02M: 3, n02N: 4, n02O: 4, // tier 4
   n025: 1, n026: 1, n02E: 2, n02I: 3, n02K: 3, n02Q: 4, // tier 5
 };
