@@ -635,7 +635,9 @@ export const CUSTOM_ABILITIES = [
   { id: "XA03", baseId: "Xinf", custom: true, fields: { anam: { 0: "Deathrattle" }, aub1: { 1: "Summons 3 Skeletons on death" } } }, // v0.17g: display only (the spawn runs through DEATH_PLANS)
   // v0.27yF: Terror Demon (was Pit Lord): Terror Aura replaces Howl. Creeps within 2 fields of the tower take 20 % more
   // damage from towers while they stay in range (no slow; several Terror Demons do not stack).
-  { id: "XA04", baseId: "Xter", custom: true, radius: 256, amp: 0.2, fields: { anam: { 0: "Terror Aura" }, aub1: { 1: "Creeps within 2 fields take 20% more damage from towers" } } },
+  { id: "XA04", baseId: "Xter", custom: true, radius: 256, amp: 0.3, fields: { anam: { 0: "Terror Aura" }, aub1: { 1: "Creeps within 2 fields take 30% more damage from towers" } } }, // v0.27zaF: 20 → 30 %
+  // v0.27zaF: Tree of Life: Entangle remade: every 6 s a random creep in range is entangled for 10 s (840 damage per second)
+  { id: "XA19", baseId: "Xent", custom: true, interval: 6, duration: 10, dps: 840, fields: { anam: { 0: "Entangle" }, aub1: { 1: "Every 6 s entangles a random creep in range for 10 s, dealing 840 damage per second" } } },
   // v0.17p: Phoenix: Phoenix Fire as an immolation aura with full damage to ground and air
   // v0.27nF: the Phoenix's two immolation auras (Phoenix Fire 350/s in 192, Firestorm Aura 275/s in 320) merged into one:
   // 400/s in 320 to ground and air (about the same damage over the whole circle)
@@ -676,6 +678,8 @@ const ABILITY_PATCH = {
   A02E: { fields: { aub1: { 1: "Shoots |c00FFFF004|r arrows simultaneously" } } },
   A03G: { fields: { aub1: { 1: "Shoots |c00FFFF005|r arrows simultaneously" } } },
   A05G: { fields: { aub1: { 1: "Shoots |c00FFFF006|r arrows simultaneously" } } },
+  // v0.27zaF: Naga Archer Stun: 15 % chance (was 9 %), 4 s (was 3 s)
+  A09Y: { fields: { Hbh1: { 1: 15 }, adur: { 1: 4 }, aub1: { 1: "Chance of |c00FFFF0015%|r to stun \nfor |c00FFFF004.00|r seconds and \ndeal |c00FFFF00200|r extra damage" } } },
   A0D1: { fields: { Ssk3: { 1: 12 } } }, // v0.23: Druid's Scale Armor ignores 12 damage per hit (the value was missing, so it ignored nothing)
   A08K: { fields: { Ssk2: { 1: 3 } } }, // v0.23: Frost Wyrm and Lord Garithos take at least 3 damage per hit (was 1: the value was missing)
   // v0.23zb: Undoctor (was Witch Doctor): its curse works once per creep, −33 % rate of fire for 60 s (was −30 % for 90 s, again and again)
@@ -701,6 +705,7 @@ const upgradeIds = (s) => splitIds(s).filter((id) => !REMOVED_UNITS.has(id));
 /** Per unit: map ability → replacement ("" removes it). */
 const UNIT_ABILITY_SWAP = {
   h024: { A09W: "" }, // Naga Archer: no Howl
+  h00G: { A01C: "XA19" }, // v0.27zaF: Tree of Life: timed Entangle (the old 15 % chance did nothing)
   h01Z: { A09W: "XA04" }, // Terror Demon (Pit Lord tower): Terror Aura (v0.27yF, was Howl)
   h020: { A0CI: "XA05", A059: "" }, // Phoenix: Phoenix Fire is an immolation aura; v0.27nF: Firestorm Aura merged into it
   // v0.18b: Earth Laser: Focus Fire instead of Armor Disruption

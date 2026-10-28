@@ -4509,6 +4509,10 @@ function skillOf(a, level = 1) {
       // v0.27yF: Terror Demon's Terror Aura
       sk = { type: "terror", radius: a.radius, amp: a.amp };
       break;
+    case "Xent":
+      // v0.27zaF: Tree of Life's timed Entangle
+      sk = { type: "timedEntangle", interval: a.interval, duration: a.duration, dps: a.dps };
+      break;
     case "Adtg":
       sk = { type: "detect", radius: fval(a, "aran", level, tipNum(a, level, /Range (\d+)/, 300)) };
       break;
@@ -4576,7 +4580,7 @@ function skillOf(a, level = 1) {
   return sk;
 }
 /** Abilities whose effect the port now covers (shown as implemented in the card details). */
-const COVERED_BASES = new Set(["ANre", "Xfoc", "Xhwl", "Xter", "Xlrs", "Xspr", "Xslr", "Xtbs", "Xmbs", "Xinf", "AHfa", "Avul", "Aslo", "ANca", "Aroc", "Afra", "AIcf", "Afbt", "AHbh", "AHab", "Adtg", "Abof", "Amgl", "ACat", "AUau", "ACes", "Ansk", "AIsr", "Apiv", "Arsk", "Aspt", "Asal", "Aimp"]);
+const COVERED_BASES = new Set(["ANre", "Xfoc", "Xhwl", "Xter", "Xent", "Xlrs", "Xspr", "Xslr", "Xtbs", "Xmbs", "Xinf", "AHfa", "Avul", "Aslo", "ANca", "Aroc", "Afra", "AIcf", "Afbt", "AHbh", "AHab", "Adtg", "Abof", "Amgl", "ACat", "AUau", "ACes", "Ansk", "AIsr", "Apiv", "Arsk", "Aspt", "Asal", "Aimp"]);
 const VISUAL_ONLY = (a) => (a.baseId === "Aasl" && fval(a, "Slo1", 1) === 0) || ["Aroa", "Aeth"].includes(a.baseId) || a.id === "A06Z";
 // v0.21l: a tower's skills are asked for up to three times per tick: kept for that tick (WeakMap, never saved)
 const TOWER_SKILLS = new WeakMap();
@@ -4827,7 +4831,6 @@ export const ULTIMATES = { // v0.23: exported for the Decay Attack tooltip
   h01L: { charge: 40, kind: "entangle", level: 1 },
   h00B: { charge: 40, kind: "entangle", level: 2 },
   h037: { charge: 40, kind: "entangle", level: 3 },
-  h00G: { charge: 40, kind: "entangle", level: 4 },
   h021: { charge: 45, kind: "decay", pct: 8 },
   h009: { charge: 45, kind: "decay", pct: 12 },
   h038: { charge: 45, kind: "decay", pct: 18 },
@@ -5082,6 +5085,19 @@ function applyImmolation(game, p) {
  * v0.17p: Pit Lord's Howl. When creeps come within its radius the tower howls: those creeps are
  * slowed and take more damage from towers for a while; then it rests for its cooldown.
  */
+/** v0.27zaF: Tree of Life: every few seconds a random creep in range (not already entangled) is entangled. */
+function tickEntangle(game, p, tower, skills, range) {
+  const sk = skills.find((x) => x.type === "timedEntangle");
+  if (!sk) return;
+  if (tower.entangleReady == null) tower.entangleReady = game.time + sk.interval;
+  if (tower.entangleReady > game.time) return;
+  const pool = p.creeps.filter((c) => !c.dead && c.hp > 0 && inRange(game, tower, c, range) && !divineShield(game, c) && !c.statuses.some((st) => st.abilityId === "entangle"));
+  if (!pool.length) return; // waits until a creep comes into range
+  const c = pool[Math.floor(random(game) * pool.length)];
+  c.statuses.push({ abilityId: "entangle", remaining: negativeDuration(c, sk.duration), slow: 0, dps: sk.dps, stun: true, owner: p.id });
+  tower.entangleReady = game.time + sk.interval;
+  emit(game, "skill", { player: p.id, kind: "entangle", x: c.x, y: c.y, towerId: tower.id });
+}
 /** v0.27yF: Terror Aura: creeps in range take more damage from towers while they stay there (refreshed every tick). */
 const TERROR_HOLD = 0.2;
 function tickTerror(game, p, tower, skills) {
@@ -7797,6 +7813,7 @@ function fixedTickInner(game) {
       tickAreaDamage(game, p, t, tSkills);
       tickHowl(game, p, t, tSkills); // v0.17p
       tickTerror(game, p, t, tSkills); // v0.27yF
+      tickEntangle(game, p, t, tSkills, stats.range); // v0.27zaF
       tickBarrage(game, p, t, stats); // v0.27lF: Battle Mech
       tickFlameburst(game, p, t, stats); // v0.27mF: Fire Lord
     }
