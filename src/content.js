@@ -628,7 +628,8 @@ export const CUSTOM_ABILITIES = [
   // v0.27hF: Trench Orc: Armor 2 (ignores 2 damage from every hit, at least 1 gets through)
   // v0.27lF: display only (the effects run in simulation.js): Magic City's Penalty Lap, Battle Mech's Missile Barrage
   { id: "XA16", baseId: "Xinf", custom: true, fields: { anam: { 0: "Penalty Lap" }, aub1: { 1: "Sends the creep farthest along back to the start: Arcane Penalty, armor reversed, 20% slower until it breaches" } } },
-  { id: "XA17", baseId: "Xinf", custom: true, fields: { anam: { 0: "Missile Barrage" }, aub1: { 1: "Every 9 s fires 3 heavy missiles at path fields with creeps, each hits all creeps on its field" } } },
+  { id: "XA18", baseId: "Xinf", custom: true, fields: { anam: { 0: "Flameburst" }, aub1: { 1: "Every 8 s a fire explosion on the creep farthest along hits all creeps within 1.5 fields" } } }, // v0.27mF: Fire Lord
+  { id: "XA17", baseId: "Xinf", custom: true, fields: { anam: { 0: "Missile Barrage" }, aub1: { 1: "Every 12 s fires 3 heavy missiles at path fields with creeps, each hits all creeps on its field" } } },
   { id: "XA15", baseId: "Ansk", custom: true, fields: { anam: { 0: "Scale Armor" }, aub1: { 1: "Ignores 2 damage from all attacks\nbut takes minimum 1 damage" }, Ssk3: { 1: 2 }, Ssk2: { 1: 1 } } },
   { id: "XA08", baseId: "Xslr", custom: true, resist: 0.4, fields: { anam: { 0: "Slow Resistance" }, aub1: { 1: "40% less slowed" } } }, // v0.21k: Warden, Eredar Warlock
   { id: "XA03", baseId: "Xinf", custom: true, fields: { anam: { 0: "Deathrattle" }, aub1: { 1: "Summons 3 Skeletons on death" } } }, // v0.17g: display only (the spawn runs through DEATH_PLANS)
@@ -715,7 +716,7 @@ const UNIT_ABILITY_SWAP = {
   n01D: { A09U: "XA01" },
 };
 /** Per unit: abilities added in front. */
-const UNIT_ABILITY_ADD = { h00J: ["XA16"], h046: ["XA17"], n02P: ["XA08"], n01R: ["XA08"], n00Y: ["XA10", "XA09"], n01H: ["XA11", "XA12"], n00T: ["XA12"], n015: ["XA12"], n01T: ["XA12"], n02R: ["XA12", "XA13"], n02I: ["A03D"] }; // v0.23: Lord Garithos shows his Divine Shield // v0.22n2: Tier Boss // v0.21z: Treant EXP Bonus and Spawn Wisp, Meat Golem Enrage // v0.21k: Slow Resistance for Warden and Eredar Warlock
+const UNIT_ABILITY_ADD = { h00J: ["XA16"], h046: ["XA17"], h00I: ["XA18"], n02P: ["XA08"], n01R: ["XA08"], n00Y: ["XA10", "XA09"], n01H: ["XA11", "XA12"], n00T: ["XA12"], n015: ["XA12"], n01T: ["XA12"], n02R: ["XA12", "XA13"], n02I: ["A03D"] }; // v0.23: Lord Garithos shows his Divine Shield // v0.22n2: Tier Boss // v0.21z: Treant EXP Bonus and Spawn Wisp, Meat Golem Enrage // v0.21k: Slow Resistance for Warden and Eredar Warlock
 /**
  * v0.18a: tower damage buffs in percent of the average damage, rounded up to the next whole number.
  * The difference is added to the flat damage part, so the dice spread stays the same.
@@ -760,6 +761,23 @@ export const START_ROUNDS = {
   n00F: 1, n01L: 1, n01N: 2, n02M: 3, n02N: 4, n02O: 4, // tier 4
   n025: 1, n026: 1, n02E: 2, n02I: 3, n02K: 3, n02Q: 4, // tier 5
 };
+/**
+ * v0.27mF: creep armor in the linear system (armor N ignores N damage of every tower hit, at least 1 gets through).
+ * Converted from the Warcraft values with bot matches: tower hits against each tier were recorded and each creep got
+ * the armor that cuts about as much of the total tower damage as its old armor did (1 / (1 + 0.05 × armor)). Old
+ * values up to 2 (12 % or less) are dropped. Capped per tier so that at most 30 % of the hits a tier faces end up at
+ * 1 damage (tier 1: 2, tier 2: 10, tier 3: 78, tier 4: 156); that caps the bosses and the Bandit Leader.
+ */
+export const LINEAR_ARMOR = {
+  n00T: 2, // Rock Golem (old 5)
+  n014: 10, n015: 10, // Bandit Leader (old 4), Iron Golem (old 10)
+  n018: 40, n01G: 30, n01F: 75, n01H: 78, // Rouge Captain 4, Siege Ogre 3, Minotaurus 8, Meat Golem 15
+  n01D: 55, n01N: 75, n02M: 105, n02N: 55, n02O: 155, n01T: 155, // Ghoul 3, Crystal Lizard 4, Witch Hunter 6, Bone Dragon 3, Demon Knight 12, Infernal Golem 20
+  n01Y: 75, n025: 60, n026: 75, n02E: 105, n02I: 180, n02K: 105, n02Q: 230, n02R: 275, // Dark Monk 4, Raven 3, Druid 4, Zombie Ogre 6, Dark Knight 12, Black Dragon 6, Demon Lord 18, Mountain Golem 25
+  n01W: 10, n01X: 75, n009: 105, n030: 155, n031: 120, // escorts and spawns: Clockwork Goblin 4, Iron Maiden 8, Kel'Thuzad's Zombie Ogre 6, Midfernal 12, Babyfernal 8
+};
+/** v0.27mF: other units with old armor 3 or more: old × this (the tier 3 rate of the table above). */
+export const LINEAR_ARMOR_RATE = 9;
 export const CREEP_TUNING = {
   nMDG: { bountyBase: 18, bountyDice: 0 }, // v0.27F: Mud Golem bounty like a tier 1 creep of its price
   // v0.27gF: tier 2: Skeleton Berserker and Flying Machine swap places (and start delays); Flying Machine 300 → 500 gold,
@@ -767,7 +785,7 @@ export const CREEP_TUNING = {
   n011: { name: "[16] Skeleton Berserker", stockStart: 1 }, // v0.27iF: start delay in rounds
   n00V: { name: "[17] Flying Machine", cost: 500, hp: 450, count: 3, income: 20, bountyBase: 38, stockStart: 1 }, // v0.27hF: 3 per purchase, 450 HP each, bounty 57 → 38 each (same total)
   [TRENCH_ORC_ID]: { name: "[21] Trench Orc", shortName: "Trench Orc", cost: 1000, hp: 3000, income: 62, count: 1, speed: 180, stockMax: 8, stockRegen: 7.5, stockStart: 4, bountyBase: 199, bountyDice: 1, abilities: ["A01A", "XA02", "XA15"] }, // v0.27hF: speed like the Orc, start delay like the Giant Bat
-  n01Y: { armor: 4 }, // v0.24s: Dark Monk armor 4
+  n01Y: { armor: 4 }, // v0.24s: Dark Monk armor 4 (v0.27mF: linear 75, LINEAR_ARMOR)
   n01D: { income: 60 }, // v0.21p: Ghoul earns income now (1500 gold: 4 %, like Demon Hound)
   // v0.21p: Naga Siren's death spawns +50 % hit points (they look like little Naga Sirens, art.js / arena.js)
   n02Z: { hp: 4050 }, // Mutant 2500 → 3750; v0.22zl: +8 %, 4050
@@ -831,6 +849,8 @@ function applyCreepTuning(byId) {
     if (count) u.spawnIds = Array(count).fill(id);
     if (rest.flying !== undefined) u.movementType = rest.flying ? "fly" : "foot";
   }
+  // v0.27mF: armor in the linear system (flat damage per hit, content.js LINEAR_ARMOR); Warcraft values up to 2 are dropped
+  for (const u of Object.values(byId)) if ((u.kind === "send" || u.kind === "unit") && (u.armor || 0) > 0) u.armor = LINEAR_ARMOR[u.id] ?? (u.armor <= 2 ? 0 : Math.round(u.armor * LINEAR_ARMOR_RATE));
 }
 export async function loadContent(base = new URL("../data/", import.meta.url)) {
   const names = ["units", "upgrades", "abilities"];

@@ -1629,8 +1629,8 @@ const STONE_LOVE = 1.5;
 /** Backup Line (Storm): top rows; Low Tides (Water): bottom rows. Damage bonus and creep speed in the zone. */
 // v0.24q: both up to level 3; Backup Line gives Archer-Line attack speed, Low Tides melee damage (by level); at
 // level 3 the zone is one row smaller
-export const BACKUP = { rows: 3, speed: [0, 0.25, 0.33, 0.4], slow: 0.1, haste: 0.1 };
-export const TIDES = { rows: 3, damage: [0, 0.4, 0.6, 0.7], slow: 0.25, haste: 0.1 }; // v0.23zn: Low Tides water rows 4 → 3
+export const BACKUP = { rows: 3, speed: [0, 0.25, 0.33, 0.4], slow: 0.1 }; // v0.27mF: no haste while broken
+export const TIDES = { rows: 3, damage: [0, 0.4, 0.6, 0.7], slow: 0.25 }; // v0.27mF: no haste while broken; // v0.23zn: Low Tides water rows 4 → 3
 export const backupSpeed = (level) => BACKUP.speed[Math.max(0, Math.min(3, level))];
 export const tidesDamage = (level) => TIDES.damage[Math.max(0, Math.min(3, level))];
 export const backupRows = (p) => BACKUP.rows - (perkLevel(p, "backup") >= 3 ? 1 : 0);
@@ -1707,8 +1707,9 @@ function zoneSpeed(game, p, c) {
   const row = gridAt(game, c).y,
     rows = laneRows(game, p);
   let f = 1;
-  if (perkLevel(p, "backup") && row >= 0 && row < backupRows(p)) f *= p.backupOn ? 1 - BACKUP.slow : 1 + BACKUP.haste;
-  if (perkLevel(p, "tides") && !c.flying && row >= rows - tidesRows(p) && row < rows) f *= p.tidesOn ? 1 - TIDES.slow : 1 + TIDES.haste;
+  // v0.27mF: no faster creeps any more while the condition is broken (only the slow while it holds)
+  if (p.backupOn && perkLevel(p, "backup") && row >= 0 && row < backupRows(p)) f *= 1 - BACKUP.slow;
+  if (p.tidesOn && perkLevel(p, "tides") && !c.flying && row >= rows - tidesRows(p) && row < rows) f *= 1 - TIDES.slow;
   return f;
 }
 /** Sanction Policy (Arcane): gold, lock length in rounds, income bonus, ability cooldown cut. */
@@ -1791,6 +1792,13 @@ function tickPillars(game) {
         if (c.dead || c.hp <= 0 || d > r || divineShield(game, c)) continue;
         // v0.16i: hotter core: up to +75 % damage in the centre, the full value at the edge
         const core = 1 + PILLAR.core * (1 - d / Math.max(1, r));
+        if (f.towerId) {
+          // v0.27mF: Flameburst: a tower's fire explosion, spell damage credited to the tower, no hotter core
+          const tower = p.towers.find((t) => t.id === f.towerId) || null;
+          strike(game, p, tower, c, f.damage * (c.flying ? PILLAR.air : 1), "spells", true);
+          if (c.hp <= 0) killCreep(game, p, c);
+          continue;
+        }
         c.hp -= guardCut(game, c, f.damage * core * (c.flying ? PILLAR.air : 1) * (!c.wave && isBudget(c.typeId) ? PILLAR.budget : 1) * spellResist(c), true); // v0.23: Magic Resistance (Pillar, Fire Block)
         if (c.hp <= 0) killCreep(game, p, c);
       }
@@ -2913,7 +2921,7 @@ export const BANTER = {
   count: 10,
   fat: { hp: 3, hpLate: 2.2, from: 3, chance: 0.3 }, // v0.16: ×3, ×2.2 for creeps past the 2nd place of their tier
   fast: { speed: 1.45, dodge: 0.25, from: 5, chance: 0.25 },
-  boss: { hp: 1.2, armor: 4, leak: 3, bounty: 6 },
+  boss: { hp: 1.2, armor: [2, 10, 40, 75, 75], leak: 3, bounty: 6 }, // v0.27mF: linear armor by the defender's tier (old +4)
   exp: 100,
   discount: 0.25,
   penalty: 0.25,
@@ -2983,7 +2991,7 @@ function spawnQuestCreep(game, entry) {
   c.quest = entry.quest;
   if (entry.boss) {
     c.hp = c.maxHp = Math.max(20, Math.round(total * BANTER.boss.hp * entry.hpShare));
-    c.armor += BANTER.boss.armor;
+    c.armor += BANTER.boss.armor[Math.max(1, Math.min(5, game.players[entry.defender]?.tier || 1)) - 1]; // v0.27mF
     c.waveBoss = true;
     c.defenseType = "hero";
     c.leakLives = BANTER.boss.leak;
@@ -4750,7 +4758,6 @@ export const ULTIMATES = { // v0.23: exported for the Decay Attack tooltip
   h038: { charge: 45, kind: "decay", pct: 18 },
   h01Z: { charge: 45, kind: "decay", pct: 30 },
   h00J: { charge: 60, kind: "penalty" }, // v0.27lF: Penalty Lap (was Shrink Ray)
-  h00I: { charge: 80, kind: "flamestrike" },
   h020: { charge: 80, kind: "chain" },
   h010: { charge: 100, kind: "blizzard" },
   h03W: { charge: 140, kind: "tsunami" },
@@ -4811,10 +4818,6 @@ function chargedSpecial(game, p, tower, target) {
       at.y = c.y;
       break;
     }
-    case "flamestrike":
-      game.clouds.push({ lane: p.id, towerId: tower.id, x: at.x, y: at.y, radius: 320, dps: 600, remaining: 2.67, kind: "fire" });
-      game.clouds.push({ lane: p.id, towerId: tower.id, x: at.x, y: at.y, radius: 320, dps: 300, remaining: 6, kind: "fire" });
-      break;
     case "chain":
       chainLightning(game, p, tower, target, 4000, 10, 0.1);
       break;
@@ -4869,13 +4872,13 @@ function penaltyLap(game, p, c) {
   emit(game, "skill", { player: p.id, kind: "penalty", x: start.x, y: start.y, from, creepId: c.id });
 }
 /**
- * v0.27lF: Battle Mech (h046, was Robogoblin with Swarm Rockets): Missile Barrage. Every 9 s, while creeps are in the
+ * v0.27lF: Battle Mech (h046, was Robogoblin with Swarm Rockets): Missile Barrage. Every 12 s (v0.27mF), while creeps are in the
  * player's maze, it launches 3 heavy missiles one after another (0.3 s apart) at path fields with creeps on them,
  * the fullest fields first; every field is at least 2 fields away from the fields the barrage already aimed at. The
- * missiles fly 3.60 fields/s; on impact every creep on that field (ground and air) takes 4 × the Mech's attack
+ * missiles fly 3.60 fields/s; on impact every creep on that field (ground and air) takes 3.5 × the Mech's attack
  * damage (perks and damage auras count) as splash damage (Splash Resistance and armor count).
  */
-export const MISSILE_BARRAGE = { towerId: "h046", every: 9, count: 3, gap: 0.3, speed: 3.6, apart: 2, factor: 4 };
+export const MISSILE_BARRAGE = { towerId: "h046", every: 12, count: 3, gap: 0.3, speed: 3.6, apart: 2, factor: 3.5 }; // v0.27mF: every 12 s (was 9), 3.5 × attack damage (was 4)
 function tickBarrage(game, p, tower, stats) {
   if (tower.typeId !== MISSILE_BARRAGE.towerId || (tower.barrageReady || 0) > game.time + EPS) return;
   const cols = game.grid.cols,
@@ -4933,6 +4936,23 @@ function creepAhead(game, c, t) {
     d -= seg;
   }
   return { x, y };
+}
+/**
+ * v0.27mF: Fire Lord (h00I): Flameburst replaces Flamestrike. Every 8 s, while a creep is in range, a fire explosion
+ * like Fire Block's bursts on the creep farthest along: every creep within 1.5 fields takes 1.25 × the tower's attack
+ * damage (perks and damage auras count) as spell damage; flyers half, like the Fire Block pillars.
+ */
+export const FLAMEBURST = { towerId: "h00I", every: 8, radius: 1.5, factor: 1.25 };
+function tickFlameburst(game, p, tower, stats) {
+  if (tower.typeId !== FLAMEBURST.towerId || (tower.burstReady || 0) > game.time + EPS) return;
+  const target = p.creeps
+    .filter((c) => !c.dead && c.hp > 0 && c.y >= 0 && !divineShield(game, c) && inRange(game, tower, c, stats.range))
+    .sort((a, b) => b.progress - a.progress || (a.id < b.id ? -1 : 1))[0];
+  if (!target) return;
+  tower.burstReady = game.time + FLAMEBURST.every;
+  const damage = FLAMEBURST.factor * (stats.damage || 0) * (auraAt(game, tower, p, auraSources(game, p))?.damage || 1);
+  (game.pillars ||= []).push({ player: p.id, towerId: tower.id, x: target.x, y: target.y, radius: FLAMEBURST.radius, damage, small: true, start: game.time, erupt: game.time, end: game.time + PILLAR.interval, next: game.time, burst: true, until: game.time + PILLAR.interval + FIREBLOCK.scorch });
+  emit(game, "skill", { player: p.id, kind: "flameburst", x: target.x, y: target.y, towerId: tower.id });
 }
 function tickMissiles(game, p) {
   if (!game.missiles?.length) return;
@@ -5343,7 +5363,8 @@ function creepTier(game, c) {
  * the hit points carries over.
  */
 // v0.22n2: Tier Boss instead of Scale Armor, Magic and Nerf Resistance; +80 % speed (was 137 → 261, +90 %)
-export const ENRAGED_GOLEM = { id: "n01H", hp: 42000, speedBonus: 0.8, armor: 7, pause: 1.2, abilities: ["A01A", "XA12", "A043", "A0CD"] };
+export const ENRAGED_GOLEM = { id: "n01H", hp: 42000, speedBonus: 0.8, armor: 66, // v0.27mF: linear armor (old 7)
+  pause: 1.2, abilities: ["A01A", "XA12", "A043", "A0CD"] };
 function enrageGolem(game, p, c) {
   const item = obj(c.typeId),
     hpScale = c.maxHp / (item.hp || c.maxHp),
@@ -7665,6 +7686,7 @@ function fixedTickInner(game) {
       tickAreaDamage(game, p, t, tSkills);
       tickHowl(game, p, t, tSkills); // v0.17p
       tickBarrage(game, p, t, stats); // v0.27lF: Battle Mech
+      tickFlameburst(game, p, t, stats); // v0.27mF: Fire Lord
     }
     tickClouds(game, p);
     tickMissiles(game, p); // v0.27lF

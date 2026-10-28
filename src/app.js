@@ -184,7 +184,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.27l",
+const APP_VERSION = "0.27m",
   APP_BRANCH = "F", // v0.23q: author marker (F = Felix, S = Steven) and branch text, shown behind the version; APP_VERSION stays plain for online matches (VersionPublishingRules.md)
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "28.10.2026";
@@ -1928,10 +1928,10 @@ const ABILITY_DESC = {
   // v0.16k: ultimates and armour that had no description yet
   "Auto Cannon": "Ultimate: fires cannon shots on its own when charged",
   Blizzard: "Ultimate: ice shards hit every creep in a wide area",
-  Flamestrike: "Ultimate: a column of fire burns an area",
+  Flameburst: "Every 8 s a fire explosion on the creep farthest along: 1.25 × attack damage as spell damage to every creep within 1.5 fields", // v0.27mF (was Flamestrike)
   "Mega Tsunami": "Ultimate: a huge wave crushes a whole row of creeps",
   "Penalty Lap": "Ultimate: sends the creep farthest along back to the start. Arcane Penalty: armor reversed, 20% slower until it breaches", // v0.27lF
-  "Missile Barrage": "Every 9 s fires 3 heavy missiles at path fields with creeps; each hits every creep on its field", // v0.27lF
+  "Missile Barrage": "Every 12 s fires 3 heavy missiles at path fields with creeps; each hits every creep on its field", // v0.27lF
   "Void Armor": "Ignores 5 damage of every hit, but always takes at least 20%",
   "Tower Repair": "Repairs a tower over a few seconds",
   "Switch Weapon": "Switches between two attack modes",

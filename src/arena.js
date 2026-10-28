@@ -1748,6 +1748,11 @@ export function mountArena({
             // v0.26cF: Revenge: a Fire Wolf comes in at the top of this board
             this.floatText(q.x, q.y + cell * 0.6, t("REVENGE"), "#ff9a4a", 12, 30, 1.1);
             this.burst(q.x, q.y + cell * 0.4, 0xff8a30, 8, 60, 2.2, 0.5, -30, true);
+          } else if (e.kind === "flameburst") {
+            // v0.27mF: Flameburst (Fire Lord): Fire Block's explosion, fired by the tower
+            this.floatText(q.x, q.y - cell * 0.7, t("FLAMEBURST"), "#ffb070", 12, 30, 1);
+            this.ring(q.x, q.y, cell * 0.2, cell * 1.5, 0xff7a2a, 0.7, 5);
+            this.burst(q.x, q.y - cell * 0.2, 0xffb040, 16, 120, 3, 0.5, -40, true);
           } else if (e.kind === "fireblock") {
             // v0.19j: Fire Block: a small explosion near the breach
             this.floatText(q.x, q.y - cell * 0.7, t("FIRE BLOCK"), "#ffb070", 13, 34, 1.1);
@@ -2229,18 +2234,20 @@ export function mountArena({
       }
       const mist = zoneOf(game, player, "backup");
       if (mist) {
+        // v0.27mF: condition broken: a dark-grey mist (normal blend, the glow layer can only lighten)
         const white = mist.on,
-          tone = white ? 0xf4f8ff : 0x6e7480;
+          tone = white ? 0xf4f8ff : 0x30343a,
+          layer = white ? glow : pl;
         for (let y = mist.from; y < mist.to; y++)
           for (let col = 0; col < z.logicalCols; col++)
             for (let k = 0; k < 2; k++) {
               const drift = Math.sin(time * 0.0006 + col * 1.1 + y * 0.7 + k * 2.4),
                 cx = z.left + (col + 0.3 + 0.4 * k + drift * 0.12) * cell,
                 cy = z.top + (y + 0.35 + 0.3 * hash(col, y, 50 + k)) * cell;
-              glow.fillStyle(tone, white ? 0.13 : 0.17);
-              glow.fillEllipse(cx, cy, cell * 1.05, cell * 0.62);
-              glow.fillStyle(tone, white ? 0.09 : 0.12);
-              glow.fillEllipse(cx + cell * 0.18, cy - cell * 0.12, cell * 0.7, cell * 0.42);
+              layer.fillStyle(tone, white ? 0.13 : 0.3);
+              layer.fillEllipse(cx, cy, cell * 1.05, cell * 0.62);
+              layer.fillStyle(tone, white ? 0.09 : 0.22);
+              layer.fillEllipse(cx + cell * 0.18, cy - cell * 0.12, cell * 0.7, cell * 0.42);
             }
       }
       // ---- route flow on the dirt tiles
@@ -2856,6 +2863,34 @@ export function mountArena({
         // Health bar only once a creep has lost health; drawn on top of everything on the board.
         // v0.25i: also when a River Guardian shield took the hit (the hit points stay full) and after small hits on
         // big creeps (below 0.1 % the bar stayed hidden)
+        // v0.27mF: stunned creeps: a ring of little grey hourglasses circling above the head, like in cartoons
+        if (statuses.some((st) => st.stun)) {
+          const hb = this.hpBars,
+            headY = gait ? q.y + cell * 0.18 - lift - height : sprite.y - Math.abs(sprite.sy) * (walk?.figH ? walk.figH : (m.footY ?? m.h) * 0.92),
+            cy = headY - cell * 0.06,
+            rx = cell * 0.3,
+            ry = cell * 0.09,
+            n = 5;
+          for (let i = 0; i < n; i++) {
+            const a = time * 0.0035 + (i * Math.PI * 2) / n,
+              front = Math.sin(a) > 0,
+              x = q.x + Math.cos(a) * rx,
+              y = cy + Math.sin(a) * ry,
+              hs = cell * (front ? 0.075 : 0.06),
+              al = front ? 0.95 : 0.6;
+            hb.fillStyle(0x2a2e33, al); // outline
+            hb.fillTriangle(x - hs * 0.75, y - hs * 1.15, x + hs * 0.75, y - hs * 1.15, x, y + hs * 0.08);
+            hb.fillTriangle(x - hs * 0.75, y + hs * 1.15, x + hs * 0.75, y + hs * 1.15, x, y - hs * 0.08);
+            hb.fillStyle(0xc4c9cf, al); // glass
+            hb.fillTriangle(x - hs * 0.5, y - hs * 0.95, x + hs * 0.5, y - hs * 0.95, x, y - hs * 0.12);
+            hb.fillTriangle(x - hs * 0.5, y + hs * 0.95, x + hs * 0.5, y + hs * 0.95, x, y + hs * 0.12);
+            hb.fillStyle(0x8a9098, al); // sand in the lower half
+            hb.fillTriangle(x - hs * 0.45, y + hs * 0.92, x + hs * 0.45, y + hs * 0.92, x, y + hs * 0.45);
+            hb.fillStyle(0x2a2e33, al); // caps
+            hb.fillRect(x - hs * 0.85, y - hs * 1.3, hs * 1.7, hs * 0.22);
+            hb.fillRect(x - hs * 0.85, y + hs * 1.08, hs * 1.7, hs * 0.22);
+          }
+        }
         const maxHp = c.maxHp || def.hp,
           ratio = clamp(c.hp / maxHp, 0, 1),
           guarded = c.guard && c.guard.max > 0 ? clamp(c.guard.hp / c.guard.max, 0, 1) : null,
