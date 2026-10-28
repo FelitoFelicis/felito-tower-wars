@@ -1946,7 +1946,7 @@ export const burstRadius = (level) => BURST.radius + BURST.radiusPerLevel * leve
  * by 50 % (a frost debuff) for 3 + 2 × level s. Damage grows with the perk level, the send tier (like Pillar of Fire)
  * and the player level.
  */
-export const FROSTBOLT = { cooldown: 40, radius: 1.25, slow: 0.5, base: 60, perLevel: 30, perPlayerLevel: 0.03 };
+export const FROSTBOLT = { cooldown: 40, radius: 1.625, slow: 0.5, base: 42, perLevel: 21, perPlayerLevel: 0.03 }; // v0.27nF: damage −30 % (60 + 30 × level → 42 + 21 × level), radius +30 % (1.25 → 1.625): more slow, less nuke
 export const frostboltDamage = (p, level = perkLevel(p, "frostbolt")) =>
   level ? Math.round((FROSTBOLT.base + FROSTBOLT.perLevel * level) * PILLAR_DAMAGE_TIER[Math.max(1, Math.min(PILLAR_DAMAGE_TIER.length, p?.tier || 1)) - 1] * (1 + FROSTBOLT.perPlayerLevel * (p?.level || 1))) : 0;
 export const frostboltSlowTime = (level) => 3 + 2 * Math.max(1, level || 1);
@@ -2700,14 +2700,15 @@ function makePick(game, p, kind, noQuest = false, focus = null) {
   // through level 3 one perk is always among the options
   const early = p.level <= 3 && perks.length ? draw(perks, 1) : [];
   const rest = perks.filter((x) => !early.some((e) => e.id === x.id)); // v0.21: no separate upgrade pool any more
-  // v0.16: open quests join the pool like any other reward (one quest per dialog at most)
-  const quests = noQuest ? [] : Object.keys(QUESTS).filter((id) => questOpen(game, p, id)).map((id) => ({ type: "quest", id })),
-    pool = rest.concat(quests),
-    picked = [];
-  for (const o of draw(pool, pool.length)) {
-    if (picked.length >= 3 - early.length) break;
-    if (o.type === "quest" && picked.some((x) => x.type === "quest")) continue;
-    picked.push(o);
+  // v0.27nF: quests are drawn apart from perks: a dialog holds one quest with questChance (33 %, lowered by quests
+  // offered and not taken, down to 20 %); Breach Contract and Untouchable come in a random version
+  const quests = noQuest ? [] : Object.keys(QUESTS).filter((id) => questOpen(game, p, id)),
+    withQuest = quests.length > 0 && random(game) < questChance(p),
+    picked = draw(rest, Math.max(0, 3 - early.length - (withQuest ? 1 : 0)));
+  if (withQuest) {
+    const id = quests[Math.floor(random(game) * quests.length)],
+      versions = QUEST_VERSIONS[id]?.versions.length || 0;
+    picked.push(versions ? { type: "quest", id, version: 1 + Math.floor(random(game) * versions) } : { type: "quest", id });
   }
   const options = draw(early.concat(picked), 3);
   return { kind, level: p.level, options, ...(noQuest ? { noQuest: true } : {}) };
@@ -2763,6 +2764,8 @@ function resolvePick(game, p, index) {
   p.picks.shift();
   // v0.15: a quest shown in this dialog counts as offered once, taken or not
   for (const o of pick.options) if (o.type === "quest") p.questOffers = { ...(p.questOffers || {}), [o.id]: (p.questOffers?.[o.id] || 0) + 1 };
+  // v0.27nF: a quest offered and not taken makes quests in later dialogs rarer (33 % → at least 20 %)
+  if (option.type !== "quest" && pick.options.some((o) => o.type === "quest")) p.questChance = Math.max(QUEST_CHANCE.min, questChance(p) - QUEST_CHANCE.drop);
   // v0.18h: unpopular perks shown here and not taken become less likely
   for (const o of pick.options) if (o !== option && o.type === "perk" && PERKS[o.id]?.unpopular) p.perkRefused = { ...(p.perkRefused || {}), [o.id]: (p.perkRefused?.[o.id] || 0) + 1 };
   applyOption(game, p, option, pick.level);
@@ -2780,7 +2783,7 @@ function applyOption(game, p, option, level) {
   skillEpoch++; // v0.21l: perks or research may change: tower skills are read anew
   abilityEpoch++; // v0.23i
   const pick = { level };
-  if (option.type === "quest") return acceptQuest(game, p, option.id);
+  if (option.type === "quest") return acceptQuest(game, p, option.id, option.version); // v0.27nF: version drawn with the offer
   if (option.type === "element") {
     const f = FACTIONS.find((x) => x.id === option.id);
     finishResearch(game, p, f.research);
@@ -2899,17 +2902,29 @@ function goldPerkOpen(game, p) {
  */
 export const QUESTS = Object.freeze({
   goblin: { name: "Goblin Banter", avail: "2-3", kind: "banter", model: "n00E", creeps: ["n00E", "n00U"], hp: 0.7, plural: "Goblins", pair: "Goblins & Trenchlins", discount: 0.2, exp: 100 }, // v0.23b: 20 % (rounded up: Goblin 4, Imp 40)
+  // v0.27nF: Untouchable in 3 versions: no breach for 5 / 7 / 10 rounds (QUEST_VERSIONS)
   untouchable: { name: "Untouchable", avail: "6-12", kind: "untouchable" },
   troll: { name: "Troll Banter", avail: "8-12", kind: "banter", model: "n010", creeps: ["n010", "n00F"], hp: 0.8, plural: "Trolls", pair: "Trolls & Witch Doctors", exp: 200 },
   undead: { name: "Undead Banter", avail: "13-18", kind: "banter", model: "n016", creeps: ["n016", "n01D"], hp: 0.85, plural: "Zombies", pair: "Zombies & Ghouls", exp: 300 },
   hound: { name: "Hound Banter", avail: "19-25", kind: "banter", model: "n02L", creeps: ["n02L", "n00L"], hp: 0.9, plural: "Demon Hounds", pair: "Demon Hounds & Wolves", exp: 450 },
   scarab: { name: "Scarab Banter", avail: "26-35", kind: "banter", model: "n01S", creeps: ["n01S", "n02V"], hp: 0.95, plural: "Scarabs", pair: "Scarabs & Spawn Spiders", exp: 600 },
-  // v0.19a1: contracts: score a breach within the rounds; the n-th creep of every tier gets the share as HP, income and discount
-  // v0.19d2: Blood Contract: the 9th creep, +19 % HP and income and 19 % faster restock (no discount)
-  blood: { name: "Blood Contract", avail: "6+", // v0.19l
-  kind: "contract", rounds: 9, place: 9, share: 0.19, gives: ["hp", "income", "restock"] },
-  unholy: { name: "Unholy Contract", avail: "3+", kind: "contract", rounds: 13, place: 7, share: 0.13, gives: ["hp", "income", "discount"] },
+  // v0.27nF: Breach Contract replaces Blood and Unholy Contract: score a breach within 10 / 8 / 6 / 4 rounds (QUEST_VERSIONS)
+  breach: { name: "Breach Contract", avail: "3+", kind: "breach" },
 });
+/**
+ * v0.27nF: versions of Breach Contract and Untouchable, drawn when the quest is offered. EXP = base + player level ×
+ * (15 + 5 × version number); rewards: `random` random perks at once (never Amnesia) and `points` reward points (extra
+ * reward dialogs).
+ */
+export const QUEST_VERSIONS = {
+  breach: { base: 100, versions: [{ rounds: 10, random: 2 }, { rounds: 8, random: 2 }, { rounds: 6, points: 1, random: 1 }, { rounds: 4, points: 2 }] },
+  untouchable: { base: 200, versions: [{ rounds: 5, random: 2 }, { rounds: 7, points: 1, random: 1 }, { rounds: 10, points: 2 }] },
+};
+export const questVersion = (id, version) => QUEST_VERSIONS[id]?.versions[Math.max(1, Math.min(QUEST_VERSIONS[id].versions.length, version || 1)) - 1] || null;
+export const questVersionExp = (id, version, level) => (QUEST_VERSIONS[id] ? QUEST_VERSIONS[id].base + (level || 1) * (15 + 5 * Math.max(1, version || 1)) : 0);
+/** v0.27nF: chance that a reward dialog holds a quest; every offered quest not taken lowers it by `drop`, down to `min`. */
+export const QUEST_CHANCE = { start: 0.33, drop: 0.02, min: 0.2 };
+export const questChance = (p) => Math.max(QUEST_CHANCE.min, p?.questChance ?? QUEST_CHANCE.start);
 /** Banter numbers: waves, creeps per wave, buffs, boss, reward and penalty. */
 /** v0.23b: speed loss of a player's creeps of the old tier still in play once the tier boss is bought (true debuff). */
 export const BOSS_TRUE_SLOW = 0.2;
@@ -2926,28 +2941,20 @@ export const BANTER = {
   discount: 0.25,
   penalty: 0.25,
 };
-/** v0.19d2: EXP for a fulfilled contract: 20 + 4 per round. */
-export const CONTRACT_EXP = { base: 20, perRound: 4 };
-export const contractExp = (round) => CONTRACT_EXP.base + CONTRACT_EXP.perRound * Math.max(0, round || 0);
-/** v0.19l: gold reward of a won contract (0 = none for now). */
-export const CONTRACT_GOLD = { base: 0, perRound: 0 };
-export const contractGold = (round) => CONTRACT_GOLD.base + CONTRACT_GOLD.perRound * Math.max(0, round || 0);
-/** Untouchable: rounds to hold (random within), EXP = perRound × rounds + perLevel × level. */
-export const UNTOUCHABLE = { min: 8, max: 12, perRound: 5, perLevel: 2 };
-export const untouchableExp = (rounds, level) => UNTOUCHABLE.perRound * rounds + UNTOUCHABLE.perLevel * level;
 function questOpen(game, p, id) {
   const q = QUESTS[id];
   if (!q || p.quest || p.questLog?.[id] || (p.questOffers?.[id] || 0) >= 2) return false;
   return parseAvailability(q.avail)(p.level);
 }
-function acceptQuest(game, p, id) {
-  const q = QUESTS[id];
+function acceptQuest(game, p, id, version = 1) {
+  const q = QUESTS[id],
+    v = questVersion(id, version);
   p.quest =
-    q.kind === "contract"
-      ? { id, since: game.round, until: game.round + q.rounds - 1, need: q.rounds } // v0.19a1
+    q.kind === "breach"
+      ? { id, version, since: game.round, until: game.round + v.rounds - 1, need: v.rounds } // v0.27nF
       : q.kind === "banter"
       ? { id, since: game.round, next: game.round + BANTER.delay, wave: 0 }
-      : { id, since: game.round, need: UNTOUCHABLE.min + Math.floor(random(game) * (UNTOUCHABLE.max - UNTOUCHABLE.min + 1)), clean: 0 };
+      : { id, version, since: game.round, need: v.rounds, clean: 0 }; // v0.27nF: Untouchable 5 / 7 / 10 rounds
   emit(game, "quest", { player: p.id, id, state: "start", need: p.quest.need || 0 });
 }
 /** Hit points of quest creeps follow the neutral wave curve at the current round. */
@@ -2959,7 +2966,11 @@ function tickQuestRound(game, p) {
   const st = p.quest;
   if (!st) return;
   const q = QUESTS[st.id];
-  if (q.kind === "contract") {
+  if (!q) {
+    p.quest = null; // v0.27nF: a quest from an older version (Blood / Unholy Contract) just ends
+    return;
+  }
+  if (q.kind === "breach") {
     if (game.round > st.until) finishQuest(game, p, false); // v0.19a1: no breach in time
     return;
   }
@@ -3036,7 +3047,7 @@ function checkQuest(game, p) {
 function questBreach(game, p, c) {
   const st = p.quest;
   if (!st) return;
-  if (QUESTS[st.id].kind === "untouchable" || c.quest === st.id) finishQuest(game, p, false);
+  if (QUESTS[st.id]?.kind === "untouchable" || c.quest === st.id) finishQuest(game, p, false);
 }
 function finishQuest(game, p, won) {
   const st = p.quest,
@@ -3048,20 +3059,19 @@ function finishQuest(game, p, won) {
     income0 = p.income; // v0.17m: gold/income rewards for the quest overlay
   let exp = 0;
   if (won && q.kind === "banter") exp = q.exp ?? BANTER.exp; // v0.23zh: later banters give more EXP (100 / 200 / 300 / 450 / 600)
-  if (won && q.kind === "contract") exp = contractExp(game.round); // v0.19d2
-  if (won && q.kind === "contract" && contractGold(game.round) > 0) p.gold += contractGold(game.round); // v0.19l
-  if (won && q.kind === "untouchable") {
-    exp = untouchableExp(st.need, p.level);
-    // 11-12 rounds: two extra choices; 9-10: one random reward and one choice; 8: two random rewards
-    const randoms = st.need >= 11 ? 0 : st.need >= 9 ? 1 : 2;
-    for (let i = 0; i < randoms; i++) {
-      const options = makePick(game, p, "upgrade", true).options;
+  // v0.27nF: Breach Contract and Untouchable: EXP by version and level, random perks and reward points by version
+  if (won && QUEST_VERSIONS[st.id]) {
+    const v = questVersion(st.id, st.version);
+    exp = questVersionExp(st.id, st.version, p.level);
+    for (let i = 0; i < (v.random || 0); i++) {
+      // a random perk: never Amnesia (it asks for a choice of its own)
+      const options = makePick(game, p, "upgrade", true).options.filter((o) => o.type === "perk" && o.id !== "amnesia");
       if (!options.length) continue;
       const option = options[Math.floor(random(game) * options.length)];
       applyOption(game, p, option, p.level);
       granted.push(option);
     }
-    for (let i = randoms; i < 2; i++) p.picks.push(makePick(game, p, "upgrade", true));
+    for (let i = 0; i < (v.points || 0); i++) p.picks.push(makePick(game, p, "upgrade", true));
   }
   if (exp) gainExp(game, p, exp, "quest");
   emit(game, "quest", { player: p.id, id: st.id, state: won ? "won" : "lost", exp, granted, rounds: st.need || 0, gold: Math.max(0, p.gold - gold0), income: Math.max(0, p.income - income0) });
@@ -5482,7 +5492,7 @@ function touchdown(game, p, c) {
   questBreach(game, p, c); // v0.15
   if (c.owner < 0) return waveTouchdown(game, p, c);
   const sender = game.players[c.owner];
-  if (sender?.quest && QUESTS[sender.quest.id]?.kind === "contract") finishQuest(game, sender, true); // v0.19a1: a breach fulfils a contract
+  if (sender?.quest && QUESTS[sender.quest.id]?.kind === "breach") finishQuest(game, sender, true); // v0.19a1: a breach fulfils a contract (v0.27nF: Breach Contract)
   p.lives = Math.max(0, p.lives - 1);
   // v0.17: who took lives from whom (Nemesis in the match summary)
   (p.stats.lostTo ||= {})[sender.id] = (p.stats.lostTo[sender.id] || 0) + 1;

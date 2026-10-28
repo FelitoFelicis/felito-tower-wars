@@ -131,11 +131,10 @@ import {
   startLives,
   lockRoundsLeft,
   QUESTS,
-  CONTRACT_EXP,
-  contractExp,
-  contractGold,
+  QUEST_VERSIONS, // v0.27nF
+  questVersion,
+  questVersionExp,
   BANTER,
-  UNTOUCHABLE,
   tierSends,
   sendHidden,
   MINI_BOSS,
@@ -184,7 +183,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.27m",
+const APP_VERSION = "0.27n",
   APP_BRANCH = "F", // v0.23q: author marker (F = Felix, S = Steven) and branch text, shown behind the version; APP_VERSION stays plain for online matches (VersionPublishingRules.md)
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "28.10.2026";
@@ -1982,7 +1981,7 @@ const ABILITY_DESC = {
   "Trueshot Aura": "Archer-Line towers nearby deal more damage", // v0.17p; v0.24n: Archer-Line only
   Production: "Generates EXP every 4 seconds",
   Howl: "When creeps come within 1.5 fields: 25% slower and +20% damage from towers for 12 s (cooldown 20 s)", // v0.17p
-  "Phoenix Fire": "Burns creeps around the tower: 350 damage per second to ground and air", // v0.17p
+  "Phoenix Fire": "Burns creeps around the tower: 400 damage per second to ground and air", // v0.17p; v0.27nF: one aura (Firestorm merged)
   "Phoenix Stun": "Chance to stun and deal big extra damage",
   Stun: "Chance to stun and deal extra damage",
   "Arcane Missile": "Spell: magic missile damage",
@@ -4768,7 +4767,7 @@ function pickCard(o, i, p) {
   }
   if (o.type === "quest") {
     const q = QUESTS[o.id];
-    return `<button class="pick-card pick-quest quest-${q.kind}" data-pick="${i}"><i class="quest-ribbon">${t("Quest")}</i><img src="${questArt(o.id)}" alt=""><b>${esc(t(q.name))}</b><span>${valHtml(questText(o.id))}</span></button>`;
+    return `<button class="pick-card pick-quest quest-${q.kind}" data-pick="${i}"><i class="quest-ribbon">${t("Quest")}</i><img src="${questArt(o.id)}" alt=""><b>${esc(t(q.name))}</b><span>${valHtml(questText(o.id, o.version))}</span></button>`;
   }
   const [icon, title, note] =
     o.type === "gold"
@@ -4782,7 +4781,7 @@ function pickCard(o, i, p) {
 const QUEST_SHIELD = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256"><defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff07a"/><stop offset=".35" stop-color="#ffc928"/><stop offset=".75" stop-color="#e08a0c"/><stop offset="1" stop-color="#9a5206"/></linearGradient><linearGradient id="s" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset=".5" stop-color="#c3cedc"/><stop offset="1" stop-color="#5e6b82"/></linearGradient><radialGradient id="r" cx=".35" cy=".3" r=".85"><stop offset="0" stop-color="#ff9a8a"/><stop offset=".4" stop-color="#ee2a22"/><stop offset="1" stop-color="#8a0a0a"/></radialGradient></defs><path d="M128 20 216 52v62c0 62-38 102-88 122C78 216 40 176 40 114V52z" fill="#1a1208"/><path d="M128 30 206 58v56c0 55-33 92-78 111-45-19-78-56-78-111V58z" fill="url(#s)" stroke="#2b3240" stroke-width="5"/><path d="M128 50 188 72v42c0 44-25 74-60 91-35-17-60-47-60-91V72z" fill="url(#g)" stroke="#6b3a06" stroke-width="4"/><path d="M128 76l14 30 32 3-24 21 7 32-29-17-29 17 7-32-24-21 32-3z" fill="url(#r)" stroke="#5a0606" stroke-width="4" stroke-linejoin="round"/><path d="M70 74c20-8 40-12 58-14" stroke="#fff" stroke-width="6" stroke-linecap="round" opacity=".6"/></svg>`;
 const questArt = (id) => {
   const q = QUESTS[id];
-  if (q.kind === "contract" && PERK_SVG[id + "contract"]) return svgUrl(id + "contract"); // v0.19a1
+  if (q.kind === "breach") return svgUrl("bloodcontract"); // v0.27nF: Breach Contract wears the old Blood Contract seal
   if (q.kind === "banter") {
     const item = catalog.byId[q.model];
     if (item) return artUrl(artFor(item));
@@ -4790,24 +4789,23 @@ const questArt = (id) => {
   return "data:image/svg+xml," + encodeURIComponent(QUEST_SHIELD);
 };
 const share = (x) => Math.round(x * 100) + "%";
-/** v0.19d2: contract text from its bonuses, plus the EXP it pays at the current round. */
-function contractText(q) {
-  // v0.19l: short: the condition, the reward ("N Gold & N EXP"), then what the n-th creep gets
-  const s = share(q.share),
-    gives = q.gives || ["hp", "income", "discount"],
-    nth = q.place + (["st", "nd", "rd"][q.place - 1] || "th"),
-    exp = contractExp(game?.round || 0),
-    gold = contractGold(game?.round || 0),
-    perks = [gives.includes("hp") && `+${s} HP`, gives.includes("income") && `+${s} Income`, gives.includes("restock") && t("recruit {s} faster", { s }), gives.includes("discount") && t("cost {s} less", { s })].filter(Boolean),
-    list = perks.length > 1 ? perks.slice(0, -1).join(", ") + " " + t("and") + " " + perks[perks.length - 1] : perks[0] || "";
-  return t("Breach within {n} rounds: {reward}. {nth} creep {list}", { n: q.rounds, reward: (gold ? `${format(gold)} Gold & ` : "") + `${format(exp)} EXP`, nth, list });
+/** v0.27nF: the reward of a Breach Contract / Untouchable version: "2 random perks", "1 Reward Point & 1 random perk", "2 Reward Points". */
+function versionReward(v) {
+  const parts = [];
+  if (v.points) parts.push(v.points === 1 ? t("1 Reward Point") : t("{n} Reward Points", { n: v.points }));
+  if (v.random) parts.push(v.random === 1 ? t("1 random perk") : t("{n} random perks", { n: v.random }));
+  return parts.join(" & ");
 }
-// v0.17: one short line per quest, the size of the other reward cards
-function questText(id) {
+// v0.17: one short line per quest, the size of the other reward cards; v0.27nF: with the offered version
+function questText(id, version = null) {
   const q = QUESTS[id];
-  if (q.kind === "untouchable") return t("No breach for {a}–{b} rounds. Reward: EXP and 2 rewards", { a: UNTOUCHABLE.min, b: UNTOUCHABLE.max });
-  if (q.kind === "contract")
-    return contractText(q); // v0.19d2: Blood Contract restocks faster instead of a discount, EXP by round
+  if (QUEST_VERSIONS[id]) {
+    const goal = q.kind === "breach" ? "Breach within {n} rounds" : "No breach for {n} rounds";
+    if (!version) return t(goal, { n: QUEST_VERSIONS[id].versions.map((v) => v.rounds).join("/") }) + ". " + t("Reward: EXP, random perks or Reward Points");
+    const v = questVersion(id, version),
+      exp = questVersionExp(id, version, game?.players[own]?.level || 1);
+    return t(goal, { n: v.rounds }) + ". " + t("Reward: {exp} EXP & {rest}", { exp: format(exp), rest: versionReward(v) });
+  }
   return t("Kill {n} waves of {creeps}. Reward: {exp} EXP, {pair} cost {d} less", { n: BANTER.waves, creeps: t(q.plural), exp: q.exp ?? BANTER.exp, pair: t(q.pair), d: share(q.discount ?? BANTER.discount) });
 }
 /** Progress of the running quest, for its tile. */
@@ -4816,7 +4814,7 @@ function questProgress(p) {
   if (!st) return "";
   const q = QUESTS[st.id];
   if (q.kind === "untouchable") return t("{a} of {b} rounds without a breach", { a: st.clean, b: st.need });
-  if (q.kind === "contract") {
+  if (q.kind === "breach") {
     const left = Math.max(0, st.until - game.round + 1); // v0.19a1
     return left === 1 ? t("Last round to score a breach") : t("{n} rounds left to score a breach", { n: left });
   }
@@ -4829,7 +4827,7 @@ function questProgress(p) {
 function questEvent(e) {
   const name = t(QUESTS[e.id].name);
   if (e.state === "start") {
-    toast(QUESTS[e.id].kind === "contract" ? t("{name}: score a breach within {n} rounds!", { name, n: e.need }) : QUESTS[e.id].kind === "untouchable" ? t("{name}: no breach for {n} rounds!", { name, n: e.need }) : (BANTER.delay === 1 ? t("{name} accepted: the first wave comes next round.", { name }) : t("{name} accepted: the first wave comes in {n} rounds.", { name, n: BANTER.delay })), "level");
+    toast(QUESTS[e.id].kind === "breach" ? t("{name}: score a breach within {n} rounds!", { name, n: e.need }) : QUESTS[e.id].kind === "untouchable" ? t("{name}: no breach for {n} rounds!", { name, n: e.need }) : (BANTER.delay === 1 ? t("{name} accepted: the first wave comes next round.", { name }) : t("{name} accepted: the first wave comes in {n} rounds.", { name, n: BANTER.delay })), "level");
     return;
   }
   if (e.state === "won") {
@@ -4838,7 +4836,7 @@ function questEvent(e) {
     toast(t("Quest completed: {name}", { name }) + (e.exp ? ` · +${format(e.exp)} EXP` : "") + (extra.length ? ` · ${extra.join(", ")}` : ""), "tier");
     if (e.exp) hudPop("#own-level", `+${format(e.exp)} EXP`, "exp");
     tone("tier");
-    if (game.players[own].picks.length && QUESTS[e.id].kind === "untouchable") {
+    if (game.players[own].picks.length && QUEST_VERSIONS[e.id]) { // v0.27nF: Reward Points of Breach Contract and Untouchable
       pickChain = performance.now() + 5000; // v0.19b1: the rewards open at once
       pickChainFrom = "";
     }
@@ -4929,7 +4927,7 @@ function ownedTiles(p, { names = false, label = true } = {}) {
   const questTile = (id, state) => {
     const mark = { run: "?", won: "✓", lost: "✗" }[state],
       note = state === "run" ? questProgress(p) : t(state === "won" ? "Quest completed" : "Quest failed"),
-      tip = ` data-tip="${esc(t(QUESTS[id].name))}" data-tip-text="${esc(note + " · " + questText(id))}" data-tip-level=""`,
+      tip = ` data-tip="${esc(t(QUESTS[id].name))}" data-tip-text="${esc(note + " · " + questText(id, state === "run" ? p.quest?.version : null))}" data-tip-level=""`,
       inner = `<img src="${questArt(id)}" alt=""><b class="quest-mark">${mark}</b>`;
     return names
       ? `<span class="owned-chip"${tip}><span class="owned-tile quest-tile quest-${state}">${inner}</span><span>${esc(t(QUESTS[id].name))}</span></span>`

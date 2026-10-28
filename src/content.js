@@ -636,7 +636,9 @@ export const CUSTOM_ABILITIES = [
   // v0.17p: Pit Lord tower: Howl. When creeps come near it howls: creeps within 1.5 fields are slowed and take more tower damage for 12 s.
   { id: "XA04", baseId: "Xhwl", custom: true, radius: 192, slow: 0.25, amp: 0.2, duration: 12, cooldown: 20, fields: { anam: { 0: "Howl" }, aub1: { 1: "Creeps within 1.5 fields: 25% slower, +20% tower damage for 12 s" } } },
   // v0.17p: Phoenix: Phoenix Fire as an immolation aura with full damage to ground and air
-  { id: "XA05", baseId: "AIcf", custom: true, fields: { anam: { 0: "Phoenix Fire" }, aare: { 1: 192 }, aub1: { 1: "Deals 350 damage per second\nRange 192\nTargets Ground & Air" } } },
+  // v0.27nF: the Phoenix's two immolation auras (Phoenix Fire 350/s in 192, Firestorm Aura 275/s in 320) merged into one:
+  // 400/s in 320 to ground and air (about the same damage over the whole circle)
+  { id: "XA05", baseId: "AIcf", custom: true, fields: { anam: { 0: "Phoenix Fire" }, aare: { 1: 320 }, aub1: { 1: "Deals 400 damage per second\nRange 320\nTargets Ground & Air" } } },
   // v0.18b: Earth Laser: Focus Fire. While the tower keeps hitting the same creep, its damage rises by 10 % every 0.25 s, up to 500 %.
   // v0.18e: Orc: buying one restocks one Goblin at once (display only; the restock runs in simulation.js)
   // v0.21z: display only: Treant EXP and Wisp, Meat Golem Enrage (the effects run in simulation.js)
@@ -699,7 +701,7 @@ const upgradeIds = (s) => splitIds(s).filter((id) => !REMOVED_UNITS.has(id));
 const UNIT_ABILITY_SWAP = {
   h024: { A09W: "" }, // Naga Archer: no Howl
   h01Z: { A09W: "XA04" }, // Pit Lord tower: working Howl
-  h020: { A0CI: "XA05" }, // Phoenix: Phoenix Fire is an immolation aura
+  h020: { A0CI: "XA05", A059: "" }, // Phoenix: Phoenix Fire is an immolation aura; v0.27nF: Firestorm Aura merged into it
   // v0.18b: Earth Laser: Focus Fire instead of Armor Disruption
   h03R: { A0BG: "XA06" },
   h03X: { A0BG: "XA06" },
