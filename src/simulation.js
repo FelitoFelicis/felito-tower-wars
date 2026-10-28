@@ -3782,15 +3782,7 @@ function finishResearch(game, p, id) {
     p.elementsPurchased++;
     p.research.Rhfs = FACTIONS.filter((f) => p.research[f.unlock]).length;
   }
-  // R00R replaces the ordinary arrow route with the arcane route.
-  if (id === "R00R")
-    for (const t of p.towers) {
-      const replacement = { h03G: "h00F", h03H: "h04Q", h03L: "h04R" }[t.typeId];
-      if (replacement && obj(replacement)) {
-        t.typeId = replacement;
-        t.name = obj(replacement).shortName;
-      }
-    }
+  // v0.27zfF: R00R no longer turns Arrow Towers into Arcane Towers (the Arcane Tower line was removed)
   for (const t of p.towers) {
     const s = statsFor(game, p, obj(t.typeId)),
       ratio = t.hp / t.maxHp;

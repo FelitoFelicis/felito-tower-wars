@@ -699,8 +699,9 @@ const renameFull = (full) => {
 const REMOVED_ABILITIES = new Set(["A05Q", "A00P", "A01W", "A02S", "A06K", "A08E", "A08G", "A08I", "A09R", "A0D3", "A06X", "A09O",
   // v0.21j: Detector removed from every tower, and with it invisibility (Eredar Warlock A0B2, Warden Apiv)
   "A025", "A04N", "A05C", "A06I", "A007", "A0BB", "A0BI", "A0B2", "Apiv"]);
-/** v0.18b: towers taken out of the game (Archangel); no tower upgrades into them any more. */
-const REMOVED_UNITS = new Set(["h022"]);
+/** v0.18b: towers taken out of the game (Archangel); no tower upgrades into them any more.
+ *  v0.27zfF: the Arcane Tower line (levels 4–6) as well; Archer level 3 leads only to the Arrow Tower. */
+const REMOVED_UNITS = new Set(["h022", "h00F", "h04Q", "h04R"]);
 const upgradeIds = (s) => splitIds(s).filter((id) => !REMOVED_UNITS.has(id));
 /** Per unit: map ability → replacement ("" removes it). */
 const UNIT_ABILITY_SWAP = {
