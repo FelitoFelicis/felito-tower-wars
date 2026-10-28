@@ -731,6 +731,10 @@ function applyTowerDamageBuff(byId) {
 export const TOWER_DAMAGE_PIN = { h02U: 11 };
 export const CREEP_TUNING = {
   nMDG: { bountyBase: 18, bountyDice: 0 }, // v0.27F: Mud Golem bounty like a tier 1 creep of its price
+  // v0.27gF: tier 2: Skeleton Berserker and Flying Machine swap places (and start delays); Flying Machine 300 → 500 gold,
+  // HP 375 → 625, income 12 → 20 (4 % as before), bounty 34 → 57 (same share of its price)
+  n011: { name: "[16] Skeleton Berserker", stockStart: 30 },
+  n00V: { name: "[17] Flying Machine", cost: 500, hp: 625, income: 20, bountyBase: 57, stockStart: 40 },
   n01Y: { armor: 4 }, // v0.24s: Dark Monk armor 4
   n01D: { income: 60 }, // v0.21p: Ghoul earns income now (1500 gold: 4 %, like Demon Hound)
   // v0.21p: Naga Siren's death spawns +50 % hit points (they look like little Naga Sirens, art.js / arena.js)
