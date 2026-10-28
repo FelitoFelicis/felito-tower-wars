@@ -1152,9 +1152,10 @@ dialog[open] {
 /* v0.22n2: required elements on the info dialog's picture, upper left */
 .modal-hero-wrap { position: relative; width: fit-content; max-width: 70%; margin: 2px auto; }
 .modal-hero-wrap .modal-hero { max-width: 100%; margin: 0 auto; }
-.hero-elements { position: absolute; top: 0; left: -4px; display: flex; flex-direction: column; gap: 4px; }
-.hero-el { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: radial-gradient(color-mix(in srgb, var(--el) 35%, #0b1822) 60%, #0b1822); box-shadow: 0 0 0 1.5px var(--el), 0 2px 4px #000a; }
-.hero-el img { width: 20px; height: 20px; object-fit: contain; }
+/* v0.27vF: element symbols a little further left, without the coloured circle behind them */
+.hero-elements { position: absolute; top: 0; left: -12px; display: flex; flex-direction: column; gap: 4px; }
+.hero-el { display: grid; place-items: center; width: 26px; height: 26px; }
+.hero-el img { width: 24px; height: 24px; object-fit: contain; filter: drop-shadow(0 1px 2px #000c); }
 .modal-kicker {
   font: 800 13px var(--font-display);
   letter-spacing: 0.14em;
