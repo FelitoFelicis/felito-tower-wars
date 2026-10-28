@@ -187,7 +187,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.27p",
+const APP_VERSION = "0.27q",
   APP_BRANCH = "F", // v0.23q: author marker (F = Felix, S = Steven) and branch text, shown behind the version; APP_VERSION stays plain for online matches (VersionPublishingRules.md)
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "28.10.2026";
@@ -4313,6 +4313,8 @@ function renderCards() {
   const tierSize = tab === "send" ? catalog.sends.filter((x) => x.playable && x.tier === game.players[own].tier && !sendHidden(game.players[own], x)).length : 0;
   $("cards").classList.toggle("five", tab === "send" && tierSize > 0 && tierSize <= 10);
   $("cards").classList.toggle("grid-build", tab === "build"); // v0.23zi: the build deck is laid out like the send deck (5 per row)
+  // v0.27qF: a send deck that fills only one row (tier 1 before the Mud Golem) sits on the bottom row, next to the edge
+  $("cards").classList.toggle("one-row", tab === "send" && list.length > 0 && list.length <= (tierSize > 0 && tierSize <= 10 ? 5 : 6));
   deckSignature = deckSig();
   $("cards").innerHTML =
     (list.map(cardMarkup).join("") || `<div class="empty-deck">${t("All available upgrades researched.")}</div>`);

@@ -7694,6 +7694,11 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
   padding-left: 7px;
   padding-right: 7px;
 }
+/* v0.27qF: only one row of creep cards (tier 1 before the Mud Golem): the cards take the lower row, so they sit at the
+   bottom edge instead of floating in the middle of the deck */
+.game-shell[data-page="send"] .cards.one-row > .unit-card {
+  grid-row: 2;
+}
 
 /* v0.22u2: tier next to the level in the player windows */
 .plate-exp .plate-tier {
