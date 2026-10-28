@@ -187,7 +187,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.27y",
+const APP_VERSION = "0.27z",
   APP_BRANCH = "F", // v0.23q: author marker (F = Felix, S = Steven) and branch text, shown behind the version; APP_VERSION stays plain for online matches (VersionPublishingRules.md)
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "28.10.2026";
@@ -2027,6 +2027,7 @@ const ABILITY_DESC = {
   "Trueshot Aura": "Archer-Line towers nearby deal more damage", // v0.17p; v0.24n: Archer-Line only
   Production: "Generates EXP every 4 seconds",
   Howl: "When creeps come within 1.5 fields: 25% slower and +20% damage from towers for 12 s (cooldown 20 s)", // v0.17p
+  "Terror Aura": "Creeps within 2 fields take 20% more damage from towers", // v0.27yF
   "Phoenix Fire": "Burns creeps around the tower: 400 damage per second to ground and air", // v0.17p; v0.27nF: one aura (Firestorm merged)
   "Phoenix Stun": "Chance to stun and deal big extra damage",
   Stun: "Chance to stun and deal extra damage",

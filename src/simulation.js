@@ -4502,8 +4502,12 @@ function skillOf(a, level = 1) {
       sk = { type: "focus", step: a.step, interval: a.interval, max: a.max };
       break;
     case "Xhwl":
-      // v0.17p: own ability (content.js CUSTOM_ABILITIES): Pit Lord's Howl
+      // v0.17p: own ability (content.js CUSTOM_ABILITIES): Pit Lord's Howl (unused since v0.27yF)
       sk = { type: "howl", radius: a.radius, slow: a.slow, amp: a.amp, duration: a.duration, cooldown: a.cooldown };
+      break;
+    case "Xter":
+      // v0.27yF: Terror Demon's Terror Aura
+      sk = { type: "terror", radius: a.radius, amp: a.amp };
       break;
     case "Adtg":
       sk = { type: "detect", radius: fval(a, "aran", level, tipNum(a, level, /Range (\d+)/, 300)) };
@@ -4572,7 +4576,7 @@ function skillOf(a, level = 1) {
   return sk;
 }
 /** Abilities whose effect the port now covers (shown as implemented in the card details). */
-const COVERED_BASES = new Set(["ANre", "Xfoc", "Xhwl", "Xlrs", "Xspr", "Xslr", "Xtbs", "Xmbs", "Xinf", "AHfa", "Avul", "Aslo", "ANca", "Aroc", "Afra", "AIcf", "Afbt", "AHbh", "AHab", "Adtg", "Abof", "Amgl", "ACat", "AUau", "ACes", "Ansk", "AIsr", "Apiv", "Arsk", "Aspt", "Asal", "Aimp"]);
+const COVERED_BASES = new Set(["ANre", "Xfoc", "Xhwl", "Xter", "Xlrs", "Xspr", "Xslr", "Xtbs", "Xmbs", "Xinf", "AHfa", "Avul", "Aslo", "ANca", "Aroc", "Afra", "AIcf", "Afbt", "AHbh", "AHab", "Adtg", "Abof", "Amgl", "ACat", "AUau", "ACes", "Ansk", "AIsr", "Apiv", "Arsk", "Aspt", "Asal", "Aimp"]);
 const VISUAL_ONLY = (a) => (a.baseId === "Aasl" && fval(a, "Slo1", 1) === 0) || ["Aroa", "Aeth"].includes(a.baseId) || a.id === "A06Z";
 // v0.21l: a tower's skills are asked for up to three times per tick: kept for that tick (WeakMap, never saved)
 const TOWER_SKILLS = new WeakMap();
@@ -4686,14 +4690,14 @@ function strike(game, p, tower, c, damage, attackType, spell = false, extraArmor
     const lr = cs.find((sk) => sk.type === "lineResist");
     if (lr && lineSet(lr.root).has(tower.typeId)) dealt *= 1 - lr.reduce;
     // v0.17p: Howl: more damage from towers
-    const howl = c.statuses.find((st) => st.amp);
-    if (howl) dealt *= 1 + howl.amp;
+    const amp = c.statuses.reduce((m, st) => Math.max(m, st.amp || 0), 0); // v0.27yF: Howl or Terror Aura, the strongest
+    if (amp) dealt *= 1 + amp;
   } else if (volleyStrike) {
     // v0.27aF: Arrow Volley arrows: Arrow Resistance and Howl count as for an Archer tower's hit
     const lr = cs.find((sk) => sk.type === "lineResist");
     if (lr && lineSet(lr.root).has(VOLLEY_TOWER.typeId)) dealt *= 1 - lr.reduce;
-    const howl = c.statuses.find((st) => st.amp);
-    if (howl) dealt *= 1 + howl.amp;
+    const amp = c.statuses.reduce((m, st) => Math.max(m, st.amp || 0), 0); // v0.27yF: Howl or Terror Aura, the strongest
+    if (amp) dealt *= 1 + amp;
   }
   const before = c.hp;
   c.hp -= guardCut(game, c, dealt, spell || attackType === "magic");
@@ -5078,6 +5082,20 @@ function applyImmolation(game, p) {
  * v0.17p: Pit Lord's Howl. When creeps come within its radius the tower howls: those creeps are
  * slowed and take more damage from towers for a while; then it rests for its cooldown.
  */
+/** v0.27yF: Terror Aura: creeps in range take more damage from towers while they stay there (refreshed every tick). */
+const TERROR_HOLD = 0.2;
+function tickTerror(game, p, tower, skills) {
+  const sk = skills.find((x) => x.type === "terror");
+  if (!sk) return;
+  for (const c of p.creeps) {
+    if (c.dead || c.hp <= 0 || !inRange(game, tower, c, sk.radius)) continue;
+    const st = c.statuses.find((x) => x.abilityId === "terror");
+    if (st) {
+      st.remaining = TERROR_HOLD;
+      st.amp = Math.max(st.amp, sk.amp);
+    } else c.statuses.push({ abilityId: "terror", remaining: TERROR_HOLD, slow: 0, amp: sk.amp, dps: 0, owner: p.id });
+  }
+}
 function tickHowl(game, p, tower, skills) {
   const sk = skills.find((x) => x.type === "howl");
   if (!sk || (tower.howlReady || 0) > game.time) return;
@@ -7778,6 +7796,7 @@ function fixedTickInner(game) {
       const tSkills = towerSkills(p, t);
       tickAreaDamage(game, p, t, tSkills);
       tickHowl(game, p, t, tSkills); // v0.17p
+      tickTerror(game, p, t, tSkills); // v0.27yF
       tickBarrage(game, p, t, stats); // v0.27lF: Battle Mech
       tickFlameburst(game, p, t, stats); // v0.27mF: Fire Lord
     }

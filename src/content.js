@@ -633,8 +633,9 @@ export const CUSTOM_ABILITIES = [
   { id: "XA15", baseId: "Ansk", custom: true, fields: { anam: { 0: "Scale Armor" }, aub1: { 1: "Ignores 2 damage from all attacks\nbut takes minimum 1 damage" }, Ssk3: { 1: 2 }, Ssk2: { 1: 1 } } },
   { id: "XA08", baseId: "Xslr", custom: true, resist: 0.4, fields: { anam: { 0: "Slow Resistance" }, aub1: { 1: "40% less slowed" } } }, // v0.21k: Warden, Eredar Warlock
   { id: "XA03", baseId: "Xinf", custom: true, fields: { anam: { 0: "Deathrattle" }, aub1: { 1: "Summons 3 Skeletons on death" } } }, // v0.17g: display only (the spawn runs through DEATH_PLANS)
-  // v0.17p: Pit Lord tower: Howl. When creeps come near it howls: creeps within 1.5 fields are slowed and take more tower damage for 12 s.
-  { id: "XA04", baseId: "Xhwl", custom: true, radius: 192, slow: 0.25, amp: 0.2, duration: 12, cooldown: 20, fields: { anam: { 0: "Howl" }, aub1: { 1: "Creeps within 1.5 fields: 25% slower, +20% tower damage for 12 s" } } },
+  // v0.27yF: Terror Demon (was Pit Lord): Terror Aura replaces Howl. Creeps within 2 fields of the tower take 20 % more
+  // damage from towers while they stay in range (no slow; several Terror Demons do not stack).
+  { id: "XA04", baseId: "Xter", custom: true, radius: 256, amp: 0.2, fields: { anam: { 0: "Terror Aura" }, aub1: { 1: "Creeps within 2 fields take 20% more damage from towers" } } },
   // v0.17p: Phoenix: Phoenix Fire as an immolation aura with full damage to ground and air
   // v0.27nF: the Phoenix's two immolation auras (Phoenix Fire 350/s in 192, Firestorm Aura 275/s in 320) merged into one:
   // 400/s in 320 to ground and air (about the same damage over the whole circle)
@@ -700,7 +701,7 @@ const upgradeIds = (s) => splitIds(s).filter((id) => !REMOVED_UNITS.has(id));
 /** Per unit: map ability → replacement ("" removes it). */
 const UNIT_ABILITY_SWAP = {
   h024: { A09W: "" }, // Naga Archer: no Howl
-  h01Z: { A09W: "XA04" }, // Pit Lord tower: working Howl
+  h01Z: { A09W: "XA04" }, // Terror Demon (Pit Lord tower): Terror Aura (v0.27yF, was Howl)
   h020: { A0CI: "XA05", A059: "" }, // Phoenix: Phoenix Fire is an immolation aura; v0.27nF: Firestorm Aura merged into it
   // v0.18b: Earth Laser: Focus Fire instead of Armor Disruption
   h03R: { A0BG: "XA06" },
