@@ -298,6 +298,9 @@ export function pipGeometry(z) {
 /** v0.21o: the shimmering tier aura round towers of level 4 and up (off on the user's request). */
 const TIER_AURA = false;
 const TOWER_SCALE = 0.95;
+/** v0.27ziF: muzzle of a figure's weapon, in pixels of its picture (level variants use the base figure's). */
+const WEAPON_TIP = { "tower-earth-laser": [296, 170], "tower-glaive": [238, 160] };
+const tipOf = (artKey) => WEAPON_TIP[artKey] || WEAPON_TIP[artKey.replace(/-v\d$/, "")] || null;
 const LEVEL_SCALE = [0.92, 0.92, 0.925, 0.93, 0.965, 1, 1.04, 1.08, 1.12, 1.16];
 const levelScale = (level) => LEVEL_SCALE[Math.max(1, Math.min(9, level | 0))];
 /** Level badge colours: grey for neutral towers, the element's colour for elemental ones. */
@@ -438,6 +441,7 @@ export function mountArena({
       this.rings = [];
       this.swipes = [];
       this.beams = new Map(); // v0.18b: Focus Fire beams (Earth Laser), one per tower
+      this.tips = new Map(); // v0.27ziF: tower id -> screen point of its weapon's muzzle (beams, shots, smoke)
       this.bolts = []; // v0.12
       this.floaters = [];
       this.textPool = [];
@@ -1683,11 +1687,19 @@ export function mountArena({
             sprite.setData("recoil", time + 120).setData("atk", time);
             sprite.setData("aimX", e.to.x < (tower || e.from).x ? -1 : 1);
           }
+          // v0.27ziF: figures with a known weapon shoot from its muzzle
+          const tip = !e.bounce && this.tips.get(view + ":" + e.towerId),
+            sx = tip ? tip.x : from.x,
+            sy = tip ? tip.y : from.y - cell * 0.55;
+          if (tip && /glaive/i.test(def?.name || "")) {
+            this.burst(tip.x, tip.y, 0xfff0c8, 6, 70, 2.4, 0.16, 0, true); // muzzle flash
+            this.burst(tip.x, tip.y, 0x9aa0a8, 4, 22, 3.4, 0.55, -25, false); // a puff of smoke
+          }
           if (e.focus) {
             // v0.18b: Focus Fire: a steady beam from the tower to its target, stronger the longer it holds
             const to = this.point(e.to.x, e.to.y),
               beam = this.beams.get(e.towerId) || {};
-            Object.assign(beam, { targetId: e.targetId, x0: from.x, y0: from.y - cell * 0.55, tx: to.x, ty: to.y - cell * 0.2, power: clamp((e.focus - 1) / Math.max(1, (e.focusMax || 5) - 1), 0, 1), life: 0.6, max: 0.6 });
+            Object.assign(beam, { targetId: e.targetId, x0: sx, y0: sy, tx: to.x, ty: to.y - cell * 0.2, power: clamp((e.focus - 1) / Math.max(1, (e.focusMax || 5) - 1), 0, 1), life: 0.6, max: 0.6 });
             beam.shown ??= 0;
             this.beams.set(e.towerId, beam);
           } else if (def?.fields?.ua1w === "normal") {
@@ -1699,8 +1711,8 @@ export function mountArena({
               to = this.point(e.to.x, e.to.y),
               d = Math.hypot(to.x - from.x, to.y - from.y);
             this.projectiles.push({
-              x0: from.x,
-              y0: from.y - cell * 0.55,
+              x0: sx,
+              y0: sy,
               targetId: e.targetId,
               tx: to.x,
               ty: to.y - cell * 0.2,
@@ -2390,16 +2402,38 @@ export function mountArena({
           bars.fillStyle(0xfff2c0, 0.42);
           bars.fillCircle(hx, hy, Math.max(1, hr * 0.14));
         }
+        // v0.27ziF: the muzzle of the weapon on screen (follows scale and the attack bend of the figure)
+        const tipPx = !anim && tipOf(artKey);
+        let tip = null;
+        if (tipPx) {
+          const sxs = base * pop * (1 + recoil * 0.05),
+            sys = base * pop * (1 + breathe + recoil * 0.07),
+            v = tipPx[1] / m.h,
+            hinge = (m.plateCY - (m.plateCY - m.plateTop) * 0.35) / m.h,
+            oy = m.plateCY / m.h;
+          let ly = (v - oy) * m.h * sys,
+            shift = 0;
+          if (pose && v < hinge) {
+            const kk = (hinge - v) / hinge;
+            ly = (hinge - oy) * m.h * sys - (hinge - v) * m.h * sys * pose.stretch;
+            shift = pose.lean * m.h * 0.12 * kk * kk * sxs;
+          }
+          tip = { x: cx + (tipPx[0] - m.plateCX) * sxs + shift, y: cy - recoil * tc * 0.03 + ly };
+          this.tips.set(view + ":" + t.id, tip);
+        }
         // v0.19b1: Earth Laser after a Focus Fire kill: grey smoke rises from the weapon for 1 s (calm, fades out)
+        // v0.27ziF: thicker, and it rises from around the muzzle
         if (t.smokeUntil > game.time && !building) {
           const left = clamp(t.smokeUntil - game.time, 0, 1),
-            sb = this.bars;
-          for (let k = 0; k < 4; k++) {
-            const age = (1 - left + k * 0.25) % 1,
-              sx = cx + Math.sin(phase + k * 2.1 + age * 3) * tc * 0.07,
-              sy = cy - tc * (0.62 + age * 0.38);
-            sb.fillStyle(0x8c9198, 0.5 * Math.min(1, left * 2) * (1 - age * 0.6));
-            sb.fillCircle(sx, sy, tc * (0.05 + age * 0.08));
+            sb = this.bars,
+            ox = tip ? tip.x : cx,
+            oy = tip ? tip.y : cy - tc * 0.62;
+          for (let k = 0; k < 9; k++) {
+            const age = (1 - left + k / 9) % 1,
+              sx = ox + Math.sin(phase + k * 2.1 + age * 3) * tc * (0.04 + age * 0.08) + age * tc * 0.06,
+              sy = oy - tc * age * 0.5;
+            sb.fillStyle(k % 2 ? 0x7c8188 : 0x969ba2, 0.62 * Math.min(1, left * 2) * (1 - age * 0.55));
+            sb.fillCircle(sx, sy, tc * (0.055 + age * 0.13));
           }
         }
         // team glow under the pedestal
@@ -3078,6 +3112,12 @@ export function mountArena({
         seg = (a, b) => clamp((k - a) / (b - a), 0, 1);
       let lean = 0,
         stretch = 1;
+      // v0.27ziF: Glaive Tower: the launcher fires with a hard recoil, always away from its muzzle, and springs back
+      if (/glaive/i.test(def.name || "")) {
+        const y = seg(0, 1),
+          kick = k < 0.05 ? ease(seg(0, 0.05)) : Math.exp(-5.5 * (y - 0.05)) * Math.cos(12 * (y - 0.05));
+        return { lean: -2.1 * kick, stretch: 1 - 0.09 * Math.max(0, kick) };
+      }
       const kind = isMeleeTower(def) ? "melee" : def.attackType === "siege" || (def.splashFull || 0) > 0 ? "siege" : isMagicTower(def) || def.attackType === "magic" ? "magic" : "ranged";
       if (kind === "melee") {
         if (k < 0.3) {
@@ -3128,7 +3168,8 @@ export function mountArena({
           stretch = 0.985 + 0.015 * x;
         }
       }
-      return { lean: lean * aim, stretch };
+      const amp = kind === "ranged" ? 2.1 : kind === "magic" ? 1.7 : kind === "siege" ? 1.6 : 1.3; // v0.27ziF: clearer attack motion
+      return { lean: lean * aim * amp, stretch: 1 + (stretch - 1) * Math.min(amp, 1.6) };
     }
     /** Immolation aura radius of a tower type (0 when it has none). */
     immolation(def, catalog) {
@@ -3531,8 +3572,19 @@ export function mountArena({
         }
         fa.fillStyle(0xc8ff9a, (0.35 + 0.45 * p) * fade);
         fa.fillCircle(b.tx, b.ty, cell * (0.07 + 0.2 * p));
-        fa.fillStyle(0xa6f06a, (0.3 + 0.4 * p) * fade);
-        fa.fillCircle(b.x0, b.y0, cell * (0.05 + 0.12 * p));
+        // v0.27ziF: the muzzle glows like heated metal while the Focus Fire charges (dull red, orange, then yellow-white)
+        const tip = this.tips.get(view + ":" + id);
+        if (tip) {
+          b.x0 = tip.x;
+          b.y0 = tip.y;
+        }
+        const heat = 0.25 + 0.75 * p;
+        fa.fillStyle(0xc81e06, (0.22 + 0.3 * heat) * fade);
+        fa.fillCircle(b.x0, b.y0, cell * (0.07 + 0.13 * heat));
+        fa.fillStyle(mixColor(0xff4a10, 0xffa83a, p), (0.3 + 0.4 * heat) * fade);
+        fa.fillCircle(b.x0, b.y0, cell * (0.045 + 0.08 * heat));
+        fa.fillStyle(mixColor(0xff8a2a, 0xfff2c8, p), (0.35 + 0.55 * p) * fade);
+        fa.fillCircle(b.x0, b.y0, cell * (0.02 + 0.045 * heat));
       }
       for (let i = this.swipes.length - 1; i >= 0; i--) {
         const s = this.swipes[i];
@@ -3878,6 +3930,7 @@ export function mountArena({
       this.rings = [];
       this.swipes = [];
       this.beams = new Map();
+      this.tips = new Map();
       this.bolts = [];
       for (const f of this.floaters) this.recycle(f);
       this.floaters = [];
