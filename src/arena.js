@@ -2712,7 +2712,8 @@ export function mountArena({
           if (divineShield(game, c)) sprite.setTint(0xfff2b0);
           else if (statuses.some((st) => st.abilityId === "entangle")) sprite.setTint(0xa8ff9a);
           else if (statuses.some((st) => st.stun)) sprite.setTint(0xfff3a0);
-          else if (slowed) sprite.setTint(statuses.some((st) => st.abilityId === "frost") ? 0xd2efff : 0x9fd8ff); // v0.16: frost gets the sheen instead
+          else if (statuses.some((st) => st.abilityId === "frost")) sprite.setTint(0xb4e0ff).setTintFill(0.4); // v0.27ztF: frost: a frosty pale-blue glaze over the figure (no sphere)
+          else if (slowed) sprite.setTint(0x9fd8ff);
           else if (poisoned) sprite.setTint(0xc4f59a);
           else if (c.immune) sprite.setTint(0xe2d2ff);
           else if (c.enraged) sprite.setTint(0xff8f80); // v0.21z: Enraged Meat Golem
@@ -2831,17 +2832,6 @@ export function mountArena({
             g.lineStyle(1, 0x4f9fd6, 0.8);
             g.lineBetween(ix - iw, fy + w * 0.08, ix, fy - ih);
             g.lineBetween(ix, fy - ih, ix + iw, fy + w * 0.08);
-          }
-        }
-        if (statuses.some((st) => st.abilityId === "frost")) {
-          // v0.16: frost: a light blue, see-through sheen over the creep and a few ice glints
-          const cy = q.y + cell * 0.18 - lift - height * 0.45;
-          glow.fillStyle(0x9fdcff, 0.3);
-          glow.fillEllipse(q.x, cy, height * 0.82, height * 0.95);
-          glow.fillStyle(0xe6f8ff, 0.55);
-          for (let k = 0; k < 3; k++) {
-            const a = phase0 * 1.7 + k * 2.1 + time * 0.002;
-            glow.fillCircle(q.x + Math.cos(a) * height * 0.3, cy + Math.sin(a) * height * 0.35, Math.max(1.5, height * 0.035));
           }
         }
         if (divineShield(game, c)) {
@@ -2972,6 +2962,17 @@ export function mountArena({
             // v0.25i: the River Guardian shield as a water-blue line over the top of the bar (what is left of it)
             hb.fillStyle(0x9fe4ff, see);
             hb.fillRoundedRect(q.x - bar / 2, barY - 1, Math.max(1, bar * guarded), Math.max(2, barH * 0.5), 1.5);
+          }
+          if (statuses.some((st) => st.abilityId === "frost")) {
+            // v0.27ztF: frozen creeps: a frosty glaze over the health bar, a pale rim and small icicles below it
+            hb.fillStyle(0xc6ebff, 0.5 * see);
+            hb.fillRoundedRect(q.x - bar / 2 - 1.5, barY - 1.5, bar + 3, barH + 3, 3);
+            hb.fillStyle(0xf4fcff, 0.85 * see);
+            hb.fillRect(q.x - bar / 2 + 1, barY - 1, bar - 2, 1);
+            for (let k = 0, n = Math.max(2, Math.round(bar / 9)); k < n; k++) {
+              const ix = q.x - bar / 2 + ((k + 0.5) / n) * bar, ih = 2 + ((k * 7) % 3);
+              hb.fillTriangle(ix - 1.4, barY + barH + 1, ix + 1.4, barY + barH + 1, ix, barY + barH + 1 + ih);
+            }
           }
           // v0.23s: hit flash: a white overlay (25 % transparent) on the bar itself, not on its frame
           if ((sprite.getData("hit") || 0) > time) {

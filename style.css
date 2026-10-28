@@ -9550,3 +9550,27 @@ html.menu-tint dialog .welcome-group-title::after {
 html.menu-tint dialog .modal-header {
   box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--mc-accent) 45%, transparent);
 }
+
+/* v0.27zrF: tower pictures in the upgrade bar about 30 % larger: anchored at the top (head and bow
+   never cut), only the lower edge of the base plate is cropped */
+.up-card:not(.sell-card) .up-art img,
+.cards.upgrade-mode.many .up-card:not(.sell-card) .up-art img {
+  inset: 1px -15% auto;
+  width: 130%;
+  height: 130%;
+  object-position: 50% 0;
+}
+
+/* v0.27ztF: info dialog / card book: the attack animation canvas sits where the still picture was
+   (its extra room above is pulled up by a negative margin, the side room is symmetric so centring keeps the figure) */
+.modal-hero { --hero-h: 120px; }
+.modal-hero.hero-anim,
+.modal-hero-wrap .modal-hero.hero-anim {
+  width: auto;
+  max-width: none;
+  height: calc(var(--hero-h) * var(--k, 1));
+  margin: calc(var(--hero-h) * var(--mt, 0) + 2px) auto 2px;
+}
+@media (max-height: 700px) {
+  .modal-hero { --hero-h: 90px; }
+}

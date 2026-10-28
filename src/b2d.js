@@ -1174,6 +1174,16 @@ export class Image2D extends Node2D {
     this.tintMode = mode;
     return this;
   }
+  /** v0.27ztF: partial fill 0..1: blends the figure towards its tint colour (frosty overlay); 0 = plain multiply */
+  setTintFill(amount) {
+    if (amount !== this.fill) {
+      this.fill = amount;
+      this.colorDirty = true;
+      this._dirty();
+    }
+    this.tintMode = amount >= 1 ? TINT.FILL : TINT.MULTIPLY;
+    return this;
+  }
   setAlpha(a) {
     if (a !== this.alpha) {
       this.alpha = a;

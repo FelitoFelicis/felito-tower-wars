@@ -164,7 +164,7 @@ import { mountArena, artFor } from "./arena.js";
 const designRow = () => "",
   setDesign = () => {},
   currentDesign = () => "original";
-import { artUrl, iconUrl, ELEMENT_ICON, ART_MANIFEST, registerTowerArt, TEAM_COLORS, recolorTeam, setPropUrl, activeArtSet, uiArt, useArtSet, artSetFor, ART_VERSION, CREEP_PORTRAIT, loadPacks, packsDone, packProgress, onPackProgress, unpack, PACK_PENDING } from "./art.js";
+import { artUrl, iconUrl, ELEMENT_ICON, ART_MANIFEST, ANIM_MANIFEST, animUrl, registerTowerArt, TEAM_COLORS, recolorTeam, setPropUrl, activeArtSet, uiArt, useArtSet, artSetFor, ART_VERSION, CREEP_PORTRAIT, loadPacks, packsDone, packProgress, onPackProgress, unpack, PACK_PENDING } from "./art.js";
 import { createSoundtrack } from "./soundtrack.js";
 import { createSfx, haptic } from "./sfx.js";
 import { t, num, goldText } from "./i18n.js";
@@ -187,7 +187,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.27zq",
+const APP_VERSION = "0.27zu",
   APP_BRANCH = "F", // v0.23q: author marker (F = Felix, S = Steven) and branch text, shown behind the version; APP_VERSION stays plain for online matches (VersionPublishingRules.md)
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "28.10.2026";
@@ -1504,13 +1504,27 @@ function menuLogoUrl() {
         const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
         recolorLogo(pixels.data, color);
         ctx.putImageData(pixels, 0, 0);
-        const data = canvas.toDataURL("image/webp", 0.92);
-        canvas.width = canvas.height = 0;
-        menuLogos.set(id, /^data:image\/[a-z]+;base64,./.test(data) && data.length > 200 ? data : url);
+        // v0.27zuF: the coloured logo as a blob: URL (like the packed pictures) instead of a data: URL, which some
+        // hosts and phones refuse or drop; it is decoded before the menu switches to it, the original stays otherwise
+        const done = (pic) => {
+          canvas.width = canvas.height = 0;
+          menuLogos.set(id, pic);
+          showMenuLogo();
+        };
+        canvas.toBlob((blob) => {
+          if (!blob || blob.size < 200) return done(url);
+          const pic = URL.createObjectURL(blob),
+            test = new Image();
+          test.src = pic;
+          (test.decode?.() || Promise.resolve()).then(
+            () => done(test.naturalWidth > 0 ? pic : url),
+            () => done(url),
+          );
+        }, "image/png");
       } catch {
         menuLogos.set(id, url);
+        showMenuLogo();
       }
-      showMenuLogo();
     };
     img.src = url;
   }
@@ -2584,6 +2598,80 @@ document.addEventListener("pointerdown", (e) => {
   dialogTipTimer = setTimeout(hideDialogTip, 2800);
 });
 $("modal").addEventListener("close", hideDialogTip);
+/**
+ * v0.27ztF: info dialog / card book: a tower with an attack sheet plays its attack on a loop (rest, attack, rest …).
+ * The picture is swapped for a canvas showing the sheet's frames, cropped so the figure sits exactly where the
+ * still picture was (a little room above and to the sides for flashes and arrows). Player colour as on the cards.
+ */
+const heroSheets = new Map();
+function heroSheet(key, color) {
+  const id = key + "#" + color;
+  if (!heroSheets.has(id))
+    heroSheets.set(
+      id,
+      new Promise((ok, fail) => {
+        const img = new Image();
+        img.onload = () => {
+          try {
+            if (TEAM_COLORS[color]?.hue == null) return ok(img);
+            const c = Object.assign(document.createElement("canvas"), { width: img.naturalWidth, height: img.naturalHeight }),
+              ctx = c.getContext("2d", { willReadFrequently: true });
+            ctx.drawImage(img, 0, 0);
+            const data = ctx.getImageData(0, 0, c.width, c.height);
+            recolorTeam(data.data, color);
+            ctx.putImageData(data, 0, 0);
+            ok(c);
+          } catch (e) {
+            ok(img);
+          }
+        };
+        img.onerror = fail;
+        img.src = animUrl(key);
+      }),
+    );
+  return heroSheets.get(id);
+}
+function playHeroAnims(root) {
+  for (const img of root.querySelectorAll("img.modal-hero[data-anim]")) {
+    const key = img.dataset.anim,
+      a = ANIM_MANIFEST[key],
+      m = ART_MANIFEST[key];
+    img.removeAttribute("data-anim");
+    if (!a || !m) continue;
+    heroSheet(key, colorChoice)
+      .then((sheet) => {
+        if (!img.isConnected) return;
+        const padX = Math.min(a.ox, a.fw - a.ox - m.w),
+          padT = a.oy,
+          cw = m.w + padX * 2,
+          ch = m.h + padT,
+          c = Object.assign(document.createElement("canvas"), { width: cw, height: ch, className: "modal-hero hero-anim" });
+        c.style.setProperty("--k", String(ch / m.h));
+        c.style.setProperty("--mt", String(-padT / m.h));
+        const ctx = c.getContext("2d"),
+          cols = a.cols || 5,
+          draw = (f) => {
+            ctx.clearRect(0, 0, cw, ch);
+            ctx.drawImage(sheet, (f % cols) * a.fw + a.ox - padX, Math.floor(f / cols) * a.fh + a.oy - padT, cw, ch, 0, 0, cw, ch);
+          };
+        img.replaceWith(c);
+        draw(0);
+        const start = a.start || 0,
+          rest = 900;
+        let f = 0;
+        const tick = () => {
+          if (!c.isConnected) return;
+          f = f === 0 ? start : f + 1;
+          if (f >= a.frames) f = 0;
+          draw(f);
+          setTimeout(tick, f === 0 ? rest : a.ms);
+        };
+        setTimeout(tick, 500);
+      })
+      .catch(() => {});
+  }
+}
+new MutationObserver(() => playHeroAnims($("modal"))).observe($("modal"), { childList: true, subtree: true });
 // v0.09f: a right click drops the tower blueprint you are placing (no browser menu in the game)
 document.addEventListener("contextmenu", (e) => {
   if (!game || !begun || e.target.closest?.("dialog")) return;
@@ -4211,7 +4299,7 @@ function doubleUpgrade(tw, advanced = false) {
   runQueue();
   showTower(tw);
   renderCards();
-  if (chain.length > 1) note(t("{n} upgrades queued up to {name}", { n: chain.length, name: `${itemName(goal)} Lv. ${goal.level || 1}` }));
+  if (chain.length > 1) note(t("{n} upgrades queued up to {name}", { n: chain.length, name: `${itemName(goal)} ${goal.level || 1}` }));
   else if (upQueue.some((q) => q.towerId === tw.id)) note("Upgrade queued: starts as soon as you have enough gold.");
   tone("upgrade");
 }
@@ -4245,7 +4333,7 @@ function upgradeDeck(tw) {
         const a = available(game, own, "upgrade", u.id, tw.id),
           locked = false,
           waiting = upQueue.some((q) => q.towerId === tw.id && q.id === u.id),
-          name = `${itemName(u)} Lv. ${u.level || 1}`;
+          name = `${itemName(u)} ${u.level || 1}`; // v0.27zrF: level as a plain number
         const afterBuild = /Still under construction/.test(a.reason || "");
         return `<button class="unit-card up-card ${a.ok || afterBuild ? "" : "unaffordable"} ${isPoor(a) ? "poor" : ""} ${waiting ? "queued" : ""}" data-upgrade="${u.id}" aria-label="${esc(t("Upgrade to {name}, {cost} gold", { name, cost: format(u.cost) }))}${a.ok ? "" : ", " + esc(t(a.reason))}" title="${esc(a.ok ? name : t(a.reason))}"><span class="up-title">${esc(name)}</span><span class="up-art"><img src="${towerArtUrl(artFor(u))}" alt=""></span><span class="up-cost"><span class="price">${format(u.cost)}</span>${u.woodCost ? `<span class="price wood-price">${format(u.woodCost)}</span>` : ""}</span><i class="up-arrow" aria-hidden="true"></i>${waiting ? '<span class="up-queued">⏳</span>' : ""}${locked ? `<span class="up-lock">${esc(t(a.reason))}</span>` : ""}${elementFrame(u)}</button>`;
       })
@@ -6067,7 +6155,9 @@ function researchDetail(id) {
 /** v0.22n2: the info dialog's picture with the elements the tower needs as symbols in its upper left corner. */
 function heroWithElements(item) {
   const els = item.kind === "tower" || item.isBuildable ? catalog.factions.filter((f) => (item.requires || []).some((r) => r.id === f.unlock || r.id === f.research)) : [];
-  const img = `<img class="modal-hero" src="${towerArtUrl(artFor(item))}" alt="">`,
+  const key = artFor(item),
+    anim = ANIM_MANIFEST[key]?.kind === "attack" && !activeArtSet() ? ` data-anim="${key}"` : "", // v0.27ztF: towers with an attack sheet play it here
+    img = `<img class="modal-hero" src="${towerArtUrl(key)}"${anim} alt="">`,
     // v0.24s: creeps that spawn others on death: square buttons to the spawned creeps' info, bottom right
     spawns = item.isSend || item.kind === "send" ? deathSpawnTypes(item.id).filter((id) => id !== item.id) : [];
   if (spawns.length && !els.length)
