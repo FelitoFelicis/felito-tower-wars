@@ -432,6 +432,8 @@ export function mountArena({
       this.pathKey = "";
       this.press = null;
       this.projectiles = [];
+      this.missiles = []; // v0.27lF: Missile Barrage
+      this.blasts = [];
       this.particles = [];
       this.rings = [];
       this.swipes = [];
@@ -1780,10 +1782,32 @@ export function mountArena({
             this.ring(q.x, q.y + cell * 0.1, cell * 0.3, cell * 1.4, 0xff3a2a, 0.9, 5);
             this.burst(q.x, q.y - cell * 0.4, 0xff6a4a, 16, 110, 3, 0.6, 0, true);
             this.stage.shake(220, 0.002);
+          } else if (e.kind === "missile") {
+            // v0.27lF: Missile Barrage: a heavy missile on a high arc from the Battle Mech to its field
+            const f = e.from ? this.point(e.from.x, e.from.y) : q;
+            (this.missiles ||= []).push({ x0: f.x, y0: f.y - cell * 0.5, tx: q.x, ty: q.y, t: 0, dur: Math.max(0.05, e.flight || 0.5), arc: cell * (1.2 + Math.min(2.5, (e.flight || 0.5) * 0.8)) });
+            this.burst(f.x, f.y - cell * 0.5, 0xffb060, 6, 60, 2.4, 0.35, -40, true);
+          } else if (e.kind === "missileHit") {
+            // v0.27lF: impact: a heavy blast column rising from the field
+            (this.blasts ||= []).push({ x: q.x, y: q.y, t: 0, dur: 0.7 });
+            this.ring(q.x, q.y, cell * 0.2, cell * 0.9, 0xffa040, 0.45, 5);
+            this.burst(q.x, q.y - cell * 0.2, 0xffd080, 16, 140, 3, 0.5, 120, true);
+            this.burst(q.x, q.y - cell * 0.1, 0x5a5048, 10, 60, 3.4, 0.8, -30, false);
+            this.stage.shake(120, 0.0025);
+          } else if (e.kind === "penalty") {
+            // v0.27lF: Penalty Lap: an arcane flash where the creep stood and where it lands at the start of the maze
+            if (e.from) {
+              const f = this.point(e.from.x, e.from.y);
+              this.ring(f.x, f.y, cell * 0.1, cell * 0.9, 0xb070ff, 0.45, 4);
+              this.burst(f.x, f.y - cell * 0.3, 0xd2a8ff, 14, 90, 2.6, 0.55, -30, true);
+            }
+            this.ring(q.x, q.y, cell * 0.9, cell * 0.1, 0xb070ff, 0.5, 4);
+            this.burst(q.x, q.y - cell * 0.3, 0xd2a8ff, 12, 70, 2.4, 0.6, -20, true);
+            this.floatText(q.x, q.y + cell * 0.2, t("ARCANE PENALTY"), "#d8a8ff", 12, 30, 1.1);
           } else if (e.kind === "crowd") this.floatText(q.x, q.y - cell * 0.55, t("CULLED"), "#ff9a5a", 12, 30, 0.9);
           else if (e.kind === "miss") this.floatText(q.x, q.y - cell * 0.5, t("DODGED"), "#c9d4dc", 11, 26, 0.7);
           else if (e.kind === "ultimate") {
-            const names = { entangle: "ENTANGLE", decay: "DECAY", shrink: "SHRINK RAY", rockets: "ROCKET SWARM", flamestrike: "FLAME STRIKE", chain: "CHAIN LIGHTNING", blizzard: "BLIZZARD", tsunami: "TSUNAMI", raise: "RAISE DEAD" };
+            const names = { entangle: "ENTANGLE", decay: "DECAY", penalty: "PENALTY LAP", barrage: "MISSILE BARRAGE", flamestrike: "FLAME STRIKE", chain: "CHAIN LIGHTNING", blizzard: "BLIZZARD", tsunami: "TSUNAMI", raise: "RAISE DEAD" };
             const tower = lane.towers.find((t) => t.id === e.towerId),
               tq = tower ? this.point(tower.x, tower.y) : q;
             this.floatText(tq.x, tq.y - cell * 0.95, t(names[e.name] || "ULTIMATE"), "#ffd86a", 15, 40, 1.3);
@@ -2559,7 +2583,7 @@ export function mountArena({
           flying = !!(c.flying ?? def.flying),
           neutral = c.owner < 0,
           height = cell * (boss ? 1.3 * (c.waveBoss ? 1 : tierGrowth(def.tier || (def.bossTier || 2) - 1)) : (flying ? 0.82 : 0.78) * creepSize(catalog, def.id)) * (c.golem ? 1 + 0.07 * ((c.level || 1) - 1) : 1), // v0.17c: the Arcane Golem grows 7 % per perk level
-          s = (height / (walk?.figH ? (walk.figS || walk.figH) * 1.04 : m.h)) * (walk?.scale || 1) * (1 - 0.12 * (c.shrink || 0)) * (c.scale || 1), // v0.26: c.scale (Lesser Skeleton); v0.23j: walk.scale for figures that read too large // v0.23a: 8-way walks are scaled by their own figure size (wide figures a bit smaller)
+          s = (height / (walk?.figH ? (walk.figS || walk.figH) * 1.04 : m.h)) * (walk?.scale || 1) * (c.scale || 1), // v0.26: c.scale (Lesser Skeleton); v0.23j: walk.scale for figures that read too large // v0.23a: 8-way walks are scaled by their own figure size (wide figures a bit smaller)
           step = time * 0.016 + phase0;
         // design variants: each monster walks its own way (motion.js); its clock runs with its pace and stops when stunned
         let gait = null;
@@ -2658,6 +2682,7 @@ export function mountArena({
           else if (c.burning) sprite.setTint(0xffa060); // v0.10w: Burning Treant
           else if (c.spiritWolf) sprite.setTint(0xe8d0ff); // v0.19a1: Spirit Wolves
           else if (c.fireWolf) sprite.setTint(0xffa66a); // v0.26cF: Revenge Fire Wolves
+          else if (statuses.some((st) => st.abilityId === "penalty")) sprite.setTint(0xd6c2ff); // v0.27lF: Arcane Penalty
           else if (c.clone) {
             // v0.23w: Clones: a soft arcane shimmer that comes and goes
             const k = 0.5 + 0.5 * Math.sin(time * 0.004 + phase0),
@@ -3292,6 +3317,45 @@ export function mountArena({
         fa = this.fxAdd;
       f.clear();
       fa.clear();
+      // v0.27lF: Missile Barrage: missiles on a high arc, then blast columns rising from the field they hit
+      for (let i = (this.missiles || []).length - 1; i >= 0; i--) {
+        const m = this.missiles[i];
+        m.t += dt;
+        const k = clamp(m.t / m.dur, 0, 1),
+          x = lerp(m.x0, m.tx, k),
+          y = lerp(m.y0, m.ty, k) - Math.sin(k * Math.PI) * m.arc,
+          k2 = clamp(k + 0.03, 0, 1),
+          ang = Math.atan2(lerp(m.y0, m.ty, k2) - Math.sin(k2 * Math.PI) * m.arc - y, lerp(m.x0, m.tx, k2) - x),
+          ux = Math.cos(ang),
+          uy = Math.sin(ang),
+          L = cell * 0.42,
+          W = cell * 0.09;
+        fa.fillStyle(0xffa040, 0.55);
+        fa.fillCircle(x - ux * L * 0.7, y - uy * L * 0.7, W * 1.6);
+        f.lineStyle(W * 2.3, 0x23282e, 1);
+        f.lineBetween(x - ux * L * 0.5, y - uy * L * 0.5, x + ux * L * 0.5, y + uy * L * 0.5);
+        f.lineStyle(W * 1.5, 0x8a939c, 1);
+        f.lineBetween(x - ux * L * 0.5, y - uy * L * 0.5, x + ux * L * 0.5, y + uy * L * 0.5);
+        f.fillStyle(0xd8403a, 1);
+        f.fillCircle(x + ux * L * 0.5, y + uy * L * 0.5, W * 0.85);
+        if (Math.random() < 0.6) this.burst(x - ux * L * 0.6, y - uy * L * 0.6, 0x9a948c, 1, 15, 2.6, 0.5, -20, false); // smoke trail (display only)
+        if (k >= 1) this.missiles.splice(i, 1);
+      }
+      for (let i = (this.blasts || []).length - 1; i >= 0; i--) {
+        const b = this.blasts[i];
+        b.t += dt;
+        const k = clamp(b.t / b.dur, 0, 1),
+          h = cell * (0.6 + 2.6 * Math.sin(Math.min(1, k * 1.6) * Math.PI * 0.5)),
+          w = cell * (0.55 - 0.25 * k),
+          a = 1 - k;
+        fa.fillStyle(0xff7a2a, 0.55 * a);
+        fa.fillRoundedRect(b.x - w * 0.7, b.y - h, w * 1.4, h, w * 0.5);
+        fa.fillStyle(0xffd27a, 0.75 * a);
+        fa.fillRoundedRect(b.x - w * 0.35, b.y - h * 0.92, w * 0.7, h * 0.92, w * 0.3);
+        fa.fillStyle(0xfff4d0, 0.9 * a);
+        fa.fillEllipse(b.x, b.y, cell * 0.9 * (1 - 0.4 * k), cell * 0.32);
+        if (k >= 1) this.blasts.splice(i, 1);
+      }
       // Homing projectiles: travel visibly from tower to the creep they hit.
       for (let i = this.projectiles.length - 1; i >= 0; i--) {
         const p = this.projectiles[i];
@@ -3753,6 +3817,8 @@ export function mountArena({
     }
     clearFx() {
       this.projectiles = [];
+      this.missiles = []; // v0.27lF: Missile Barrage
+      this.blasts = [];
       this.particles = [];
       this.rings = [];
       this.swipes = [];

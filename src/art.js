@@ -724,7 +724,7 @@ const TOWER_PATTERNS = [
   [/phoenix/i, () => "tower-phoenix"],
   [/hydra/i, () => "tower-hydra"],
   [/kel ?thuzad/i, () => "tower-lich"],
-  [/robogoblin/i, () => "tower-robogoblin"],
+  [/robogoblin|battle mech/i, () => "tower-robogoblin"], // v0.27lF: the Robogoblin is the Battle Mech
   [/bird hunter/i, () => "tower-birdhunter"],
   [/water elemental/i, () => "tower-water-elemental"],
   [/fire elemental/i, () => "tower-fire-elemental"],
@@ -787,7 +787,7 @@ function baseArtFor(item) {
   if (ROOT_TOWER[item.id]) return ROOT_TOWER[item.id];
   if (ELEMENT_TOWER[item.element]) return ELEMENT_TOWER[item.element];
   if (/footman|knight|guard|soldier|bash|glaive|crusader/i.test(name)) return "tower-guard";
-  if (/cannon|canon|bombard|siege|stomp|launcher|robogoblin|laser/i.test(name)) return "tower-cannon";
+  if (/cannon|canon|bombard|siege|stomp|launcher|robogoblin|battle mech|laser/i.test(name)) return "tower-cannon";
   if (/mage|magic|wizard|kel|death knight|archangel|phoenix/i.test(name)) return "tower-arcane";
   if (/lumbermill|exp generator|tree|treant|ogre/i.test(name)) return "tower-earth";
   return "tower-archer";

@@ -626,6 +626,9 @@ export const CUSTOM_ABILITIES = [
   // v0.22za2: Orc: Splash Resistance replaces Siege Resistance: less damage from tower splash attacks (no spells)
   { id: "XA02", baseId: "Xspr", custom: true, reduce: 0.33, fields: { anam: { 0: "Splash Resistance" }, aub1: { 1: "Takes 33% less splash damage from towers" } } },
   // v0.27hF: Trench Orc: Armor 2 (ignores 2 damage from every hit, at least 1 gets through)
+  // v0.27lF: display only (the effects run in simulation.js): Magic City's Penalty Lap, Battle Mech's Missile Barrage
+  { id: "XA16", baseId: "Xinf", custom: true, fields: { anam: { 0: "Penalty Lap" }, aub1: { 1: "Sends the creep farthest along back to the start: Arcane Penalty, armor reversed, 20% slower until it breaches" } } },
+  { id: "XA17", baseId: "Xinf", custom: true, fields: { anam: { 0: "Missile Barrage" }, aub1: { 1: "Every 9 s fires 3 heavy missiles at path fields with creeps, each hits all creeps on its field" } } },
   { id: "XA15", baseId: "Ansk", custom: true, fields: { anam: { 0: "Scale Armor" }, aub1: { 1: "Ignores 2 damage from all attacks\nbut takes minimum 1 damage" }, Ssk3: { 1: 2 }, Ssk2: { 1: 1 } } },
   { id: "XA08", baseId: "Xslr", custom: true, resist: 0.4, fields: { anam: { 0: "Slow Resistance" }, aub1: { 1: "40% less slowed" } } }, // v0.21k: Warden, Eredar Warlock
   { id: "XA03", baseId: "Xinf", custom: true, fields: { anam: { 0: "Deathrattle" }, aub1: { 1: "Summons 3 Skeletons on death" } } }, // v0.17g: display only (the spawn runs through DEATH_PLANS)
@@ -678,7 +681,7 @@ const ABILITY_PATCH = {
  * v0.21m: the names this port gave its units, written over the Warcraft names in the catalog itself, so every
  * text (cards, tooltips, card book, messages, neutral waves) uses them: Peon → Goblin, Chaos Peon → Imp, …
  */
-export const UNIT_NAMES = Object.freeze({ Peon: "Goblin", "Chaos Peon": "Trenchlin", Akolyte: "Goblin Zealot", Dragonspawn: "Crystal Lizard", "Frost Wyrm": "Bone Dragon", "Lord Garithos": "Dark Knight", "Witch Doctor": "Undoctor", "Centaur Warrior": "Satyr", "Forest Troll": "Centaur", "Grom Hellscream": "Bandit Leader", "Fel Raider": "Rouge Knight", Horse: "Pony", "Cairne Bloodhoof": "Minotaurus", Lumbermill: "EXP Generator", "Skeleton Grunt": "Skeleton Berserker", "Draenai Marauder": "Scaleworm", "Siege Golem": "Iron Golem", Abomination: "Zombie Ogre", "Demon Hunter": "Demon Knight", Faceless: "Dark Monk", Spellbreaker: "Witch Hunter", "Void Walker": "Banshee" }); // v0.23a: Boar Scout → Boar; v0.23c: Horse → Boar; v0.23d: tier 1 is the Horse again, tier 2 stays Boar Scout
+export const UNIT_NAMES = Object.freeze({ Robogoblin: "Battle Mech", Peon: "Goblin", "Chaos Peon": "Trenchlin", Akolyte: "Goblin Zealot", Dragonspawn: "Crystal Lizard", "Frost Wyrm": "Bone Dragon", "Lord Garithos": "Dark Knight", "Witch Doctor": "Undoctor", "Centaur Warrior": "Satyr", "Forest Troll": "Centaur", "Grom Hellscream": "Bandit Leader", "Fel Raider": "Rouge Knight", Horse: "Pony", "Cairne Bloodhoof": "Minotaurus", Lumbermill: "EXP Generator", "Skeleton Grunt": "Skeleton Berserker", "Draenai Marauder": "Scaleworm", "Siege Golem": "Iron Golem", Abomination: "Zombie Ogre", "Demon Hunter": "Demon Knight", Faceless: "Dark Monk", Spellbreaker: "Witch Hunter", "Void Walker": "Banshee" }); // v0.23a: Boar Scout → Boar; v0.23c: Horse → Boar; v0.23d: tier 1 is the Horse again, tier 2 stays Boar Scout
 const unitName = (short) => UNIT_NAMES[short] || short;
 const renameFull = (full) => {
   const short = full.replace(/^\[[^\]]+\]\s*/, "").replace(/\s*\[[^\]]+\]/g, "");
@@ -712,7 +715,7 @@ const UNIT_ABILITY_SWAP = {
   n01D: { A09U: "XA01" },
 };
 /** Per unit: abilities added in front. */
-const UNIT_ABILITY_ADD = { n02P: ["XA08"], n01R: ["XA08"], n00Y: ["XA10", "XA09"], n01H: ["XA11", "XA12"], n00T: ["XA12"], n015: ["XA12"], n01T: ["XA12"], n02R: ["XA12", "XA13"], n02I: ["A03D"] }; // v0.23: Lord Garithos shows his Divine Shield // v0.22n2: Tier Boss // v0.21z: Treant EXP Bonus and Spawn Wisp, Meat Golem Enrage // v0.21k: Slow Resistance for Warden and Eredar Warlock
+const UNIT_ABILITY_ADD = { h00J: ["XA16"], h046: ["XA17"], n02P: ["XA08"], n01R: ["XA08"], n00Y: ["XA10", "XA09"], n01H: ["XA11", "XA12"], n00T: ["XA12"], n015: ["XA12"], n01T: ["XA12"], n02R: ["XA12", "XA13"], n02I: ["A03D"] }; // v0.23: Lord Garithos shows his Divine Shield // v0.22n2: Tier Boss // v0.21z: Treant EXP Bonus and Spawn Wisp, Meat Golem Enrage // v0.21k: Slow Resistance for Warden and Eredar Warlock
 /**
  * v0.18a: tower damage buffs in percent of the average damage, rounded up to the next whole number.
  * The difference is added to the flat damage part, so the dice spread stays the same.

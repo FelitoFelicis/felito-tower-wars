@@ -389,6 +389,7 @@ export function createGame({
     wave: 0,
     waveQueue: [],
     clouds: [],
+    missiles: [], // v0.27lF: Missile Barrage
     tick: 0,
     time: 0,
     accumulator: 0,
@@ -4184,16 +4185,28 @@ export function divineShield(game, c) {
   return age >= 0 && age % 30 < 10; // v0.22u2: shielded from the moment it spawns (was: from 10 s after arrival)
 }
 
-export function damageMultiplier(attackType, defenseType, armor = 0) {
+/**
+ * v0.27lF: armor is a flat reduction per hit (like the Armor ability): armor N ignores N damage of every tower attack,
+ * at least 1 gets through; negative armor adds that much damage to every hit. Spells are not reduced. (Before: the
+ * Warcraft 3 formula 1 / (1 + 0.05 × armor) on every damage, spells too.)
+ */
+/** v0.27lF: damage of a typical tower hit for the bots' armor estimates when no tower is known. */
+const AI_ARMOR_HIT = 40;
+export const flatArmor = (dealt, armor) => (armor > 0 ? (dealt > 1 ? Math.max(1, dealt - armor) : dealt) : dealt - armor);
+/**
+ * Damage type matrix (attack type against defense type). `armor` and `hit` (average damage per hit) only for the
+ * bots' estimates: the share of a hit of that size that gets through the flat armor (v0.27lF).
+ */
+export function damageMultiplier(attackType, defenseType, armor = 0, hit = 0) {
   const type = RULES.damageMatrix[attackType] || RULES.damageMatrix.normal,
     index = RULES.defenseOrder.indexOf(defenseType);
   const typeBonus = type[index < 0 ? 1 : index];
-  const mitigation = armor >= 0 ? 1 / (1 + RULES.armorFactor * armor) : 2 - Math.pow(1 - RULES.armorFactor, -armor);
-  return typeBonus * mitigation;
+  if (!armor || !(hit > 0)) return typeBonus;
+  return flatArmor(hit * typeBonus, armor) / hit;
 }
 /** Damage type matrix plus the wave "immune" trait (magic and spells barely hurt). */
-function hitMultiplier(attackType, creep, armor = 0) {
-  const base = damageMultiplier(attackType, creep.defenseType, armor);
+function hitMultiplier(attackType, creep) {
+  const base = damageMultiplier(attackType, creep.defenseType);
   return creep.immune && (attackType === "magic" || attackType === "spells") ? base * WAVE_IMMUNE_FACTOR : base;
 }
 function abilityLevel(player, tower, ability) {
@@ -4568,11 +4581,14 @@ function strike(game, p, tower, c, damage, attackType, spell = false, extraArmor
       return 0;
     }
   }
-  const armor = c.armor + extraArmor - (c.shred || 0) + c.statuses.reduce((sum, st) => sum + (st.armor || 0), 0);
-  let dealt = damage * hitMultiplier(spell ? "spells" : attackType, c, armor);
+  // v0.27lF: Arcane Penalty (Penalty Lap) turns the creep's armor negative; bosses keep their Tier Boss reduction
+  const penalty = c.statuses.some((st) => st.abilityId === PENALTY_LAP.id),
+    armor = (penalty ? -Math.abs(c.armor || 0) : c.armor || 0) + extraArmor - (c.shred || 0) + c.statuses.reduce((sum, st) => sum + (st.armor || 0), 0);
+  let dealt = damage * hitMultiplier(spell ? "spells" : attackType, c);
   if (!spell) {
+    dealt = flatArmor(dealt, armor); // v0.27lF: flat armor on tower attacks
     const scales = cs.find((sk) => sk.type === "scales");
-    if (scales) dealt = Math.max(scales.min, dealt - scales.ignore);
+    if (scales) dealt = penalty && !obj(c.typeId)?.bossTier ? dealt + scales.ignore : Math.max(scales.min, dealt - scales.ignore); // v0.27lF: reversed by Arcane Penalty
     // v0.22n2: Tier Boss ignores part of every tower attack, never below 1
     if (arrowHit && cs.some((sk) => sk.type === "tierBoss")) dealt = Math.max(1, dealt - (TIER_BOSS.ignore[c.typeId] || 0)); // like Scale Armor: at least 1 per hit
     else if (arrowHit && cs.some((sk) => sk.type === "miniBoss")) dealt = Math.max(1, dealt - TIER_BOSS.ignore.n00T * MINI_BOSS.share); // v0.27F: half the Rock Golem's
@@ -4733,8 +4749,7 @@ export const ULTIMATES = { // v0.23: exported for the Decay Attack tooltip
   h009: { charge: 45, kind: "decay", pct: 12 },
   h038: { charge: 45, kind: "decay", pct: 18 },
   h01Z: { charge: 45, kind: "decay", pct: 30 },
-  h00J: { charge: 60, kind: "shrink" },
-  h046: { charge: 75, kind: "rockets" },
+  h00J: { charge: 60, kind: "penalty" }, // v0.27lF: Penalty Lap (was Shrink Ray)
   h00I: { charge: 80, kind: "flamestrike" },
   h020: { charge: 80, kind: "chain" },
   h010: { charge: 100, kind: "blizzard" },
@@ -4785,18 +4800,17 @@ function chargedSpecial(game, p, tower, target) {
       target.lastHit = tower.id;
       break;
     }
-    case "shrink": {
-      const pool = p.creeps.filter((c) => !c.dead && c.hp > 0 && dist(game, tower, c) <= 896);
-      for (let i = 0; i < 5 && pool.length; i++) {
-        const c = pool.splice(Math.floor(random(game) * pool.length), 1)[0];
-        if ((c.shrink || 0) < 3) c.speed *= 0.85; // v0.21k: at most 3 shrinks slow the creep (was: every cast, without limit)
-        c.shrink = Math.min(3, (c.shrink || 0) + 1);
-      }
+    case "penalty": {
+      // v0.27lF: Penalty Lap: the creep farthest along the path in range goes back to the start of the maze
+      const c = p.creeps
+        .filter((o) => !o.dead && o.hp > 0 && o.y >= 0 && !divineShield(game, o) && !o.statuses.some((st) => st.abilityId === PENALTY_LAP.id) && dist(game, tower, o) <= PENALTY_LAP.range)
+        .sort((a, b) => b.progress - a.progress || (a.id < b.id ? -1 : 1))[0];
+      if (!c) return; // nobody to send back: the charge stays
+      penaltyLap(game, p, c);
+      at.x = c.x;
+      at.y = c.y;
       break;
     }
-    case "rockets":
-      for (let i = 0; i < 3; i++) areaStrike(game, p, tower, at, 325, 900);
-      break;
     case "flamestrike":
       game.clouds.push({ lane: p.id, towerId: tower.id, x: at.x, y: at.y, radius: 320, dps: 600, remaining: 2.67, kind: "fire" });
       game.clouds.push({ lane: p.id, towerId: tower.id, x: at.x, y: at.y, radius: 320, dps: 300, remaining: 6, kind: "fire" });
@@ -4830,6 +4844,117 @@ function chargedSpecial(game, p, tower, target) {
   }
   tower.charge = 0;
   emit(game, "skill", { player: p.id, kind: "ultimate", name: u.kind, x: at.x, y: at.y, towerId: tower.id });
+}
+/**
+ * v0.27lF: Penalty Lap (Magic City, replaces Shrink Ray): a creep is teleported back to the first field of the path and
+ * gets Arcane Penalty until it breaches or dies: 20 % slower, its armor turned negative (armor 3 → −3, also the
+ * Armor ability; a boss keeps its Tier Boss reduction but its armor turns negative as well). A creep with Arcane
+ * Penalty cannot be sent back again.
+ */
+export const PENALTY_LAP = { id: "penalty", slow: 0.2, range: 896 };
+function penaltyLap(game, p, c) {
+  const from = { x: c.x, y: c.y },
+    lane = game.players[c.defender] || p,
+    column = spawnColumn(game),
+    start = pos(game, column, -1);
+  c.x = start.x;
+  c.y = start.y;
+  c.progress = 0; // maxProgress stays: walking the maze again gives no new scouting EXP
+  c.path = c.flying ? [start, exitPos(game, lane, column)] : findPath(game, lane.id, { x: column, y: -1 }) || [];
+  c.pathIndex = 0;
+  c.prevNode = null;
+  c.plankRoute = null;
+  if (c.planting) c.planting = null; // a Siege Ogre loses the plank it was about to lay
+  c.statuses.push({ abilityId: PENALTY_LAP.id, remaining: 1e9, slow: PENALTY_LAP.slow, dps: 0, owner: p.id });
+  emit(game, "skill", { player: p.id, kind: "penalty", x: start.x, y: start.y, from, creepId: c.id });
+}
+/**
+ * v0.27lF: Battle Mech (h046, was Robogoblin with Swarm Rockets): Missile Barrage. Every 9 s, while creeps are in the
+ * player's maze, it launches 3 heavy missiles one after another (0.3 s apart) at path fields with creeps on them,
+ * the fullest fields first; every field is at least 2 fields away from the fields the barrage already aimed at. The
+ * missiles fly 3.60 fields/s; on impact every creep on that field (ground and air) takes 4 × the Mech's attack
+ * damage (perks and damage auras count) as splash damage (Splash Resistance and armor count).
+ */
+export const MISSILE_BARRAGE = { towerId: "h046", every: 9, count: 3, gap: 0.3, speed: 3.6, apart: 2, factor: 4 };
+function tickBarrage(game, p, tower, stats) {
+  if (tower.typeId !== MISSILE_BARRAGE.towerId || (tower.barrageReady || 0) > game.time + EPS) return;
+  const cols = game.grid.cols,
+    rows = game.grid.rows,
+    path = new Set((p.path || []).map((n) => n.gridX + "," + n.gridY)),
+    fields = new Map();
+  for (const c of p.creeps) {
+    if (c.dead || c.hp <= 0 || c.y < 0 || divineShield(game, c)) continue;
+    // aims where the creep will be when the missile lands (flight time to the creep's field, walked along its way)
+    const here = pos(game, Math.min(cols - 1, Math.max(0, Math.floor(c.x * cols))), Math.floor(c.y * rows)),
+      ahead = creepAhead(game, c, Math.hypot((here.x - tower.x) * cols, (here.y - tower.y) * rows) / MISSILE_BARRAGE.speed + MISSILE_BARRAGE.gap),
+      gx = Math.min(cols - 1, Math.max(0, Math.floor(ahead.x * cols))),
+      gy = Math.floor(ahead.y * rows),
+      key = gx + "," + gy;
+    if (gy < 0) continue;
+    if (!c.flying && !path.has(key)) continue; // ground creeps on the path; flyers anywhere in the maze
+    const f = fields.get(key) || { gx, gy, hp: 0 };
+    f.hp += c.hp;
+    fields.set(key, f);
+  }
+  if (!fields.size) return; // nobody in the maze: ready as soon as someone comes
+  const picks = [];
+  for (const f of [...fields.values()].sort((a, b) => b.hp - a.hp || a.gy - b.gy || a.gx - b.gx)) {
+    if (picks.some((q) => Math.max(Math.abs(q.gx - f.gx), Math.abs(q.gy - f.gy)) < MISSILE_BARRAGE.apart)) continue;
+    picks.push(f);
+    if (picks.length >= MISSILE_BARRAGE.count) break;
+  }
+  const damage = MISSILE_BARRAGE.factor * (stats.damage || 0) * (auraAt(game, tower, p, auraSources(game, p))?.damage || 1);
+  game.missiles ||= [];
+  picks.forEach((f, k) => {
+    const to = pos(game, f.gx, f.gy),
+      fieldsAway = Math.hypot((to.x - tower.x) * cols, (to.y - tower.y) * rows),
+      launch = game.time + k * MISSILE_BARRAGE.gap;
+    game.missiles.push({ lane: p.id, towerId: tower.id, gx: f.gx, gy: f.gy, x: to.x, y: to.y, launch, impact: launch + fieldsAway / MISSILE_BARRAGE.speed, damage, launched: false });
+  });
+  tower.barrageReady = game.time + MISSILE_BARRAGE.every;
+  emit(game, "skill", { player: p.id, kind: "ultimate", name: "barrage", x: tower.x, y: tower.y, towerId: tower.id });
+}
+/** v0.27lF: where a creep will roughly be after `t` seconds on its way (its speed and slows now; stunned: where it is). */
+function creepAhead(game, c, t) {
+  if (c.statuses.some((st) => st.stun)) return { x: c.x, y: c.y };
+  let d = (c.speed || 0) * (1 - statusSlow(c.statuses)) * Math.max(0, t), // c.speed already carries the mode multiplier
+    x = c.x,
+    y = c.y;
+  for (let i = c.pathIndex || 0; d > EPS && c.path && i < c.path.length; i++) {
+    const n = c.path[i],
+      seg = dist(game, { x, y }, n);
+    if (seg > d) {
+      x += (n.x - x) * (d / seg);
+      y += (n.y - y) * (d / seg);
+      break;
+    }
+    x = n.x;
+    y = n.y;
+    d -= seg;
+  }
+  return { x, y };
+}
+function tickMissiles(game, p) {
+  if (!game.missiles?.length) return;
+  const cols = game.grid.cols,
+    rows = game.grid.rows;
+  for (const m of game.missiles) {
+    if (m.lane !== p.id) continue;
+    const tower = p.towers.find((t) => t.id === m.towerId) || null;
+    if (!m.launched && game.time + EPS >= m.launch) {
+      m.launched = true;
+      if (tower) emit(game, "skill", { player: p.id, kind: "missile", x: m.x, y: m.y, from: { x: tower.x, y: tower.y }, flight: Math.max(0.05, m.impact - m.launch) });
+    }
+    if (game.time + EPS < m.impact) continue;
+    m.done = true;
+    for (const c of p.creeps) {
+      if (c.dead || c.hp <= 0 || Math.min(cols - 1, Math.max(0, Math.floor(c.x * cols))) !== m.gx || Math.floor(c.y * rows) !== m.gy) continue;
+      if (tower) splashStrike(game, p, tower, c, m.damage, obj(tower.typeId)?.attackType || "siege");
+      else strike(game, p, null, c, m.damage, "siege");
+    }
+    emit(game, "skill", { player: p.id, kind: "missileHit", x: m.x, y: m.y });
+  }
+  game.missiles = game.missiles.filter((m) => !m.done);
 }
 /** Auras that tick every simulation step: immolation and disease clouds. */
 function tickAreaDamage(game, p, tower, skills) {
@@ -5383,6 +5508,7 @@ function touchdown(game, p, c) {
     return;
   }
   c.laps++;
+  c.statuses = c.statuses.filter((st) => st.abilityId !== PENALTY_LAP.id); // v0.27lF: Arcane Penalty ends with the breach
   // Survivors re-enter at a new random portal field. v0.09b: on the lane of the next player
   // (seat order to the right, skipping players who are out and the sender); 1v1 stays put.
   const lane = laneAfter(game, p, sender),
@@ -5736,7 +5862,7 @@ function waveDefense(game, p) {
   const spec = WAVE_TYPES[info.type],
     lead = obj(info.groups?.[0]?.model), // v0.18a: real creeps
     defenseType = lead?.defenseType || spec.defense || (info.flying ? "small" : "medium"),
-    armor = 1 + RULES.armorFactor * info.armor;
+    armor = damageMultiplier("normal", "medium") / damageMultiplier("normal", "medium", info.armor, AI_ARMOR_HIT); // v0.27lF: flat armor against a typical hit
   const total = info.hp * info.count * (spec.split ? 1.76 : 1) * armor + alive.reduce((sum, c) => sum + c.hp, 0);
   const speed = (lead?.speed || 240 * (spec.speed || 1)) * movementMultiplier(game),
     cells = info.flying ? laneRows(game, p) : Math.max(laneRows(game, p), p.path.length),
@@ -7098,7 +7224,7 @@ function capacityVs(game, p, enemy, s) {
       const item = obj(t.typeId);
       if (!item?.attacks) continue;
       const pass = s.flying ? airPass(game, enemy, item, t.gridX, t.gridY, towerSize(t)) : towerPassDamage(game, enemy, item, t.gridX, t.gridY, towerSize(t), enemy.path);
-      sum += pass * damageMultiplier(item.attackType, unit.defenseType || "medium", unit.armor || 0);
+      sum += pass * damageMultiplier(item.attackType, unit.defenseType || "medium", unit.armor || 0, item.damage || AI_ARMOR_HIT);
     }
     map.set(key, sum);
   }
@@ -7129,7 +7255,7 @@ function airCapacityVs(game, p, enemy, s) {
     for (const t of enemy.towers) {
       const item = obj(t.typeId);
       if (!item?.attacks || !item.targets?.includes("air")) continue;
-      sum += airPass(game, enemy, item, t.gridX, t.gridY, towerSize(t)) * damageMultiplier(item.attackType, unit.defenseType || "medium", unit.armor || 0);
+      sum += airPass(game, enemy, item, t.gridX, t.gridY, towerSize(t)) * damageMultiplier(item.attackType, unit.defenseType || "medium", unit.armor || 0, item.damage || AI_ARMOR_HIT);
     }
     const slow = clamp(AI_SAVE.refSpeed / Math.max(60, unit.speed || AI_SAVE.refSpeed), 0.5, 3),
       block = perkLevel(enemy, "airblock") > 0 ? hpOf(s) / Math.max(1, s.spawnIds.length) : 0,
@@ -7138,7 +7264,7 @@ function airCapacityVs(game, p, enemy, s) {
       // waves broke through; with the defending bot switched off, 5 of 6 flyers did.
       flight = (laneRows(game, enemy) * game.grid.cellUnits) / Math.max(1, (unit.speed || AI_SAVE.refSpeed) * movementMultiplier(game)),
       spend = enemy.gold + ((game.incomeRemaining ?? Infinity) < flight ? enemy.income : 0),
-      react = Math.max(0, spend) * antiAirPerGold(game, p, enemy) * AI_AIR_REACT * damageMultiplier(obj("h003")?.attackType, unit.defenseType || "medium", unit.armor || 0);
+      react = Math.max(0, spend) * antiAirPerGold(game, p, enemy) * AI_AIR_REACT * damageMultiplier(obj("h003")?.attackType, unit.defenseType || "medium", unit.armor || 0, obj("h003")?.damage || AI_ARMOR_HIT);
     map.set(key, (sum + react) * slow + block);
   }
   return map.get(key) * (p.aiAirScale || 1);
@@ -7476,6 +7602,7 @@ function fixedTickInner(game) {
     if (p.out) {
       // v0.24j: clouds on a knocked-out lane would never tick down: they go with the lane
       if (game.clouds?.some((cl) => cl.lane === p.id)) game.clouds = game.clouds.filter((cl) => cl.lane !== p.id);
+      if (game.missiles?.some((m) => m.lane === p.id)) game.missiles = game.missiles.filter((m) => m.lane !== p.id); // v0.27lF
       continue;
     }
     // v0.23: only the sends of the current tier can restock (the others were skipped one by one before); each
@@ -7537,8 +7664,10 @@ function fixedTickInner(game) {
       const tSkills = towerSkills(p, t);
       tickAreaDamage(game, p, t, tSkills);
       tickHowl(game, p, t, tSkills); // v0.17p
+      tickBarrage(game, p, t, stats); // v0.27lF: Battle Mech
     }
     tickClouds(game, p);
+    tickMissiles(game, p); // v0.27lF
     // BOSS T2 Clockwork: every 8.25 s a Siege Golem with 50 mana calls two clockwork escorts.
     const clockwork = Math.floor(game.time / 8.25) !== Math.floor((game.time - TICK) / 8.25);
     for (const c of p.creeps) {

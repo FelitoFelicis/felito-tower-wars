@@ -184,7 +184,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.27k",
+const APP_VERSION = "0.27l",
   APP_BRANCH = "F", // v0.23q: author marker (F = Felix, S = Steven) and branch text, shown behind the version; APP_VERSION stays plain for online matches (VersionPublishingRules.md)
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "28.10.2026";
@@ -1707,7 +1707,7 @@ const REWORK_HINT = {
 };
 
 // The original names, except for the creeps and buildings renamed in this port.
-const namesEn = { Peon: "Goblin", "Chaos Peon": "Trenchlin", Akolyte: "Goblin Zealot", Dragonspawn: "Crystal Lizard", "Frost Wyrm": "Bone Dragon", "Lord Garithos": "Dark Knight", "Witch Doctor": "Undoctor", "Centaur Warrior": "Satyr", "Forest Troll": "Centaur", "Grom Hellscream": "Bandit Leader", "Fel Raider": "Rouge Knight", Horse: "Pony", "Cairne Bloodhoof": "Minotaurus", Lumbermill: "EXP Generator", "Skeleton Grunt": "Skeleton Berserker", "Draenai Marauder": "Scaleworm", "Siege Golem": "Iron Golem", Abomination: "Zombie Ogre", "Demon Hunter": "Demon Knight", Faceless: "Dark Monk", Spellbreaker: "Witch Hunter", "Void Walker": "Banshee" }; // v0.21h: two renames; v0.23d: Horse and Boar Scout keep their names
+const namesEn = { Robogoblin: "Battle Mech", Peon: "Goblin", "Chaos Peon": "Trenchlin", Akolyte: "Goblin Zealot", Dragonspawn: "Crystal Lizard", "Frost Wyrm": "Bone Dragon", "Lord Garithos": "Dark Knight", "Witch Doctor": "Undoctor", "Centaur Warrior": "Satyr", "Forest Troll": "Centaur", "Grom Hellscream": "Bandit Leader", "Fel Raider": "Rouge Knight", Horse: "Pony", "Cairne Bloodhoof": "Minotaurus", Lumbermill: "EXP Generator", "Skeleton Grunt": "Skeleton Berserker", "Draenai Marauder": "Scaleworm", "Siege Golem": "Iron Golem", Abomination: "Zombie Ogre", "Demon Hunter": "Demon Knight", Faceless: "Dark Monk", Spellbreaker: "Witch Hunter", "Void Walker": "Banshee" }; // v0.21h: two renames; v0.23d: Horse and Boar Scout keep their names
 function itemName(item) {
   if (researchCopy[item?.id]) return t(researchCopy[item.id][0]);
   if (item?.id === "n00Y" && game && burningTreant(game.players[own])) return t("Burning Treant"); // v0.10w
@@ -1930,7 +1930,8 @@ const ABILITY_DESC = {
   Blizzard: "Ultimate: ice shards hit every creep in a wide area",
   Flamestrike: "Ultimate: a column of fire burns an area",
   "Mega Tsunami": "Ultimate: a huge wave crushes a whole row of creeps",
-  "Swarm Rockets": "Ultimate: a swarm of rockets hits many creeps at once",
+  "Penalty Lap": "Ultimate: sends the creep farthest along back to the start. Arcane Penalty: armor reversed, 20% slower until it breaches", // v0.27lF
+  "Missile Barrage": "Every 9 s fires 3 heavy missiles at path fields with creeps; each hits every creep on its field", // v0.27lF
   "Void Armor": "Ignores 5 damage of every hit, but always takes at least 20%",
   "Tower Repair": "Repairs a tower over a few seconds",
   "Switch Weapon": "Switches between two attack modes",
