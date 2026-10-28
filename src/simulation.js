@@ -987,7 +987,7 @@ function statsForRaw(game, player, item) {
   if (item.isBuildable && item.attacks && perkLevel(player, "owl") && archerLine().has(item.id)) stats.range += owlRange(perkLevel(player, "owl")) * (game?.grid?.cellUnits || 128);
   // v0.12: Heavy Nobility: heavy creeps get more hit points
   if (perkLevel(player, "nobility") && isHeavy(item)) stats.hp *= 1 + NOBILITY.hp * perkLevel(player, "nobility");
-  if (item.isSend && item.bossTier && perkLevel(player, "golem")) stats.hp *= 1 + GOLEM.hp; // v0.10n
+  if (item.isSend && (item.bossTier || item.id === MINI_BOSS.id) && perkLevel(player, "golem")) stats.hp *= 1 + GOLEM.hp; // v0.10n; v0.27kF: also mini bosses
   // v0.26cF: every Mountain Golem recruited: tier-5 creeps +5 % HP for good
   if (item.isSend && item.tier === 5 && !item.bossTier && player?.mountainGolems) stats.hp *= 1 + MOUNTAIN_GOLEM.hp * player.mountainGolems;
   // v0.26cF: Ring of Life: flat HP by the creep's tier, times the perk level
@@ -1126,7 +1126,7 @@ export const PERKS = Object.freeze({
   permafrost: { name: "Frozen Ground", max: 10, element: "water", text: "Ground creeps {permafrost} slower", detail: "Ground creeps in your field {permafrost} slower" }, // v0.10o; v0.22h1: was Permafrost, 5 % per level
   hills: { name: "Hill Paths", max: 5, element: "earth", weight: 0.75, text: "Uphill ground creeps {hills} slower", detail: "Ground creeps walking upwards in your field {hills} slower" }, // v0.22h1
   stormfeathers: { name: "Stormfeathers", max: 10, element: "storm", text: "Archer-Line attack speed +{stormfeathers}" }, // v0.22h1: +8 % per level
-  golem: { name: "Golem Whisperer", max: 1, element: "earth", text: "Boss creeps 25% cheaper, +10% HP" }, // v0.10n
+  golem: { name: "Golem Whisperer", max: 1, element: "earth", text: "Boss and mini boss creeps 25% cheaper, +10% HP" }, // v0.10n; v0.27kF: also mini bosses
   crowd: { name: "Crowd Control", max: 3, element: "plague", text: "When {crowdMax}+ creeps in field, weakest 3 are culled. Triggers every 5 seconds.", detail: "When {crowdMax} or more creeps are in your field, the 3 weakest are culled, never shielded ones. Triggers every 5 seconds. Each culled creep goes back to its owner as an undead creep of its tier, worth a little income" }, // v0.23: 50 or more, Divine Shield spared, one undead per culled creep // v0.20d: Plague, fewer creeps per level, an undead creep goes back
   pillage: { name: "Pillage", max: 3, text: "Steal {pillage} gold on breakthrough" }, // v0.22m2: 14 / 24 / 30 % of the breached player's gold
   // v0.12: nine new perks
@@ -1902,7 +1902,7 @@ function tickGolems(game, p) {
   }
   p.golems = p.golems.filter((g) => !g.dead);
 }
-/** v0.10n: Golem Whisperer (Earth): boss creeps 25 % cheaper and 10 % more hit points. */
+/** v0.10n: Golem Whisperer (Earth): boss creeps 25 % cheaper and 10 % more hit points (v0.27kF: mini bosses too). */
 export const GOLEM = { discount: 0.25, hp: 0.1 };
 /** v0.26cF: Mountain Golem (tier-5 boss): unlocks no tier; it can be recruited again and again, each one gives the tier-5 creeps +5 % HP for good. */
 export const MOUNTAIN_GOLEM = { id: "n02R", hp: 0.05 };
@@ -2270,7 +2270,7 @@ function launchFrostBolt(game, p, x, y) {
 function bossDiscount(p, item, gold) {
   if (!item?.isSend) return gold;
   let share = 1;
-  if (item.bossTier && perkLevel(p, "golem")) share *= 1 - GOLEM.discount;
+  if ((item.bossTier || item.id === MINI_BOSS.id) && perkLevel(p, "golem")) share *= 1 - GOLEM.discount; // v0.27kF: also mini bosses (Mud Golem)
   if (perkLevel(p, "breeding") && hasDeathrattle(item.id)) share *= 1 - BREEDING.discount; // v0.27aF: Breeding Pools spawners
   if (UNDEAD_SENDS.has(item.id) && perkLevel(p, "exhume")) share *= 1 - EXHUME.discount[Math.min(3, perkLevel(p, "exhume")) - 1]; // v0.10r/s
   if (perkLevel(p, "manufacture") && eighthOf(item)) share *= 1 - MANUFACTURE.discount[Math.min(3, perkLevel(p, "manufacture")) - 1]; // v0.12; v0.20d: 8th creep
