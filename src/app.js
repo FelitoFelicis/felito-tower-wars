@@ -187,7 +187,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.27x",
+const APP_VERSION = "0.27y",
   APP_BRANCH = "F", // v0.23q: author marker (F = Felix, S = Steven) and branch text, shown behind the version; APP_VERSION stays plain for online matches (VersionPublishingRules.md)
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "28.10.2026";
@@ -1434,7 +1434,28 @@ function nextLane() {
   }
   return own;
 }
+/**
+ * v0.27yF: menus wear the player's colour: buttons, labels, lines and highlights in every dialog take the picked colour
+ * (in a match: the colour actually played). "Random" keeps the default gold and blue.
+ */
+function applyMenuColor() {
+  const root = document.documentElement,
+    id = colorPick === "random" ? null : game && begun ? colorChoice : colorPick,
+    c = id && TEAM_COLORS[id];
+  root.classList.toggle("menu-tint", !!c);
+  if (!c) return;
+  const n = parseInt(c.css.slice(1), 16),
+    [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => v / 255),
+    lum = 0.2126 * r + 0.7152 * g + 0.0722 * b,
+    light = lum > 0.55;
+  root.style.setProperty("--mc", c.css);
+  root.style.setProperty("--mc-ink", light ? "#1d1a14" : "#ffffff"); // dark text on light colours (white, pink, yellow, light blue)
+  root.style.setProperty("--mc-ink-shadow", light ? "#ffffff80" : "#00000090");
+  // labels and lines on the dark dialog: dark colours (black, brown, purple) lifted so they stay readable
+  root.style.setProperty("--mc-accent", lum < 0.3 ? `color-mix(in srgb, ${c.css} 45%, #ffffff)` : c.css);
+}
 function applyColors() {
+  applyMenuColor();
   const shell = document.querySelector(".game-shell");
   shell?.style.setProperty("--own-color", TEAM_COLORS[colorChoice].css);
   shell?.style.setProperty("--rival-color", TEAM_COLORS[game && begun ? seatColors()[rivalIndex()] : rivalColor()].css);

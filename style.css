@@ -9504,3 +9504,55 @@ html.creep-scroll .game-shell[data-page="send"] .cards > .unit-card {
   left: auto;
   right: 14px;
 }
+
+/* ---- v0.27yF: menus in the player's colour (html.menu-tint, set by applyMenuColor in app.js; "Random" keeps gold and
+   blue). Main buttons in the full colour, secondary buttons in a darker shade of it, labels, lines and highlights in
+   the accent tone; red danger buttons keep their colour. */
+html.menu-tint dialog .primary-button,
+html.menu-tint dialog .welcome-mode.alt,
+html.menu-tint dialog .welcome-options,
+html.menu-tint dialog .welcome-options.welcome-mute,
+html.menu-tint dialog .welcome-options.welcome-install,
+html.menu-tint dialog .welcome-back {
+  background: linear-gradient(color-mix(in srgb, var(--mc) 72%, #ffffff), color-mix(in srgb, var(--mc) 78%, #000000));
+  border-color: color-mix(in srgb, var(--mc) 30%, #000000);
+  color: var(--mc-ink);
+  text-shadow: 0 2px 0 var(--mc-ink-shadow);
+  box-shadow:
+    inset 0 2px 0 #ffffff60,
+    inset 0 -3px 0 #00000030,
+    0 4px 0 color-mix(in srgb, var(--mc) 30%, #000000);
+}
+html.menu-tint dialog .welcome-options,
+html.menu-tint dialog .welcome-options.welcome-mute,
+html.menu-tint dialog .welcome-options.welcome-install {
+  box-shadow:
+    inset 0 2px 0 #ffffff60,
+    0 3px 0 color-mix(in srgb, var(--mc) 30%, #000000);
+}
+html.menu-tint dialog .welcome-mute svg { color: var(--mc-ink); }
+html.menu-tint dialog .secondary-button {
+  background: linear-gradient(color-mix(in srgb, var(--mc) 50%, #24384a), color-mix(in srgb, var(--mc) 38%, #0b1620));
+  border-color: #050d13;
+  color: #ffffff;
+  text-shadow: 0 2px 0 #0008;
+}
+html.menu-tint dialog .segmented button.active {
+  background: linear-gradient(color-mix(in srgb, var(--mc) 65%, #ffffff), color-mix(in srgb, var(--mc) 85%, #000000));
+  color: var(--mc-ink);
+  box-shadow:
+    inset 0 1px 0 #fff8,
+    0 2px 0 color-mix(in srgb, var(--mc) 35%, #000000);
+}
+html.menu-tint dialog .modal-kicker,
+html.menu-tint dialog .welcome-group-title,
+html.menu-tint dialog .modal-label b,
+html.menu-tint dialog .welcome-title span {
+  color: var(--mc-accent);
+}
+html.menu-tint dialog .welcome-group-title::after {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--mc-accent) 60%, transparent), transparent);
+}
+html.menu-tint dialog .modal-header {
+  box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--mc-accent) 45%, transparent);
+}
