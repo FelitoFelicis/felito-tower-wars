@@ -21,7 +21,8 @@ const n = (value, fallback = null) =>
 export const WALL_ID = "hWAL",
   EXP_GEN_TOP_ID = "hXG5", // v0.24oF: fifth EXP generator level
   GOLEM_ID = "nAGO",
-  MUD_GOLEM_ID = "nMDG"; // v0.27F: tier 1 mini boss (send card; the Rock Golem's escort n01U stays its own unit)
+  MUD_GOLEM_ID = "nMDG", // v0.27F: tier 1 mini boss (send card; the Rock Golem's escort n01U stays its own unit)
+  TRENCH_ORC_ID = "nTRO"; // v0.27hF: tier 2 Trench Orc (built from the Orc n00M; replaces the Giant Bat)
 export const FACTIONS = [
   { id: "water", name: "Water", color: "#68caff", research: "R00N", unlock: "R01D" },
   { id: "fire", name: "Fire", color: "#ff9169", research: "R00M", unlock: "R01G" },
@@ -59,7 +60,7 @@ export const RULES = {
 const SHOPS = ["H049", "H04A", "H04E", "H04B", "H04K", "H02K"];
 /** Researches a player can hold (elements, their upgrades, level rewards). */
 const PLAYER_RESEARCH = ["R00K", "R00M", "R00N", "R00O", "R00P", "R00Q", "R00R", "R00U", "R00V", "R00W", "R00X", "R001", "R002", "R005", "R006", "R00C", "R00D", "R00J"]; // v0.17b: Forged Arrows (R000) and Improved Construction (R013) removed
-export const REMOVED_SENDS = new Set(["n00Q", "n021", "n00Y", "n002", "n039", "n01R", "n02J", "n02P", "n01E", "n01B"]); // v0.22n2; v0.22o2: Bat Rider, Skeleton Mage
+export const REMOVED_SENDS = new Set(["n012", "n00Q", "n021", "n00Y", "n002", "n039", "n01R", "n02J", "n02P", "n01E", "n01B"]); // v0.27hF: Giant Bat (n012) taken out for now; v0.22n2; v0.22o2: Bat Rider, Skeleton Mage
 const NO_INCOME = new Set(["n00Y", "n01H", "n01R", "n01T", "n02P", "n02Q", "n02R"]); // v0.21p: Ghoul (n01D) earns income now
 const NO_DECIMAL = new Set(["n00Y", "n01R", "n02N", "n01T", "n02P", "n02Q", "n02R"]);
 const TRIPLES = new Set(["n00P", "n00U", "n01L", "n01S", "n017"]);
@@ -96,6 +97,20 @@ export function configureContent(data) {
         fields: { ...escort.fields, unam: "[05] Mud Golem", ugol: 200, upoi: 10, uhpm: 650, usma: 1, usrg: 1, usst: 0, uabi: "A01A,XA14", utyp: "ancient" },
       });
       shop.fields.useu = (shop.fields.useu || "") + "," + MUD_GOLEM_ID;
+    }
+  }
+  // v0.27hF: Trench Orc (tier 2, in the Giant Bat's place): the Orc's figure and Splash Resistance, plus Armor 2
+  {
+    const orc = rawUnits.get("n00M"),
+      shop = rawUnits.get(SHOPS[1]);
+    if (orc && shop) {
+      rawUnits.set(TRENCH_ORC_ID, {
+        ...orc,
+        id: TRENCH_ORC_ID,
+        custom: true,
+        fields: { ...orc.fields, unam: "[21] Trench Orc", ugol: 1000, upoi: 62, uhpm: 3000, usma: 8, usrg: 7.5, usst: 80, uabi: "A01A,XA02,XA15" },
+      });
+      shop.fields.useu = (shop.fields.useu || "") + "," + TRENCH_ORC_ID;
     }
   }
   // v0.24j: melee poison (Zombie Tower, Death Knight) is the same "Poison Attack" as the ranged poison towers (Poison
@@ -610,6 +625,8 @@ export const CUSTOM_ABILITIES = [
   { id: "XA01", baseId: "Xlrs", custom: true, line: "h003", reduce: 0.33, fields: { anam: { 0: "Arrow Resistance" }, aub1: { 1: "Takes 33% less damage from Archer-Line towers" } } },
   // v0.22za2: Orc: Splash Resistance replaces Siege Resistance: less damage from tower splash attacks (no spells)
   { id: "XA02", baseId: "Xspr", custom: true, reduce: 0.33, fields: { anam: { 0: "Splash Resistance" }, aub1: { 1: "Takes 33% less splash damage from towers" } } },
+  // v0.27hF: Trench Orc: Armor 2 (ignores 2 damage from every hit, at least 1 gets through)
+  { id: "XA15", baseId: "Ansk", custom: true, fields: { anam: { 0: "Scale Armor" }, aub1: { 1: "Ignores 2 damage from all attacks\nbut takes minimum 1 damage" }, Ssk3: { 1: 2 }, Ssk2: { 1: 1 } } },
   { id: "XA08", baseId: "Xslr", custom: true, resist: 0.4, fields: { anam: { 0: "Slow Resistance" }, aub1: { 1: "40% less slowed" } } }, // v0.21k: Warden, Eredar Warlock
   { id: "XA03", baseId: "Xinf", custom: true, fields: { anam: { 0: "Deathrattle" }, aub1: { 1: "Summons 3 Skeletons on death" } } }, // v0.17g: display only (the spawn runs through DEATH_PLANS)
   // v0.17p: Pit Lord tower: Howl. When creeps come near it howls: creeps within 1.5 fields are slowed and take more tower damage for 12 s.
@@ -734,7 +751,8 @@ export const CREEP_TUNING = {
   // v0.27gF: tier 2: Skeleton Berserker and Flying Machine swap places (and start delays); Flying Machine 300 → 500 gold,
   // HP 375 → 625, income 12 → 20 (4 % as before), bounty 34 → 57 (same share of its price)
   n011: { name: "[16] Skeleton Berserker", stockStart: 30 },
-  n00V: { name: "[17] Flying Machine", cost: 500, hp: 625, income: 20, bountyBase: 57, stockStart: 40 },
+  n00V: { name: "[17] Flying Machine", cost: 500, hp: 450, count: 3, income: 20, bountyBase: 38, stockStart: 40 }, // v0.27hF: 3 per purchase, 450 HP each, bounty 57 → 38 each (same total)
+  [TRENCH_ORC_ID]: { name: "[21] Trench Orc", shortName: "Trench Orc", cost: 1000, hp: 3000, income: 62, count: 1, speed: 180, stockMax: 8, stockRegen: 7.5, stockStart: 80, bountyBase: 199, bountyDice: 1, abilities: ["A01A", "XA02", "XA15"] }, // v0.27hF: speed like the Orc, start delay like the Giant Bat
   n01Y: { armor: 4 }, // v0.24s: Dark Monk armor 4
   n01D: { income: 60 }, // v0.21p: Ghoul earns income now (1500 gold: 4 %, like Demon Hound)
   // v0.21p: Naga Siren's death spawns +50 % hit points (they look like little Naga Sirens, art.js / arena.js)

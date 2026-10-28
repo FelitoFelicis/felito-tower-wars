@@ -23,6 +23,7 @@ const BASE_ART = {
   "creep-n-horse": { w: 61, h: 94, footY: 90 }, // v0.23ze: Pony (was the hay pony / Horse)
   "creep-n-goblin": { w: 80, h: 84, footY: 79 }, // v0.23t: new sheet
   "creep-n-grunt": { w: 130, h: 103, footY: 98 },
+  "creep-n-trench-orc": { w: 130, h: 103, footY: 98 }, // v0.27hF: Trench Orc (the Orc with brown skin)
   "creep-n-ice-imp": { w: 143, h: 137, footY: 133 },
   "creep-n-ice-imp-violet": { w: 143, h: 137, footY: 133 },
   "creep-n-trenchlin": { w: 73, h: 97, footY: 93 }, // v0.23x: tier 2 Trenchlin (was the Imp)
@@ -253,7 +254,7 @@ export const ART_MANIFEST = Object.freeze({
  * v0.23: version key on every art URL (figures, animations, icons): raise it whenever pictures in
  * assets/art, assets/anim, assets/art-toy or assets/art-pets change, so browsers fetch the new ones (see the README).
  */
-export const ART_VERSION = "v027b"; // v0.27bF: Scouting icon; v0.27aF: Poison Alchemist icon; v0.26eF: Amnesia icon; v0.26cF: perk pack with Ring of Life and Revenge; // v0.24s: Wolf, Skeleton, Satyr, Rouge Captain, Wolfrider, Rock Golem cut out cleaner, smaller Spawn Spider spawns; v0.24a: death rows inside the walk sheets, perk and tower level art in packs, smoother edges on older sheets; v0.24: release of the v0.23 creep overhaul; v0.23zr: Banshee and Arcane Wolf cut out cleanly (no white edges or gaps); v0.23zq: Bone Dragon, Arcane Wolf, Giant Bat; v0.23zp: Naga Siren; v0.23zo: Raven; v0.23zn: Demon Lord; v0.23zm: leftover white removed from Necromancer, Meat Golem, Infernal Golem; v0.23zl: Banshee; v0.23zk: Dark Monk (was Faceless); v0.23zj: Demon Knight, Witch Hunter on the Spellbreaker, Dryad; v0.23zi: Witch Hunter, Druid; v0.23zh: Zombie Ogre; v0.23zg: left-over white background removed from creep sheets (holes between arms/legs, light edge halos)
+export const ART_VERSION = "v027h"; // v0.27hF: Trench Orc; v0.27bF: Scouting icon; v0.27aF: Poison Alchemist icon; v0.26eF: Amnesia icon; v0.26cF: perk pack with Ring of Life and Revenge; // v0.24s: Wolf, Skeleton, Satyr, Rouge Captain, Wolfrider, Rock Golem cut out cleaner, smaller Spawn Spider spawns; v0.24a: death rows inside the walk sheets, perk and tower level art in packs, smoother edges on older sheets; v0.24: release of the v0.23 creep overhaul; v0.23zr: Banshee and Arcane Wolf cut out cleanly (no white edges or gaps); v0.23zq: Bone Dragon, Arcane Wolf, Giant Bat; v0.23zp: Naga Siren; v0.23zo: Raven; v0.23zn: Demon Lord; v0.23zm: leftover white removed from Necromancer, Meat Golem, Infernal Golem; v0.23zl: Banshee; v0.23zk: Dark Monk (was Faceless); v0.23zj: Demon Knight, Witch Hunter on the Spellbreaker, Dryad; v0.23zi: Witch Hunter, Druid; v0.23zh: Zombie Ogre; v0.23zg: left-over white background removed from creep sheets (holes between arms/legs, light edge halos)
 // ---- art sets of the Circle Tower Wars designs ------------------------------------------------------
 // Sonnenwiese and Bonbon draw every figure as a round toy ("toy"), Pfotenwelt as a cute animal ("pets").
 // A set holds one picture per figure; level variants (-v1..-v3, -l1, -l2) share their base figure there.
@@ -443,6 +444,8 @@ export const ANIM_MANIFEST = Object.freeze({
   "creep-n-goblin-death": { kind: "death", in: "creep-n-goblin", first: 64, frames: 7, cols: 8, fw: 104, fh: 113, footX: 52, footY: 99, ms: 110 }, // v0.24a: death row inside the walk sheet
   "creep-n-grunt": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 174, fh: 130, footX: 85, footY: 124, figH: 97, ms: 95, figS: 97 },
   "creep-n-grunt-death": { kind: "death", in: "creep-n-grunt", first: 48, frames: 6, cols: 6, fw: 174, fh: 130, footX: 85, footY: 124, ms: 110 }, // v0.24a: death row inside the walk sheet
+  "creep-n-trench-orc": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 174, fh: 130, footX: 85, footY: 124, figH: 97, ms: 95, figS: 97 }, // v0.27hF
+  "creep-n-trench-orc-death": { kind: "death", in: "creep-n-trench-orc", first: 48, frames: 6, cols: 6, fw: 174, fh: 130, footX: 85, footY: 124, ms: 110 }, // v0.24a: death row inside the walk sheet // v0.27hF
   "creep-n-infernal-golem": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 202, fh: 172, footX: 101, footY: 166, figH: 81, ms: 95, figS: 81 },
   "creep-n-infernal-golem-death": { kind: "death", in: "creep-n-infernal-golem", first: 48, frames: 6, cols: 6, fw: 202, fh: 172, footX: 101, footY: 166, ms: 110 }, // v0.24a: death row inside the walk sheet
   "creep-n-meat-golem": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 211, fh: 141, footX: 102, footY: 135, figH: 92, ms: 95, figS: 92 },
@@ -512,6 +515,7 @@ export const CREEP_PORTRAIT = Object.freeze({
   "creep-n-undoctor": "creep-p-undoctor",
   "creep-n-satyr": "creep-p-satyr",
   "creep-n-grunt": "creep-p-grunt",
+  "creep-n-trench-orc": "creep-p-trench-orc", // v0.27hF
   "creep-n-infernal-golem": "creep-p-infernal-golem",
   "creep-n-meat-golem": "creep-p-meat-golem",
   "creep-n-mountain-golem": "creep-p-mountain-golem",
@@ -648,6 +652,7 @@ const CREEP_PATTERNS = [
   [/wolf/i, "creep-n-wolf"],
   [/skeleton/i, "creep-n-skeleton"],
   [/gnoll/i, "creep-n-gnoll"],
+  [/trench orc/i, "creep-n-trench-orc"], // v0.27hF
   [/grunt|\borc\b/i, "creep-n-grunt"],
   [/trenchlin|chaos peon|wichtel|^imp$|\bimp\b/i, "creep-n-trenchlin"], // v0.23x: the tier 2 Imp is the Trenchlin
   [/peon|goblin|peasant/i, "creep-n-goblin"],
