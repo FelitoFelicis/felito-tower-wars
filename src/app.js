@@ -187,7 +187,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.27s",
+const APP_VERSION = "0.27t",
   APP_BRANCH = "F", // v0.23q: author marker (F = Felix, S = Steven) and branch text, shown behind the version; APP_VERSION stays plain for online matches (VersionPublishingRules.md)
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "28.10.2026";
@@ -561,7 +561,7 @@ const deckCard = (id) => document.querySelector(`#cards [data-card="${id}"], #ca
 // v0.27rF: creep menu: "full" (every card of the tier in the grid) or "scroll" (one row to swipe sideways)
 const CREEP_MENU_PREF = "felito.creepMenu";
 let creepMenu = pref(CREEP_MENU_PREF, "full") === "scroll" ? "scroll" : "full";
-const creepMenuText = () => `${t("Creep menu")}: ${t(creepMenu === "scroll" ? "Scroll" : "Full")}`;
+const creepMenuText = () => `${t("Card menus")}: ${t(creepMenu === "scroll" ? "Scroll" : "Full")}`; // v0.27tF: creep and tower blueprint menus
 function applyCreepMenu() {
   document.documentElement.classList.toggle("creep-scroll", creepMenu === "scroll");
 }

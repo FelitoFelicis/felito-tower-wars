@@ -8847,8 +8847,9 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
   margin-top: 6px;
 }
 
-/* ---- v0.24s: Mobile Default and Mobile Large: the tower cards stay in one row and scroll sideways ---- */
-:root:not(.pc-controls):not(.layout-full) .game-shell[data-page="build"] .cards.grid-build:not(.upgrade-mode) {
+/* ---- v0.24s: Mobile Default and Mobile Large: the tower cards stay in one row and scroll sideways ----
+   v0.27tF: now with the menu option "Scroll" (any layout); "Full" shows every blueprint, 5 per row */
+:root.creep-scroll .game-shell[data-page="build"] .cards.grid-build:not(.upgrade-mode) {
   grid-template-columns: none;
   grid-auto-flow: column;
   grid-auto-columns: calc((100% - 4 * 5px) / 5);
@@ -8858,7 +8859,7 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
   scrollbar-width: none;
   touch-action: pan-x;
 }
-:root:not(.pc-controls):not(.layout-full) .game-shell[data-page="build"] .cards.grid-build:not(.upgrade-mode)::-webkit-scrollbar {
+:root.creep-scroll .game-shell[data-page="build"] .cards.grid-build:not(.upgrade-mode)::-webkit-scrollbar {
   display: none;
 }
 /* v0.24s: card book: Deathrattle creeps link to the creeps they spawn (bottom right of the picture) */
