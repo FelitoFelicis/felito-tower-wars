@@ -2851,7 +2851,7 @@ export function mountArena({
             see = 0.9; // v0.22n2: every health bar 10 % transparent
           if (frame) {
             const light = frame === "iron" && !mini,
-              team = frame === "gold" && c.owner >= 0 ? TEAM_COLORS[colorOf(c.owner)]?.hex : null,
+              team = (frame === "gold" || mini) && c.owner >= 0 ? TEAM_COLORS[colorOf(c.owner)]?.hex : null, // v0.27fF: mini bosses also in their owner's metal colour
               [outer, inner, rivet] =
                 team != null ? [metalTint(team, 0, 0.55), team, metalTint(team, 0xffffff, 0.6)] : frame === "gold" ? [0x6a4206, 0xffcc3a, 0xfff2a8] : light ? [0x2c3238, 0x737d87, 0xb8c0c8] : [0x23282e, 0x9aa4ae, 0xe2e8ee],
               fw = frame === "gold" ? 4 : light ? 2.4 : 3.5, // v0.27cF: heavy frame 20 % thicker (2 → 2.4)

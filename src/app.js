@@ -184,7 +184,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.27e",
+const APP_VERSION = "0.27f",
   APP_BRANCH = "F", // v0.23q: author marker (F = Felix, S = Steven) and branch text, shown behind the version; APP_VERSION stays plain for online matches (VersionPublishingRules.md)
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "28.10.2026";
@@ -4281,11 +4281,13 @@ function cardArtHtml(item) {
     portrait = item.kind === "send" && !activeArtSet() ? CREEP_PORTRAIT[key] : null;
   return portrait ? `<span class="card-art portrait-art"><img src="${towerArtUrl(portrait)}" alt=""></span>` : `<span class="card-art"><img src="${towerArtUrl(key)}" alt=""></span>`;
 }
+/** v0.27fF: bosses and mini bosses (Mud Golem) wear the boss frame on their creep cards. */
+const bossFrame = (item) => !!item?.bossTier || item?.id === MINI_BOSS.id;
 function cardMarkup(item) {
   const a = available(game, own, cardAction(item), item.id),
     label = priceLabel(item),
     kindClass = item.kind === "send" ? "card-send" : item.kind === "research" ? "card-research" : "card-tower";
-  return `<button class="unit-card ${kindClass}${item.id === "n00Y" && game && burningTreant(game.players[own]) ? " burning" : ""} ${item.kind === "send" && (item.bossTier || item.flying) ? "framed" : ""} ${selected === item.id && tab === "build" ? "selected" : ""} ${a.ok ? "" : "unaffordable"} ${isPoor(a) ? "poor" : ""}" data-kind="${item.kind}" data-card="${item.id}" aria-label="${esc(itemName(item))}, ${esc(label)} Gold, ${esc(cardHint(item))}${a.ok ? "" : ", " + esc(t(a.reason))}"><span class="unit-name">${esc(itemName(item))}</span>${cardArtHtml(item)}<span class="card-foot${item.kind === "send" && (label + formatInc(incomeFor(item))).length >= (item.bossTier || item.flying ? 6 : 7) ? " long" : ""}"><span class="price${item.kind === "research" && itemPrice(item).wood ? " wood-price" : ""}${isFreeLabel(label) ? " free" : ""}">${label}</span>${item.kind === "send" ? `<span class="card-note${incomeFor(item) > item.income + 0.004 ? " buffed" : ""}">+${formatInc(incomeFor(item))}</span>` : ""}</span><span class="card-status">${cardStatus(item)}</span>${item.kind === "send" ? `<span class="card-stock">${stockCount(item)}</span>${item.bossTier ? '<i class="frame-boss" aria-hidden="true"></i>' : item.flying ? '<i class="frame-air" aria-hidden="true"></i>' : ""}` : ""}</button>`;
+  return `<button class="unit-card ${kindClass}${item.id === "n00Y" && game && burningTreant(game.players[own]) ? " burning" : ""} ${item.kind === "send" && (bossFrame(item) || item.flying) ? "framed" : ""} ${selected === item.id && tab === "build" ? "selected" : ""} ${a.ok ? "" : "unaffordable"} ${isPoor(a) ? "poor" : ""}" data-kind="${item.kind}" data-card="${item.id}" aria-label="${esc(itemName(item))}, ${esc(label)} Gold, ${esc(cardHint(item))}${a.ok ? "" : ", " + esc(t(a.reason))}"><span class="unit-name">${esc(itemName(item))}</span>${cardArtHtml(item)}<span class="card-foot${item.kind === "send" && (label + formatInc(incomeFor(item))).length >= (bossFrame(item) || item.flying ? 6 : 7) ? " long" : ""}"><span class="price${item.kind === "research" && itemPrice(item).wood ? " wood-price" : ""}${isFreeLabel(label) ? " free" : ""}">${label}</span>${item.kind === "send" ? `<span class="card-note${incomeFor(item) > item.income + 0.004 ? " buffed" : ""}">+${formatInc(incomeFor(item))}</span>` : ""}</span><span class="card-status">${cardStatus(item)}</span>${item.kind === "send" ? `<span class="card-stock">${stockCount(item)}</span>${bossFrame(item) ? '<i class="frame-boss" aria-hidden="true"></i>' : item.flying ? '<i class="frame-air" aria-hidden="true"></i>' : ""}` : ""}</button>`;
 }
 function renderCards() {
   if (!game) return;
@@ -6012,7 +6014,7 @@ function techTree(kind) {
     node = (item, ref = false) => {
       const el = elColor(item),
         price = item.kind === "research" ? "" : format(item.cost || 0);
-      return `<button class="tt-node${ref ? " tt-ref" : ""}${el ? " tt-el" : ""}${item.kind === "send" && item.flying && !item.bossTier ? " tt-air" : ""}${item.kind === "send" && item.bossTier ? ` tt-boss tt-boss-${Math.max(1, Math.min(5, item.tier || 1))}` : ""}" type="button" data-card="${item.id}"${el ? ` style="--el:${el}"` : ""}>${item.kind === "send" && item.bossTier ? `<span class="frame-boss" aria-hidden="true"></span>` : ""}<img src="${item.kind === "research" ? researchArt(item) : towerArtUrl(artFor(item))}" alt=""><b>${esc(itemName(item))}</b>${item.level > 1 && item.kind !== "send" && item.kind !== "research" ? `<i>Lv ${item.level}</i>` : ""}${price ? `<small><img src="${iconUrl("coin")}" alt="">${price}</small>` : ""}</button>`;
+      return `<button class="tt-node${ref ? " tt-ref" : ""}${el ? " tt-el" : ""}${item.kind === "send" && item.flying && !bossFrame(item) ? " tt-air" : ""}${item.kind === "send" && bossFrame(item) ? ` tt-boss tt-boss-${Math.max(1, Math.min(5, item.tier || 1))}` : ""}" type="button" data-card="${item.id}"${el ? ` style="--el:${el}"` : ""}>${item.kind === "send" && bossFrame(item) ? `<span class="frame-boss" aria-hidden="true"></span>` : ""}<img src="${item.kind === "research" ? researchArt(item) : towerArtUrl(artFor(item))}" alt=""><b>${esc(itemName(item))}</b>${item.level > 1 && item.kind !== "send" && item.kind !== "research" ? `<i>Lv ${item.level}</i>` : ""}${price ? `<small><img src="${iconUrl("coin")}" alt="">${price}</small>` : ""}</button>`;
     },
     arrow = '<span class="tt-arrow" aria-hidden="true">›</span>';
   if (kind === "tower") {
