@@ -615,7 +615,7 @@ export function configureContent(data) {
  * Balancing table for creeps. It mirrors the project doc "Creep-Werte (Balancing)": every value
  * here replaces the original map value for that creep. Fields: cost, income, hp, armor,
  * defenseType, speed (game units: 128 = one field per second), count (creeps per purchase),
- * flying, stockMax, stockRegen (seconds per recruit), stockStart (seconds before the first).
+ * flying, stockMax, stockRegen (seconds per recruit), stockStart (v0.27iF: rounds before the first, see START_ROUNDS).
  */
 /**
  * v0.17b: own creep abilities. "Xlrs" = less damage from every tower of one line (`line` = the
@@ -746,13 +746,24 @@ function applyTowerDamageBuff(byId) {
 }
 // v0.24p: fixed average damage per tower (Footman level 2: 11)
 export const TOWER_DAMAGE_PIN = { h02U: 11 };
+/**
+ * v0.27iF: start delay of every send in rounds (the lock shown on its card). Only sends from the 4th place of a tier
+ * on wait; the first three open at once and a tier boss waits one round longer than the creep before it.
+ */
+export const START_ROUNDS = {
+  n00L: 4, n00R: 5, n00M: 6, n00N: 8, n00P: 8, n00S: 9, // tier 1 (the Wolf opens through START_LOCK)
+  n011: 1, n00V: 1, n010: 2, nTRO: 4, n02V: 4, n014: 4, // tier 2
+  n03A: 2, n019: 1, n01A: 2, n01C: 3, n01G: 5, n01F: 6, // tier 3
+  n00F: 1, n01L: 1, n01N: 2, n02M: 3, n02N: 4, n02O: 4, // tier 4
+  n025: 1, n026: 1, n02E: 2, n02I: 3, n02K: 3, n02Q: 4, // tier 5
+};
 export const CREEP_TUNING = {
   nMDG: { bountyBase: 18, bountyDice: 0 }, // v0.27F: Mud Golem bounty like a tier 1 creep of its price
   // v0.27gF: tier 2: Skeleton Berserker and Flying Machine swap places (and start delays); Flying Machine 300 → 500 gold,
   // HP 375 → 625, income 12 → 20 (4 % as before), bounty 34 → 57 (same share of its price)
-  n011: { name: "[16] Skeleton Berserker", stockStart: 30 },
-  n00V: { name: "[17] Flying Machine", cost: 500, hp: 450, count: 3, income: 20, bountyBase: 38, stockStart: 40 }, // v0.27hF: 3 per purchase, 450 HP each, bounty 57 → 38 each (same total)
-  [TRENCH_ORC_ID]: { name: "[21] Trench Orc", shortName: "Trench Orc", cost: 1000, hp: 3000, income: 62, count: 1, speed: 180, stockMax: 8, stockRegen: 7.5, stockStart: 80, bountyBase: 199, bountyDice: 1, abilities: ["A01A", "XA02", "XA15"] }, // v0.27hF: speed like the Orc, start delay like the Giant Bat
+  n011: { name: "[16] Skeleton Berserker", stockStart: 1 }, // v0.27iF: start delay in rounds
+  n00V: { name: "[17] Flying Machine", cost: 500, hp: 450, count: 3, income: 20, bountyBase: 38, stockStart: 1 }, // v0.27hF: 3 per purchase, 450 HP each, bounty 57 → 38 each (same total)
+  [TRENCH_ORC_ID]: { name: "[21] Trench Orc", shortName: "Trench Orc", cost: 1000, hp: 3000, income: 62, count: 1, speed: 180, stockMax: 8, stockRegen: 7.5, stockStart: 4, bountyBase: 199, bountyDice: 1, abilities: ["A01A", "XA02", "XA15"] }, // v0.27hF: speed like the Orc, start delay like the Giant Bat
   n01Y: { armor: 4 }, // v0.24s: Dark Monk armor 4
   n01D: { income: 60 }, // v0.21p: Ghoul earns income now (1500 gold: 4 %, like Demon Hound)
   // v0.21p: Naga Siren's death spawns +50 % hit points (they look like little Naga Sirens, art.js / arena.js)
@@ -801,6 +812,9 @@ function applyCreepTuning(byId) {
       if (u && !s.flying && !u.flying && u.movementType !== "fly" && u.defenseType !== "hero") u.defenseType = "medium";
     }
   }
+  // v0.27iF: start delays count in rounds (income ticks), like the lock they open; the map's seconds are converted
+  // once (values as the old seconds formula gave them); CREEP_TUNING's stockStart below is in rounds too
+  for (const u of Object.values(byId)) if (u.kind === "send") u.stockStart = START_ROUNDS[u.id] ?? Math.round(((u.stockStart || 0) * 2) / 3 / RULES.incomeInterval);
   for (const [id, tune] of Object.entries(CREEP_TUNING)) {
     const u = byId[id];
     if (!u) continue;

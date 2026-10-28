@@ -436,7 +436,7 @@ export function createGame({
     if (p.ai && aiLevels?.[p.id] && Object.hasOwn(AI_LEVELS, aiLevels[p.id])) p.aiLevel = aiLevels[p.id];
     p.picks.push(makePick(game, p, "element"));
     p.path = findPath(game, p.id);
-    for (const s of getCatalog().sends) p.stock[s.id] = { count: s.stockStart > 0 ? 0 : s.stockMax, next: s.stockStart };
+    for (const s of getCatalog().sends) p.stock[s.id] = { count: s.stockStart > 0 ? 0 : s.stockMax, next: s.stockStart * (game.incomeInterval || RULES.incomeInterval) }; // v0.27iF: stockStart in rounds
     stockTier(game, p, 1, 0);
   }
   if (mission) applyMission(game, mission);
@@ -3775,8 +3775,8 @@ export function tierSends(tier) {
   return TIER_SENDS.get(tier);
 }
 /**
- * Opening stock of a tier: the first three sends are ready at once and half full; in tiers 2-5 the
- * start delay of the first row (6 sends) is halved and that of the second row cut by a third.
+ * Opening stock of a tier: the first three sends are ready at once and half full; the others wait their start
+ * delay in rounds (v0.27iF: content.js START_ROUNDS, before seconds with a per-row factor).
  */
 function stockTier(game, p, tier, now) {
   let prevRounds = 0;
@@ -3785,19 +3785,16 @@ function stockTier(game, p, tier, now) {
       p.stock[s.id] = { count: Math.max(1, Math.ceil(stockMaxOf(p, s) / 2)), next: now + Math.max(0.05, s.stockRegen) };
       return;
     }
-    // Tier 2+: first six creeps wait half as long, the rest a third less; tier 1: a third less.
     // v0.26bF: noStartDelay (mission rule): every creep opens like a lock that just opened
     if (p.rules?.noStartDelay) {
       p.stock[s.id] = { count: 0, next: now };
       return;
     }
-    const delay = s.stockStart * (tier >= 2 && i < 6 ? 0.5 : 2 / 3),
-      // v0.15: the start delay counts in rounds (income ticks), not seconds; the first recruit
-      // arrives the moment the lock opens
-      // v0.16: the boss waits one round longer than the creep before it
-      rounds = s.bossTier ? prevRounds + 1 : Math.round(delay / (game.incomeInterval || 15));
+    // v0.27iF: the start delay is set in rounds (income ticks) per creep (content.js START_ROUNDS); the first
+    // recruit arrives the moment the lock opens. v0.16: the boss waits one round longer than the creep before it
+    const rounds = s.bossTier ? prevRounds + 1 : Math.max(0, Math.round(s.stockStart || 0));
     prevRounds = rounds;
-    p.stock[s.id] = rounds > 0 ? { count: 0, next: LOCKED_NEXT, lockRound: game.round + rounds } : { count: delay > 0 ? 0 : stockMaxOf(p, s), next: now + delay };
+    p.stock[s.id] = rounds > 0 ? { count: 0, next: LOCKED_NEXT, lockRound: game.round + rounds } : { count: stockMaxOf(p, s), next: now };
   });
   // v0.25j: tier 1 opens with a fixed stock for the cheapest creeps (FIRST_STOCK), capped by the stock maximum
   if (tier === 1)
