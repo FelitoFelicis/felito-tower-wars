@@ -187,7 +187,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.27w",
+const APP_VERSION = "0.27x",
   APP_BRANCH = "F", // v0.23q: author marker (F = Felix, S = Steven) and branch text, shown behind the version; APP_VERSION stays plain for online matches (VersionPublishingRules.md)
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "28.10.2026";
@@ -773,7 +773,9 @@ function headCrop(url) {
           cx = box ? box[0] + size / 2 : (left + right) / 2,
           out = Object.assign(document.createElement("canvas"), { width: 96, height: 96 });
         out.getContext("2d").drawImage(img, cx - size / 2, (box ? box[1] : Math.max(0, top - size * 0.04)) + size * (HEAD_SHIFT[key] || 0), size, size, 0, 0, 96, 96);
-        headCrops.set(url, out.toDataURL("image/webp", 0.9));
+        const pic = out.toDataURL("image/webp", 0.9);
+        c.width = c.height = out.width = out.height = 0; // v0.27xF: free the canvas memory at once (Safari)
+        headCrops.set(url, /^data:image\/[a-z]+;base64,./.test(pic) && pic.length >= 200 ? pic : url); // v0.27xF: no blank portraits
         if (game) refreshUI();
       } catch {
         headCrops.set(url, url);
@@ -1441,37 +1443,48 @@ applyLift();
 /** Tower art for cards in the player's colour; recoloured once in the background, then cached. */
 const teamArt = new Map();
 function towerArtUrl(key, quiet = false) {
-  const url = artUrl(key);
-  if (TEAM_COLORS[colorChoice].hue === null || !/^(tower|creep)-/.test(key)) return url; // v0.15: creep cards too
-  const id = url + "#" + colorChoice, // the url: design variants draw the same key from another art set
+  const url = artUrl(key),
+    color = colorChoice; // v0.27xF: the colour asked for (online matches assign a colour while pictures still load)
+  if (TEAM_COLORS[color]?.hue == null || !/^(tower|creep)-/.test(key)) return url; // v0.15: creep cards too
+  const id = url + "#" + color, // the url: design variants draw the same key from another art set
     hit = teamArt.get(id);
   if (typeof hit === "string") return hit;
   if (!hit) {
     teamArt.set(id, true);
     const img = new Image();
+    img.onerror = () => teamArt.set(id, url); // v0.27xF
     img.onload = () => {
+      let c = null;
       try {
-        const c = Object.assign(document.createElement("canvas"), { width: img.naturalWidth, height: img.naturalHeight }),
-          ctx = c.getContext("2d", { willReadFrequently: true });
+        c = Object.assign(document.createElement("canvas"), { width: img.naturalWidth, height: img.naturalHeight });
+        const ctx = c.getContext("2d", { willReadFrequently: true });
         ctx.drawImage(img, 0, 0);
         const data = ctx.getImageData(0, 0, c.width, c.height);
-        recolorTeam(data.data, colorChoice);
+        recolorTeam(data.data, color);
         ctx.putImageData(data, 0, 0);
-        const done = c.toDataURL("image/webp", 0.9),
-          ready = new Image();
+        const done = c.toDataURL("image/webp", 0.9);
+        // v0.27xF: Safari returns an empty "data:," once its canvas memory is used up (long matches on phones), which
+        // left blank card pictures; the canvas is freed at once, and a failed picture falls back to the original
+        c.width = c.height = 0;
+        if (!/^data:image\/[a-z]+;base64,./.test(done) || done.length < 200) return void teamArt.set(id, url);
+        const ready = new Image();
         // v0.10y1: decode the recoloured picture before cards switch to it, so dialogs never show it loading
         ready.src = done;
         preloadedArt.push(ready);
         (ready.decode?.() || Promise.resolve())
-          .catch(() => {})
-          .then(() => {
-            teamArt.set(id, done);
-            if (game && !quiet) {
+          .then(
+            () => (ready.naturalWidth > 0 ? done : url),
+            () => url,
+          )
+          .then((pic) => {
+            teamArt.set(id, pic);
+            if (game && !quiet && pic !== url) {
               deckSignature = "";
               renderCards();
             }
           });
       } catch {
+        if (c) c.width = c.height = 0;
         teamArt.set(id, url);
       }
     };
@@ -1718,7 +1731,7 @@ const REWORK_HINT = {
 };
 
 // The original names, except for the creeps and buildings renamed in this port.
-const namesEn = { Robogoblin: "Battle Mech", Peon: "Goblin", "Chaos Peon": "Trenchlin", Akolyte: "Goblin Zealot", Dragonspawn: "Crystal Lizard", "Frost Wyrm": "Bone Dragon", "Lord Garithos": "Dark Knight", "Witch Doctor": "Undoctor", "Centaur Warrior": "Satyr", "Forest Troll": "Centaur", "Grom Hellscream": "Bandit Leader", "Fel Raider": "Rouge Knight", Horse: "Pony", "Cairne Bloodhoof": "Minotaurus", Lumbermill: "EXP Generator", "Skeleton Grunt": "Skeleton Berserker", "Draenai Marauder": "Scaleworm", "Siege Golem": "Iron Golem", Abomination: "Zombie Ogre", "Demon Hunter": "Demon Knight", Faceless: "Dark Monk", Spellbreaker: "Witch Hunter", "Void Walker": "Banshee" }; // v0.21h: two renames; v0.23d: Horse and Boar Scout keep their names
+const namesEn = { Robogoblin: "Battle Mech", Peon: "Goblin", "Chaos Peon": "Trenchlin", Akolyte: "Goblin Zealot", Dragonspawn: "Crystal Lizard", "Frost Wyrm": "Bone Dragon", "Lord Garithos": "Dark Knight", "Witch Doctor": "Undoctor", "Centaur Warrior": "Satyr", "Forest Troll": "Centaur", "Grom Hellscream": "Bandit Leader", "Fel Raider": "Rouge Knight", Horse: "Pony", "Cairne Bloodhoof": "Minotaurus", Lumbermill: "EXP Generator", "Skeleton Grunt": "Skeleton Berserker", "Draenai Marauder": "Scaleworm", "Siege Golem": "Iron Golem", Abomination: "Zombie Ogre", "Demon Hunter": "Demon Knight", Faceless: "Dark Monk", Spellbreaker: "Witch Hunter", "Void Walker": "Banshee", "Kel Thuzad": "Lord Frostbite", "Pit Lord": "Terror Demon" }; // v0.27xF // v0.21h: two renames; v0.23d: Horse and Boar Scout keep their names
 function itemName(item) {
   if (researchCopy[item?.id]) return t(researchCopy[item.id][0]);
   if (item?.id === "n00Y" && game && burningTreant(game.players[own])) return t("Burning Treant"); // v0.10w
@@ -8177,6 +8190,11 @@ function tick(dt) {
       if (e.type === "summon" && e.player === own) {
         tone("upgrade");
         note(t("Summoned: {name}", { name: itemName(catalog.byId[e.id]) }));
+      }
+      // v0.27xF: a free tower found no free field: its sell value in gold instead
+      if (e.type === "summonGold" && e.player === own) {
+        hudPop("#own-gold", `+${resourceNumber(e.gold)}`);
+        note(t("No free field: {name} paid out as {gold} gold", { name: (e.count > 1 ? e.count + "× " : "") + itemName(catalog.byId[e.id]), gold: format(e.gold) }));
       }
       if (e.type === "send" && e.player === own && catalog.byId[e.id]?.bossTier) preloadSendIcons(catalog.byId[e.id].bossTier); // v0.23b: next tier's send buttons
       if (e.type === "leak" && e.player === own) {

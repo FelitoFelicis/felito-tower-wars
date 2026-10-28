@@ -1008,6 +1008,8 @@ function statsForRaw(game, player, item) {
     stats.damageMultiplier *= 1 + tidesDamage(perkLevel(player, "tides"));
   stats.damage = (stats.damage + stats.damageBonus) * stats.damageMultiplier;
   stats.cooldown /= Math.max(0.1, 1 + attackSpeed);
+  // v0.27xF: Footman-Line base attack speed +5 % (part of the base value, so tooltips show no buff arrow)
+  if (item.isBuildable && item.attacks && footmanLine().has(item.id)) stats.cooldown /= 1 + FOOTMAN_LINE_SPEED;
   stats.speed *= movementMultiplier(game);
   if (item.isBuildable && item.attacks) stats.range = rangedReach(game, stats.range);
   if (item.isBuildable && item.attacks && stats.range > MELEE_RANGE_MAX) {
@@ -1758,7 +1760,7 @@ function summonTower(game, p) {
   const item = pool[Math.floor(random(game) * pool.length)],
     cells = [];
   for (let y = 0; y < laneRows(game, p); y++) for (let x = 0; x < game.grid.cols; x++) if (canBuild(game, p.id, x, y, item.id).ok) cells.push([x, y]);
-  if (!cells.length) return;
+  if (!cells.length) return void summonRefund(game, p, item.id); // v0.27xF: no free field: its sell value in gold
   const [x, y] = cells[Math.floor(random(game) * cells.length)],
     tower = newTower(game, p, item.id, x, y);
   tower.buildRemaining = 0;
@@ -2439,6 +2441,8 @@ function waterBlock(game, p, c) {
 /** Archer (h003) and every tower that grows out of it. */
 let ARCHER_LINE = null;
 /** v0.16: the footman line (Footman and every upgrade from it). */
+/** v0.27xF: Footman-Line attack speed bonus on the base value. */
+const FOOTMAN_LINE_SPEED = 0.05;
 let FOOTMAN_LINE = null;
 function footmanLine() {
   if (!FOOTMAN_LINE) {
@@ -3175,13 +3179,31 @@ function placeWallRow(game, p) {
       }
     }
   }
+  summonRefund(game, p, WALL_ID, cols - 1); // v0.27xF: no free row: the walls' sell value in gold
+}
+/**
+ * v0.27xF: a free tower that finds no free field pays the gold selling it would give instead (summoned value × sell
+ * rate, walls 1 gold each).
+ */
+function summonRefund(game, p, id, count = 1) {
+  if (!obj(id) || count <= 0) return 0;
+  const relief = sellRelief(game, p.id),
+    rate = TOWER_VALUE.sell + (1 - TOWER_VALUE.sell) * relief,
+    each = id === WALL_ID ? 1 : Math.max(0, Math.trunc(summonedValue(id) * rate + 1e-9)),
+    gold = each * count;
+  if (gold > 0) {
+    p.gold += gold;
+    p.stats.goldEarned += gold;
+    emit(game, "summonGold", { player: p.id, id, gold, count });
+  }
+  return gold;
 }
 function placeMilitia(game, p, count) {
   for (let k = 0; k < count; k++) {
     const cells = [];
     for (let y = 0; y < laneRows(game, p); y++)
       for (let x = 0; x < game.grid.cols; x++) if (canBuild(game, p.id, x, y, "h000").ok) cells.push([x, y]);
-    if (!cells.length) return;
+    if (!cells.length) return void summonRefund(game, p, "h000", count - k); // v0.27xF: no free field: their sell value in gold
     const [x, y] = cells[Math.floor(random(game) * cells.length)],
       tower = newTower(game, p, "h000", x, y);
     tower.buildRemaining = 0;
@@ -3251,7 +3273,7 @@ function placeCopy(game, p, id) {
   if (!item) return;
   const cells = [];
   for (let y = 0; y < laneRows(game, p); y++) for (let x = 0; x < game.grid.cols; x++) if (canBuild(game, p.id, x, y, id).ok) cells.push([x, y]);
-  if (!cells.length) return;
+  if (!cells.length) return void summonRefund(game, p, id); // v0.27xF: no free field: its sell value in gold
   const [x, y] = cells[Math.floor(random(game) * cells.length)],
     tower = newTower(game, p, id, x, y);
   tower.buildRemaining = 0;

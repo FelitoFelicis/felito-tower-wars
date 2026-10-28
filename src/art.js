@@ -254,7 +254,7 @@ export const ART_MANIFEST = Object.freeze({
  * v0.23: version key on every art URL (figures, animations, icons): raise it whenever pictures in
  * assets/art, assets/anim, assets/art-toy or assets/art-pets change, so browsers fetch the new ones (see the README).
  */
-export const ART_VERSION = "v027w"; // v0.27wF: metal by level (bronze, iron, silver, gold) on shared tower figures, melee attack sheets; v0.27vF: silver Ogre Tower level 4; v0.27hF: Trench Orc; v0.27bF: Scouting icon; v0.27aF: Poison Alchemist icon; v0.26eF: Amnesia icon; v0.26cF: perk pack with Ring of Life and Revenge; // v0.24s: Wolf, Skeleton, Satyr, Rouge Captain, Wolfrider, Rock Golem cut out cleaner, smaller Spawn Spider spawns; v0.24a: death rows inside the walk sheets, perk and tower level art in packs, smoother edges on older sheets; v0.24: release of the v0.23 creep overhaul; v0.23zr: Banshee and Arcane Wolf cut out cleanly (no white edges or gaps); v0.23zq: Bone Dragon, Arcane Wolf, Giant Bat; v0.23zp: Naga Siren; v0.23zo: Raven; v0.23zn: Demon Lord; v0.23zm: leftover white removed from Necromancer, Meat Golem, Infernal Golem; v0.23zl: Banshee; v0.23zk: Dark Monk (was Faceless); v0.23zj: Demon Knight, Witch Hunter on the Spellbreaker, Dryad; v0.23zi: Witch Hunter, Druid; v0.23zh: Zombie Ogre; v0.23zg: left-over white background removed from creep sheets (holes between arms/legs, light edge halos)
+export const ART_VERSION = "v027x"; // v0.27xF: Scouting and Poison Alchemist perk icons restored (were missing on GitHub); v0.27wF: metal by level (bronze, iron, silver, gold) on shared tower figures, melee attack sheets; v0.27vF: silver Ogre Tower level 4; v0.27hF: Trench Orc; v0.27bF: Scouting icon; v0.27aF: Poison Alchemist icon; v0.26eF: Amnesia icon; v0.26cF: perk pack with Ring of Life and Revenge; // v0.24s: Wolf, Skeleton, Satyr, Rouge Captain, Wolfrider, Rock Golem cut out cleaner, smaller Spawn Spider spawns; v0.24a: death rows inside the walk sheets, perk and tower level art in packs, smoother edges on older sheets; v0.24: release of the v0.23 creep overhaul; v0.23zr: Banshee and Arcane Wolf cut out cleanly (no white edges or gaps); v0.23zq: Bone Dragon, Arcane Wolf, Giant Bat; v0.23zp: Naga Siren; v0.23zo: Raven; v0.23zn: Demon Lord; v0.23zm: leftover white removed from Necromancer, Meat Golem, Infernal Golem; v0.23zl: Banshee; v0.23zk: Dark Monk (was Faceless); v0.23zj: Demon Knight, Witch Hunter on the Spellbreaker, Dryad; v0.23zi: Witch Hunter, Druid; v0.23zh: Zombie Ogre; v0.23zg: left-over white background removed from creep sheets (holes between arms/legs, light edge halos)
 // ---- art sets of the Circle Tower Wars designs ------------------------------------------------------
 // Sonnenwiese and Bonbon draw every figure as a round toy ("toy"), Pfotenwelt as a cute animal ("pets").
 // A set holds one picture per figure; level variants (-v1..-v3, -l1, -l2) share their base figure there.
@@ -732,10 +732,10 @@ const TOWER_PATTERNS = [
   [/fire lord/i, () => "tower-fire-lord"],
   [/magic city/i, () => "tower-magic-city"],
   [/archmage/i, () => "tower-archmage"],
-  [/pit lord/i, () => "tower-pit-lord"],
+  [/pit lord|terror demon/i, () => "tower-pit-lord"], // v0.27xF: the Pit Lord tower is the Terror Demon
   [/phoenix/i, () => "tower-phoenix"],
   [/hydra/i, () => "tower-hydra"],
-  [/kel ?thuzad/i, () => "tower-lich"],
+  [/kel ?thuzad|lord frostbite/i, () => "tower-lich"], // v0.27xF: Kel Thuzad is Lord Frostbite
   [/robogoblin|battle mech/i, () => "tower-robogoblin"], // v0.27lF: the Robogoblin is the Battle Mech
   [/bird hunter/i, () => "tower-birdhunter"],
   [/water elemental/i, () => "tower-water-elemental"],
@@ -800,7 +800,7 @@ function baseArtFor(item) {
   if (ELEMENT_TOWER[item.element]) return ELEMENT_TOWER[item.element];
   if (/footman|knight|guard|soldier|bash|glaive|crusader/i.test(name)) return "tower-guard";
   if (/cannon|canon|bombard|siege|stomp|launcher|robogoblin|battle mech|laser/i.test(name)) return "tower-cannon";
-  if (/mage|magic|wizard|kel|death knight|archangel|phoenix/i.test(name)) return "tower-arcane";
+  if (/mage|magic|wizard|kel|frostbite|death knight|archangel|phoenix/i.test(name)) return "tower-arcane";
   if (/lumbermill|exp generator|tree|treant|ogre/i.test(name)) return "tower-earth";
   return "tower-archer";
 }

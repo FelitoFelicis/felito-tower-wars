@@ -9460,3 +9460,47 @@ html.creep-scroll .game-shell[data-page="send"] .cards > .unit-card {
   grid-row: auto;
   scroll-snap-align: start;
 }
+
+/* ---- v0.27xF: main menu: version number top left (the Add to Home Screen button below it), Options and Mute top
+   right with Mute below Options, both 20 % larger and in the default blue of the menu buttons; the crossed swords on
+   PvP and Training sit on the right side */
+.app-version {
+  left: 12px;
+  right: auto;
+  text-align: left;
+}
+.welcome-options,
+.welcome-options.welcome-mute {
+  left: auto;
+  right: 10px;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  border-color: #0f2c48;
+  background: linear-gradient(#5b9ad0, #24578a);
+  box-shadow:
+    inset 0 2px 0 #ffffff55,
+    0 3px 0 #0f2c48;
+}
+.welcome-options.welcome-mute {
+  top: calc(64px + env(safe-area-inset-top));
+}
+.welcome-options img {
+  width: 29px;
+  height: 29px;
+}
+.welcome-mute svg {
+  width: 38px;
+  height: 38px;
+}
+.welcome-options.welcome-install {
+  left: 10px;
+  right: auto;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+}
+.welcome-mode .mode-icon {
+  left: auto;
+  right: 14px;
+}
