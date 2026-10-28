@@ -2863,6 +2863,8 @@ export function mountArena({
         // Health bar only once a creep has lost health; drawn on top of everything on the board.
         // v0.25i: also when a River Guardian shield took the hit (the hit points stay full) and after small hits on
         // big creeps (below 0.1 % the bar stayed hidden)
+        // v0.27oF: creeps burning in an immolation aura: little flames flicker at their feet (drawn in drawFx)
+        if (c.immo != null && game.time - c.immo < 0.25) (this.immoFx ||= []).push({ x: q.x, y: q.y + cell * 0.14 - (flying ? cell * 0.32 : 0), w: cell * (flying ? 0.3 : 0.38), seed: phase0 });
         // v0.27mF: stunned creeps: a ring of little grey hourglasses circling above the head, like in cartoons
         if (statuses.some((st) => st.stun)) {
           const hb = this.hpBars,
@@ -3352,6 +3354,24 @@ export function mountArena({
         fa = this.fxAdd;
       f.clear();
       fa.clear();
+      // v0.27oF: immolation flames at the feet of burning creeps (collected in the creep loop of this frame)
+      const now = performance.now();
+      for (const b of this.immoFx || []) {
+        for (let k = 0; k < 5; k++) {
+          const ph = now * 0.012 + b.seed * 7 + k * 1.9,
+            flick = 0.55 + 0.45 * Math.sin(ph) * Math.sin(ph * 0.63 + k),
+            fx = b.x + (k / 4 - 0.5) * b.w * 1.6 + Math.sin(ph * 0.5) * b.w * 0.06,
+            fh = b.w * (0.55 + 0.45 * flick),
+            fw = b.w * 0.24;
+          fa.fillStyle(0xff5a1a, 0.55 * flick);
+          fa.fillTriangle(fx - fw, b.y, fx + fw, b.y, fx + Math.sin(ph) * fw * 0.5, b.y - fh);
+          fa.fillStyle(0xffc84a, 0.7 * flick);
+          fa.fillTriangle(fx - fw * 0.5, b.y, fx + fw * 0.5, b.y, fx + Math.sin(ph) * fw * 0.3, b.y - fh * 0.6);
+        }
+        fa.fillStyle(0xff7a2a, 0.25);
+        fa.fillEllipse(b.x, b.y, b.w * 1.9, b.w * 0.45);
+      }
+      this.immoFx = [];
       // v0.27lF: Missile Barrage: missiles on a high arc, then blast columns rising from the field they hit
       for (let i = (this.missiles || []).length - 1; i >= 0; i--) {
         const m = this.missiles[i];

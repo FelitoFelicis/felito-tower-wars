@@ -74,6 +74,7 @@ import {
   MIND,
   TAILWIND,
   CREEP_ARMOR,
+  creepArmorHp, // v0.27oF
   BOOTS,
   EXHUME,
   exhumeSpeed, // v0.26cF
@@ -109,6 +110,8 @@ import {
   GLOBAL_ACHIEVEMENTS,
   collectorExp,
   RECRUITER_ACHIEVEMENTS,
+  AIR_ACHIEVEMENTS, // v0.27oF
+  QUEST_HUNTER,
   BUILDER_ACHIEVEMENTS,
   BLOOD_ACHIEVEMENTS,
   PILLAR,
@@ -183,7 +186,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.27n",
+const APP_VERSION = "0.27o",
   APP_BRANCH = "F", // v0.23q: author marker (F = Felix, S = Steven) and branch text, shown behind the version; APP_VERSION stays plain for online matches (VersionPublishingRules.md)
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "28.10.2026";
@@ -1701,7 +1704,7 @@ const REWORK_HINT = {
   R006: (lv) => t("{v} interest on your gold at the start of each round", { v: pctOf(bankRate(lv)) }), // v0.24i
   R00X: (lv) => t("Creep HP +{a}, speed +{b} (flyers half)", { a: pctOf(MIND.hp * lv), b: pctOf(MIND.speed * lv) }), // v0.23: flyers half
   R00W: (lv) => t("Creep Speed +{v}", { v: pctOf(TAILWIND.speed * lv) }),
-  R00U: (lv) => t("Creep HP +{a}, income +{b}", { a: pctOf(CREEP_ARMOR.hp * lv), b: pctOf(CREEP_ARMOR.income * lv) }),
+  R00U: (lv) => t("Creep HP +{a}, income +{b}", { a: pctOf(creepArmorHp(lv)), b: pctOf(CREEP_ARMOR.income * lv) }),
   R00J: (lv) => t("Archer-Line +{v} damage", { v: pctOf(0.1 * lv) }),
 };
 
@@ -4638,7 +4641,8 @@ const perkVars = (level, q, lv, next) => {
     manufacture: pct(MANUFACTURE.discount[l3]),
     // v0.21: the former level-up upgrades
     owl: format(owlRange(lv)), // v0.23: the total range of all levels, as the game sums it (was: only this level's step)
-    carmorHp: pctOf(CREEP_ARMOR.hp * lv),
+    carmorHp: pctOf(creepArmorHp(lv)), // v0.27oF: 8 %, then +6 % per level
+    carmorArmor: lv >= CREEP_ARMOR.armorFrom ? `+${lv}` : `+${CREEP_ARMOR.armorFrom}`,
     carmorInc: pctOf(CREEP_ARMOR.income * lv),
     leadership: pctOf(LEADERSHIP * lv),
     leadershipInc: pctOf(LEADERSHIP_INCOME * lv), // v0.27aF
@@ -6245,6 +6249,8 @@ function achievementGroups() {
         ...R.map((r, i) => ({ name: "Creep Collector " + r, text: `Buy every creep of tier ${i + 1} at least once (the boss excepted)`, exp: collectorExp(i + 1), icon: "crown" })),
         ...RECRUITER_ACHIEVEMENTS.map((x, i) => ({ name: "Recruiter " + R[i], text: `Spend ${num(x.gold)} gold on creeps (bosses don't count)`, exp: x.exp, icon: "coin" })),
         ...BUILDER_ACHIEVEMENTS.map((b) => ({ name: b.name, text: `Own towers worth ${num(b.gold)} gold`, exp: b.exp, icon: "build" })),
+        ...AIR_ACHIEVEMENTS.map((x) => ({ name: x.name, text: `Spend ${num(x.gold)} gold on flying creeps`, exp: x.exp, icon: "el-storm" })), // v0.27oF
+        { name: QUEST_HUNTER.name, text: `Complete ${QUEST_HUNTER.quests} quests`, exp: QUEST_HUNTER.exp, icon: "crown" }, // v0.27oF
       ],
     },
   ];

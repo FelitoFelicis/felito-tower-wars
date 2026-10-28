@@ -978,8 +978,9 @@ function statsForRaw(game, player, item) {
   if (isCreepUnit(item)) {
     const air = item.flying ? MIND.air : 1;
     hpPercent += (player?.growth?.[item.id] || 0); // v0.20c: Supergrowth
-    hpPercent += HEALING.hp * pk("medicine") + MIND.hp * pk("mind") * air + CREEP_ARMOR.hp * pk("carmor") + LEADERSHIP * pk("leadership") + contractShare(player, item, "hp");
+    hpPercent += HEALING.hp * pk("medicine") + MIND.hp * pk("mind") * air + creepArmorHp(pk("carmor")) + LEADERSHIP * pk("leadership") + contractShare(player, item, "hp");
     if (item.isSend && pk("breeding") >= 2 && hasDeathrattle(item.id)) hpPercent += breedingHp(pk("breeding")); // v0.27aF: Breeding Pools spawners
+    if (item.isSend && item.tier && !item.bossTier) stats.armor += creepArmorBonus(pk("carmor"), item); // v0.27oF: Creep Armor from level 2
     speedPercent += MIND.speed * pk("mind") * air + TAILWIND.speed * pk("tailwind");
   }
   stats.speed *= 1 + speedPercent;
@@ -1155,7 +1156,7 @@ export const PERKS = Object.freeze({
   // v0.21: the former level-up upgrades (Warcraft researches) are ordinary perks now. "element" = needs that
   // element. v0.21g: every one of them needs its element now (before, six only wore the element's frame).
   owl: { name: "Watcher Owl", max: 5, element: "storm", text: "Archer-Line +{owl} range" },
-  carmor: { name: "Creep Armor", max: 20, element: "earth", text: "Creep HP +{carmorHp}, income +{carmorInc}" },
+  carmor: { name: "Creep Armor", max: 20, element: "earth", text: "Creep HP +{carmorHp}, income +{carmorInc}. Lv 2+: 4th+ creeps +{carmorArmor} armor", detail: "Creep HP +{carmorHp} and income +{carmorInc}. From level 2 the creeps from the 4th place of every tier on get +1 armor per perk level ({carmorArmor})" }, // v0.27oF
   leadership: { name: "Leadership", max: 20, element: "fire", text: "Creeps +{leadership} HP, creep income +{leadershipInc}" }, // v0.27aF: +1 % creep income per level
   alchemist: { name: "Poison Alchemist", max: 10, element: "plague", text: "Your poisons last {alchemistDur} longer, max stacks +{alchemistStacks}" }, // v0.27aF
   tailwind: { name: "Tailwind", max: 10, element: "storm", text: "Creep Speed +{tailwind}" },
@@ -1286,7 +1287,7 @@ export const monsunDamage = (p, level = perkLevel(p, "monsun")) => 30 + 20 * lev
 /** v0.20c: perks that sit out more than one level after a pick (Supergrowth: two). */
 /** v0.26dF: levels a perk sits out after a pick when PERK_SKIP_LEVELS has no value for it. */
 const PERK_SKIP_DEFAULT = 2;
-const PERK_SKIP_LEVELS = { breeding: 3, novice: 3, wolves: 3, mind: 3, exhume: 3, ring: 2, revenge: 3, backup: 3, tides: 3, supergrowth: 2, hellfire: 2, frostbolt: 2, clones: 2, infested: 2, lone: 2, bank: 3, monsun: 2 }; // v0.26cF: Spirit Wolves, Obsession, Exhumination, Revenge skip 3, Ring of Life skips 2 // v0.24q: Backup Line, Low Tides skip 3 // v0.24j: Monsun skips 2 // v0.24i: Magic Bank skips 3 // v0.23zi: Spartans skip 2 // v0.23w: Frost Bolt, Clones // v0.21x: Lava Floor skips 2
+const PERK_SKIP_LEVELS = { carmor: 3, breeding: 3, novice: 3, wolves: 3, mind: 3, exhume: 3, ring: 2, revenge: 3, backup: 3, tides: 3, supergrowth: 2, hellfire: 2, frostbolt: 2, clones: 2, infested: 2, lone: 2, bank: 3, monsun: 2 }; // v0.26cF: Spirit Wolves, Obsession, Exhumination, Revenge skip 3, Ring of Life skips 2 // v0.24q: Backup Line, Low Tides skip 3 // v0.24j: Monsun skips 2 // v0.24i: Magic Bank skips 3 // v0.23zi: Spartans skip 2 // v0.23w: Frost Bolt, Clones // v0.21x: Lava Floor skips 2
 const PERK_SKIP = new Set(["pillar", "agolem", "monsun", "slave", "guardian", "mind", "tailwind", "carmor", "owl", "autoloader", "hills"]); // v0.22g1: Autoloader // v0.19a1: Mind Control, Tailwind, Creep Armor, Watcher Owl
 /**
  * v0.19a1: reworked level-up upgrades (research perks). Their effects live here instead of the map
@@ -1320,7 +1321,11 @@ export const bankRate = (level) => {
 };
 export const MIND = { hp: 0.1, speed: 0.1, air: 0.5 };
 export const TAILWIND = { speed: 0.1 };
-export const CREEP_ARMOR = { hp: 0.08, income: 0.015 };
+export const CREEP_ARMOR = { hp: 0.08, hpLater: 0.06, income: 0.015, armorFrom: 2, place: 4 }; // v0.27oF
+/** v0.27oF: Creep Armor HP: 8 % at level 1, +6 % per level after it. */
+export const creepArmorHp = (level) => (level > 0 ? CREEP_ARMOR.hp + CREEP_ARMOR.hpLater * (level - 1) : 0);
+/** v0.27oF: from level 2, the creeps from the 4th place of their tier on get +1 armor per perk level. */
+export const creepArmorBonus = (level, item) => (level >= CREEP_ARMOR.armorFrom && item && tierSends(item.tier).findIndex((s) => s.id === item.id) >= CREEP_ARMOR.place - 1 ? level : 0);
 /** Spirit Wolves: one wolf per level and round; -25 % income in the first 15 rounds; buffs by perk level, player level and tier; 300 % more magic damage taken. */
 /** v0.19d2: Spirit Wolf HP by round: 40 % before round 5, 60 % in 5–10, 80 % in 11–15, full from 16, +0.2 % per round from round 40. */
 export const wolfRoundHp = (round) => (round < 5 ? 0.4 : round <= 10 ? 0.6 : round <= 15 ? 0.8 : round >= 40 ? 1 + 0.002 * (round - 39) : 1);
@@ -3074,6 +3079,7 @@ function finishQuest(game, p, won) {
     for (let i = 0; i < (v.points || 0); i++) p.picks.push(makePick(game, p, "upgrade", true));
   }
   if (exp) gainExp(game, p, exp, "quest");
+  if (won && p.stats) questHunterCheck(game, p); // v0.27oF
   emit(game, "quest", { player: p.id, id: st.id, state: won ? "won" : "lost", exp, granted, rounds: st.need || 0, gold: Math.max(0, p.gold - gold0), income: Math.max(0, p.income - income0) });
 }
 /** Cost share of a send from finished banters (won: cheaper, lost: dearer). */
@@ -3398,6 +3404,33 @@ export const RECRUITER_ACHIEVEMENTS = Object.freeze([
   { gold: 100000, exp: 240 },
   { gold: 1000000, exp: 360 },
 ]);
+/** v0.27oF: Airborne / Air Force — global, the first player to spend 5,000 / 50,000 gold on flying creeps. */
+export const AIR_ACHIEVEMENTS = Object.freeze([
+  { name: "Airborne", gold: 5000, exp: 100 },
+  { name: "Air Force", gold: 50000, exp: 300 },
+]);
+/** v0.27oF: Quest Hunter — global, the first player to complete 3 quests. */
+export const QUEST_HUNTER = Object.freeze({ name: "Quest Hunter", quests: 3, exp: 200 });
+function airCheck(game, p, item, gold) {
+  if (!item.flying || !gold) return;
+  const spent = (p.stats.airGold = (p.stats.airGold || 0) + gold),
+    a = (game.achievements ||= { tiers: [], halls: 0, hallNextTime: 0 }),
+    done = (a.air ||= {});
+  AIR_ACHIEVEMENTS.forEach((r, i) => {
+    if (done[i] !== undefined || spent < r.gold) return;
+    done[i] = p.id;
+    gainExp(game, p, r.exp, "achievement");
+    emit(game, "achievement", { player: p.id, achievement: "air", level: i + 1, name: r.name, exp: r.exp, global: true });
+  });
+}
+function questHunterCheck(game, p) {
+  const won = (p.stats.questsWon = (p.stats.questsWon || 0) + 1),
+    a = (game.achievements ||= { tiers: [], halls: 0, hallNextTime: 0 });
+  if (a.questHunter !== undefined || won < QUEST_HUNTER.quests) return;
+  a.questHunter = p.id;
+  gainExp(game, p, QUEST_HUNTER.exp, "achievement");
+  emit(game, "achievement", { player: p.id, achievement: "questHunter", name: QUEST_HUNTER.name, exp: QUEST_HUNTER.exp, global: true });
+}
 function recruiterCheck(game, p, item, gold) {
   if (item.bossTier || !gold) return;
   const spent = (p.stats.creepGold = (p.stats.creepGold || 0) + gold),
@@ -3682,6 +3715,7 @@ function runCommand(game, input) {
     collectorCheck(game, p, item); // v0.16
     (p.stats.spent ||= {})[id] = (p.stats.spent[id] || 0) + (check.cost?.gold || 0);
     recruiterCheck(game, p, item, check.cost?.gold || 0); // v0.18f
+    airCheck(game, p, item, check.cost?.gold || 0); // v0.27oF: Airborne / Air Force
     guardianSend(game, p); // v0.14: River Guardian
     emit(game, "send", { player: p.id, id, count: item.spawnIds.length, income: base + decimal / 100, auto: !!input.auto });
     if (item.bossTier) {
@@ -4987,14 +5021,31 @@ function tickMissiles(game, p) {
   game.missiles = game.missiles.filter((m) => !m.done);
 }
 /** Auras that tick every simulation step: immolation and disease clouds. */
+/**
+ * v0.27oF: immolation auras no longer stack: every tick each creep only burns from the strongest aura that reaches
+ * it (collected over all towers of the lane, applied in applyImmolation); burning creeps carry `immo` (time) for the
+ * flames drawn at their feet.
+ */
+const IMMOLATION = new Map(); // creep → { tower, damage }; filled and emptied within one lane's tick
 function tickAreaDamage(game, p, tower, skills) {
   for (const sk of skills) {
     if (sk.type !== "immolation" || sk.dps <= 0) continue;
     for (const c of p.creeps) {
       if (c.dead || c.hp <= 0 || (sk.airOnly && !c.flying) || outOfRange(game, tower, c, sk.radius)) continue; // v0.23: outOfRange
-      strike(game, p, tower, c, sk.dps * TICK * (c.flying ? sk.flyFactor : 1), "spells", true);
+      const damage = sk.dps * TICK * (c.flying ? sk.flyFactor : 1),
+        best = IMMOLATION.get(c);
+      if (!best || damage > best.damage) IMMOLATION.set(c, { tower, damage });
     }
   }
+}
+function applyImmolation(game, p) {
+  if (!IMMOLATION.size) return;
+  for (const [c, hit] of IMMOLATION) {
+    if (c.dead || c.hp <= 0) continue;
+    strike(game, p, hit.tower, c, hit.damage, "spells", true);
+    c.immo = game.time;
+  }
+  IMMOLATION.clear();
 }
 /**
  * v0.17p: Pit Lord's Howl. When creeps come within its radius the tower howls: those creeps are
@@ -7698,6 +7749,7 @@ function fixedTickInner(game) {
       tickBarrage(game, p, t, stats); // v0.27lF: Battle Mech
       tickFlameburst(game, p, t, stats); // v0.27mF: Fire Lord
     }
+    applyImmolation(game, p); // v0.27oF: the strongest aura per creep
     tickClouds(game, p);
     tickMissiles(game, p); // v0.27lF
     // BOSS T2 Clockwork: every 8.25 s a Siege Golem with 50 mana calls two clockwork escorts.
