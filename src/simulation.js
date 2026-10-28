@@ -1156,7 +1156,7 @@ export const PERKS = Object.freeze({
   // v0.21: the former level-up upgrades (Warcraft researches) are ordinary perks now. "element" = needs that
   // element. v0.21g: every one of them needs its element now (before, six only wore the element's frame).
   owl: { name: "Watcher Owl", max: 5, element: "storm", text: "Archer-Line +{owl} range" },
-  carmor: { name: "Creep Armor", max: 20, element: "earth", text: "Creep HP +{carmorHp}, income +{carmorInc}. Lv 2+: 4th+ creeps +{carmorArmor} armor", detail: "Creep HP +{carmorHp} and income +{carmorInc}. From level 2 the creeps from the 4th place of every tier on get +1 armor per perk level ({carmorArmor})" }, // v0.27oF
+  carmor: { name: "Creep Armor", max: 20, element: "earth", text: "Creep HP +{carmorHp}, income +{carmorInc}. Lv 2+: 4th+ creeps +{carmorArmor} armor", detail: "Creep HP +{carmorHp} and income +{carmorInc}. From level 2 the creeps from the 4th place of every tier on get armor: {carmorArmor}" }, // v0.27oF
   leadership: { name: "Leadership", max: 20, element: "fire", text: "Creeps +{leadership} HP, creep income +{leadershipInc}" }, // v0.27aF: +1 % creep income per level
   alchemist: { name: "Poison Alchemist", max: 10, element: "plague", text: "Your poisons last {alchemistDur} longer, max stacks +{alchemistStacks}" }, // v0.27aF
   tailwind: { name: "Tailwind", max: 10, element: "storm", text: "Creep Speed +{tailwind}" },
@@ -1321,11 +1321,16 @@ export const bankRate = (level) => {
 };
 export const MIND = { hp: 0.1, speed: 0.1, air: 0.5 };
 export const TAILWIND = { speed: 0.1 };
-export const CREEP_ARMOR = { hp: 0.08, hpLater: 0.06, income: 0.015, armorFrom: 2, place: 4 }; // v0.27oF
+export const CREEP_ARMOR = { hp: 0.08, hpLater: 0.06, income: 0.015, armorFrom: 2, place: 4, armorMax: 20, step: 0.2 }; // v0.27oF; v0.27pF: armorMax, step
 /** v0.27oF: Creep Armor HP: 8 % at level 1, +6 % per level after it. */
 export const creepArmorHp = (level) => (level > 0 ? CREEP_ARMOR.hp + CREEP_ARMOR.hpLater * (level - 1) : 0);
-/** v0.27oF: from level 2, the creeps from the 4th place of their tier on get +1 armor per perk level. */
-export const creepArmorBonus = (level, item) => (level >= CREEP_ARMOR.armorFrom && item && tierSends(item.tier).findIndex((s) => s.id === item.id) >= CREEP_ARMOR.place - 1 ? level : 0);
+/**
+ * v0.27oF: from level 2, the creeps from the 4th place of their tier on get armor. v0.27pF: a smooth line instead of
+ * the jump from 0 to 2: level 2 gives 1.0, then evenly up to 20 at level 20, in steps of 0.2 (1.0, 2.2, 3.2, 4.2, 5.2 …).
+ */
+export const creepArmorValue = (level) =>
+  level >= CREEP_ARMOR.armorFrom ? Math.round(((level - 1) * CREEP_ARMOR.armorMax) / (CREEP_ARMOR.armorMax - 1) / CREEP_ARMOR.step) / Math.round(1 / CREEP_ARMOR.step) : 0; // whole fifths: no float tails
+export const creepArmorBonus = (level, item) => (level >= CREEP_ARMOR.armorFrom && item && tierSends(item.tier).findIndex((s) => s.id === item.id) >= CREEP_ARMOR.place - 1 ? creepArmorValue(level) : 0);
 /** Spirit Wolves: one wolf per level and round; -25 % income in the first 15 rounds; buffs by perk level, player level and tier; 300 % more magic damage taken. */
 /** v0.19d2: Spirit Wolf HP by round: 40 % before round 5, 60 % in 5–10, 80 % in 11–15, full from 16, +0.2 % per round from round 40. */
 export const wolfRoundHp = (round) => (round < 5 ? 0.4 : round <= 10 ? 0.6 : round <= 15 ? 0.8 : round >= 40 ? 1 + 0.002 * (round - 39) : 1);

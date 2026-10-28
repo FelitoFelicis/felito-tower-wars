@@ -75,6 +75,7 @@ import {
   TAILWIND,
   CREEP_ARMOR,
   creepArmorHp, // v0.27oF
+  creepArmorValue, // v0.27pF
   BOOTS,
   EXHUME,
   exhumeSpeed, // v0.26cF
@@ -186,7 +187,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.27o",
+const APP_VERSION = "0.27p",
   APP_BRANCH = "F", // v0.23q: author marker (F = Felix, S = Steven) and branch text, shown behind the version; APP_VERSION stays plain for online matches (VersionPublishingRules.md)
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "28.10.2026";
@@ -4642,7 +4643,7 @@ const perkVars = (level, q, lv, next) => {
     // v0.21: the former level-up upgrades
     owl: format(owlRange(lv)), // v0.23: the total range of all levels, as the game sums it (was: only this level's step)
     carmorHp: pctOf(creepArmorHp(lv)), // v0.27oF: 8 %, then +6 % per level
-    carmorArmor: lv >= CREEP_ARMOR.armorFrom ? `+${lv}` : `+${CREEP_ARMOR.armorFrom}`,
+    carmorArmor: "+" + format(creepArmorValue(Math.max(CREEP_ARMOR.armorFrom, lv))), // v0.27pF: smooth, steps of 0.2
     carmorInc: pctOf(CREEP_ARMOR.income * lv),
     leadership: pctOf(LEADERSHIP * lv),
     leadershipInc: pctOf(LEADERSHIP_INCOME * lv), // v0.27aF
