@@ -1,14 +1,4 @@
-import { getStats, attackInfo, divineShield, isHeavy, isMagicTower, isMeleeTower, towerAt, towerSize, footprintOf, STRIP, HELLFIRE, loneActive, zoneOf, hpBarScale, tierSends, laneRows, baseRows } from "./simulation.js";
-/** v0.19j: is this send one of the 4 most expensive non-boss creeps of its tier? (heavy HP-bar frame) */
-const TOP_FOUR = new Map();
-function topFour(def) {
-  if (!def?.isSend || !def.tier) return true;
-  if (!TOP_FOUR.has(def.id)) {
-    const list = tierSends(def.tier).filter((x) => !x.bossTier);
-    TOP_FOUR.set(def.id, list.findIndex((x) => x.id === def.id) >= list.length - 4);
-  }
-  return TOP_FOUR.get(def.id);
-}
+import { getStats, attackInfo, divineShield, isHeavy, isMagicTower, isMeleeTower, towerAt, towerSize, footprintOf, STRIP, HELLFIRE, loneActive, zoneOf, hpBarScale, tierSends, laneRows, baseRows, MINI_BOSS } from "./simulation.js";
 import { ART_MANIFEST, ANIM_MANIFEST, animUrl, artFor, artUrl, towerTier, TEAM_COLORS, CLOTH_COLORS, recolorTeam, activeArtSet, artSetFor, useArtSet, setArtKey, setArtMeta, setPropUrl, SET_ART } from "./art.js";
 // v0.23n: design variants removed: no per-figure motion profiles (motion.js) any more
 const towerIdle = () => ({ lean: 0, stretch: 1 }),
@@ -2855,15 +2845,16 @@ export function mountArena({
             barY = Math.min(figTop, q.y + cell * 0.18 - lift - height * 0.45) - barH - 4;
           // v0.17q: heavy creeps carry an iron frame, bosses a gold frame
           // v0.22n2: a sent boss's frame is metal in its owner's colour (neutral wave bosses stay gold)
-          const frame = boss ? "gold" : c.heavy || isHeavy(def) ? "iron" : null,
+          // v0.27cF: mini bosses (Mud Golem) wear the riveted iron frame, every other heavy creep the slim plain one
+          const mini = def?.id === MINI_BOSS.id,
+            frame = boss ? "gold" : mini || c.heavy || isHeavy(def) ? "iron" : null,
             see = 0.9; // v0.22n2: every health bar 10 % transparent
           if (frame) {
-            // v0.19j: heavy creeps outside the 4 strongest of their tier get a slimmer, plainer iron frame
-            const light = frame === "iron" && !topFour(def),
+            const light = frame === "iron" && !mini,
               team = frame === "gold" && c.owner >= 0 ? TEAM_COLORS[colorOf(c.owner)]?.hex : null,
               [outer, inner, rivet] =
                 team != null ? [metalTint(team, 0, 0.55), team, metalTint(team, 0xffffff, 0.6)] : frame === "gold" ? [0x6a4206, 0xffcc3a, 0xfff2a8] : light ? [0x2c3238, 0x737d87, 0xb8c0c8] : [0x23282e, 0x9aa4ae, 0xe2e8ee],
-              fw = frame === "gold" ? 4 : light ? 2 : 3.5,
+              fw = frame === "gold" ? 4 : light ? 2.4 : 3.5, // v0.27cF: heavy frame 20 % thicker (2 → 2.4)
               alpha = (light ? 0.8 : 1) * see;
             hb.fillStyle(outer, alpha);
             hb.fillRoundedRect(q.x - bar / 2 - fw - 1.5, barY - fw - 1.5, bar + fw * 2 + 3, barH + fw * 2 + 3, 4);

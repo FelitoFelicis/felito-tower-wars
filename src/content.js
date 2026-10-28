@@ -84,7 +84,7 @@ export function configureContent(data) {
     rawAbilities = mergeObjects(data.abilities);
   // v0.17b: own creep abilities (not in the map data): damage resistance against one tower line
   for (const a of CUSTOM_ABILITIES) rawAbilities.set(a.id, { ...a, fields: { ...a.fields } });
-  // v0.27F: Mud Golem as a tier 1 send card (mini boss): 200 gold, +10 income, unlocks the upper half of tier 1
+  // v0.27F: Mud Golem as a tier 1 send card (mini boss): 200 gold, +10 income, 650 HP (v0.27cF), unlocks the upper half of tier 1
   {
     const escort = rawUnits.get("n01U"),
       shop = rawUnits.get(SHOPS[0]);
@@ -93,7 +93,7 @@ export function configureContent(data) {
         ...escort,
         id: MUD_GOLEM_ID,
         custom: true,
-        fields: { ...escort.fields, unam: "[05] Mud Golem", ugol: 200, upoi: 10, uhpm: 600, usma: 1, usrg: 1, usst: 0, uabi: "A01A,XA14", utyp: "ancient" },
+        fields: { ...escort.fields, unam: "[05] Mud Golem", ugol: 200, upoi: 10, uhpm: 650, usma: 1, usrg: 1, usst: 0, uabi: "A01A,XA14", utyp: "ancient" },
       });
       shop.fields.useu = (shop.fields.useu || "") + "," + MUD_GOLEM_ID;
     }
