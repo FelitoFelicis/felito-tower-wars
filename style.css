@@ -4489,6 +4489,21 @@ dialog.with-flag .modal-header {
   font-size: 24px;
   letter-spacing: 0.08em;
 }
+/* v0.27uF: PvP in the default blue like Training; both carry the crossed swords (Recruitment) on the left */
+.welcome-mode {
+  position: relative;
+}
+.welcome-mode .mode-icon {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  width: 36px;
+  height: 36px;
+  transform: translateY(-50%);
+  object-fit: contain;
+  filter: drop-shadow(0 2px 0 #0006);
+  pointer-events: none;
+}
 .welcome-mode.alt {
   background: linear-gradient(#5b9ad0, #24578a);
   color: #fff;
