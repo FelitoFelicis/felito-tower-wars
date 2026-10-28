@@ -184,7 +184,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.27d",
+const APP_VERSION = "0.27e",
   APP_BRANCH = "F", // v0.23q: author marker (F = Felix, S = Steven) and branch text, shown behind the version; APP_VERSION stays plain for online matches (VersionPublishingRules.md)
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "28.10.2026";
@@ -4610,7 +4610,7 @@ setInterval(() => {
 const perkText = (id, level, q = game?.players[own], next = false, detail = false) => {
   const have = q?.perks?.[id] || 0,
     lv = Math.max(1, Math.min(PERKS[id]?.max || 1, have + (next ? 1 : 0))),
-    text = (detail && PERKS[id].detail) || PERKS[id].text, // v0.22za2: short tooltip, longer text in the card book's detail view
+    text = (detail && PERKS[id].detail) || (lv === 1 && PERKS[id].textLv1) || PERKS[id].text, // v0.22za2: short tooltip, longer text in the card book's detail view; v0.27eF: optional own text for level 1
     vars = perkVars(level, q, lv, next);
   // v0.23: level-up dialog, a perk offered at level 2 or higher: every value that changes shows "old → new"
   if (next && have >= 1 && lv > have) {
