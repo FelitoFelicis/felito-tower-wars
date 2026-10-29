@@ -734,8 +734,23 @@ export function getPurchaseCost(game, playerIndex, id) {
   const p = game.players[playerIndex],
     item = obj(id);
   if (!p || !item) return null;
+  const root = item.kind !== "research" && !item.isRoot ? directRootOf(p, id) : null; // v0.27zzdF: level-2 blueprint
+  if (root) return { gold: firstGenPrice(p, root) + (item.cost || 0), wood: 0, time: item.buildTime };
   if (item.kind !== "research") return { gold: bossDiscount(p, item, firstGenPrice(p, item)), wood: item.woodCost, time: item.buildTime };
   return getResearchCost(id, FACTIONS.some((f) => f.research === id) ? p.elementsPurchased : p.research[id] || 0);
+}
+/**
+ * v0.27zzdF: from tier 2 on the basic blueprints (Archer, Footman, Bombard) build level 2 directly, as long as level 2 is
+ * the only upgrade their level 1 offers. Returns the level-1 root of such a level-2 id for this player, else null.
+ */
+export function directRootOf(p, id) {
+  if (!p || (p.tier || 1) < 2) return null;
+  for (const rootId of BASIC_TOWERS) {
+    const root = obj(rootId),
+      ups = (root?.upgrades || []).map(obj).filter((u) => u?.playable && meetRequirements(p, u.requires || []).ok);
+    if (ups.length === 1 && ups[0].id === id && (ups[0].level || 1) === 2) return root;
+  }
+  return null;
 }
 const UNIQUE_TOWERS = new Set(["h010", "h03W", "h00G", "h046", "h00I", "h00J", "h020", "h01Z", "h043", "h022"]);
 export function available(game, playerIndex, type, id, towerId = null, viaPick = false) {
@@ -763,13 +778,16 @@ export function available(game, playerIndex, type, id, towerId = null, viaPick =
     if ((p.stock[id]?.count ?? 0) < 1) return { ok: false, reason: "Restocking" };
     cost = { gold: bossDiscount(p, item, item.cost), wood: 0 };
   } else if (type === "build") {
-    if (!item.isBuildable) return { ok: false, reason: "Not a building" };
-    if (!item.isRoot) return { ok: false, reason: "Upgrade from the previous tower" };
+    const root = !item.isRoot ? directRootOf(p, id) : null; // v0.27zzdF: level-2 blueprint
+    if (!item.isBuildable && !root) return { ok: false, reason: "Not a building" };
+    if (!item.isRoot && !root) return { ok: false, reason: "Upgrade from the previous tower" };
+    if (root) cost = { gold: firstGenPrice(p, root) + (item.cost || 0), wood: 0 };
     if (item.support === "farm") return { ok: false, reason: "Farm not available for now" };
     if (id === WALL_ID && !perkLevel(p, "fort")) return { ok: false, reason: "Needs the Fortifications perk" }; // v0.12
     // v0.17g: one Hall of Elements per player (any of its levels); selling it frees the blueprint again
     if (item.isHall && p.towers.some((t) => obj(t.typeId)?.isHall)) return { ok: false, reason: "Only one Hall of Elements" };
-    if (id === "h003" && (p.freeArchers || 0) > 0) cost = { gold: 0, wood: 0 }; // Forest Patrol
+    if (root);
+    else if (id === "h003" && (p.freeArchers || 0) > 0) cost = { gold: 0, wood: 0 }; // Forest Patrol
     else if (id === "h01F" && (p.freeGens || 0) > 0) cost = { gold: 0, wood: 0 }; // v0.19g1: Novice
     else if (id === "h01F") cost = { gold: firstGenPrice(p, item), wood: 0 }; // v0.19d2: the first EXP generator at half price
     else if (BASIC_TOWERS.has(id)) cost = { gold: firstGenPrice(p, item), wood: 0 }; // v0.23b: first two basic towers cheaper
@@ -1103,7 +1121,8 @@ function newTower(game, p, id, gx, gy) {
 export const PERKS = Object.freeze({
   // v0.22za2: "text" is the short tooltip everywhere, "detail" the longer text of the card book's detail view
   // v0.09q: perk rework (availability in PERK_AVAILABILITY)
-  recruit: { name: "Recruitment", max: 10, text: "Creeps recruit {recruit} faster" }, // v0.19h1: tooltip // v0.10i (artifact line), merged in v0.11c
+  recruit: { name: "Recruitment", max: 10, text: "Creeps recruit {recruit} faster" },
+  recruitflow: { name: "Recruitment Flow", max: 5, element: "water", text: "Creeps recruit {recruitflow} faster", detail: "Every creep (bosses excepted) recruits {recruitflow} faster; at level 5 twice as fast" }, // v0.27zzcF // v0.19h1: tooltip // v0.10i (artifact line), merged in v0.11c
   feudal: { name: "Feudality", max: 10, text: "Creep income +{feudal}" }, // v0.18b: 2 / 3.5 / 5 / 6 / 7 %
   gunpowder: { name: "Blast Expert", max: 10, element: "fire", text: "Bombard-Line outer splash +{gunpowder} tiles" }, // v0.23y: Fire, renamed Blast Expert (was the neutral Gunpowder) // v0.22g1: only the low-damage outer ring // v0.21u: outer splash radius +0.25/0.45/0.60/0.72/0.82/0.90/0.96/1.00/1.03/1.05 tiles
   archery: { name: "Archery", max: 10, text: "Archer-Line +{archery} damage. Next Archer free", detail: "Archer-Line +{archery} damage. Next Archer is free" }, // v0.19h1: 5 / 10 / 15 / 20 / 25 %; v0.20a: every pick makes the next archer free
@@ -1153,7 +1172,7 @@ export const PERKS = Object.freeze({
   quarry: { name: "Quarry", max: 1, element: "earth", powerup: true, unpopular: 0.5, text: "+{quarryGold} gold and 8 stones. Clear them for an Earth perk", detail: "Instantly +{quarryGold} gold and 8 stones on your field. Clear them all for a random Earth perk" }, // v0.24s: gold by round
   backup: { name: "Backup Line", max: 3, element: "storm", unpopular: 0.5, text: "Archer-Line +{backup} attack speed while top {backupRows} rows are empty", detail: "Archer-Line towers +{backup} attack speed while your top {backupRows} rows hold no tower. Lv. 3: one mist row less" }, // v0.24q
   tides: { name: "Low Tides", max: 3, element: "water", unpopular: 0.5, text: "Melee towers +{tides} damage while bottom {tidesRows} rows are empty", detail: "Melee towers +{tides} damage while your bottom {tidesRows} rows hold no tower. Lv. 3: one water row less" }, // v0.24q
-  sanction: { name: "Sanction Policy", max: 1, element: "arcane", text: "Every 2nd creep locked, others +15% income, 1st only +7.5%, cooldowns −15%", detail: "Every 2nd creep locked for 20 rounds, other creeps +15% income, the 1st creep only +7.5%. Abilities cooldown 15% faster permanently" }, // v0.23: the 1st creep's +7.5 % named // v0.19h1: no gold, cooldown 15 % (the tier boss is still locked)
+  sanction: { name: "Sanction Policy", max: 1, element: "arcane", text: "Every 2nd creep locked, others +15% income, cooldowns −15%", detail: "Every 2nd creep locked for 20 rounds, the other creeps +15% income. Abilities cooldown 15% faster permanently" }, // v0.23: the 1st creep's +7.5 % named // v0.19h1: no gold, cooldown 15 % (the tier boss is still locked)
   monsun: { name: "Monsun", max: 5, element: "storm", text: "Active: pushes creeps back for {monsun} s", detail: "Active ability: Push creeps back for {monsun} s, lightning strikes flyers" },
   // v0.21: the former level-up upgrades (Warcraft researches) are ordinary perks now. "element" = needs that
   // element. v0.21g: every one of them needs its element now (before, six only wore the element's frame).
@@ -1726,7 +1745,7 @@ function zoneSpeed(game, p, c) {
   return f;
 }
 /** Sanction Policy (Arcane): gold, lock length in rounds, income bonus, ability cooldown cut. */
-export const SANCTION = { gold: 0, rounds: 20, income: 0.15, first: 0.075, cooldown: 0.15 }; // v0.19h1: no gold, 15 % shorter cooldowns
+export const SANCTION = { gold: 0, rounds: 20, income: 0.15, first: 0.15, cooldown: 0.15 }; // v0.27zzcF: the 1st creep gets the full +15 % too // v0.19h1: no gold, 15 % shorter cooldowns
 /** v0.18h: cooldown of an active ability for this player (Sanction Policy: 20 % shorter). */
 export const abilityCd = (p, cd) => cd * (perkLevel(p, "sanction") ? 1 - SANCTION.cooldown : 1);
 function lockStock(game, p, id, rounds) {
@@ -2503,6 +2522,8 @@ function archerLine() {
   }
   return ARCHER_LINE;
 }
+/** v0.27zzcF: Recruitment Flow: every level recruits 20 % faster (level 5: twice as fast). */
+export const RECRUIT_FLOW = 0.2;
 /** Seconds per recruit (v0.10i: Recruitment refills every creep 10 % faster per level). */
 export function stockRegenOf(p, s) {
   const level = perkLevel(p, "recruit");
@@ -2510,7 +2531,8 @@ export function stockRegenOf(p, s) {
   const slower = UNDEAD_SENDS.has(s.id) && perkLevel(p, "exhume") ? 1 / (1 + exhumeSpeed(perkLevel(p, "exhume"))) : 1; // v0.10s: Exhumination (v0.20c: faster; v0.26cF: 10 % per level)
   const faster = (perkLevel(p, "manufacture") && eighthOf(s) ? MANUFACTURE.restock : 1) * (perkLevel(p, "synthesizer") && fourthOf(s) ? SYNTHESIZER.restock : 1) * (perkLevel(p, "forge") && sixthOf(s) ? FORGE.restock : 1) * (perkLevel(p, "nobility") && isHeavy(s) ? NOBILITY.restock : 1); // v0.12
   const contract = 1 + contractShare(p, s, "restock"); // v0.19d2: Blood Contract
-  return ((s.stockRegen || 0) / (level && !s.bossTier ? 1 + 0.1 * level : 1)) * slower / faster / slave / contract;
+  const flow = perkLevel(p, "recruitflow") && !s.bossTier ? 1 + RECRUIT_FLOW * Math.min(5, perkLevel(p, "recruitflow")) : 1; // v0.27zzcF: Recruitment Flow
+  return ((s.stockRegen || 0) / (level && !s.bossTier ? 1 + 0.1 * level : 1)) * slower / faster / slave / contract / flow;
 }
 /** Highest stock of a send for this player (v0.10i: Recruitment no longer adds stock). */
 export function stockMaxOf(p, s) {
@@ -2574,6 +2596,7 @@ export const PERK_AVAILABILITY = {
   // perks
   gunpowder: "2-5", // v0.21u
   recruit: "2-5",
+  recruitflow: "2+", // v0.27zzcF: Recruitment Flow (Water)
   feudal: "2-5",
   archery: "2-5",
   militia: "2", // v0.17h: level 2 only
@@ -3675,11 +3698,18 @@ function runCommand(game, input) {
     else if (freeGen) p.freeGens--;
     else pay(p, check.cost);
     if (starter) p.starterArchers--;
-    if (!free && BASIC_TOWERS.has(id)) p.basicBought = (p.basicBought || 0) + 1; // v0.23b
+    const root = directRootOf(p, id); // v0.27zzdF: a level-2 blueprint builds level 2 like any blueprint
+    if (!free && (BASIC_TOWERS.has(id) || root)) p.basicBought = (p.basicBought || 0) + 1; // v0.23b
     const tower = newTower(game, p, id, gx, gy);
+    if (root) {
+      tower.previousTypeId = root.id;
+      tower.totalSpent = (root.cost || 0) + (item.cost || 0);
+      tower.value = (root.cost || 0) + (item.cost || 0);
+      if (check.cost.gold < tower.value) tower.discount = tower.value - check.cost.gold;
+    }
     if (free && !starter) tower.free = true;
     if ((free && !starter) || freeGen) tower.freeValue = item.pointValue || item.cost; // v0.19h1: free archers and EXP generators sell for 10 % of their own value
-    else if (!free && check.cost.gold < item.cost) tower.discount = item.cost - check.cost.gold; // v0.19d2: the half-price EXP generator sells on what was paid
+    else if (!free && !root && check.cost.gold < item.cost) tower.discount = item.cost - check.cost.gold; // v0.19d2: the half-price EXP generator sells on what was paid
     p.towers.push(tower);
     p.stats.built++;
     repath(game, p);

@@ -404,7 +404,7 @@ export class Stage {
       const ctx = canvas.getContext("2d", { willReadFrequently: true });
       ctx.drawImage(src, 0, 0);
       const data = ctx.getImageData(0, 0, w, h);
-      o.paint(data.data);
+      o.paint(data.data, w, h); // v0.27zzcF: size for the base ellipse of tower pictures
       ctx.putImageData(data, 0, 0);
       this.addCanvas(o.key, canvas, o.fw, o.fh, { free: true, restore, url: o.url, meta: o.meta });
       return;

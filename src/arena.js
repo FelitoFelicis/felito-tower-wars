@@ -1,5 +1,5 @@
 import { getStats, attackInfo, divineShield, isHeavy, isMagicTower, isMeleeTower, towerAt, towerSize, footprintOf, STRIP, HELLFIRE, loneActive, zoneOf, hpBarScale, tierSends, laneRows, baseRows, MINI_BOSS } from "./simulation.js";
-import { ART_MANIFEST, ANIM_MANIFEST, animUrl, keepsBlue, artFor, artUrl, towerTier, TEAM_COLORS, CLOTH_COLORS, recolorTeam, activeArtSet, artSetFor, useArtSet, setArtKey, setArtMeta, setPropUrl, SET_ART } from "./art.js";
+import { ART_MANIFEST, ANIM_MANIFEST, animUrl, keepsBlue, artFor, artUrl, towerTier, TEAM_COLORS, CLOTH_COLORS, recolorTeam, plateOf, activeArtSet, artSetFor, useArtSet, setArtKey, setArtMeta, setPropUrl, SET_ART } from "./art.js";
 // v0.23n: design variants removed: no per-figure motion profiles (motion.js) any more
 const towerIdle = () => ({ lean: 0, stretch: 1 }),
   towerAttack = () => null,
@@ -539,6 +539,14 @@ export function mountArena({
      * v0.23: the texture key of `key` (a still, or "anim:" + key for a sheet) in a player's colour if it has
      * arrived; else it is requested (team blue moved to that colour's hue while loading) and null comes back.
      */
+    /** v0.27zzcF: recolouring per picture: tower pictures keep their stone base and get a ring in the player colour. */
+    painter(colorId, key) {
+      const k = String(key).replace(/^anim:/, ""),
+        anim = String(key).startsWith("anim:"),
+        plate = activeArtSet() ? null : plateOf(k, anim),
+        id = colorId + "|" + (plate ? key : "");
+      return (this.painters[id] ||= plate ? (d, w) => recolorTeam(d, colorId, w, plate) : (d) => recolorTeam(d, colorId));
+    }
     need(key, colorId, urgent = true, ask = true) {
       const still = !key.startsWith("anim:");
       if (still) key = this.fold(key); // v0.23a: art sets: level variants draw their base figure
@@ -558,7 +566,7 @@ export function mountArena({
       this.stage.request(tex, url, {
         fw: sheet?.fw || 0,
         fh: sheet?.fh || 0,
-        paint: recolor ? (this.painters[colorId] ||= (d) => recolorTeam(d, colorId)) : null,
+        paint: recolor ? this.painter(colorId, key) : null,
         urgent,
         meta: still ? this.setMeta(key) : null, // v0.23a: the size data of an art-set picture travels with it
       });
@@ -645,7 +653,7 @@ export function mountArena({
       return this.stage.load(tex, url, {
         fw: sheet?.fw || 0,
         fh: sheet?.fh || 0,
-        paint: recolor ? (this.painters[colorId] ||= (d) => recolorTeam(d, colorId)) : null,
+        paint: recolor ? this.painter(colorId, key) : null,
         meta: still ? this.setMeta(key) : null,
       });
     }
@@ -3390,15 +3398,17 @@ export function mountArena({
         g.strokePath();
         this.chevrons(g, pts, time * 1.8, z.cw, 0xe8fbff, 0.95);
       }
-      g.fillStyle(ok ? 0xc8ffb0 : 0xff7a7a, ok ? 0.25 : 0.32);
+      // v0.27zzcF: not enough gold on a free field: a grey pre-build (no red field, no cross)
+      const poor = !ok && preview.poor;
+      g.fillStyle(ok ? 0xc8ffb0 : poor ? 0xb4bcc4 : 0xff7a7a, ok ? 0.25 : poor ? 0.22 : 0.32);
       g.fillRoundedRect(q.x - cell / 2 + 3, q.y - cell / 2 + 3, cell - 6, cell - 6, 7);
-      g.lineStyle(3, ok ? 0xeaffd8 : 0xffb0b0, 0.95);
+      g.lineStyle(3, ok ? 0xeaffd8 : poor ? 0xd8dee4 : 0xffb0b0, 0.95);
       g.strokeRoundedRect(q.x - cell / 2 + 3, q.y - cell / 2 + 3, cell - 6, cell - 6, 7);
       if (def && ok) {
         const r = (getStats(game, view, def.id).range / game.grid.cellUnits) * z.cw;
         this.drawReach(g, def, q, r, z.cw, fp);
       }
-      if (!ok) {
+      if (!ok && !poor) {
         g.lineStyle(3.5, 0xffe1e1, 0.95);
         const s = cell * 0.16;
         g.lineBetween(q.x - s, q.y - s, q.x + s, q.y + s);
@@ -3410,9 +3420,9 @@ export function mountArena({
           s = ((cell * 0.98 * TOWER_SCALE) / m.plateW) * levelScale(def.level || 1);
         this.ghost
           .setTexture(still.tex)
-          .setVisible(ok)
+          .setVisible(ok || poor)
           .setOrigin(m.plateCX / m.w, m.plateCY / m.h)
-          .setAlpha(0.6 + 0.15 * Math.sin(time * 0.01))
+          .setAlpha(poor ? 0.55 : 0.6 + 0.15 * Math.sin(time * 0.01))
           .setPosition(q.x, q.y + cell * 0.1)
           .setScale(s)
           .setDepth(Math.floor(q.y + cell * 0.1) + 120);
@@ -3423,10 +3433,14 @@ export function mountArena({
           : preview.delta > 0
             ? t("Path +{n}", { n: preview.delta })
             : t("Path unchanged")
-        : t(preview.reason || "Not possible here");
+        : poor
+          ? preview.wait
+          : t(preview.reason || "Not possible here");
+      if (poor) this.ghost.setTint(0x8f969c).setTintMode(TINT.MULTIPLY);
+      else this.ghost.clearTint();
       this.previewLabel
         .setText(label)
-        .setColor(ok ? (preview.delta > 0 ? "#c9ffb0" : "#ffffff") : "#ffc2c2")
+        .setColor(ok ? (preview.delta > 0 ? "#c9ffb0" : "#ffffff") : poor ? "#dfe4e8" : "#ffc2c2")
         .setPosition(clamp(q.x, z.left + 64, z.left + z.bw - 64), Math.max(z.top + 16, q.y - cell * 0.95))
         .setVisible(true);
     }

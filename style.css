@@ -9810,3 +9810,9 @@ html.menu-tint dialog .modal-header {
   min-height: 0 !important;
   flex: none !important;
 }
+
+/* v0.27zzcF: card book: spells sit on the spellbook like in the reward dialog, sized to the other perk pictures */
+.book-card .pick-book {
+  width: 60px;
+  height: 50px;
+}

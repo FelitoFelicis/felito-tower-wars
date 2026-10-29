@@ -6,6 +6,7 @@ import {
   step,
   command,
   available,
+  directRootOf, // v0.27zzdF
   canBuild,
   getStats,
   getSellValue,
@@ -164,7 +165,7 @@ import { mountArena, artFor } from "./arena.js";
 const designRow = () => "",
   setDesign = () => {},
   currentDesign = () => "original";
-import { artUrl, iconUrl, ELEMENT_ICON, ART_MANIFEST, ANIM_MANIFEST, animUrlReady, keepsBlue, registerTowerArt, TEAM_COLORS, recolorTeam, setPropUrl, activeArtSet, uiArt, useArtSet, artSetFor, ART_VERSION, CREEP_PORTRAIT, loadPacks, packsDone, packProgress, onPackProgress, unpack, PACK_PENDING } from "./art.js";
+import { artUrl, iconUrl, ELEMENT_ICON, ART_MANIFEST, ANIM_MANIFEST, animUrlReady, keepsBlue, registerTowerArt, TEAM_COLORS, recolorTeam, plateOf, setPropUrl, activeArtSet, uiArt, useArtSet, artSetFor, ART_VERSION, CREEP_PORTRAIT, loadPacks, packsDone, packProgress, onPackProgress, unpack, PACK_PENDING } from "./art.js";
 import { createSoundtrack } from "./soundtrack.js";
 import { createSfx, haptic } from "./sfx.js";
 import { t, num, goldText } from "./i18n.js";
@@ -187,7 +188,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.27zzb",
+const APP_VERSION = "0.27zzd",
   APP_BRANCH = "F", // v0.23q: author marker (F = Felix, S = Steven) and branch text, shown behind the version; APP_VERSION stays plain for online matches (VersionPublishingRules.md)
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "29.10.2026";
@@ -1869,7 +1870,7 @@ const isFreeLabel = (label) => String(label).startsWith(t("Free"));
 /** Income a send adds for you right now, buffs included (Feudality, research), at most 2 decimals. */
 const incomeFor = (item) => (game ? sendIncome(game, own, item.id) : item.income);
 function priceLabel(item) {
-  const free = item.kind === "send" || item.directTo ? 0 : item.id === "h003" ? game?.players[own]?.freeArchers || 0 : item.id === "h01F" ? game?.players[own]?.freeGens || 0 : 0; // v0.19g1: Novice generators
+  const free = item.kind === "send" ? 0 : item.id === "h003" ? game?.players[own]?.freeArchers || 0 : item.id === "h01F" ? game?.players[own]?.freeGens || 0 : 0; // v0.19g1: Novice generators
   if (free > 0) return free > 1 ? t("Free ×{n}", { n: free }) : t("Free");
   const c = itemPrice(item);
   return item.kind === "research" ? `${format(c.wood || c.gold)}` : `${format(c.gold)}`;
@@ -1984,10 +1985,6 @@ function setPage(next, { scroll = true, stayOwn = false } = {}) {
   arena?.refresh();
 }
 function itemPrice(item) {
-  if (item?.directTo) {
-    const root = getPurchaseCost(game, own, item.id) || { gold: catalog.byId[item.id]?.cost || 0 };
-    return { gold: (root.gold || 0) + (catalog.byId[item.directTo]?.cost || 0), wood: 0, time: 0 }; // v0.27zzbF
-  }
   return getPurchaseCost(game, own, item.id) || { gold: item.cost, wood: item.woodCost, time: 0 };
 }
 function validAutoSend(id, player = own) {
@@ -2088,7 +2085,7 @@ const ABILITY_DESC = {
   Spawn: "Spawns more creeps on its way",
   "Critical Shot": "Chance to deal double damage",
   "Multi Shot": "Shoots several arrows at once",
-  "Frost Attack": "Hits slow the target",
+  "Frost Attack": "Slows creep for a few seconds. Does not stack.",
   "Immolation Aura": "Burns creeps around the tower; flying creeps take 50% less damage",
   "Flash Execution": "Extra damage to creeps on low health", // Bash Tower line (the Death Knight's cull: abilityDesc)
   Feedback: "Extra damage to summoned creeps",
@@ -2181,6 +2178,14 @@ function abilityDesc(name, item) {
   if (name === "Dodge") {
     const n = fv(abil(/^Evasion$/, "ACes"), "Eev1");
     return `Has ${pctN(n > 0 ? n : 0.2)}% chance to dodge attacks`;
+  }
+  if (name === "Frost Attack") {
+    // v0.27zzcF: values of the frost slow (poison base in the map, but no damage and no stacking)
+    const a = abil(/frost/i, "Aspo"),
+      lvl = item.level || 1,
+      slow = fv(a, "Spo2", lvl),
+      secs = fv(a, "adur", lvl) || 3;
+    if (a && slow > 0) return `Slows creep by ${pctN(slow)}% for ${num(secs)} seconds. Does not stack.`;
   }
   if (name === "Poison") {
     const a = abil(/^Poison$/, "Aspo"),
@@ -2421,7 +2426,7 @@ function helpText(el) {
   if (el.id === "auto-slot") return el.getAttribute("aria-label") || ""; // v0.19k: Eco / Tier Up / creep explained
   if (el.dataset.help) return t(el.dataset.help) + (el.id === "wave-chip" && el.title ? " " + el.title : "");
   if (el.dataset.card && game) {
-    const item = catalog?.byId[el.dataset.direct || el.dataset.card]; // v0.27zzbF: a level-2 blueprint explains level 2
+    const item = catalog?.byId[el.dataset.card];
     if (item?.kind === "send") return statTip(item, "send");
     if (item && item.kind !== "research" && (item.attacks || item.isRoot)) return statTip(item, "build");
   }
@@ -2527,11 +2532,13 @@ document.addEventListener("pointerover", (e) => {
     if (controlMode !== "pc") return;
     let card = e.target.closest?.("dialog") ? null : e.target.closest?.("[data-card], [data-upgrade], .enemy-cell, .wide-player, .player-plate.rival:not(.multi), .player-plate.own, #auto-slot"); // v0.18b: enemy info windows too; v0.19k: own window and the auto-spawn slot
     // v0.17g: creep cards show their tooltip only with tooltips switched on (the ? button)
-    if (card?.dataset.card && catalog?.byId[card.dataset.card]?.kind === "send") card = null;
+    // v0.27zzcF: Desktop Wide with tooltips off: cards (towers and creeps) show their values only after a longer rest
+    const wideRest = wideDeck();
+    if (!wideRest && card?.dataset.card && catalog?.byId[card.dataset.card]?.kind === "send") card = null;
     clearTimeout(pcTipTimer);
     if (!card) return helpFor && graceHide(); // v0.21g: a short grace period to reach the tooltip's icons
     clearTimeout(tipGrace);
-    if (card !== helpFor) pcTipTimer = setTimeout(() => card.isConnected && card.matches(":hover") && showHelp(card), 320);
+    if (card !== helpFor) pcTipTimer = setTimeout(() => card.isConnected && card.matches(":hover") && showHelp(card), wideRest && card.matches("[data-card], [data-upgrade]") ? 1400 : 320);
     return;
   }
   const el = helpTarget(e);
@@ -2623,7 +2630,7 @@ function heroSheet(key, color) {
               ctx = c.getContext("2d", { willReadFrequently: true });
             ctx.drawImage(img, 0, 0);
             const data = ctx.getImageData(0, 0, c.width, c.height);
-            recolorTeam(data.data, color);
+            recolorTeam(data.data, color, c.width, plateOf(key, true)); // v0.27zzcF: stone base kept, glowing ring in the player colour
             ctx.putImageData(data, 0, 0);
             ok(c);
           } catch (e) {
@@ -4087,9 +4094,6 @@ function dispatch(input, { quiet = false, fromQueue = false } = {}) {
     toast("Pick a creep card from your current tier.");
     return;
   }
-  // v0.27zzbF: a basic tower placed from its level-2 blueprint queues that upgrade once it stands
-  const direct = input.type === "build" && Number.isInteger(input.gridX) ? directLevel2(input.id) : null;
-  if (direct) directBuilds = directBuilds.filter((d) => d.gridX !== input.gridX || d.gridY !== input.gridY).concat({ gridX: input.gridX, gridY: input.gridY, root: input.id, to: direct.id, until: performance.now() + 15000 });
   if (isFollower()) {
     if (!room.send({ kind: "command", command: { ...input, player: own } })) toast("The connection isn't ready yet.");
     else if (input.type === "send") sendFx(input.id, catalog.byId[input.id]?.spawnIds?.length || 1);
@@ -4148,19 +4152,10 @@ function sendFx(id, count, auto = false) {
   setTimeout(() => pop.remove(), 1500);
 }
 
-// v0.27zzbF: from tier 2 on the basic blueprints (Archer, Footman, Bombard) build level 2 at once, as long as level 2 is
-// the only upgrade their level 1 offers: the card shows level 2 at the total price; placing it builds level 1 and
-// queues level 2 (the plain upgrade path, so online duels need nothing new)
+// v0.27zzdF: from tier 2 on the basic blueprints (Archer, Footman, Bombard) are their level 2 (simulation.js
+// directRootOf): placed like any blueprint, built at once as level 2 for the price of level 1 + level 2
 const BASIC_ROOTS = ["h003", "h000", "h02R"];
-const plainLine = (name) => String(name || "").replace(/\|c\w{8}|\|r/g, "").replace(/\s*\[Level \d+\]/i, "").trim();
-function directLevel2(rootId) {
-  const p = game?.players?.[own];
-  if (!p || (p.tier || 1) < 2 || !BASIC_ROOTS.includes(rootId)) return null;
-  const root = catalog.byId[rootId],
-    ups = (root?.upgrades || []).map((id) => catalog.byId[id]).filter((u) => u?.playable && (u.requires || []).every((r) => (p.research?.[r.id] || 0) >= r.level));
-  return ups.length === 1 && (ups[0].level || 1) === 2 && plainLine(ups[0].name) === plainLine(root.name) ? ups[0] : null;
-}
-let directBuilds = []; // { gridX, gridY, root, to, until }: towers placed from a level-2 blueprint, waiting to queue their upgrade
+const isBasicCard = (id) => BASIC_ROOTS.includes(id) || !!(game && directRootOf(game.players[own], id));
 function deckItems() {
   if (tab === "build") {
     const order = ["h003", "h000", "h02R", "h03V", "h02Q", "h05L", "h01F", WALL_ID];
@@ -4169,8 +4164,8 @@ function deckItems() {
       .filter((x) => !isLocked(available(game, own, "build", x.id)))
       .sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id))
       .map((x) => {
-        const l2 = directLevel2(x.id);
-        return l2 ? { ...l2, id: x.id, kind: x.kind, isRoot: true, directTo: l2.id } : x;
+        const l2 = BASIC_ROOTS.includes(x.id) && x.upgrades?.length === 1 ? catalog.byId[x.upgrades[0]] : null;
+        return l2 && directRootOf(game.players[own], l2.id) ? l2 : x;
       });
   }
   if (tab === "send") {
@@ -4214,7 +4209,7 @@ function deckSig() {
     const ups = catalog.byId[t.typeId].upgrades.map((id) => catalog.byId[id]).filter(Boolean);
     return "up|" + t.id + "|" + t.typeId + "|" + (t.buildRemaining > 0 ? 1 : 0) + "|" + (upQueue.find((q) => q.towerId === t.id)?.id || "") + "|" + ups.map((u) => { const a = available(game, own, "upgrade", u.id, t.id); return a.ok ? 1 : isLocked(a) ? 2 : 0; }).join("");
   }
-  return deckItems().map((i) => i.id + (i.directTo ? ">" + i.directTo : "")).join(",") + "|" + JSON.stringify(game.players[own].research) + (burningTreant(game.players[own]) ? "|burn" : "");
+  return deckItems().map((i) => i.id).join(",") + "|" + JSON.stringify(game.players[own].research) + (burningTreant(game.players[own]) ? "|burn" : "");
 }
 /** Upgrades of the selected tower, shown in the bottom build dialog instead of a popup. */
 /** Not enough gold/wood right now (the option itself is unlocked). */
@@ -4571,32 +4566,19 @@ function fitWidePrices(root) {
 }
 /** v0.23a (creep graphic overhaul): send cards show the creep's painted portrait where its sheet has one (original design). */
 function cardArtHtml(item) {
-  const key = artFor(item.directTo ? catalog.byId[item.directTo] : item), // v0.27zzbF
+  const key = artFor(item),
     portrait = item.kind === "send" && !activeArtSet() ? CREEP_PORTRAIT[key] : null;
   return portrait ? `<span class="card-art portrait-art"><img src="${towerArtUrl(portrait)}" alt=""></span>` : `<span class="card-art"><img src="${towerArtUrl(key)}" alt=""></span>`;
 }
 /** v0.27fF: bosses and mini bosses (Mud Golem) wear the boss frame on their creep cards. */
 const bossFrame = (item) => !!item?.bossTier || item?.id === MINI_BOSS.id;
-/** v0.27zzbF: the item a card stands for (a level-2 blueprint is level 2 placed via its level-1 root). */
-function cardItem(b) {
-  const root = catalog.byId[b.dataset.card],
-    to = b.dataset.direct && catalog.byId[b.dataset.direct];
-  return to && root ? { ...to, id: root.id, kind: root.kind, isRoot: true, directTo: to.id } : root;
-}
-/** Availability of a card; a level-2 blueprint needs the gold for level 1 and level 2 together. */
-function cardAvail(item) {
-  let a = available(game, own, cardAction(item), item.id);
-  if (item.directTo && a.ok) {
-    const need = itemPrice(item).gold - (game.players[own].gold || 0);
-    if (need > 1e-6) a = { ok: false, reason: `Need ${Math.ceil(need)} more gold` };
-  }
-  return a;
-}
+const cardItem = (b) => catalog.byId[b.dataset.card];
+const cardAvail = (item) => available(game, own, cardAction(item), item.id);
 function cardMarkup(item) {
   const a = cardAvail(item),
     label = priceLabel(item),
     kindClass = item.kind === "send" ? "card-send" : item.kind === "research" ? "card-research" : "card-tower";
-  return `<button class="unit-card ${kindClass}${item.id === "n00Y" && game && burningTreant(game.players[own]) ? " burning" : ""} ${item.kind === "send" && (bossFrame(item) || item.flying) ? "framed" : ""} ${selected === item.id && tab === "build" ? "selected" : ""} ${a.ok ? "" : "unaffordable"} ${isPoor(a) ? "poor" : ""}" data-kind="${item.kind}" data-card="${item.id}"${item.directTo ? ` data-direct="${item.directTo}"` : ""} aria-label="${esc(itemName(item))}, ${esc(label)} Gold, ${esc(cardHint(item))}${a.ok ? "" : ", " + esc(t(a.reason))}"><span class="unit-name">${esc(itemName(item))}${item.directTo ? " 2" : ""}</span>${cardArtHtml(item)}<span class="card-foot${item.kind === "send" && (label + formatInc(incomeFor(item))).length >= (bossFrame(item) || item.flying ? 6 : 7) ? " long" : ""}"><span class="price${item.kind === "research" && itemPrice(item).wood ? " wood-price" : ""}${isFreeLabel(label) ? " free" : ""}">${label}</span>${item.kind === "send" ? `<span class="card-note${incomeFor(item) > item.income + 0.004 ? " buffed" : ""}">+${formatInc(incomeFor(item))}</span>` : ""}</span><span class="card-status">${cardStatus(item)}</span>${item.kind === "send" ? `<span class="card-stock">${stockCount(item)}</span>${bossFrame(item) ? '<i class="frame-boss" aria-hidden="true"></i>' : item.flying ? '<i class="frame-air" aria-hidden="true"></i>' : ""}` : ""}</button>`;
+  return `<button class="unit-card ${kindClass}${item.id === "n00Y" && game && burningTreant(game.players[own]) ? " burning" : ""} ${item.kind === "send" && (bossFrame(item) || item.flying) ? "framed" : ""} ${selected === item.id && tab === "build" ? "selected" : ""} ${a.ok ? "" : "unaffordable"} ${isPoor(a) ? "poor" : ""}" data-kind="${item.kind}" data-card="${item.id}" aria-label="${esc(itemName(item))}, ${esc(label)} Gold, ${esc(cardHint(item))}${a.ok ? "" : ", " + esc(t(a.reason))}"><span class="unit-name">${esc(itemName(item))}${item.kind !== "send" && !item.isRoot && game && directRootOf(game.players[own], item.id) ? " 2" : ""}</span>${cardArtHtml(item)}<span class="card-foot${item.kind === "send" && (label + formatInc(incomeFor(item))).length >= (bossFrame(item) || item.flying ? 6 : 7) ? " long" : ""}"><span class="price${item.kind === "research" && itemPrice(item).wood ? " wood-price" : ""}${isFreeLabel(label) ? " free" : ""}">${label}</span>${item.kind === "send" ? `<span class="card-note${incomeFor(item) > item.income + 0.004 ? " buffed" : ""}">+${formatInc(incomeFor(item))}</span>` : ""}</span><span class="card-status">${cardStatus(item)}</span>${item.kind === "send" ? `<span class="card-stock">${stockCount(item)}</span>${bossFrame(item) ? '<i class="frame-boss" aria-hidden="true"></i>' : item.flying ? '<i class="frame-air" aria-hidden="true"></i>' : ""}` : ""}</button>`;
 }
 function renderCards() {
   if (!game) return;
@@ -4643,20 +4625,17 @@ function renderCards() {
       groups = split ? [cards.filter((b) => !b.classList.contains("second-row")), cards.filter((b) => b.classList.contains("second-row"))] : [cards];
     let row = 0;
     // v0.27zyF: the second row (Hall, EXP Generator) keeps the first row's card proportions instead of stretching
-    // v0.27zzaF: at most 3 blueprints per row
-    const firstPer = Math.min(3, Math.max(1, groups[0].length));
-    groups.forEach((g, gi) => {
-      const per = gi > 0 ? firstPer : 3;
-      for (let i = 0; i < g.length; i += per, row++) {
-        const part = g.slice(i, i + per),
-          n = gi > 0 ? firstPer : part.length;
-        part.forEach((b) => {
-          b.style.setProperty("--span", String(12 / n));
-          b.style.order = row;
-          b.dataset.per = n;
-        });
-      }
+    // v0.27zzcF: always 3 blueprints per row, all the same size: Archer, Footman, Bombard on top, then the rest
+    // (Magic Tower, Hall of Elements, EXP Generator …) three per row below
+    const flat = groups.flat(),
+      basic = flat.filter((b) => isBasicCard(b.dataset.card)),
+      rest = flat.filter((b) => !isBasicCard(b.dataset.card));
+    [...basic, ...rest].forEach((b, k) => {
+      b.style.setProperty("--span", "4");
+      b.style.order = String(k < basic.length ? 0 : 1 + Math.floor((k - basic.length) / 3));
+      b.dataset.per = "3";
     });
+    void row;
   }
   fitCardNames($("cards"));
   fitPrices($("cards")); // v0.17
@@ -4827,9 +4806,12 @@ const svgUrl = (name) => "data:image/svg+xml," + encodeURIComponent(PERK_SVG[nam
 const RESEARCH_PERK = { R00V: "leadership", R002: "melee", R005: "heavy", R00K: "owl", R00J: "firearrows", R00C: "frenzy", R001: "medicine", R006: "bank", R00X: "mind", R00W: "tailwind", R00U: "carmor", R00D: "wolves" }; // v0.22zd1
 const researchArt = (item) => (RESEARCH_PERK[item.id] ? elPerkArt(RESEARCH_PERK[item.id]) : artUrl(artFor(item))); // v0.23: RESEARCH_SVG removed (RESEARCH_PERK covers all its keys)
 /** v0.22zd1: painted icons for all 45 element perks (sheet in element order); v0.22zf1: re-cut with a matting model, larger; v0.22zh1: cleaner glow, smoke and interiors. */
+/** v0.27zzcF: active perks (spells) sit on the spellbook in the card book, like in the reward dialog. */
+const bookArt = (id, src) => (ACTIVE_PERKS.has(id) ? `<span class="pick-book" aria-hidden="true"><img src="${src}" alt="" decoding="sync"></span>` : `<img src="${src}" alt="" decoding="sync">`);
 const elPerkArt = (id) => uiArt(`assets/art/perks/${id}.webp?v=v022zh1`);
 const PERK_ART = {
   recruit: () => iconUrl("attack"),
+  recruitflow: () => uiArt("assets/art/perks/recruitflow.webp?v=v027zzc"), // v0.27zzcF: bell with water
   feudal: () => iconUrl("crown"),
   gunpowder: () => uiArt("assets/art/perk-gunpowder.webp?v=v021u"), // v0.21u: powder keg and cannonballs
   archery: () => uiArt("assets/art/perk-archery.webp?v=v021t"), // v0.21t: painted target
@@ -5028,6 +5010,7 @@ const perkVars = (level, q, lv, next) => {
     feudal: format(Math.round(feudalBonus(lv) * 1000) / 10) + "%", // v0.18b; v0.20b: up to level 10
     // v0.19b1: every "per level" value shows the amount of the current (or offered) level; cooldowns include Sanction Policy
     recruit: pct(0.1 * lv),
+    recruitflow: pct(0.2 * Math.min(5, lv)), // v0.27zzcF
     archery: pct(0.05 * lv),
     gunpowder: format(gunpowderTiles(lv)), // v0.21u: table per level
     archeryFree: next && lv === 1 ? ". " + t("Next 2 Archer Towers are free") : "", // v0.19h1: only when first offered
@@ -5747,18 +5730,6 @@ function runQueue() {
     queuedFor = gameKey();
   }
   if (!begun) return;
-  if (directBuilds.length) {
-    const p = game.players[own],
-      now = performance.now();
-    directBuilds = directBuilds.filter((d) => {
-      const tw = p.towers.find((x) => x.gridX === d.gridX && x.gridY === d.gridY);
-      if (tw && tw.typeId === d.root) {
-        if (!upQueue.some((q) => q.towerId === tw.id)) upQueue.push({ towerId: tw.id, id: d.to, from: d.root });
-        return false;
-      }
-      return !tw && now < d.until;
-    });
-  }
   // queued upgrades first come, first served
   if (upQueue.length) {
     const p = game.players[own],
@@ -5837,9 +5808,21 @@ function currentPreview() {
     afford = available(game, own, "build", selected);
   previewCache.key = key;
   previewCache.at = now;
+  // v0.27zzcF: a free field but not enough gold: a grey pre-build that says in how many rounds the gold is there
+  const poor = result.ok && isPoor(afford);
+  let wait = "";
+  if (poor) {
+    const price = itemPrice(catalog.byId[selected]).gold,
+      need = Math.max(0, price - (me.gold || 0)),
+      inc = Math.max(0, me.income || 0),
+      n = inc > 0 ? Math.max(1, Math.ceil(need / inc)) : 0;
+    wait = n ? (n === 1 ? t("Build in 1 round") : t("Build in {n} rounds", { n })) : t("Builds when the gold is there");
+  }
   return (previewCache.value = {
     ...result,
     ok: result.ok && afford.ok,
+    poor,
+    wait,
     reason: result.ok ? afford.reason : result.reason,
     player: own,
     id: selected,
@@ -6479,7 +6462,7 @@ function perkBookCard(e, p, section = null) {
   const d = PERKS[e.id],
     els = perkLook(e.id),
     pel = els.length ? elementOf(els.includes(section) ? section : els[0]) : null; // v0.19a1: a two-element perk wears the frame of the section it sits in
-  return `<div class="pick-card book-card pick-perk perk-${e.id}${pel ? " pick-element el-" + pel.id : ""}${section === "lab" ? "" : " book-open"}"${pel ? ` style="--el:${pel.color}"` : ""}${section === "lab" ? "" : ` data-perk="${e.id}" role="button" tabindex="0"`}><img src="${PERK_ART[e.id]()}" alt="" decoding="sync"><b>${esc(e.name)}</b><span>${valHtml(perkText(e.id, p.level || 1, p, false))}</span>${bookMeta(d.powerup ? 1 : d.max, PERK_AVAILABILITY[e.id], "", perkCd(e.id, p), PERK_CONTINUOUS.has(e.id))}</div>`;
+  return `<div class="pick-card book-card pick-perk perk-${e.id}${pel ? " pick-element el-" + pel.id : ""}${section === "lab" ? "" : " book-open"}"${pel ? ` style="--el:${pel.color}"` : ""}${section === "lab" ? "" : ` data-perk="${e.id}" role="button" tabindex="0"`}>${bookArt(e.id, PERK_ART[e.id]())}<b>${esc(e.name)}</b><span>${valHtml(perkText(e.id, p.level || 1, p, false))}</span>${bookMeta(d.powerup ? 1 : d.max, PERK_AVAILABILITY[e.id], "", perkCd(e.id, p), PERK_CONTINUOUS.has(e.id))}</div>`;
 }
 /**
  * v0.21y: perk values under made-up conditions (card book submenu). A blank player with only this
@@ -6532,7 +6515,7 @@ function perkLab(id, back) {
     const r = perkSim(id, s) || { text: "", cd: "" };
     const els = perkLook(id),
       pel = els.length ? elementOf(els[0]) : null;
-    return `<div class="pick-card book-card pick-perk lab-card perk-${id}${pel ? " pick-element el-" + pel.id : ""}"${pel ? ` style="--el:${pel.color}"` : ""}><img src="${PERK_ART[id](s.perk)}" alt="" decoding="sync"><b>${esc(entry?.name || t(d.name))}</b><span>${valHtml(r.text)}</span>${bookMeta(max, PERK_AVAILABILITY[id], "", r.cd, PERK_CONTINUOUS.has(id))}</div>`;
+    return `<div class="pick-card book-card pick-perk lab-card perk-${id}${pel ? " pick-element el-" + pel.id : ""}"${pel ? ` style="--el:${pel.color}"` : ""}>${bookArt(id, PERK_ART[id](s.perk))}<b>${esc(entry?.name || t(d.name))}</b><span>${valHtml(r.text)}</span>${bookMeta(max, PERK_AVAILABILITY[id], "", r.cd, PERK_CONTINUOUS.has(id))}</div>`;
   };
   const control = (f) => {
     const [lo, hi] = bounds(f);
