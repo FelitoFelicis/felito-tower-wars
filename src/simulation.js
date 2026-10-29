@@ -1981,7 +1981,7 @@ export const burstRadius = (level) => BURST.radius + BURST.radiusPerLevel * leve
 export const FROSTBOLT = { cooldown: 40, delay: 0.25, radius: 1.625, slow: 0.5, base: 42, perLevel: 21, perPlayerLevel: 0.03 }; // v0.27nF: damage −30 % (60 + 30 × level → 42 + 21 × level), radius +30 % (1.25 → 1.625): more slow, less nuke
 export const frostboltDamage = (p, level = perkLevel(p, "frostbolt")) =>
   level ? Math.round((FROSTBOLT.base + FROSTBOLT.perLevel * level) * PILLAR_DAMAGE_TIER[Math.max(1, Math.min(PILLAR_DAMAGE_TIER.length, p?.tier || 1)) - 1] * (1 + FROSTBOLT.perPlayerLevel * (p?.level || 1))) : 0;
-export const frostboltSlowTime = (level) => 3 + 2 * Math.max(1, level || 1);
+export const frostboltSlowTime = (level) => 1.5 * (3 + 2 * Math.max(1, level || 1)); // v0.27zzfF: +50 % (4.5 s + 3 s per level)
 /**
  * v0.23w: Clones (Arcane): every sent creep has 10 % + 5 % per level chance to bring a clone (50 % HP, drawn a little
  * see-through in arcane colours). Heavy creeps can be cloned from level 3, bosses from level 6. A clone adds its share
