@@ -4553,7 +4553,7 @@ function skillOf(a, level = 1) {
       sk = { type: "detect", radius: fval(a, "aran", level, tipNum(a, level, /Range (\d+)/, 300)) };
       break;
     case "Abof":
-      sk = { type: "disease", dps: fval(a, "Hfs1", level) * DISEASE_BUFF, radius: fval(a, "aare", level, 225), duration: fval(a, "adur", level, 3) }; // v0.24j: +40 %
+      sk = { type: "disease", dps: fval(a, "Hfs1", level) * DISEASE_BUFF, radius: DISEASE_RADIUS[level] ?? fval(a, "aare", level, 225), duration: fval(a, "adur", level, 3) }; // v0.24j: +40 % (v0.27zzhF: removed); v0.27zzhF: radius per level
       break;
     case "Amgl":
     case "Aro1":
@@ -4783,7 +4783,7 @@ function applySkills(game, p, tower, item, target, damage, skills) {
     } else if (sk.type === "disease") {
       const mine = game.clouds.filter((cl) => cl.towerId === tower.id);
       if (mine.length >= 3) game.clouds.splice(game.clouds.indexOf(mine[0]), 1);
-      game.clouds.push({ lane: p.id, towerId: tower.id, x: target.x, y: target.y, radius: sk.radius, dps: sk.dps, remaining: sk.duration });
+      game.clouds.push({ lane: p.id, towerId: tower.id, x: target.x, y: target.y, radius: sk.radius, dps: sk.dps, remaining: sk.duration, splash: item.attackType || "siege", next: 0.5 }); // v0.27zzhF: hits once per second as the launcher's splash
     } else if (sk.type === "stomp") {
       const near = p.towers.some((o) => o !== tower && STOMP_LEVEL[o.typeId] && dist(game, o, tower) <= game.grid.cellUnits * 1.5);
       tower.stomp = (tower.stomp || 0) + 1 + Math.floor(random(game) * (near ? 5 : 20));
@@ -4817,7 +4817,9 @@ export const MAGIC_EMPOWER = 5; // v0.24i: Arcane Missile (the empowered bolt) 4
 export const MAGIC_EMPOWER_LEVEL = { 5: 1.2, 6: 1.33 };
 export const magicEmpower = (item) => MAGIC_EMPOWER * (MAGIC_EMPOWER_LEVEL[item?.level] || 1);
 /** v0.24j: Disease Launcher +40 % (its attack in content.js, its disease clouds here). */
-export const DISEASE_BUFF = 1.4;
+export const DISEASE_BUFF = 1; // v0.27zzhF: the +40 % of v0.24j removed (clouds and attack)
+/** v0.27zzhF: disease cloud radius by Disease Launcher level (was 225 / 250 / 275 / 300; 128 = one field). */
+export const DISEASE_RADIUS = { 3: 180, 4: 200, 5: 220, 6: 230 };
 const POISON_MAX_STACKS = 8,
   POISON_SLOW_PER_STACK = 0.03,
   POISON_SLOW_CAP = 0.18;
@@ -5176,6 +5178,16 @@ function tickClouds(game, p) {
         for (const c of p.creeps) if (!c.dead && c.hp > 0 && dist(game, cl, c) <= cl.radius) strike(game, p, tower, c, cl.pulse, "spells", true);
       }
       if (cl.waves <= 0) cl.remaining = 0;
+      continue;
+    }
+    if (cl.splash) {
+      // v0.27zzhF: disease clouds deal the launcher's splash damage once per second (its attack type, armour, Dodge,
+      // Splash Resistance and the Tier Boss reduction count), no longer armour-piercing spell damage every tick
+      cl.next -= TICK;
+      if (cl.next > EPS) continue;
+      cl.next += 1;
+      for (const c of [...p.creeps])
+        if (!c.dead && c.hp > 0 && (cl.air || !c.flying) && dist(game, cl, c) <= cl.radius) splashStrike(game, p, tower, c, cl.dps, cl.splash);
       continue;
     }
     for (const c of p.creeps)

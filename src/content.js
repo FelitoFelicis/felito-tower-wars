@@ -738,8 +738,7 @@ export const TOWER_DAMAGE_BUFF = {
   // v0.24i: Ogre Tower line +8 %, plain Footman line from level 2 +12 %
   h05A: 0.08, h033: 0.08, h034: 0.08, h03I: 0.08,
   h02U: 0.12, h02V: 0.12, h035: 0.12, h036: 0.12, h03J: 0.12,
-  // v0.24j: Disease Launcher +40 % (its disease clouds: simulation.js DISEASE_BUFF)
-  e003: 0.4, e006: 0.4, e008: 0.4, e009: 0.4,
+  // v0.24j: Disease Launcher +40 % – removed in v0.27zzhF (attack and clouds)
 };
 function applyTowerDamageBuff(byId) {
   for (const [id, pct] of Object.entries(TOWER_DAMAGE_BUFF)) {
