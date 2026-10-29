@@ -1114,7 +1114,7 @@ export const PERKS = Object.freeze({
   volley: { name: "Arrow Volley", max: 5, text: "Arrows rain on an area dealing {volleyDmg} Arrow damage each. Kills give 300% EXP" }, // v0.27aF: Arrow damage, triple kill EXP // v0.20e: shorter tooltip
   wings: { name: "Wings of War", max: 10, element: "storm", text: "Flyers +{wingsHp} HP, +{wingsSpeed} speed, +{wingsInc} income", detail: "Flying creeps +{wingsHp} HP, +{wingsSpeed} speed, +{wingsInc} income" }, // v0.10p
   hellfire: { name: "Lava Floor", max: 10, element: "fire", text: "Ground creeps on lava burn for {hellfire} damage/s", detail: "6 lava tiles appear on random fields of your board (2 in the upper half, 2 in the lower half, 2 anywhere), one more for each level from 2 on. Ground creeps on lava burn for {hellfire} damage per second" }, // v0.23k: random tiles instead of the 6th row // v0.10p, v0.16g
-  frostbolt: { name: "Frost Bolt", max: 10, element: "water", text: "Active: frost bolt, {frostbolt} damage, slows 50% for {frostboltSlow} s", detail: "Active ability: a frost bolt hits an area for {frostbolt} damage and slows the creeps hit by 50% for {frostboltSlow} s" }, // v0.23w
+  frostbolt: { name: "Frost Strike", max: 10, element: "water", text: "Active: one field freezes, then icicles erupt: {frostbolt} damage, slows 50% for {frostboltSlow} s", detail: "Active ability: the chosen field freezes for 0.25 s, then icicles erupt and hit every creep on it for {frostbolt} damage and slow them by 50% for {frostboltSlow} s" }, // v0.23w
   infested: { name: "Infested Ground", max: 10, element: "plague", text: "Active: infest a field; it strikes a creep on it for {infested} damage every {infestedEvery} s, {infestedCharges} times", detail: "Active ability: a field of your board becomes infested ground. Every {infestedEvery} s it strikes one ground creep on it for {infested} damage and slows it for 1 s, {infestedCharges} times. At most 6 infested fields; a new one replaces the one with the fewest strikes left" }, // v0.23x
   clones: { name: "Clones", max: 10, element: "arcane", text: "{clones} chance to clone a sent creep{clonesExtra}", detail: "Every creep you send has {clones} chance to bring a clone with 50% HP. Clones give their share of income{clonesExtra}" }, // v0.23w
   burst: { name: "Arcane Burst", max: 5, element: "arcane", text: "Active: {burst} damage split in an area", detail: "Active ability: {burst} damage, split among the creeps in an area" }, // v0.10p
@@ -1148,7 +1148,7 @@ export const PERKS = Object.freeze({
   agolem: { name: "Arcane Golem", max: 5, element: "arcane", text: "Active: a golem knocks creeps back up your path", detail: "Active ability: a golem walks up your path, knocks creeps back, then runs on to the next lane" },
   // v0.14: two new perks
   slave: { name: "Slave Labour", max: 5, element: "plague", text: "1st creep: +{slaveStock} stock, recruits {slaveSpeed} faster", detail: "1st creep of every tier: +{slaveStock} max stock, recruits {slaveSpeed} faster" },
-  guardian: { name: "River Guardian", max: 10, element: "water", text: "Every {guardCd} s your strongest new creep gets a {guardShield} HP shield", detail: "Every {guardCd} s your strongest new creep gets a water shield of {guardShield} HP, magic damage −{guardMagic} while it holds" },
+  guardian: { name: "Water Shield", max: 10, element: "water", text: "Every {guardCd} s your strongest new creep gets a {guardShield} HP shield", detail: "Every {guardCd} s your strongest new creep gets a water shield of {guardShield} HP, magic damage −{guardMagic} while it holds" },
   // v0.18h: four new perks; "unpopular" = the share by which the offer chance drops after each refusal
   quarry: { name: "Quarry", max: 1, element: "earth", powerup: true, unpopular: 0.5, text: "+{quarryGold} gold and 8 stones. Clear them for an Earth perk", detail: "Instantly +{quarryGold} gold and 8 stones on your field. Clear them all for a random Earth perk" }, // v0.24s: gold by round
   backup: { name: "Backup Line", max: 3, element: "storm", unpopular: 0.5, text: "Archer-Line +{backup} attack speed while top {backupRows} rows are empty", detail: "Archer-Line towers +{backup} attack speed while your top {backupRows} rows hold no tower. Lv. 3: one mist row less" }, // v0.24q
@@ -1175,7 +1175,7 @@ export const PERKS = Object.freeze({
   // v0.26cF: two new perks. Ring of Life: neutral, never offered to a player who owns Plague, Fire or Arcane ("x" elements), drawn 25 % less often
   ring: { name: "Ring of Life", max: 3, weight: 0.75, element: ["xplague", "xfire", "xarcane"], text: "Creep HP +{ringHp}. 1st creep of each tier +{ringInc} income", detail: "Every creep gets more HP by its tier: +{ringHpTiers} (T1 / T2 / T3 / T4 / T5). The 1st creep of every tier gives +{ringInc} income" },
   // v0.26eF: Amnesia: forget one of 3 owned perks for good, get 1 + its level extra reward dialogs
-  amnesia: { name: "Amnesia", max: 1, powerup: true, unpopular: 0.5, text: "Forget 1 of 3 of your perks. Get 1 + its level extra rewards", detail: "Choose 1 of 3 random perks you own and forget it. It is never offered again this match. You get 1 + its level extra level-up rewards" },
+  amnesia: { name: "Amnesia", max: 1, powerup: true, unpopular: 0.5, text: "Forget a perk and get reward points according to perk level.", detail: "Choose 1 of 3 random perks you own and forget it. It is never offered again this match. You get 1 + its level extra level-up rewards" },
   scouting: { name: "Scouting", max: 3, element: "storm", text: "Scouting EXP +{scouting}", detail: "Increases the EXP your creeps earn while crossing the lines of an enemy maze (Scouting) by {scouting}" }, // v0.27bF
   revenge: { name: "Revenge", max: 3, element: "fire", text: "Enemy breach: a Fire Wolf ({revengeHp} HP) runs onto its sender's field", detail: "Whenever an enemy creep breaches through your field, a Fire Wolf with {revengeHp} HP runs onto the field of the player who sent it. Each Fire Wolf gives +{revengeInc} income" },
 });
@@ -1574,6 +1574,7 @@ function tickSummons(game, p) {
     else if (s.kind === "militia") placeMilitia(game, p, 2);
     else if (s.kind === "quarry") placeQuarry(game, p, s.left ?? null, s.large ?? null, s.tries || 0); // v0.18h; v0.22o2: retries
     else if (s.kind === "copy") placeCopy(game, p, s.id); // v0.19g1: Evolution
+    else if (s.kind === "frost") frostStrike(game, p, s); // v0.27zzaF: Frost Strike
     else if (s.kind === "fort") placeWallRow(game, p); // v0.26fF
   }
 }
@@ -1958,7 +1959,7 @@ export const burstRadius = (level) => BURST.radius + BURST.radiusPerLevel * leve
  * by 50 % (a frost debuff) for 3 + 2 × level s. Damage grows with the perk level, the send tier (like Pillar of Fire)
  * and the player level.
  */
-export const FROSTBOLT = { cooldown: 40, radius: 1.625, slow: 0.5, base: 42, perLevel: 21, perPlayerLevel: 0.03 }; // v0.27nF: damage −30 % (60 + 30 × level → 42 + 21 × level), radius +30 % (1.25 → 1.625): more slow, less nuke
+export const FROSTBOLT = { cooldown: 40, delay: 0.25, radius: 1.625, slow: 0.5, base: 42, perLevel: 21, perPlayerLevel: 0.03 }; // v0.27nF: damage −30 % (60 + 30 × level → 42 + 21 × level), radius +30 % (1.25 → 1.625): more slow, less nuke
 export const frostboltDamage = (p, level = perkLevel(p, "frostbolt")) =>
   level ? Math.round((FROSTBOLT.base + FROSTBOLT.perLevel * level) * PILLAR_DAMAGE_TIER[Math.max(1, Math.min(PILLAR_DAMAGE_TIER.length, p?.tier || 1)) - 1] * (1 + FROSTBOLT.perPlayerLevel * (p?.level || 1))) : 0;
 export const frostboltSlowTime = (level) => 3 + 2 * Math.max(1, level || 1);
@@ -2265,11 +2266,25 @@ function launchBurst(game, p, x, y) {
   emit(game, "burst", { player: p.id, x, y, radius: burstRadius(level), hits: inside.length, damage: Math.round(share) });
 }
 /** v0.23w: Frost Bolt: full damage to every creep in the radius, then a 50 % frost slow (the stronger frost wins). */
+/**
+ * v0.27zzaF: Frost Strike (was Frost Bolt): aimed at one field. The field freezes for FROSTBOLT.delay seconds, then
+ * icicles erupt and hit every creep on that field (damage and slow as before).
+ */
 function launchFrostBolt(game, p, x, y) {
   const level = perkLevel(p, "frostbolt"),
-    r = FROSTBOLT.radius * game.grid.cellUnits,
-    centre = { x, y },
-    inside = p.creeps.filter((c) => !c.dead && c.hp > 0 && !divineShield(game, c) && dist(game, c, centre) <= r),
+    { cols, rows } = game.grid,
+    gx = Math.max(0, Math.min(cols - 1, Math.floor(x * cols))),
+    gy = Math.floor(y * rows);
+  p.frostboltReady = game.time + abilityCd(p, FROSTBOLT.cooldown);
+  p.pendingSummons = [...(p.pendingSummons || []), { kind: "frost", at: game.time + FROSTBOLT.delay, gx, gy, lv: level }];
+  emit(game, "frostStart", { player: p.id, x: (gx + 0.5) / cols, y: (gy + 0.5) / rows, delay: FROSTBOLT.delay });
+}
+function frostStrike(game, p, s) {
+  const level = s.lv || perkLevel(p, "frostbolt"),
+    { cols, rows } = game.grid,
+    x = (s.gx + 0.5) / cols,
+    y = (s.gy + 0.5) / rows,
+    inside = p.creeps.filter((c) => !c.dead && c.hp > 0 && !divineShield(game, c) && Math.abs(c.x - x) * cols <= 0.6 && Math.abs(c.y - y) * rows <= 0.6),
     damage = frostboltDamage(p, level),
     time = frostboltSlowTime(level);
   for (const c of inside) {
@@ -2285,8 +2300,7 @@ function launchFrostBolt(game, p, x, y) {
       frost.slow = Math.max(frost.slow || 0, FROSTBOLT.slow);
     } else c.statuses.push({ abilityId: "frost", remaining: duration, slow: FROSTBOLT.slow, dps: 0, owner: p.id });
   }
-  p.frostboltReady = game.time + abilityCd(p, FROSTBOLT.cooldown);
-  emit(game, "frostbolt", { player: p.id, x, y, radius: FROSTBOLT.radius, hits: inside.length, damage: Math.round(damage) });
+  emit(game, "frostbolt", { player: p.id, x, y, radius: 0.5, tile: true, hits: inside.length, damage: Math.round(damage) });
 }
 function bossDiscount(p, item, gold) {
   if (!item?.isSend) return gold;
@@ -3606,8 +3620,8 @@ function runCommand(game, input) {
   }
   if (type === "frostbolt") {
     // v0.23w: Frost Bolt (aimed)
-    if (!perkLevel(p, "frostbolt")) return { ok: false, reason: "Frost Bolt not learned" };
-    if (p.frostboltReady > game.time + EPS) return { ok: false, reason: `Frost Bolt ready in ${Math.ceil(p.frostboltReady - game.time)} s` };
+    if (!perkLevel(p, "frostbolt")) return { ok: false, reason: "Frost Strike not learned" };
+    if (p.frostboltReady > game.time + EPS) return { ok: false, reason: `Frost Strike ready in ${Math.ceil(p.frostboltReady - game.time)} s` };
     const x = Number(input.x),
       y = Number(input.y);
     if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || x > 1 || y < -0.1 || y > 1.1) return { ok: false, reason: "Outside the board" };

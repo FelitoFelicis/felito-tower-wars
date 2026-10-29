@@ -81,8 +81,12 @@ const ELEMENT_COLOR = {
   arcane: 0xff7fe6,
   plague: 0xa6f06a,
 };
+// v0.27zzF: cannon and mortar towers always fire a dark cannonball, whatever their attack type (Bombard 4–6 are "normal"
+// in the data and showed a gold archer streak)
+const CANNON_SHOT = /cannon|mortar|catapult|bombard/i;
+const firesCannonball = (def) => def?.attackType === "siege" || CANNON_SHOT.test(def?.fields?.ua1m || "") || /bombard|cannon/i.test(def?.name || "");
 function shotStyle(def) {
-  const color = ELEMENT_COLOR[def?.element] ?? (def?.attackType === "siege" ? 0x3b302a : 0xffe28a);
+  const color = ELEMENT_COLOR[def?.element] ?? (firesCannonball(def) ? 0x3b302a : 0xffe28a);
   const splash = (def?.splashFull || 0) + (def?.splashMedium || 0) + (def?.splashSmall || 0) > 0;
   return { color, splash, glow: !!ELEMENT_COLOR[def?.element], size: splash ? 4.4 : def?.attackType === "magic" ? 3.6 : 2.6 };
 }
@@ -443,6 +447,7 @@ export function mountArena({
       this.beams = new Map(); // v0.18b: Focus Fire beams (Earth Laser), one per tower
       this.tips = new Map(); // v0.27ziF: tower id -> screen point of its weapon's muzzle (beams, shots, smoke)
       this.bolts = []; // v0.12
+      this.frostFx = []; // v0.27zzaF: Frost Strike: frozen fields and erupting icicles
       this.floaters = [];
       this.textPool = [];
       this.skinKeys = new Map(); // v0.23: art key -> colour -> texture key (no string building per frame)
@@ -779,6 +784,7 @@ export function mountArena({
     }
     create() {
       for (const key of [...FIRST, ...ELEMENT_ART]) this.need(key, colorOf(getOwnPlayer()), false); // v0.23
+      this.need("fx-icicles", null, false); // v0.27zzaF: Frost Strike icicles
       this.bg = this.stage.graphics().setDepth(0);
       this.frameG = this.stage.graphics().setDepth(1);
       // v0.23: grass tiles and props in one batch (they were ~90 images, one draw call each): props outside
@@ -1714,7 +1720,7 @@ export function mountArena({
               ty: to.y - cell * 0.2,
               t: 0,
               // v0.23b: arrows fly 30 % faster
-              dur: clamp(d / (cell * 10), 0.07, 0.34) / (/arrow/i.test(def?.fields?.ua1m || "") || def?.attackType === "pierce" ? 1.3 : 1),
+              dur: clamp(d / (cell * 10), 0.07, 0.34) / (!firesCannonball(def) && (/arrow/i.test(def?.fields?.ua1m || "") || def?.attackType === "pierce") ? 1.3 : 1),
               ...style,
               arc: style.splash ? cell * 0.5 : 0,
             });
@@ -1856,8 +1862,26 @@ export function mountArena({
           this.ring(q.x, q.y + cell * 0.15, cell * 0.1, cell * 0.5, 0x7dff3a, 0.9, 3);
           this.burst(q.x, q.y - cell * 0.2, 0xc8ff8a, 12, 110, 2.6, 0.45, -60, true);
           this.floatText(q.x, q.y - cell * 0.7, String(e.damage), "#c8ff8a", 13, 34, 1);
+        } else if (e.type === "frostStart" && e.player === view) {
+          // v0.27zzaF: Frost Strike: the chosen field freezes over during the short delay
+          const q = this.point(e.x, e.y);
+          this.frostFx.push({ x: q.x, y: q.y, start: time, freeze: (e.delay || 0.25) * 1000, strike: null, s: null });
+        } else if (e.type === "frostbolt" && e.player === view && e.tile) {
+          // v0.27zzaF: Frost Strike: icicles erupt from the frozen field
+          const q = this.point(e.x, e.y);
+          let fx = this.frostFx.find((f) => f.strike == null && Math.hypot(f.x - q.x, f.y - q.y) < cell * 0.3);
+          if (!fx) this.frostFx.push((fx = { x: q.x, y: q.y, start: time - 250, freeze: 250, strike: null, s: null }));
+          fx.strike = time;
+          const tex = this.need("fx-icicles", null);
+          if (tex) {
+            fx.s = this.stage.image(q.x, q.y + cell * 0.32, tex).setOrigin(0.5, 0.92).setDepth(Math.floor(q.y + cell * 0.32) + 120);
+            fx.base = (cell * 1.05) / Math.max(1, fx.s.width || 256);
+          }
+          this.burst(q.x, q.y - cell * 0.1, 0xe0f8ff, 14, 110, 2.6, 0.5, -40, true);
+          this.burst(q.x, q.y + cell * 0.1, 0x7ad8ff, 8, 70, 2.2, 0.4, 0, true);
+          if (e.hits) this.floatText(q.x, q.y - cell * 0.7, t("FROST STRIKE") + " " + e.damage, "#bfeaff", 14, 38, 1.1);
         } else if (e.type === "frostbolt" && e.player === view) {
-          // v0.23w: Frost Bolt: an icy streak from the upper right, then a frost ring and ice shards over the area
+          // v0.23w: Frost Bolt (v0.27zzaF: Frost Strike uses the tile branch above): an icy streak from the upper right, then a frost ring and ice shards over the area
           const q = this.point(e.x, e.y);
           this.bolts.push({ pts: [{ x: q.x + cell * 1.6, y: q.y - cell * 3.4 }, { x: q.x, y: q.y - cell * 0.2 }], life: 0.3, max: 0.3, ice: true });
           this.ring(q.x, q.y, cell * 0.2, cell * e.radius, 0x5ac8ff, 0.9, 5);
@@ -2356,10 +2380,16 @@ export function mountArena({
           pop = popT < 1 ? 0.5 + 0.5 * this.backOut(popT) : 1,
           recoil = 0,
           moving = !!activeArtSet() && !t.stone && artKey.startsWith("tower-"), // design variants: every figure moves its own way (motion.js)
-          breathe = t.stone || moving ? 0 : Math.sin(time * 0.0032 + phase) * 0.014; // v0.18h: stones stand still
+          // v0.27zzaF: buildings (Hall of Elements, Magic City, EXP Generator, Farm, Wall) do not breathe
+          still = t.stone || moving || /^tower-(hall|magic-city|exp-generator|farm|wall|lumbermill)(-v\d)?$/.test(artKey),
+          breathe = still ? 0 : Math.sin(time * 0.0032 + phase) * 0.014; // v0.18h: stones stand still
         // v0.09: every figure without its own frame animation acts out each attack (see attackPose)
         const pose = moving ? this.figureMotion(def, artKey, sprite, time, phase, building, q, tc) : !anim && !building ? this.attackPose(def, sprite, time) : null;
-        if (pose) sprite.setBend((m.plateCY - (m.plateCY - m.plateTop) * 0.35) / m.h, pose.lean * m.h * 0.12, pose.stretch);
+        // v0.27zzaF: the breathing only stretches the figure above its stone base (the bend hinge), never the base
+        const hingeY = m.plateCY - (m.plateCY - m.plateTop) * 0.35,
+          hinge = anim ? (hingeY + anim.oy) / anim.fh : hingeY / m.h;
+        if (pose) sprite.setBend(hinge, pose.lean * m.h * 0.12, pose.stretch * (1 + breathe));
+        else if (breathe) sprite.setBend(hinge, 0, 1 + breathe);
         else sprite.setBend(0);
         const cx = q.x,
           cy = q.y + tc * 0.1;
@@ -2376,7 +2406,7 @@ export function mountArena({
         sprite
           .setOrigin(anim ? (m.plateCX + anim.ox) / anim.fw : m.plateCX / m.w, anim ? (m.plateCY + anim.oy) / anim.fh : m.plateCY / m.h)
           .setPosition(cx, cy - recoil * tc * 0.03)
-          .setScale(base * pop * (1 + recoil * 0.05), base * pop * (1 + breathe + recoil * 0.07))
+          .setScale(base * pop * (1 + recoil * 0.05), base * pop * (1 + recoil * 0.07))
           .setFlipX(false)
           .setDepth(Math.floor(cy) + 100)
           .setAlpha(building ? 0.55 : 1);
@@ -2403,7 +2433,7 @@ export function mountArena({
         let tip = null;
         if (tipPx) {
           const sxs = base * pop * (1 + recoil * 0.05),
-            sys = base * pop * (1 + breathe + recoil * 0.07),
+            sys = base * pop * (1 + recoil * 0.07),
             v = tipPx[1] / m.h,
             hinge = (m.plateCY - (m.plateCY - m.plateTop) * 0.35) / m.h,
             oy = m.plateCY / m.h;
@@ -2411,7 +2441,7 @@ export function mountArena({
             shift = 0;
           if (pose && v < hinge) {
             const kk = (hinge - v) / hinge;
-            ly = (hinge - oy) * m.h * sys - (hinge - v) * m.h * sys * pose.stretch;
+            ly = (hinge - oy) * m.h * sys - (hinge - v) * m.h * sys * pose.stretch * (1 + breathe);
             shift = pose.lean * m.h * 0.12 * kk * kk * sxs;
           }
           tip = { x: cx + (tipPx[0] - m.plateCX) * sxs + shift, y: cy - recoil * tc * 0.03 + ly };
@@ -2802,7 +2832,7 @@ export function mountArena({
           }
         }
         if (c.guard) {
-          // v0.14: River Guardian: a water shield bubble with droplets circling the creep
+          // v0.14: Water Shield (was Water Shield): a water shield bubble with droplets circling the creep
           const share = clamp(c.guard.hp / Math.max(1, c.guard.max), 0, 1),
             cy = q.y + cell * 0.18 - lift - height * 0.45,
             rr = height * 0.62,
@@ -2881,7 +2911,7 @@ export function mountArena({
         // v0.24i: Spirit Wolves no longer wear the arcane veil sphere (their violet tint stays)
         // v0.17: no ring under neutral creeps any more; their grey clothes set them apart
         // Health bar only once a creep has lost health; drawn on top of everything on the board.
-        // v0.25i: also when a River Guardian shield took the hit (the hit points stay full) and after small hits on
+        // v0.25i: also when a Water Shield shield took the hit (the hit points stay full) and after small hits on
         // big creeps (below 0.1 % the bar stayed hidden)
         // v0.27oF: creeps burning in an immolation aura: little flames flicker at their feet (drawn in drawFx)
         if (c.immo != null && game.time - c.immo < 0.25) (this.immoFx ||= []).push({ x: q.x, y: q.y + cell * 0.14 - (flying ? cell * 0.32 : 0), w: cell * (flying ? 0.3 : 0.38), seed: phase0 });
@@ -2917,7 +2947,8 @@ export function mountArena({
           ratio = clamp(c.hp / maxHp, 0, 1),
           guarded = c.guard && c.guard.max > 0 ? clamp(c.guard.hp / c.guard.max, 0, 1) : null,
           eps = Math.max(1e-3, maxHp * 1e-6); // any real hit, not float noise
-        if (c.hp < maxHp - eps || (guarded != null && c.guard.hp < c.guard.max - 1e-3)) {
+        const holy = divineShield(game, c); // v0.27zzaF: a Divine Shield shows on the bar too (golden glow), even at full health
+        if (holy || c.hp < maxHp - eps || (guarded != null && c.guard.hp < c.guard.max - 1e-3)) {
           const hb = this.hpBars,
             bar = boss ? cell * 0.95 : cell * 0.55 * hpBarScale(def), // v0.19h1: weak creeps get shorter bars
             barH = boss ? 6 : 4,
@@ -2959,20 +2990,32 @@ export function mountArena({
           hb.fillStyle(ratio > 0.5 ? 0x8ff05a : ratio > 0.25 ? 0xffc75a : 0xff5f52, see);
           hb.fillRoundedRect(q.x - bar / 2, barY, Math.max(1, bar * ratio), barH, 2);
           if (guarded != null) {
-            // v0.25i: the River Guardian shield as a water-blue line over the top of the bar (what is left of it)
+            // v0.25i: the Water Shield shield as a water-blue line over the top of the bar (what is left of it)
             hb.fillStyle(0x9fe4ff, see);
             hb.fillRoundedRect(q.x - bar / 2, barY - 1, Math.max(1, bar * guarded), Math.max(2, barH * 0.5), 1.5);
           }
+          // v0.27zzaF: overlays only cover the filled part of the bar, so the health left stays easy to read
+          const fill = Math.max(1, bar * ratio);
           if (statuses.some((st) => st.abilityId === "frost")) {
             // v0.27ztF: frozen creeps: a frosty glaze over the health bar, a pale rim and small icicles below it
             hb.fillStyle(0xc6ebff, 0.5 * see);
-            hb.fillRoundedRect(q.x - bar / 2 - 1.5, barY - 1.5, bar + 3, barH + 3, 3);
+            hb.fillRoundedRect(q.x - bar / 2, barY, fill, barH, 2);
             hb.fillStyle(0xf4fcff, 0.85 * see);
-            hb.fillRect(q.x - bar / 2 + 1, barY - 1, bar - 2, 1);
-            for (let k = 0, n = Math.max(2, Math.round(bar / 9)); k < n; k++) {
-              const ix = q.x - bar / 2 + ((k + 0.5) / n) * bar, ih = 2 + ((k * 7) % 3);
+            hb.fillRect(q.x - bar / 2 + 1, barY, Math.max(0, fill - 2), 1);
+            for (let k = 0, n = Math.max(1, Math.round(fill / 9)); k < n; k++) {
+              const ix = q.x - bar / 2 + ((k + 0.5) / n) * fill, ih = 2 + ((k * 7) % 3);
               hb.fillTriangle(ix - 1.4, barY + barH + 1, ix + 1.4, barY + barH + 1, ix, barY + barH + 1 + ih);
             }
+          }
+          if (holy) {
+            // Divine Shield: a calm golden glow over the filled bar and a soft halo around it
+            const pulse = 0.5 + 0.5 * Math.sin(time * 0.004 + (c.id || 0));
+            hb.fillStyle(0xffd34a, (0.22 + 0.12 * pulse) * see);
+            hb.fillRoundedRect(q.x - bar / 2 - 2.5, barY - 2.5, fill + 5, barH + 5, 4);
+            hb.fillStyle(0xffe680, 0.6 * see);
+            hb.fillRoundedRect(q.x - bar / 2, barY, fill, barH, 2);
+            hb.fillStyle(0xfffbe0, 0.85 * see);
+            hb.fillRect(q.x - bar / 2 + 1, barY, Math.max(0, fill - 2), 1);
           }
           // v0.23s: hit flash: a white overlay (25 % transparent) on the bar itself, not on its frame
           if ((sprite.getData("hit") || 0) > time) {
@@ -3115,7 +3158,7 @@ export function mountArena({
           kick = k < 0.05 ? ease(seg(0, 0.05)) : Math.exp(-5.5 * (y - 0.05)) * Math.cos(12 * (y - 0.05));
         return { lean: -2.1 * kick, stretch: 1 - 0.09 * Math.max(0, kick) };
       }
-      const kind = isMeleeTower(def) ? "melee" : def.attackType === "siege" || (def.splashFull || 0) > 0 ? "siege" : isMagicTower(def) || def.attackType === "magic" ? "magic" : "ranged";
+      const kind = isMeleeTower(def) ? "melee" : firesCannonball(def) || (def.splashFull || 0) > 0 ? "siege" : isMagicTower(def) || def.attackType === "magic" ? "magic" : "ranged";
       if (kind === "melee") {
         if (k < 0.3) {
           lean = -0.45 * ease(seg(0, 0.3));
@@ -3526,6 +3569,43 @@ export function mountArena({
           } else this.burst(x, y, p.color, 4, 45, 1.9, 0.2, 0, p.glow);
         }
       }
+      // v0.27zzaF: Frost Strike: a field that freezes over (cracks and frost spread), then icicles shoot up and melt away
+      for (let i = this.frostFx.length - 1; i >= 0; i--) {
+        const fx = this.frostFx[i],
+          el = time - fx.start,
+          since = fx.strike == null ? 0 : time - fx.strike,
+          hold = 420,
+          fade = 380;
+        if (fx.strike != null && since > hold + fade) {
+          fx.s?.destroy();
+          this.frostFx.splice(i, 1);
+          continue;
+        }
+        if (fx.strike == null && el > 2000) {
+          this.frostFx.splice(i, 1);
+          continue;
+        }
+        const grow = clamp(el / fx.freeze, 0, 1),
+          melt = fx.strike == null ? 1 : since < hold ? 1 : 1 - (since - hold) / fade,
+          h = cell * 0.49;
+        f.fillStyle(0xbfeaff, (0.18 + 0.32 * grow) * melt);
+        f.fillRect(fx.x - h * grow, fx.y - h * grow, h * 2 * grow, h * 2 * grow);
+        f.lineStyle(2, 0xf0fbff, 0.85 * melt);
+        f.strokeRect(fx.x - h * grow, fx.y - h * grow, h * 2 * grow, h * 2 * grow);
+        f.lineStyle(1.4, 0x5ac8ff, 0.8 * melt);
+        for (let k = 0; k < 6; k++) {
+          const a = k * 1.047 + 0.3,
+            r = h * 0.95 * grow;
+          f.lineBetween(fx.x, fx.y, fx.x + Math.cos(a) * r, fx.y + Math.sin(a) * r * 0.9);
+          f.lineBetween(fx.x + Math.cos(a) * r * 0.5, fx.y + Math.sin(a) * r * 0.45, fx.x + Math.cos(a + 0.5) * r * 0.75, fx.y + Math.sin(a + 0.5) * r * 0.65);
+        }
+        if (fx.s) {
+          const up = clamp(since / 110, 0, 1),
+            ease = 1 - Math.pow(1 - up, 3),
+            sc = fx.base * (0.25 + 0.75 * ease);
+          fx.s.setScale(sc, sc * (0.6 + 0.4 * ease)).setAlpha(melt);
+        }
+      }
       // v0.12: Monsun lightning bolts
       for (let i = this.bolts.length - 1; i >= 0; i--) {
         const b = this.bolts[i];
@@ -3929,6 +4009,8 @@ export function mountArena({
       this.beams = new Map();
       this.tips = new Map();
       this.bolts = [];
+      for (const fx of this.frostFx || []) fx.s?.destroy();
+      this.frostFx = [];
       for (const f of this.floaters) this.recycle(f);
       this.floaters = [];
       this.flash = 0;

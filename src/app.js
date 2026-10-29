@@ -187,10 +187,10 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.27zx",
+const APP_VERSION = "0.27zzb",
   APP_BRANCH = "F", // v0.23q: author marker (F = Felix, S = Steven) and branch text, shown behind the version; APP_VERSION stays plain for online matches (VersionPublishingRules.md)
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
-  APP_DATE = "28.10.2026";
+  APP_DATE = "29.10.2026";
 // v0.18: the version also stands in the page title (browser tab and the artifact window in chats)
 try {
   document.title = `${currentDesign() === "original" ? "Felito" : "Circle"} Tower Wars · v${APP_VERSION}${APP_BRANCH}`; // design variants: the new looks are called Circle Tower Wars
@@ -531,7 +531,8 @@ let controlMode = ["mobile", "pc"].includes(pref(CONTROL_PREF, "")) ? pref(CONTR
 // v0.24b: "Desktop Wide": the desktop version across the whole screen width: player info windows stacked on the
 // left, the cards (Build and Send) on the right, the board in the middle as tall as the screen
 const DESKTOP_LAYOUT_PREF = "felito.desktopLayout";
-let desktopWide = pref(DESKTOP_LAYOUT_PREF, "") === "wide";
+// v0.27zyF: Desktop Wide is the default on desktop; plain Desktop is stored as "pc"
+let desktopWide = pref(DESKTOP_LAYOUT_PREF, "wide") !== "pc";
 const LAYOUT_CHOICES = [
   ["pc", "Desktop"],
   ["wide", "Desktop Wide"],
@@ -544,7 +545,7 @@ const layoutChoice = () =>
 const controlsRow = () =>
   `<div class="choice-row layout-row" role="group" aria-label="${t("Layout")}"><span>${t("Layout")}</span>${LAYOUT_CHOICES.map(
     ([m, name]) =>
-      `<button type="button" class="choice-button${layoutChoice() === m ? " active" : ""}" data-ctl="${m}" aria-pressed="${layoutChoice() === m}">${t(name)}${m === recommendedControls() ? ` <small>${t("(recommended)")}</small>` : ""}</button>`,
+      `<button type="button" class="choice-button${layoutChoice() === m ? " active" : ""}" data-ctl="${m}" aria-pressed="${layoutChoice() === m}">${t(name)}${m === (recommendedControls() === "pc" ? "wide" : recommendedControls()) ? ` <small>${t("(recommended)")}</small>` : ""}</button>`,
   ).join("")}</div>`;
 // v0.17d: two layouts for the mobile version: A (bottom bar, mini map; the v0.17c layout, "LayoutMobileA")
 // and B (no mini map, all buttons in one column right of the board, bigger board).
@@ -988,7 +989,7 @@ function refreshBurst(p, slot) {
 // ---- v0.12: Pillar of Fire (aimed), Arcane Golem and Monsun (at once) -----------------
 const ABILITIES = [
   { id: "pillar", ready: "pillarReady", cooldown: () => PILLAR.cooldown, name: "Pillar of Fire", aim: true, cls: "pillar-button", tip: "Tap your field where the pillar of fire should rise.", help: "Pillar of Fire: tap it, then tap your field. A pillar of fire burns that area (cooldown 75 s)." },
-  { id: "frostbolt", ready: "frostboltReady", cooldown: () => FROSTBOLT.cooldown, name: "Frost Bolt", aim: true, cls: "frostbolt-button", tip: "Tap your field where the frost bolt should strike.", help: "Frost Bolt: tap it, then tap your field. A frost bolt hits that area and slows the creeps (cooldown 40 s)." }, // v0.23w
+  { id: "frostbolt", ready: "frostboltReady", cooldown: () => FROSTBOLT.cooldown, name: "Frost Strike", aim: true, cls: "frostbolt-button", tip: "Tap the field that should freeze.", help: "Frost Strike: tap it, then tap a field. It freezes, and 0.25 s later icicles erupt on it." }, // v0.23w
   { id: "infested", ready: "infestedReady", cooldown: () => INFESTED.cooldown, name: "Infested Ground", aim: true, cls: "infested-button", tip: "Tap a field of your board to infest it.", help: "Infested Ground: tap it, then tap a field of your board. The field strikes creeps walking over it (cooldown 45 s)." }, // v0.23x
   { id: "agolem", ready: "golemReady", cooldown: () => AGOLEM.cooldown, name: "Arcane Golem", cls: "golem-button", help: "Arcane Golem: a golem walks your path upwards and knocks creeps back, then runs on into the next lane (cooldown 50 s)." },
   { id: "monsun", ready: "monsunReady", cooldown: () => MONSUN.cooldown, name: "Monsun", cls: "monsun-button", help: "Monsun: storm winds push the creeps in your field back while lightning strikes flyers (cooldown 50 s)." },
@@ -1868,7 +1869,7 @@ const isFreeLabel = (label) => String(label).startsWith(t("Free"));
 /** Income a send adds for you right now, buffs included (Feudality, research), at most 2 decimals. */
 const incomeFor = (item) => (game ? sendIncome(game, own, item.id) : item.income);
 function priceLabel(item) {
-  const free = item.kind === "send" ? 0 : item.id === "h003" ? game?.players[own]?.freeArchers || 0 : item.id === "h01F" ? game?.players[own]?.freeGens || 0 : 0; // v0.19g1: Novice generators
+  const free = item.kind === "send" || item.directTo ? 0 : item.id === "h003" ? game?.players[own]?.freeArchers || 0 : item.id === "h01F" ? game?.players[own]?.freeGens || 0 : 0; // v0.19g1: Novice generators
   if (free > 0) return free > 1 ? t("Free ×{n}", { n: free }) : t("Free");
   const c = itemPrice(item);
   return item.kind === "research" ? `${format(c.wood || c.gold)}` : `${format(c.gold)}`;
@@ -1983,6 +1984,10 @@ function setPage(next, { scroll = true, stayOwn = false } = {}) {
   arena?.refresh();
 }
 function itemPrice(item) {
+  if (item?.directTo) {
+    const root = getPurchaseCost(game, own, item.id) || { gold: catalog.byId[item.id]?.cost || 0 };
+    return { gold: (root.gold || 0) + (catalog.byId[item.directTo]?.cost || 0), wood: 0, time: 0 }; // v0.27zzbF
+  }
   return getPurchaseCost(game, own, item.id) || { gold: item.cost, wood: item.woodCost, time: 0 };
 }
 function validAutoSend(id, player = own) {
@@ -2388,7 +2393,7 @@ function abilityTip(id) {
       volley: () => ["Arrows rain on an area", [["Damage", `${format(VOLLEY.bonus + getStats(game, own, "h003").damage)} per arrow`], ["Arrows", `${VOLLEY.perLevel * lv} + ${VOLLEY.perTower} per Archer-Line tower`], ["Radius", fields(VOLLEY.radius)], ["Cooldown", `${volleyCd(lv)} s`]]],
       burst: () => ["Deals damage split among creeps in a radius", [["Damage", format(burstDamage(p, lv))], ["Radius", fields(burstRadius(lv))], ["Cooldown", `${format(abilityCd(p, BURST.cooldown))} s`]]], // v0.23: Sanction Policy's −15 % included
       pillar: () => [`A pillar of fire burns an area for ${PILLAR.duration} s, up to 75% more in its centre`, [["Damage", `${format(pillarDamage(p, lv))} every ${PILLAR.interval} s`], ["Radius", fields(PILLAR.radius)], ["Cooldown", `${format(abilityCd(p, PILLAR.cooldown))} s`]]], // v0.23
-      frostbolt: () => ["A frost bolt hits every creep in an area and slows them by 50%", [["Damage", format(frostboltDamage(p, lv))], ["Slow", `50% for ${frostboltSlowTime(lv)} s`], ["Radius", fields(FROSTBOLT.radius)], ["Cooldown", `${format(abilityCd(p, FROSTBOLT.cooldown))} s`]]], // v0.23w
+      frostbolt: () => ["One field freezes, then icicles erupt and hit every creep on it, slowing them by 50%", [["Damage", format(frostboltDamage(p, lv))], ["Slow", `50% for ${frostboltSlowTime(lv)} s`], ["Area", "1 field"], ["Cooldown", `${format(abilityCd(p, FROSTBOLT.cooldown))} s`]]], // v0.23w
       infested: () => [`A field of your board becomes infested ground: every ${INFESTED.every} s it strikes one ground creep on it and slows it for 1 s. At most ${INFESTED.max} fields`, [["Damage", format(infestedDamage(p, lv))], ["Strikes", String(infestedCharges(lv))], ["Cooldown", `${format(abilityCd(p, INFESTED.cooldown))} s`]]], // v0.23x
       agolem: () => {
         const hp = golemHp(p, lv);
@@ -2416,7 +2421,7 @@ function helpText(el) {
   if (el.id === "auto-slot") return el.getAttribute("aria-label") || ""; // v0.19k: Eco / Tier Up / creep explained
   if (el.dataset.help) return t(el.dataset.help) + (el.id === "wave-chip" && el.title ? " " + el.title : "");
   if (el.dataset.card && game) {
-    const item = catalog?.byId[el.dataset.card];
+    const item = catalog?.byId[el.dataset.direct || el.dataset.card]; // v0.27zzbF: a level-2 blueprint explains level 2
     if (item?.kind === "send") return statTip(item, "send");
     if (item && item.kind !== "research" && (item.attacks || item.isRoot)) return statTip(item, "build");
   }
@@ -2947,7 +2952,7 @@ function networkState() {
         flying: c.flying,
         progress: r4(c.progress),
         dead: c.dead,
-        ...(c.guard ? { guard: { hp: Math.round(c.guard.hp), max: c.guard.max } } : {}), // v0.14: River Guardian shield
+        ...(c.guard ? { guard: { hp: Math.round(c.guard.hp), max: c.guard.max } } : {}), // v0.14: Water Shield (was Water Shield) shield
       })),
     })),
   };
@@ -4082,6 +4087,9 @@ function dispatch(input, { quiet = false, fromQueue = false } = {}) {
     toast("Pick a creep card from your current tier.");
     return;
   }
+  // v0.27zzbF: a basic tower placed from its level-2 blueprint queues that upgrade once it stands
+  const direct = input.type === "build" && Number.isInteger(input.gridX) ? directLevel2(input.id) : null;
+  if (direct) directBuilds = directBuilds.filter((d) => d.gridX !== input.gridX || d.gridY !== input.gridY).concat({ gridX: input.gridX, gridY: input.gridY, root: input.id, to: direct.id, until: performance.now() + 15000 });
   if (isFollower()) {
     if (!room.send({ kind: "command", command: { ...input, player: own } })) toast("The connection isn't ready yet.");
     else if (input.type === "send") sendFx(input.id, catalog.byId[input.id]?.spawnIds?.length || 1);
@@ -4140,13 +4148,30 @@ function sendFx(id, count, auto = false) {
   setTimeout(() => pop.remove(), 1500);
 }
 
+// v0.27zzbF: from tier 2 on the basic blueprints (Archer, Footman, Bombard) build level 2 at once, as long as level 2 is
+// the only upgrade their level 1 offers: the card shows level 2 at the total price; placing it builds level 1 and
+// queues level 2 (the plain upgrade path, so online duels need nothing new)
+const BASIC_ROOTS = ["h003", "h000", "h02R"];
+const plainLine = (name) => String(name || "").replace(/\|c\w{8}|\|r/g, "").replace(/\s*\[Level \d+\]/i, "").trim();
+function directLevel2(rootId) {
+  const p = game?.players?.[own];
+  if (!p || (p.tier || 1) < 2 || !BASIC_ROOTS.includes(rootId)) return null;
+  const root = catalog.byId[rootId],
+    ups = (root?.upgrades || []).map((id) => catalog.byId[id]).filter((u) => u?.playable && (u.requires || []).every((r) => (p.research?.[r.id] || 0) >= r.level));
+  return ups.length === 1 && (ups[0].level || 1) === 2 && plainLine(ups[0].name) === plainLine(root.name) ? ups[0] : null;
+}
+let directBuilds = []; // { gridX, gridY, root, to, until }: towers placed from a level-2 blueprint, waiting to queue their upgrade
 function deckItems() {
   if (tab === "build") {
     const order = ["h003", "h000", "h02R", "h03V", "h02Q", "h05L", "h01F", WALL_ID];
     return catalog.towers
       .filter((x) => x.isRoot && x.playable && x.support !== "farm")
       .filter((x) => !isLocked(available(game, own, "build", x.id)))
-      .sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
+      .sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id))
+      .map((x) => {
+        const l2 = directLevel2(x.id);
+        return l2 ? { ...l2, id: x.id, kind: x.kind, isRoot: true, directTo: l2.id } : x;
+      });
   }
   if (tab === "send") {
     const p = game.players[own];
@@ -4189,7 +4214,7 @@ function deckSig() {
     const ups = catalog.byId[t.typeId].upgrades.map((id) => catalog.byId[id]).filter(Boolean);
     return "up|" + t.id + "|" + t.typeId + "|" + (t.buildRemaining > 0 ? 1 : 0) + "|" + (upQueue.find((q) => q.towerId === t.id)?.id || "") + "|" + ups.map((u) => { const a = available(game, own, "upgrade", u.id, t.id); return a.ok ? 1 : isLocked(a) ? 2 : 0; }).join("");
   }
-  return deckItems().map((i) => i.id).join(",") + "|" + JSON.stringify(game.players[own].research) + (burningTreant(game.players[own]) ? "|burn" : "");
+  return deckItems().map((i) => i.id + (i.directTo ? ">" + i.directTo : "")).join(",") + "|" + JSON.stringify(game.players[own].research) + (burningTreant(game.players[own]) ? "|burn" : "");
 }
 /** Upgrades of the selected tower, shown in the bottom build dialog instead of a popup. */
 /** Not enough gold/wood right now (the option itself is unlocked). */
@@ -4318,11 +4343,17 @@ function elementFrame(item) {
 function sellText(value, base) {
   return base != null && value < base ? `<span class="sell-cut">+${format(value)}</span> <span class="sell-base">(${format(base)})</span>` : `+${format(value)}`;
 }
+/** v0.27zzaF: an upgrade that belongs to an element (Frost Archer, Fire Archer …), not a plain level-up. */
+const isElemental = (u) => (u?.element && u.element !== "neutral" ? 1 : 0);
 function upgradeDeck(tw) {
   const item = catalog.byId[tw.typeId],
     ups = item.upgrades
       .map((id) => catalog.byId[id])
-      .filter((u) => u && !isLocked(available(game, own, "upgrade", u.id, tw.id))),
+      .filter((u) => u && !isLocked(available(game, own, "upgrade", u.id, tw.id)))
+      // v0.27zzaF: elemental upgrades first (left), plain level-ups after them
+      .map((u, i) => [u, i])
+      .sort(([a, i], [b, j]) => (isElemental(b) - isElemental(a)) || i - j)
+      .map(([u]) => u),
     sell = getSellValue(game, own, tw.id),
     refund = typeof sell === "number" ? sell : sell?.gold || 0;
   $("deck-title").textContent = tw.quarry ? t(tw.stone === "large" ? "Large Stone" : "Stone") : `${t("Upgrade")} · ${itemName(item)}`; // v0.18h
@@ -4345,6 +4376,7 @@ function upgradeDeck(tw) {
       ? `<button class="unit-card up-card sell-card rock-card" id="up-sell" aria-label="${esc(t("Clear the rock for {gold} gold", { gold: format(-refund) }))}"><span class="up-title">${t("Clear")}</span><span class="up-art"><img src="${artUrl("deco-rock")}" alt=""></span><span class="up-cost"><span class="price">−${format(-refund)}</span></span></button>` // v0.17
       : `<button class="unit-card up-card sell-card" id="up-sell" aria-label="${esc(t("Sell {name} for {gold} gold", { name: itemName(item), gold: format(refund) }))}"><span class="up-title">${t("Sell")}</span><span class="up-art"><img src="${iconUrl("coin")}" alt=""></span><span class="up-cost"><span class="price">${sellText(refund, getSellBase(game, own, tw.id))}</span></span></button>`);
   $("cards").querySelectorAll("[data-upgrade]").forEach((b) => (b.onclick = () => upgradeTap(tw, b.dataset.upgrade)));
+  if (wideDeck()) fitWideUpCards($("cards")); // v0.27zzaF: upgrade blueprints like the build blueprints
   $("up-sell").onclick = () => {
     dispatch({ type: "sell", towerId: tw.id });
     closeUpgradeDeck();
@@ -4462,38 +4494,109 @@ function fitPrices(root) {
  */
 function fitCardNames(root) {
   if (tab !== "build") return;
+  // v0.27zyF: Desktop Wide: blueprint names start up to 35 % larger and only shrink as far as the card needs
+  const wideBig = root.classList.contains("wide-fill") && !root.classList.contains("upgrade-mode");
   for (const el of root.querySelectorAll(".unit-card:not(.up-card) .unit-name")) {
     el.classList.remove("long-name", "two-rows");
     el.style.fontSize = "";
     if (!el.clientWidth) continue;
     const cs = getComputedStyle(el),
       pad = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom),
-      rows = el.textContent.trim().split(/\s+/).length > 1 ? 2 : 1;
+      rows = wideBig ? 1 : el.textContent.trim().split(/\s+/).length > 1 ? 2 : 1;
     let size = parseFloat(cs.fontSize);
+    if (wideBig) {
+      size = Math.round(size * 1.35 * 2) / 2;
+      el.style.fontSize = size + "px";
+    }
     const fits = () => {
       const line = size * 1.05;
       return el.scrollWidth <= el.clientWidth + 1 && el.getBoundingClientRect().height - pad <= line * rows + 1;
     };
+    const base = wideBig ? size / 1.35 : 0;
     while (!fits() && size > 7) {
+      if (wideBig && size <= base) break; // a long name that doesn't fit one larger row: normal fitting below
       size -= 0.5;
       el.style.fontSize = size + "px";
+    }
+    if (wideBig && !fits()) {
+      el.style.fontSize = "";
+      size = parseFloat(getComputedStyle(el).fontSize);
+      const rows2 = el.textContent.trim().split(/\s+/).length > 1 ? 2 : 1,
+        fits2 = () => el.scrollWidth <= el.clientWidth + 1 && el.getBoundingClientRect().height - pad <= size * 1.05 * rows2 + 1;
+      while (!fits2() && size > 7) {
+        size -= 0.5;
+        el.style.fontSize = size + "px";
+      }
     }
     el.classList.toggle("two-rows", el.getBoundingClientRect().height - pad > size * 1.6);
   }
 }
+/** v0.27zzaF: Desktop Wide: upgrade blueprints use the build blueprints' name and cost sizes, shrinking only where needed. */
+function fitWideUpCards(root) {
+  for (const el of root.querySelectorAll(".up-card .up-title")) {
+    let size = 17.5;
+    el.style.fontSize = size + "px";
+    while (el.scrollWidth > el.clientWidth + 1 && size > 9) {
+      size -= 0.5;
+      el.style.fontSize = size + "px";
+    }
+  }
+  const feet = [...root.querySelectorAll(".up-card .up-cost")];
+  let open = feet;
+  for (const z of [1.35, 1.25, 1.15, 1.05]) {
+    if (!open.length) break;
+    for (const foot of open) foot.style.setProperty("--bz", z);
+    open = open.filter((foot) => {
+      const card = foot.closest(".unit-card").getBoundingClientRect(),
+        r = foot.getBoundingClientRect();
+      return !(foot.scrollWidth <= foot.clientWidth + 1 && r.right <= card.right - 2 && r.bottom <= card.bottom - 1);
+    });
+  }
+  for (const foot of open) foot.style.setProperty("--bz", 1);
+}
+/** v0.27zyF: Desktop Wide: blueprint gold cost and coin up to 35 % larger where the card's foot has room. */
+function fitWidePrices(root) {
+  const feet = [...root.querySelectorAll(".unit-card.card-tower .card-foot, .unit-card.card-research .card-foot")];
+  let open = feet;
+  for (const z of [1.35, 1.25, 1.15, 1.05]) {
+    if (!open.length) break;
+    for (const foot of open) foot.style.setProperty("--bz", z);
+    open = open.filter((foot) => {
+      const card = foot.closest(".unit-card").getBoundingClientRect(),
+        r = foot.getBoundingClientRect();
+      return !(foot.scrollWidth <= foot.clientWidth + 1 && r.right <= card.right - 2 && r.bottom <= card.bottom - 1);
+    });
+  }
+  for (const foot of open) foot.style.setProperty("--bz", 1);
+}
 /** v0.23a (creep graphic overhaul): send cards show the creep's painted portrait where its sheet has one (original design). */
 function cardArtHtml(item) {
-  const key = artFor(item),
+  const key = artFor(item.directTo ? catalog.byId[item.directTo] : item), // v0.27zzbF
     portrait = item.kind === "send" && !activeArtSet() ? CREEP_PORTRAIT[key] : null;
   return portrait ? `<span class="card-art portrait-art"><img src="${towerArtUrl(portrait)}" alt=""></span>` : `<span class="card-art"><img src="${towerArtUrl(key)}" alt=""></span>`;
 }
 /** v0.27fF: bosses and mini bosses (Mud Golem) wear the boss frame on their creep cards. */
 const bossFrame = (item) => !!item?.bossTier || item?.id === MINI_BOSS.id;
+/** v0.27zzbF: the item a card stands for (a level-2 blueprint is level 2 placed via its level-1 root). */
+function cardItem(b) {
+  const root = catalog.byId[b.dataset.card],
+    to = b.dataset.direct && catalog.byId[b.dataset.direct];
+  return to && root ? { ...to, id: root.id, kind: root.kind, isRoot: true, directTo: to.id } : root;
+}
+/** Availability of a card; a level-2 blueprint needs the gold for level 1 and level 2 together. */
+function cardAvail(item) {
+  let a = available(game, own, cardAction(item), item.id);
+  if (item.directTo && a.ok) {
+    const need = itemPrice(item).gold - (game.players[own].gold || 0);
+    if (need > 1e-6) a = { ok: false, reason: `Need ${Math.ceil(need)} more gold` };
+  }
+  return a;
+}
 function cardMarkup(item) {
-  const a = available(game, own, cardAction(item), item.id),
+  const a = cardAvail(item),
     label = priceLabel(item),
     kindClass = item.kind === "send" ? "card-send" : item.kind === "research" ? "card-research" : "card-tower";
-  return `<button class="unit-card ${kindClass}${item.id === "n00Y" && game && burningTreant(game.players[own]) ? " burning" : ""} ${item.kind === "send" && (bossFrame(item) || item.flying) ? "framed" : ""} ${selected === item.id && tab === "build" ? "selected" : ""} ${a.ok ? "" : "unaffordable"} ${isPoor(a) ? "poor" : ""}" data-kind="${item.kind}" data-card="${item.id}" aria-label="${esc(itemName(item))}, ${esc(label)} Gold, ${esc(cardHint(item))}${a.ok ? "" : ", " + esc(t(a.reason))}"><span class="unit-name">${esc(itemName(item))}</span>${cardArtHtml(item)}<span class="card-foot${item.kind === "send" && (label + formatInc(incomeFor(item))).length >= (bossFrame(item) || item.flying ? 6 : 7) ? " long" : ""}"><span class="price${item.kind === "research" && itemPrice(item).wood ? " wood-price" : ""}${isFreeLabel(label) ? " free" : ""}">${label}</span>${item.kind === "send" ? `<span class="card-note${incomeFor(item) > item.income + 0.004 ? " buffed" : ""}">+${formatInc(incomeFor(item))}</span>` : ""}</span><span class="card-status">${cardStatus(item)}</span>${item.kind === "send" ? `<span class="card-stock">${stockCount(item)}</span>${bossFrame(item) ? '<i class="frame-boss" aria-hidden="true"></i>' : item.flying ? '<i class="frame-air" aria-hidden="true"></i>' : ""}` : ""}</button>`;
+  return `<button class="unit-card ${kindClass}${item.id === "n00Y" && game && burningTreant(game.players[own]) ? " burning" : ""} ${item.kind === "send" && (bossFrame(item) || item.flying) ? "framed" : ""} ${selected === item.id && tab === "build" ? "selected" : ""} ${a.ok ? "" : "unaffordable"} ${isPoor(a) ? "poor" : ""}" data-kind="${item.kind}" data-card="${item.id}"${item.directTo ? ` data-direct="${item.directTo}"` : ""} aria-label="${esc(itemName(item))}, ${esc(label)} Gold, ${esc(cardHint(item))}${a.ok ? "" : ", " + esc(t(a.reason))}"><span class="unit-name">${esc(itemName(item))}${item.directTo ? " 2" : ""}</span>${cardArtHtml(item)}<span class="card-foot${item.kind === "send" && (label + formatInc(incomeFor(item))).length >= (bossFrame(item) || item.flying ? 6 : 7) ? " long" : ""}"><span class="price${item.kind === "research" && itemPrice(item).wood ? " wood-price" : ""}${isFreeLabel(label) ? " free" : ""}">${label}</span>${item.kind === "send" ? `<span class="card-note${incomeFor(item) > item.income + 0.004 ? " buffed" : ""}">+${formatInc(incomeFor(item))}</span>` : ""}</span><span class="card-status">${cardStatus(item)}</span>${item.kind === "send" ? `<span class="card-stock">${stockCount(item)}</span>${bossFrame(item) ? '<i class="frame-boss" aria-hidden="true"></i>' : item.flying ? '<i class="frame-air" aria-hidden="true"></i>' : ""}` : ""}</button>`;
 }
 function renderCards() {
   if (!game) return;
@@ -4539,18 +4642,25 @@ function renderCards() {
     const cards = [...$("cards").querySelectorAll("[data-card]")],
       groups = split ? [cards.filter((b) => !b.classList.contains("second-row")), cards.filter((b) => b.classList.contains("second-row"))] : [cards];
     let row = 0;
-    for (const g of groups)
-      for (let i = 0; i < g.length; i += 4, row++) {
-        const part = g.slice(i, i + 4);
+    // v0.27zyF: the second row (Hall, EXP Generator) keeps the first row's card proportions instead of stretching
+    // v0.27zzaF: at most 3 blueprints per row
+    const firstPer = Math.min(3, Math.max(1, groups[0].length));
+    groups.forEach((g, gi) => {
+      const per = gi > 0 ? firstPer : 3;
+      for (let i = 0; i < g.length; i += per, row++) {
+        const part = g.slice(i, i + per),
+          n = gi > 0 ? firstPer : part.length;
         part.forEach((b) => {
-          b.style.setProperty("--span", String(12 / part.length));
+          b.style.setProperty("--span", String(12 / n));
           b.style.order = row;
-          b.dataset.per = part.length;
+          b.dataset.per = n;
         });
       }
+    });
   }
   fitCardNames($("cards"));
   fitPrices($("cards")); // v0.17
+  if (fill) fitWidePrices($("cards")); // v0.27zyF
   $("cards")
     .querySelectorAll("[data-card]")
     .forEach((b) => {
@@ -5097,7 +5207,8 @@ function abilitiesModal() {
   const order = [p, ...game.players.filter((q) => q.id !== own)],
     colors = seatColors(),
     section = (q) =>
-      `<div class="abil-player${q.out ? " out" : ""}" style="--pc:${TEAM_COLORS[colors[q.id]]?.css || "#6a8496"}"><div class="abil-head"><b>${esc(playerName(q))}</b><span>Lv ${q.level} · ${format(Math.floor(q.exp))}/${format(q.expNext)} EXP</span></div>${ownedTiles(q, { names: true, label: false }) || `<p class="modal-note">${t("No abilities chosen yet.")}</p>`}</div>`;
+      // v0.27zyF: chosen elements as symbols beside the name (not as perk tiles); the section in the player's colour
+      `<div class="abil-player${q.out ? " out" : ""}" style="--pc:${TEAM_COLORS[colors[q.id]]?.css || "#6a8496"}"><div class="abil-head"><b>${esc(playerName(q))}</b>${abilEls(q)}<span>Lv ${q.level} · ${format(Math.floor(q.exp))}/${format(q.expNext)} EXP</span></div>${ownedTiles(q, { names: true, label: false, elements: false }) || `<p class="modal-note">${t("No abilities chosen yet.")}</p>`}</div>`;
   showModal(
     `${modalHeader(t("Abilities"))}${order.map(section).join("")}<p class="modal-note">${t("Lv. {n}: collect EXP for the next reward.", { n: p.level })}</p>`,
     { pauseGame: sessionMode !== "online" },
@@ -5108,7 +5219,14 @@ function elementTip(f) {
   const perks = Object.keys(PERKS).filter((id) => perkElements(id).includes(f.id)).map((id) => t(PERKS[id].name));
   return t("Unlocks {name} towers and perks", { name: t(f.name) }) + (perks.length ? ". " + t("Perks") + ": " + perks.join(", ") : "");
 }
-function ownedTiles(p, { names = false, label = true } = {}) {
+/** v0.27zyF: a player's elements as small symbols (overview of chosen rewards); tooltip with what each unlocks. */
+function abilEls(q) {
+  const els = catalog.factions.filter((f) => q.research?.[f.unlock]);
+  return els.length
+    ? `<span class="abil-els">${els.map((f) => `<img class="el-${f.id}" src="${iconUrl(ELEMENT_ICON[f.id])}" alt="${esc(t(f.name))}" data-tip="${esc(t(f.name))}" data-tip-text="${esc(elementTip(f))}" data-tip-level="">`).join("")}</span>`
+    : "";
+}
+function ownedTiles(p, { names = false, label = true, elements = true } = {}) {
   // v0.09: every tile carries its effect for the hover / tap tooltip (data-tip)
   const tiles = [],
     tile = (cls, style, name, img, level, text) => {
@@ -5118,7 +5236,7 @@ function ownedTiles(p, { names = false, label = true } = {}) {
         : `<span class="owned-tile${cls}"${style}${tip}><img src="${img}" alt="">${level ? `<b>${level}</b>` : ""}</span>`;
     };
   for (const f of catalog.factions)
-    if (p.research[f.unlock]) tiles.push(tile(` el-${f.id}`, ` style="--el:${f.color}"`, t(f.name), iconUrl(ELEMENT_ICON[f.id]), 0, elementTip(f))); // v0.17q: element tooltip with what it unlocks
+    if (elements && p.research[f.unlock]) tiles.push(tile(` el-${f.id}`, ` style="--el:${f.color}"`, t(f.name), iconUrl(ELEMENT_ICON[f.id]), 0, elementTip(f))); // v0.17q: element tooltip with what it unlocks
   for (const r of catalog.research) {
     const level = p.research[r.id] || 0;
     if (!level || !r.playerResearch || !r.playable || catalog.factions.some((f) => f.research === r.id)) continue;
@@ -5228,11 +5346,12 @@ function refreshLevelButton(p) {
     // v0.24b: Desktop Wide: the auto-spawn slot and the tier sit in the card column on the right;
     // v0.24q: left of the creep cards, in the send row; v0.25: top right, above the creep cards (in the Send title row)
     // v0.25k: Desktop Wide: top right of the card column, right below the 2ndLocalInfoWindow
+    // v0.27zyF: Desktop Wide: upper left corner, attached right on top of the creep menu (its Send title)
     const wide = document.documentElement.classList.contains("layout-wide"),
-      info = $("local-info-2"),
-      home = wide ? info?.parentNode : $("arena");
-    if (home && (dock.parentNode !== home || (wide && dock.previousElementSibling !== info))) {
-      if (wide) info.after(dock);
+      sendTitle = $("wd-send-title"),
+      home = wide ? sendTitle?.parentNode : $("arena");
+    if (home && (dock.parentNode !== home || (wide && dock.nextElementSibling !== sendTitle))) {
+      if (wide) sendTitle.before(dock);
       else home.insertBefore(dock, $("level-button"));
       dock.removeAttribute("style");
     }
@@ -5432,6 +5551,7 @@ function refreshUI() {
   setText($("own-income"), incomeOf(p));
   if (wideDeck()) {
     // v0.24f: Desktop Wide: your gold, income and EXP on top of the left column
+    setText($("ws-lives"), format(Math.max(0, Math.floor(p.lives)))); // v0.27zzF
     setText($("ws-gold"), format(Math.floor(goldShown(p.gold))));
     setText($("ws-income"), incomeOf(p));
     setText($("ws-level"), p.level);
@@ -5518,8 +5638,8 @@ function refreshUI() {
   if (deckSig() !== deckSignature) renderCards();
   else if (wideDeck() && sendDeckSig() !== sendDeckSignature) renderSendDeck(); // v0.24f
   document.querySelectorAll("#cards [data-card], #sheet-cards [data-card], #cards-send [data-card]").forEach((b) => {
-    const item = catalog.byId[b.dataset.card],
-      a = available(game, own, cardAction(item), item.id),
+    const item = cardItem(b),
+      a = cardAvail(item),
       label = priceLabel(item);
     b.classList.toggle("unaffordable", !a.ok);
     b.classList.toggle("poor", isPoor(a));
@@ -5627,6 +5747,18 @@ function runQueue() {
     queuedFor = gameKey();
   }
   if (!begun) return;
+  if (directBuilds.length) {
+    const p = game.players[own],
+      now = performance.now();
+    directBuilds = directBuilds.filter((d) => {
+      const tw = p.towers.find((x) => x.gridX === d.gridX && x.gridY === d.gridY);
+      if (tw && tw.typeId === d.root) {
+        if (!upQueue.some((q) => q.towerId === tw.id)) upQueue.push({ towerId: tw.id, id: d.to, from: d.root });
+        return false;
+      }
+      return !tw && now < d.until;
+    });
+  }
   // queued upgrades first come, first served
   if (upQueue.length) {
     const p = game.players[own],
@@ -6637,7 +6769,7 @@ function audioModal(back) {
 }
 function graphicModal(back) {
   showModal(
-    `${subHeader(t("Graphics"))}<div id="menu-design">${designRow(t)}</div><div id="menu-controls">${controlsRow()}</div><div class="menu-pair"><button class="secondary-button" id="menu-popnum">${t("Pop-up numbers")}: ${onOff(popNumbers)}</button><button class="secondary-button" id="menu-popnote">${t("Pop-up notifications")}: ${onOff(popNotes)}</button></div><div class="opt-pair"><button class="secondary-button" id="menu-tiles">${tilesText()}</button><button class="secondary-button" id="menu-minimap">${minimapText()}</button></div><button class="secondary-button opt-wide" id="menu-creepmenu">${creepMenuText()}</button>`, // v0.23c: Tiles and Minimap side by side at the bottom
+    `${subHeader(t("Graphics"))}<div id="menu-design">${designRow(t)}</div><div id="menu-controls">${controlsRow()}</div><div class="menu-pair"><button class="secondary-button" id="menu-popnum">${t("Pop-up numbers")}: ${onOff(popNumbers)}</button><button class="secondary-button" id="menu-popnote">${t("Pop-up notifications")}: ${onOff(popNotes)}</button></div><button class="secondary-button opt-wide" id="menu-tiles">${tilesText()}</button><button class="secondary-button opt-wide" id="menu-creepmenu">${creepMenuText()}</button>`, // v0.23c: Tiles and Minimap side by side at the bottom
   );
   $("sub-back").onclick = back;
   $("menu-controls").onclick = (e) => {
@@ -6646,7 +6778,7 @@ function graphicModal(back) {
     controlMode = m === "pc" || m === "wide" ? "pc" : "mobile";
     if (controlMode === "pc") {
       desktopWide = m === "wide"; // v0.24b
-      savePref(DESKTOP_LAYOUT_PREF, desktopWide ? "wide" : "");
+      savePref(DESKTOP_LAYOUT_PREF, desktopWide ? "wide" : "pc");
     } else {
       mobileLayout = m === "zoomed" ? "B" : m === "full" ? "F" : "A";
       savePref(MOBILE_LAYOUT_PREF, mobileLayout);
@@ -6664,14 +6796,6 @@ function graphicModal(back) {
     setDesign(d);
     $("menu-design").innerHTML = designRow(t);
     applyDesignArt();
-    tone("select");
-  };
-  $("menu-minimap").onclick = () => {
-    const modes = MINIMAP_CHOICES.map(([m]) => m);
-    minimapMode = modes[(modes.indexOf(minimapMode) + 1) % modes.length];
-    savePref(MINIMAP_PREF, minimapMode);
-    $("menu-minimap").textContent = minimapText();
-    arena?.refresh?.();
     tone("select");
   };
   $("menu-creepmenu").onclick = () => {
@@ -6788,10 +6912,18 @@ function updateNetStats(now, force = false) {
 function gameplayModal(back) {
   const online = onlineSection();
   showModal(
-    `${subHeader(t("Gameplay"))}<button class="secondary-button" id="menu-tips">${t("Tips")}: ${onOff(tipsEnabled)}</button><button class="secondary-button" id="menu-preview">${t("Build with preview")}: ${onOff(buildPreview)}</button><button class="secondary-button" id="menu-dbl">${dblText()}</button><button class="secondary-button" id="menu-predator">${predatorText()}</button>${online.html}`,
+    `${subHeader(t("Gameplay"))}<button class="secondary-button" id="menu-tips">${t("Tips")}: ${onOff(tipsEnabled)}</button><button class="secondary-button" id="menu-preview">${t("Build with preview")}: ${onOff(buildPreview)}</button><button class="secondary-button" id="menu-dbl">${dblText()}</button><button class="secondary-button" id="menu-predator">${predatorText()}</button><button class="secondary-button" id="menu-minimap">${minimapText()}</button>${online.html}`, // v0.27zzF: Minimap moved here from Graphics
   );
   online.wire();
   $("sub-back").onclick = back;
+  $("menu-minimap").onclick = () => {
+    const modes = MINIMAP_CHOICES.map(([m]) => m);
+    minimapMode = modes[(modes.indexOf(minimapMode) + 1) % modes.length];
+    savePref(MINIMAP_PREF, minimapMode);
+    $("menu-minimap").textContent = minimapText();
+    arena?.refresh?.();
+    tone("select");
+  };
   $("menu-tips").onclick = () => {
     setTips(!tipsEnabled);
     $("menu-tips").textContent = `${t("Tips")}: ${onOff(tipsEnabled)}`;
@@ -8767,7 +8899,7 @@ async function init() {
             : aimKind === "pillar"
               ? { radius: PILLAR.radius, fire: true }
               : aimKind === "frostbolt"
-              ? { radius: FROSTBOLT.radius, ice: true } // v0.23w
+              ? { radius: 0.5, ice: true, tile: true } // v0.27zzaF: Frost Strike aims at one field
               : aimKind === "infested"
               ? { radius: 0.5, plague: true, tile: true } // v0.23x: one field
               : { radius: VOLLEY.radius }
@@ -9239,6 +9371,12 @@ function updateWidePlayers() {
     if (bar.style.width !== width) bar.style.width = width;
   }
 }
+// v0.27zzF: Desktop Wide: a click on the 2ndLocalInfoWindow (not on the level bar) shows your own board
+document.addEventListener("click", (e) => {
+  const box = e.target.closest?.("#local-info-2");
+  if (!box || !game || e.target.closest?.(".level-button")) return;
+  showMaze(own);
+});
 document.addEventListener("click", (e) => {
   const card = e.target.closest?.("#wide-players [data-seat]");
   if (!card || !game) return;
