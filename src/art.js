@@ -255,7 +255,7 @@ export const ART_MANIFEST = Object.freeze({
  * v0.23: version key on every art URL (figures, animations, icons): raise it whenever pictures in
  * assets/art, assets/anim, assets/art-toy or assets/art-pets change, so browsers fetch the new ones (see the README).
  */
-export const ART_VERSION = "v027zv"; // v0.27zvF: attack sheets for Water/Fire Elemental, Stomp, Bash, Zombie, Treant, Bouncing Shot; archer arm moves instead of stretching; Bombard torches fixed, level 4–6 torch swings down; Treant leaves no longer bronze; v0.27zuF: Archer 4 iron (was bronze), Archer 5 bright silver, Archer 4–6 attack sheets; v0.27ztF: Naga Guard trident pokes, Bombard 1–2 beard colour fixed, Archer 4–6 (was Arrow Tower) larger; v0.27zsF: Bombard attack sheets, longer archer draw; v0.27zqF: Archer level 3 = level 2 figure with gold metal (tower-archer-gold); v0.27zpF: archer attack sheets; v0.27zoF: lower levels of Poison Archer, Ogre, Stomp, Disease, Trueshot, Zombie, Earth Laser, Earth Tower, Flame Crusader, Fire Archer, Frost Archer, Naga Guard (figures; Flame Crusader and Naga Guard attack sheets too): metal recoloured cleanly (smooth bronze / iron / silver, no patchy or leftover gold), flames and glows kept; v0.27znF: lower levels of Earth Laser, Disease, Stomp, Trueshot, Zombie, Ogre, Poison Archer, Flame Crusader (figure and attack sheet), Frost Archer rebuilt from the top figure (only the metal changes: silver, iron, bronze; flames, lava and glows stay); v0.27zmF: Fire Archer bow tips and gem mounts in level metal, bronze / iron / silver more distinct; v0.27zlF: Hall of Earth 2/3 and Hall of Water 2/3 rebuilt from level 4 (real hair, beard and robe; iron / silver fittings), Hall of Water 4 fittings gold; v0.27zkF: logo sword tip moved down-left (keeps its angle), Bash Tower level 4 iron / level 5 silver, Hall of Fire satchel fittings in metal and iron darker than silver; v0.27ziF: Arrow Tower level 5 trim in silver; v0.27zhF: Glaive Tower purple turned storm grey (all levels), Treant Tower level 4 trim in iron; v0.27zgF: Battle Mech arm launchers in the player colour, Hall of Fire levels 2/3 rebuilt from level 4 (real flames, iron / silver fittings); v0.27zfF: silver trim on Archer level 2, steel/silver on Bird Hunter 4/5, Fire Elemental and Fire Archer lower levels rebuilt from the top figure (real flames, a little dimmer; bronze, iron, silver by level), silver armour on Footman level 2; v0.27zeF: sword tip on the line of the blade; v0.27zcF: logo with arrow and sword ends swapped back into place; v0.27xF: Scouting and Poison Alchemist perk icons restored (were missing on GitHub); v0.27wF: metal by level (bronze, iron, silver, gold) on shared tower figures, melee attack sheets; v0.27vF: silver Ogre Tower level 4; v0.27hF: Trench Orc; v0.27bF: Scouting icon; v0.27aF: Poison Alchemist icon; v0.26eF: Amnesia icon; v0.26cF: perk pack with Ring of Life and Revenge; // v0.24s: Wolf, Skeleton, Satyr, Rouge Captain, Wolfrider, Rock Golem cut out cleaner, smaller Spawn Spider spawns; v0.24a: death rows inside the walk sheets, perk and tower level art in packs, smoother edges on older sheets; v0.24: release of the v0.23 creep overhaul; v0.23zr: Banshee and Arcane Wolf cut out cleanly (no white edges or gaps); v0.23zq: Bone Dragon, Arcane Wolf, Giant Bat; v0.23zp: Naga Siren; v0.23zo: Raven; v0.23zn: Demon Lord; v0.23zm: leftover white removed from Necromancer, Meat Golem, Infernal Golem; v0.23zl: Banshee; v0.23zk: Dark Monk (was Faceless); v0.23zj: Demon Knight, Witch Hunter on the Spellbreaker, Dryad; v0.23zi: Witch Hunter, Druid; v0.23zh: Zombie Ogre; v0.23zg: left-over white background removed from creep sheets (holes between arms/legs, light edge halos)
+export const ART_VERSION = "v027zx"; // v0.27zxF: Hall of Water level 2 iron (was light), level 4 staff rings gold (were silver); v0.27zwF: attack sheets for every remaining attacking tower; v0.27zvF: attack sheets for Water/Fire Elemental, Stomp, Bash, Zombie, Treant, Bouncing Shot; archer arm moves instead of stretching; Bombard torches fixed, level 4–6 torch swings down; Treant leaves no longer bronze; v0.27zuF: Archer 4 iron (was bronze), Archer 5 bright silver, Archer 4–6 attack sheets; v0.27ztF: Naga Guard trident pokes, Bombard 1–2 beard colour fixed, Archer 4–6 (was Arrow Tower) larger; v0.27zsF: Bombard attack sheets, longer archer draw; v0.27zqF: Archer level 3 = level 2 figure with gold metal (tower-archer-gold); v0.27zpF: archer attack sheets; v0.27zoF: lower levels of Poison Archer, Ogre, Stomp, Disease, Trueshot, Zombie, Earth Laser, Earth Tower, Flame Crusader, Fire Archer, Frost Archer, Naga Guard (figures; Flame Crusader and Naga Guard attack sheets too): metal recoloured cleanly (smooth bronze / iron / silver, no patchy or leftover gold), flames and glows kept; v0.27znF: lower levels of Earth Laser, Disease, Stomp, Trueshot, Zombie, Ogre, Poison Archer, Flame Crusader (figure and attack sheet), Frost Archer rebuilt from the top figure (only the metal changes: silver, iron, bronze; flames, lava and glows stay); v0.27zmF: Fire Archer bow tips and gem mounts in level metal, bronze / iron / silver more distinct; v0.27zlF: Hall of Earth 2/3 and Hall of Water 2/3 rebuilt from level 4 (real hair, beard and robe; iron / silver fittings), Hall of Water 4 fittings gold; v0.27zkF: logo sword tip moved down-left (keeps its angle), Bash Tower level 4 iron / level 5 silver, Hall of Fire satchel fittings in metal and iron darker than silver; v0.27ziF: Arrow Tower level 5 trim in silver; v0.27zhF: Glaive Tower purple turned storm grey (all levels), Treant Tower level 4 trim in iron; v0.27zgF: Battle Mech arm launchers in the player colour, Hall of Fire levels 2/3 rebuilt from level 4 (real flames, iron / silver fittings); v0.27zfF: silver trim on Archer level 2, steel/silver on Bird Hunter 4/5, Fire Elemental and Fire Archer lower levels rebuilt from the top figure (real flames, a little dimmer; bronze, iron, silver by level), silver armour on Footman level 2; v0.27zeF: sword tip on the line of the blade; v0.27zcF: logo with arrow and sword ends swapped back into place; v0.27xF: Scouting and Poison Alchemist perk icons restored (were missing on GitHub); v0.27wF: metal by level (bronze, iron, silver, gold) on shared tower figures, melee attack sheets; v0.27vF: silver Ogre Tower level 4; v0.27hF: Trench Orc; v0.27bF: Scouting icon; v0.27aF: Poison Alchemist icon; v0.26eF: Amnesia icon; v0.26cF: perk pack with Ring of Life and Revenge; // v0.24s: Wolf, Skeleton, Satyr, Rouge Captain, Wolfrider, Rock Golem cut out cleaner, smaller Spawn Spider spawns; v0.24a: death rows inside the walk sheets, perk and tower level art in packs, smoother edges on older sheets; v0.24: release of the v0.23 creep overhaul; v0.23zr: Banshee and Arcane Wolf cut out cleanly (no white edges or gaps); v0.23zq: Bone Dragon, Arcane Wolf, Giant Bat; v0.23zp: Naga Siren; v0.23zo: Raven; v0.23zn: Demon Lord; v0.23zm: leftover white removed from Necromancer, Meat Golem, Infernal Golem; v0.23zl: Banshee; v0.23zk: Dark Monk (was Faceless); v0.23zj: Demon Knight, Witch Hunter on the Spellbreaker, Dryad; v0.23zi: Witch Hunter, Druid; v0.23zh: Zombie Ogre; v0.23zg: left-over white background removed from creep sheets (holes between arms/legs, light edge halos)
 // ---- art sets of the Circle Tower Wars designs ------------------------------------------------------
 // Sonnenwiese and Bonbon draw every figure as a round toy ("toy"), Pfotenwelt as a cute animal ("pets").
 // A set holds one picture per figure; level variants (-v1..-v3, -l1, -l2) share their base figure there.
@@ -388,6 +388,76 @@ export const ANIM_MANIFEST = Object.freeze({
   "tower-archer-elite": { kind: "attack", frames: 15, cols: 5, fw: 431, fh: 420, ox: 50, oy: 20, ms: 50, start: 1 },
   "tower-archer-elite-v2": { kind: "attack", frames: 15, cols: 5, fw: 431, fh: 420, ox: 50, oy: 20, ms: 50, start: 1 },
   "tower-archer-elite-v3": { kind: "attack", frames: 15, cols: 5, fw: 431, fh: 420, ox: 50, oy: 20, ms: 50, start: 1 },
+  // v0.27zwF: every remaining attacking tower: archers (release, reach, draw), Trueshot crossbow, Ogre / Death Knight / Terror Demon swings,
+  // Headhunter spear thrust, Fire Lord punch, Hydra heads strike, Phoenix wing beat, Earth Laser / Battle Mech recoil, Disease Launcher fling,
+  // Halls, Magic Towers, Archmage, Lord Frostbite, Tree of Life and Magic City cast (focus glows up)
+  "tower-arcane-v2": { kind: "attack", frames: 10, cols: 5, fw: 438, fh: 440, ox: 50, oy: 40, ms: 55, start: 1 },
+  "tower-arcane-v3": { kind: "attack", frames: 10, cols: 5, fw: 438, fh: 440, ox: 50, oy: 40, ms: 55, start: 1 },
+  "tower-arcane": { kind: "attack", frames: 10, cols: 5, fw: 438, fh: 440, ox: 50, oy: 40, ms: 55, start: 1 },
+  "tower-archmage": { kind: "attack", frames: 10, cols: 5, fw: 420, fh: 440, ox: 50, oy: 40, ms: 55, start: 1 },
+  "tower-birdhunter-v1": { kind: "attack", frames: 10, cols: 5, fw: 395, fh: 440, ox: 50, oy: 40, ms: 55, start: 1 },
+  "tower-birdhunter-v2": { kind: "attack", frames: 10, cols: 5, fw: 395, fh: 440, ox: 50, oy: 40, ms: 55, start: 1 },
+  "tower-birdhunter-v3": { kind: "attack", frames: 10, cols: 5, fw: 395, fh: 440, ox: 50, oy: 40, ms: 55, start: 1 },
+  "tower-birdhunter": { kind: "attack", frames: 10, cols: 5, fw: 395, fh: 440, ox: 50, oy: 40, ms: 55, start: 1 },
+  "tower-death-knight": { kind: "attack", frames: 10, cols: 5, fw: 459, fh: 440, ox: 50, oy: 40, ms: 55, start: 1 },
+  "tower-disease-v1": { kind: "attack", frames: 10, cols: 5, fw: 448, fh: 440, ox: 50, oy: 40, ms: 60, start: 1 },
+  "tower-disease-v2": { kind: "attack", frames: 10, cols: 5, fw: 448, fh: 440, ox: 50, oy: 40, ms: 60, start: 1 },
+  "tower-disease-v3": { kind: "attack", frames: 10, cols: 5, fw: 448, fh: 440, ox: 50, oy: 40, ms: 60, start: 1 },
+  "tower-disease": { kind: "attack", frames: 10, cols: 5, fw: 448, fh: 440, ox: 50, oy: 40, ms: 60, start: 1 },
+  "tower-earth-laser-v1": { kind: "attack", frames: 10, cols: 5, fw: 433, fh: 440, ox: 50, oy: 40, ms: 55, start: 1 },
+  "tower-earth-laser-v2": { kind: "attack", frames: 10, cols: 5, fw: 433, fh: 440, ox: 50, oy: 40, ms: 55, start: 1 },
+  "tower-earth-laser-v3": { kind: "attack", frames: 10, cols: 5, fw: 433, fh: 440, ox: 50, oy: 40, ms: 55, start: 1 },
+  "tower-earth-laser": { kind: "attack", frames: 10, cols: 5, fw: 433, fh: 440, ox: 50, oy: 40, ms: 55, start: 1 },
+  "tower-earth-v2": { kind: "attack", frames: 10, cols: 5, fw: 427, fh: 440, ox: 50, oy: 40, ms: 55, start: 1 },
+  "tower-earth-v3": { kind: "attack", frames: 10, cols: 5, fw: 427, fh: 440, ox: 50, oy: 40, ms: 55, start: 1 },
+  "tower-earth": { kind: "attack", frames: 10, cols: 5, fw: 427, fh: 440, ox: 50, oy: 40, ms: 55, start: 1 },
+  "tower-fire-archer-v1": { kind: "attack", frames: 10, cols: 5, fw: 439, fh: 440, ox: 50, oy: 40, ms: 55, start: 1 },
+  "tower-fire-archer-v2": { kind: "attack", frames: 10, cols: 5, fw: 439, fh: 440, ox: 50, oy: 40, ms: 55, start: 1 },
+  "tower-fire-archer-v3": { kind: "attack", frames: 10, cols: 5, fw: 439, fh: 440, ox: 50, oy: 40, ms: 55, start: 1 },
+  "tower-fire-archer": { kind: "attack", frames: 10, cols: 5, fw: 439, fh: 440, ox: 50, oy: 40, ms: 55, start: 1 },
+  "tower-fire-lord": { kind: "attack", frames: 10, cols: 5, fw: 431, fh: 440, ox: 50, oy: 40, ms: 55, start: 1 },
+  "tower-fire-v2": { kind: "attack", frames: 10, cols: 5, fw: 425, fh: 440, ox: 50, oy: 40, ms: 55, start: 1 },
+  "tower-fire-v3": { kind: "attack", frames: 10, cols: 5, fw: 425, fh: 440, ox: 50, oy: 40, ms: 55, start: 1 },
+  "tower-fire": { kind: "attack", frames: 10, cols: 5, fw: 425, fh: 440, ox: 50, oy: 40, ms: 55, start: 1 },
+  "tower-frost-archer-v1": { kind: "attack", frames: 10, cols: 5, fw: 428, fh: 440, ox: 50, oy: 40, ms: 55, start: 1 },
+  "tower-frost-archer-v2": { kind: "attack", frames: 10, cols: 5, fw: 428, fh: 440, ox: 50, oy: 40, ms: 55, start: 1 },
+  "tower-frost-archer-v3": { kind: "attack", frames: 10, cols: 5, fw: 428, fh: 440, ox: 50, oy: 40, ms: 55, start: 1 },
+  "tower-frost-archer": { kind: "attack", frames: 10, cols: 5, fw: 428, fh: 440, ox: 50, oy: 40, ms: 55, start: 1 },
+  "tower-frost-v2": { kind: "attack", frames: 10, cols: 5, fw: 436, fh: 440, ox: 50, oy: 40, ms: 55, start: 1 },
+  "tower-frost-v3": { kind: "attack", frames: 10, cols: 5, fw: 436, fh: 440, ox: 50, oy: 40, ms: 55, start: 1 },
+  "tower-frost": { kind: "attack", frames: 10, cols: 5, fw: 436, fh: 440, ox: 50, oy: 40, ms: 55, start: 1 },
+  "tower-hall": { kind: "attack", frames: 10, cols: 5, fw: 383, fh: 440, ox: 50, oy: 40, ms: 55, start: 1 },
+  "tower-headhunter": { kind: "attack", frames: 10, cols: 5, fw: 431, fh: 440, ox: 50, oy: 40, ms: 55, start: 1 },
+  "tower-hydra": { kind: "attack", frames: 10, cols: 5, fw: 441, fh: 440, ox: 50, oy: 40, ms: 55, start: 1 },
+  "tower-lich": { kind: "attack", frames: 10, cols: 5, fw: 387, fh: 440, ox: 50, oy: 40, ms: 55, start: 1 },
+  "tower-magic-city": { kind: "attack", frames: 10, cols: 5, fw: 363, fh: 440, ox: 50, oy: 40, ms: 55, start: 1 },
+  "tower-magic-elite-v1": { kind: "attack", frames: 10, cols: 5, fw: 432, fh: 440, ox: 50, oy: 40, ms: 55, start: 1 },
+  "tower-magic-elite": { kind: "attack", frames: 10, cols: 5, fw: 432, fh: 440, ox: 50, oy: 40, ms: 55, start: 1 },
+  "tower-magic-grand-v1": { kind: "attack", frames: 10, cols: 5, fw: 417, fh: 440, ox: 50, oy: 40, ms: 55, start: 1 },
+  "tower-magic-grand": { kind: "attack", frames: 10, cols: 5, fw: 417, fh: 440, ox: 50, oy: 40, ms: 55, start: 1 },
+  "tower-naga-archer": { kind: "attack", frames: 10, cols: 5, fw: 432, fh: 440, ox: 50, oy: 40, ms: 55, start: 1 },
+  "tower-ogre-v1": { kind: "attack", frames: 10, cols: 5, fw: 422, fh: 440, ox: 50, oy: 40, ms: 55, start: 1 },
+  "tower-ogre-v2": { kind: "attack", frames: 10, cols: 5, fw: 422, fh: 440, ox: 50, oy: 40, ms: 55, start: 1 },
+  "tower-ogre-v3": { kind: "attack", frames: 10, cols: 5, fw: 422, fh: 440, ox: 50, oy: 40, ms: 55, start: 1 },
+  "tower-ogre": { kind: "attack", frames: 10, cols: 5, fw: 422, fh: 440, ox: 50, oy: 40, ms: 55, start: 1 },
+  "tower-phoenix": { kind: "attack", frames: 10, cols: 5, fw: 445, fh: 440, ox: 50, oy: 40, ms: 55, start: 1 },
+  "tower-pit-lord": { kind: "attack", frames: 10, cols: 5, fw: 470, fh: 440, ox: 50, oy: 40, ms: 55, start: 1 },
+  "tower-poison-archer-v1": { kind: "attack", frames: 10, cols: 5, fw: 416, fh: 440, ox: 50, oy: 40, ms: 55, start: 1 },
+  "tower-poison-archer-v2": { kind: "attack", frames: 10, cols: 5, fw: 416, fh: 440, ox: 50, oy: 40, ms: 55, start: 1 },
+  "tower-poison-archer-v3": { kind: "attack", frames: 10, cols: 5, fw: 416, fh: 440, ox: 50, oy: 40, ms: 55, start: 1 },
+  "tower-poison-archer": { kind: "attack", frames: 10, cols: 5, fw: 416, fh: 440, ox: 50, oy: 40, ms: 55, start: 1 },
+  "tower-poison-v2": { kind: "attack", frames: 10, cols: 5, fw: 384, fh: 440, ox: 50, oy: 40, ms: 55, start: 1 },
+  "tower-poison-v3": { kind: "attack", frames: 10, cols: 5, fw: 384, fh: 440, ox: 50, oy: 40, ms: 55, start: 1 },
+  "tower-poison": { kind: "attack", frames: 10, cols: 5, fw: 384, fh: 440, ox: 50, oy: 40, ms: 55, start: 1 },
+  "tower-robogoblin": { kind: "attack", frames: 10, cols: 5, fw: 441, fh: 440, ox: 50, oy: 40, ms: 55, start: 1 },
+  "tower-storm-v2": { kind: "attack", frames: 10, cols: 5, fw: 404, fh: 440, ox: 50, oy: 40, ms: 55, start: 1 },
+  "tower-storm-v3": { kind: "attack", frames: 10, cols: 5, fw: 404, fh: 440, ox: 50, oy: 40, ms: 55, start: 1 },
+  "tower-storm": { kind: "attack", frames: 10, cols: 5, fw: 404, fh: 440, ox: 50, oy: 40, ms: 55, start: 1 },
+  "tower-tree-of-life": { kind: "attack", frames: 10, cols: 5, fw: 384, fh: 440, ox: 50, oy: 40, ms: 55, start: 1 },
+  "tower-trueshot-v1": { kind: "attack", frames: 10, cols: 5, fw: 437, fh: 440, ox: 50, oy: 40, ms: 55, start: 1 },
+  "tower-trueshot-v2": { kind: "attack", frames: 10, cols: 5, fw: 437, fh: 440, ox: 50, oy: 40, ms: 55, start: 1 },
+  "tower-trueshot-v3": { kind: "attack", frames: 10, cols: 5, fw: 437, fh: 440, ox: 50, oy: 40, ms: 55, start: 1 },
+  "tower-trueshot": { kind: "attack", frames: 10, cols: 5, fw: 437, fh: 440, ox: 50, oy: 40, ms: 55, start: 1 },
   // v0.27zvF: Water / Fire Elemental (raise their arms), Stomp (clap), Bash (hammer up, lightning), Zombie (chop), Treant (throw), Bouncing Shot (recoil)
   "tower-bash-v1": { kind: "attack", frames: 10, cols: 5, fw: 370, fh: 440, ox: 50, oy: 40, ms: 55, start: 1 },
   "tower-bash-v2": { kind: "attack", frames: 10, cols: 5, fw: 370, fh: 440, ox: 50, oy: 40, ms: 55, start: 1 },
@@ -588,7 +658,49 @@ export const CREEP_PORTRAIT = Object.freeze({
   "creep-n-spiritwolf": "creep-p-spiritwolf",
   "creep-n-zombie": "creep-p-zombie",
 });
-export const animUrl = (key) => `assets/anim/${key}.webp?v=${ART_VERSION}`;
+/**
+ * v0.27zwF: tower attack sheets travel in one JSON pack per tower line (assets/packs/anim-<line>.json, all levels;
+ * tools/build-packs.py), loaded only when a sheet of that line is first wanted: the artifact holds at most ~511 files.
+ * Until its pack is there a sheet's url is PACK_PENDING (the board shows the still figure and asks again).
+ */
+const animLine = (key) => (/^tower-/.test(key) ? key.replace(/-(v|l)\d$/, "").replace(/^tower-/, "") : null);
+const animPacks = new Map();
+function loadAnimPack(line) {
+  if (!animPacks.has(line))
+    animPacks.set(
+      line,
+      fetch(`assets/packs/anim-${line}.json?v=${ART_VERSION}`)
+        .then((res) => {
+          if (!res.ok) throw new Error("HTTP " + res.status);
+          return res.json();
+        })
+        .then((entries) =>
+          Promise.all(
+            Object.entries(entries).map(async ([path, b64]) => {
+              const blob = await (await fetch("data:image/webp;base64," + b64)).blob();
+              packed.set(path, URL.createObjectURL(blob));
+            }),
+          ),
+        )
+        .catch((e) => console.warn("Attack pack not loaded: " + line, e)),
+    );
+  return animPacks.get(line);
+}
+export const animUrl = (key) => {
+  const path = `assets/anim/${key}.webp`,
+    line = animLine(key);
+  if (!line) return `${path}?v=${ART_VERSION}`;
+  if (packed.has(path)) return packed.get(path);
+  loadAnimPack(line);
+  return PACK_PENDING + path;
+};
+/** v0.27zwF: resolves once the sheet can be drawn (its pack loaded); its url, or null if it cannot load. */
+export const animUrlReady = async (key) => {
+  const line = animLine(key);
+  if (line) await loadAnimPack(line);
+  const url = animUrl(key);
+  return url.startsWith(PACK_PENDING) ? null : url;
+};
 export const TOWER_ART = Object.keys(ART_MANIFEST).filter((k) => k.startsWith("tower-"));
 export const CREEP_ART = Object.keys(ART_MANIFEST).filter((k) => k.startsWith("creep-"));
 export const ELEMENT_ICON = {

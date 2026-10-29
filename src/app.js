@@ -164,7 +164,7 @@ import { mountArena, artFor } from "./arena.js";
 const designRow = () => "",
   setDesign = () => {},
   currentDesign = () => "original";
-import { artUrl, iconUrl, ELEMENT_ICON, ART_MANIFEST, ANIM_MANIFEST, animUrl, keepsBlue, registerTowerArt, TEAM_COLORS, recolorTeam, setPropUrl, activeArtSet, uiArt, useArtSet, artSetFor, ART_VERSION, CREEP_PORTRAIT, loadPacks, packsDone, packProgress, onPackProgress, unpack, PACK_PENDING } from "./art.js";
+import { artUrl, iconUrl, ELEMENT_ICON, ART_MANIFEST, ANIM_MANIFEST, animUrlReady, keepsBlue, registerTowerArt, TEAM_COLORS, recolorTeam, setPropUrl, activeArtSet, uiArt, useArtSet, artSetFor, ART_VERSION, CREEP_PORTRAIT, loadPacks, packsDone, packProgress, onPackProgress, unpack, PACK_PENDING } from "./art.js";
 import { createSoundtrack } from "./soundtrack.js";
 import { createSfx, haptic } from "./sfx.js";
 import { t, num, goldText } from "./i18n.js";
@@ -187,7 +187,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.27zv",
+const APP_VERSION = "0.27zx",
   APP_BRANCH = "F", // v0.23q: author marker (F = Felix, S = Steven) and branch text, shown behind the version; APP_VERSION stays plain for online matches (VersionPublishingRules.md)
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "28.10.2026";
@@ -2626,7 +2626,7 @@ function heroSheet(key, color) {
           }
         };
         img.onerror = fail;
-        img.src = animUrl(key);
+        animUrlReady(key).then((url) => (url ? (img.src = url) : fail(new Error("no sheet"))), fail); // v0.27zwF: packed sheets
       }),
     );
   return heroSheets.get(id);
