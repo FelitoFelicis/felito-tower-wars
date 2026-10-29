@@ -68,18 +68,6 @@
    Layout: full-bleed Phaser arena, HUD plates on top, card dock + tab bar at the bottom. */
 :root {
   color-scheme: dark;
-  --ink: #f6f1e4;
-  --muted: #a8bccb;
-  --night: #07141a;
-  --steel-light: #b9cad6;
-  --gold: #ffcf4a;
-  --green: #6be05b;
-  --red: #ff5d5d;
-  --orange-hi: #ffc04a;
-  --orange-lo: #e46c16;
-  --font-display: "Barlow Condensed", "DM Sans", system-ui, sans-serif;
-  --font-number: "Lilita One", "Barlow Condensed", system-ui, sans-serif;
-  --font-body: "DM Sans", system-ui, sans-serif;
   font-family: var(--font-body);
   font-synthesis: none;
   color: var(--ink);
@@ -446,7 +434,6 @@ dialog,
   overflow-y: hidden;
   overscroll-behavior-x: contain;
   scroll-snap-type: x proximity;
-  scrollbar-width: none;
   touch-action: pan-x;
 }
 .cards::-webkit-scrollbar {
@@ -872,9 +859,7 @@ dialog,
   background: linear-gradient(#5a1a14, #2a0a08);
   clip-path: polygon(0 50%, 7% 0, 93% 0, 100% 50%, 93% 100%, 7% 100%);
 }
-.banner {
-  isolation: isolate;
-}
+
 .banner.show {
   opacity: 1;
   transform: translate(-50%, -50%) scale(1);
@@ -1542,21 +1527,15 @@ dialog.welcome-modal::backdrop {
 .wave-chip {
   --wave: #f0c35a;
   display: flex;
-  align-items: center;
-  gap: 6px;
   width: max-content;
-  max-width: 92%;
-  margin: 5px auto 0;
   padding: 3px 10px 3px 6px;
   border-radius: 999px;
   background: linear-gradient(180deg, #1b2c3f, #0d1824);
   border: 1.5px solid #050d13;
   box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--wave) 70%, #000), 0 3px 8px #0008;
   font: 800 11px var(--font-display);
-  letter-spacing: 0.04em;
   color: #fff;
   text-shadow: 0 1px 0 #000, 0 0 4px #000;
-  pointer-events: auto;
 }
 .wave-chip[hidden] { display: none; }
 .wave-chip i {
@@ -1590,7 +1569,13 @@ dialog.welcome-modal::backdrop {
    Its transparent border makes its inset ring sit exactly where the chip's own ring is and its glow start
    at the chip's border edge (the 1.5px border renders 1px wide). "scale" (not "transform") keeps the
    top-band chip centred while it pulses. */
-.wave-chip { position: relative; }
+.wave-chip {
+  align-items: center;
+  gap: 6px;
+  max-width: 92%;
+  margin: 5px auto 0;
+  letter-spacing: 0.04em;
+  pointer-events: auto; position: relative; }
 .wave-chip::after {
   content: "";
   position: absolute;
@@ -1876,10 +1861,9 @@ dialog.welcome-modal::backdrop {
   grid-column: 2;
   grid-row: 1 / span 2;
 }
+
 .unit-card .card-foot {
   white-space: nowrap;
-}
-.unit-card .card-foot {
   gap: 3px;
   padding: 0 2px 2px;
 }
@@ -1889,7 +1873,6 @@ dialog.welcome-modal::backdrop {
 .unit-card .card-note {
   font-size: 12px;
 }
-
 
 /* ---- v0.00: version tag, economy on the plates ---------------------------------- */
 .app-version {
@@ -1916,16 +1899,12 @@ dialog.welcome-modal::backdrop {
 }
 .plate-econ {
   display: flex;
-  align-items: center;
   margin-top: 2px;
   font: 700 12px/1 var(--font-number, system-ui), system-ui, sans-serif;
   font-variant-numeric: tabular-nums;
   text-shadow: 0 1px 0 #000, 0 0 2px #000;
-  white-space: nowrap;
 }
-.plate-econ img {
-  object-fit: contain;
-}
+
 .plate-econ b {
   color: #ffe27a;
   font-weight: 700;
@@ -1990,7 +1969,6 @@ dialog.welcome-modal::backdrop {
   min-width: 0;
   transform: none;
   -webkit-user-select: none;
-  user-select: none;
   -webkit-touch-callout: none;
 }
 .game-shell[data-page="send"] .unit-card .unit-name,
@@ -2063,10 +2041,13 @@ dialog.welcome-modal::backdrop {
   height: 34px;
 }
 .plate-econ {
+  align-items: center;
+  white-space: nowrap;
   gap: 2px;
   font-size: 11px;
 }
 .plate-econ img {
+  object-fit: contain;
   width: 12px;
   height: 12px;
 }
@@ -2167,7 +2148,6 @@ dialog.welcome-modal::backdrop {
 }
 .cards.upgrade-mode {
   -webkit-mask-image: none !important;
-  mask-image: none !important;
 }
 
 /* ---- v0.02: unlocked but too expensive = translucent red ---------------------------- */
@@ -2231,7 +2211,6 @@ dialog.welcome-modal::backdrop {
 :root.layout-wide .game-shell #cards-send .unit-card {
   width: 100%;
   height: 100%;
-  aspect-ratio: auto;
   border-radius: 6px;
   border-width: 1px;
   box-shadow: inset 0 0 0 1px #6a3b5a, 0 1px 0 #050d13;
@@ -2330,6 +2309,7 @@ dialog.welcome-modal::backdrop {
   border-color: #c78cff;
 }
 .banner {
+  isolation: isolate;
   display: none !important;
 }
 
@@ -2380,7 +2360,6 @@ dialog.welcome-modal::backdrop {
   .unit-card.sent-pulse::before { animation: none; } /* v0.23: the flash layer then stays hidden */
   .send-count { animation-duration: 0.5s; }
 }
-
 
 /* ---- v0.06: player plates — portrait with lives below, big gold and income, EXP bar ---- */
 .player-plate,
@@ -2593,9 +2572,7 @@ dialog.welcome-modal::backdrop {
 }
 
 /* ---- v0.06: send deck — recruits left, even income badges, boss and flyer frames ------- */
-.game-shell[data-page="send"] .cards {
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-}
+
 .unit-card .card-stock {
   display: none;
 }
@@ -2750,16 +2727,13 @@ dialog.welcome-modal::backdrop {
 
 /* ---- v0.06: upgrade bar never scrolls; more than three upgrades shrink the buttons ------ */
 .cards.upgrade-mode {
+  mask-image: none !important;
   overflow: hidden;
 }
 .cards.upgrade-mode .up-card {
   min-width: 0;
   flex: 0 1 calc((100% - 18px) / 4.35);
 }
-.cards.upgrade-mode.many .up-card {
-  flex: 1 1 0;
-}
-
 
 .pick-element img {
   width: 60px;
@@ -2772,6 +2746,7 @@ dialog.welcome-modal::backdrop {
   gap: 3px;
 }
 .cards.upgrade-mode.many .up-card {
+  flex: 1 1 0;
   padding: 3px 1px 2px;
 }
 .cards.upgrade-mode.many .up-title {
@@ -2879,9 +2854,9 @@ dialog.welcome-modal::backdrop {
   }
 }
 
-
 /* ---- v0.07: send buttons — icon on top, gold and income side by side below ------------- */
 .game-shell[data-page="send"] .cards {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   height: 159px; /* v0.17g: 3 px less between the two creep rows (−30 %) */
   row-gap: 7px;
   column-gap: 3px;
@@ -2895,6 +2870,8 @@ dialog.welcome-modal::backdrop {
 }
 .game-shell[data-page="send"] .unit-card,
 :root.layout-wide .game-shell #cards-send .unit-card {
+  user-select: none;
+  aspect-ratio: auto;
   overflow: visible;
 }
 .game-shell[data-page="send"] .unit-card .card-art,
@@ -2913,9 +2890,6 @@ dialog.welcome-modal::backdrop {
 :root.layout-wide .game-shell #cards-send .unit-card .card-foot {
   inset: auto 0 0;
   height: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   padding: 0 2px;
   border-radius: 0 0 6px 6px;
   background: linear-gradient(#0a0810cc, #0a0810f2);
@@ -3054,6 +3028,9 @@ dialog.welcome-modal::backdrop {
 }
 .game-shell[data-page="send"] .unit-card .card-foot,
 :root.layout-wide .game-shell #cards-send .unit-card .card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   gap: 2px;
 }
 .up-card .up-queued {
@@ -3095,10 +3072,7 @@ dialog.welcome-modal::backdrop {
 }
 
 /* ---- v0.07d: player colours ------------------------------------------------------------- */
-.game-shell {
-  --own-color: #3f9fff;
-  --rival-color: #e5443b;
-}
+
 .player-plate.own {
   background: linear-gradient(180deg, color-mix(in srgb, var(--own-color) 30%, #0f1b26), color-mix(in srgb, var(--own-color) 12%, #09121a) 70%);
   box-shadow:
@@ -3117,7 +3091,6 @@ dialog.welcome-modal::backdrop {
 }
 .color-picker {
   display: grid;
-  grid-template-columns: repeat(12, 1fr);
   border-radius: 13px;
   background: #07131b;
   box-shadow: inset 0 2px 6px #000a;
@@ -3157,6 +3130,7 @@ dialog.welcome-modal::backdrop {
 
 /* v0.08a: twelve colours in one row */
 .color-picker {
+  grid-template-columns: repeat(12, 1fr);
   gap: 4px;
   padding: 5px 4px;
 }
@@ -3680,12 +3654,6 @@ dialog.with-flag .modal-header {
 .enemy-cell {
   gap: 2px;
 }
-.ec-top {
-  max-width: 100%;
-}
-
-
-
 
 .ec-gold {
   display: flex;
@@ -3720,9 +3688,6 @@ dialog.with-flag .modal-header {
   font-size: 12px;
 }
 /* v0.09c: sword back at the top right; picture further left, heart beside the lives */
-.ec-target {
-  left: auto;
-}
 
 .enemy-cell {
   padding-left: 1px;
@@ -3738,6 +3703,7 @@ dialog.with-flag .modal-header {
   height: 9px;
 }
 .ec-target {
+  left: auto;
   right: -9px;
   top: -5px;
   width: 17px;
@@ -3770,6 +3736,7 @@ dialog.with-flag .modal-header {
   align-content: start;
 }
 .ec-top {
+  max-width: 100%;
   display: grid;
   grid-template-columns: auto 1fr;
   align-items: center;
@@ -3788,7 +3755,6 @@ dialog.with-flag .modal-header {
   flex-direction: row;
   gap: 1px;
 }
-
 
 .ec-level {
   display: flex;
@@ -3826,10 +3792,7 @@ dialog.with-flag .modal-header {
   font-size: 16px;
   letter-spacing: -0.02em;
 }
-.enemy-cell {
-  padding: 3px 2px 2px;
-  overflow: visible;
-}
+
 @media (max-width: 375px) {
   .enemy-cell .portrait {
     width: 18px;
@@ -3845,6 +3808,8 @@ dialog.with-flag .modal-header {
 }
 /* v0.09p: gold and income on the left, the level star in the bottom right corner */
 .enemy-cell {
+  padding: 3px 2px 2px;
+  overflow: visible;
   grid-template-columns: 1fr auto;
   grid-template-rows: auto auto auto;
   column-gap: 1px;
@@ -3909,14 +3874,13 @@ dialog.with-flag .modal-header {
 .volley-button.ready {
   box-shadow: inset 0 0 0 1.5px #f4ffc8, 0 3px 0 #10180a, 0 0 10px #c8ff6a88;
 }
-.volley-button.aiming {
-  box-shadow: inset 0 0 0 2px #fff, 0 0 0 2px #ffe27a, 0 0 16px #ffe27a;
-}
+
 /* v0.23: the aim pulse fades layers in and out instead of an animated filter: a colour-dodge layer
    (#3b3b3b = 1.3× brightness) over the face, and the ring and glow in their 1.3× colour (#ffff9f) around it.
    The button shows its overflow while aiming so the ring layer is not clipped (the cooldown shade is empty then
    and is rounded anyway). */
-.volley-button.aiming { overflow: visible; }
+.volley-button.aiming {
+  box-shadow: inset 0 0 0 2px #fff, 0 0 0 2px #ffe27a, 0 0 16px #ffe27a; overflow: visible; }
 .volley-button.aiming .volley-cd { border-radius: 9px; }
 .volley-button.aiming::after,
 .volley-button.aiming::before {
@@ -4162,7 +4126,6 @@ dialog.with-flag .modal-header {
 /* Same idea as the start menu: the whole game ends above the hidden bottom edge (lift), and on
    short views the card rows and buttons get tighter so the board keeps its room. */
 
-
 /* ---- welcome menu groups (v0.09z): Vs AI / Vs Player ------------------------------------------ */
 .welcome-group {
   display: flex;
@@ -4182,7 +4145,6 @@ dialog.with-flag .modal-header {
   gap: 8px;
   font: 800 15px var(--font-display);
   letter-spacing: 0.12em;
-  text-transform: uppercase;
   color: var(--gold, #f2c75c);
 }
 .welcome-group-title::after {
@@ -4251,13 +4213,12 @@ dialog.with-flag .modal-header {
   gap: 10px;
   margin-top: 4px;
 }
+
+/* v0.27uF: PvP in the default blue like Training; both carry the crossed swords (Recruitment) on the left */
 .welcome-mode {
   min-height: 62px;
   font-size: 24px;
   letter-spacing: 0.08em;
-}
-/* v0.27uF: PvP in the default blue like Training; both carry the crossed swords (Recruitment) on the left */
-.welcome-mode {
   position: relative;
 }
 .welcome-mode .mode-icon {
@@ -4278,6 +4239,7 @@ dialog.with-flag .modal-header {
     0 4px 0 #0f2c48;
 }
 .welcome-group-title {
+  text-transform: uppercase;
   min-height: 34px;
 }
 /* v0.14: the back arrow is a real raised button; v0.18f: same gold as the primary menu buttons, no arrow */
@@ -4430,6 +4392,8 @@ html:root {
    viewport edges instead; the bottom bar keeps its safe-area padding so the browser bar never
    covers the buttons. */
 .game-shell {
+  --own-color: #3f9fff;
+  --rival-color: #e5443b;
   position: fixed;
   top: 0;
   bottom: var(--lift, 0px);
@@ -4514,7 +4478,6 @@ dialog.welcome-modal {
   transform-origin: 50% 100%;
 }
 
-
 /* ---- v0.10j (artifact line): bigger board — no "All" handle, tighter gap above the Build/Send bar ---- */
 #deck-expand {
   display: none !important;
@@ -4525,6 +4488,7 @@ dialog.welcome-modal {
   height: calc(122px + 6px);
 }
 .cards {
+  scrollbar-width: none;
   height: 118px;
   padding-bottom: 0;
   align-items: flex-end;
@@ -4739,7 +4703,6 @@ dialog.welcome-modal {
   animation: income-shine 2.4s linear infinite;
 }
 .top-income::after {
-  content: "";
   position: absolute;
   right: -5px;
   top: -4px;
@@ -5101,6 +5064,7 @@ dialog.welcome-modal.hard-eyes .welcome-eyes {
   filter: drop-shadow(0 0 3px #6ee87a99) drop-shadow(1px 1px 0 #000) drop-shadow(-1px -1px 0 #000);
 }
 .top-income::after {
+  content: "";
   background: radial-gradient(circle, #fff 0 18%, #6ee87a00 60%), conic-gradient(from 0deg, #fff0 0 10%, #eaffec 12% 13%, #fff0 15% 35%, #eaffec 37% 38%, #fff0 40% 60%, #eaffec 62% 63%, #fff0 65% 85%, #eaffec 87% 88%, #fff0 90%);
 }
 /* v0.15: creeps still locked by their start delay: padlock on crossed chains, rounds in the lock */
@@ -5461,7 +5425,6 @@ dialog.welcome-modal.hard-eyes .welcome-eyes {
   align-items: center;
   column-gap: 2px;
   min-width: 0;
-  padding: 1px 3px 1px 2px;
   font-size: 9.5px;
   overflow: visible;
 }
@@ -5532,6 +5495,7 @@ dialog.welcome-modal.hard-eyes .welcome-eyes {
 .enemy-stack[data-count="5"] .enemy-cell,
 .enemy-stack[data-count="6"] .enemy-cell,
 .enemy-stack[data-count="7"] .enemy-cell {
+  padding: 1px 3px 1px 2px;
   height: auto !important;
   min-height: 0 !important;
   max-height: 100%;
@@ -5631,9 +5595,7 @@ dialog.welcome-modal.hard-eyes .welcome-eyes {
 }
 
 /* First Blood: 15 % smaller, 35 % see-through (v0.17c: like every splat over the board), title +30 %, player name twice as big in the player's colour */
-.first-blood {
-  width: min(255px, 66vw);
-}
+
 .first-blood b {
   font-size: clamp(39px, 11.7vw, 55px);
 }
@@ -5648,6 +5610,7 @@ dialog.welcome-modal.hard-eyes .welcome-eyes {
 }
 /* v0.17g, v0.17q: every splat over the board: 30 % see-through, fades out after 1.5 s */
 .first-blood {
+  width: min(255px, 66vw);
   animation-duration: 1.9s;
 }
 @keyframes first-blood {
@@ -5967,14 +5930,16 @@ b.val {
 /* v0.17b: perks section of the card book (display cards, not buttons) */
 .perk-book { overflow-x: visible; }
 .book-grid { grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 6px; }
-.book-card { padding: 8px 4px 10px; }
+
 .book-card b { font-size: 11.5px; }
 .book-card span { font-size: 10.5px; }
-.book-card small { font-size: 9.5px; }
-.book-card { cursor: default; position: relative; }
+
+.book-card {
+  padding: 8px 4px 10px; cursor: default; position: relative; }
 .book-card:hover { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--el) 70%, #000), 0 3px 0 #050d13; }
 
-.book-card small { color: #c9b4f0; font-weight: 600; }
+.book-card small {
+  font-size: 9.5px; color: #c9b4f0; font-weight: 600; }
 .book-empty { margin: 12px; color: var(--muted, #b9c6cf); text-align: center; }
 
 /* ---- v0.17c: bigger board on phones — the board reaches right up to the HUD and down to the cards ---- */
@@ -6025,7 +5990,6 @@ html.layout-b .game-shell[data-page="send"] .cards {
   height: var(--send-h);
 }
 html.layout-b .game-shell .bottom-nav {
-  --sq: 40px;
   position: absolute;
   z-index: 6;
   left: auto;
@@ -6036,9 +6000,7 @@ html.layout-b .game-shell .bottom-nav {
   height: 300px;
   padding: 0;
   flex-flow: row wrap;
-  justify-content: space-between;
   align-content: space-between;
-  background: none;
   border: 0;
   pointer-events: none;
 }
@@ -6053,7 +6015,7 @@ html.layout-b .game-shell .bottom-nav > * {
 html.layout-b .game-shell .bottom-nav .help-button { order: 1; }
 html.layout-b .game-shell .bottom-nav .menu-side { order: 2; }
 html.layout-b .game-shell .bottom-nav .tab-build { order: 3; }
-html.layout-b .game-shell .bottom-nav .tab-send { order: 4; }
+
 html.layout-b .game-shell .bottom-nav [data-tab] {
   flex-direction: column;
   padding: 2px 0 0;
@@ -6148,6 +6110,9 @@ html.layout-b .game-shell .side-button img {
 
 /* v0.17h: zoomed mobile layout: Send sits above Build; both are big squares the width of the column */
 html.layout-b .game-shell .bottom-nav {
+  --sq: 40px;
+  justify-content: space-between;
+  background: none;
   display: grid;
   grid-template-columns: 1fr 1fr;
   grid-template-rows: var(--sq) 1fr auto auto;
@@ -6156,7 +6121,8 @@ html.layout-b .game-shell .bottom-nav {
 }
 html.layout-b .game-shell .bottom-nav .help-button { grid-area: 1 / 1; }
 html.layout-b .game-shell .bottom-nav .menu-side { grid-area: 1 / 2; }
-html.layout-b .game-shell .bottom-nav .tab-send { grid-area: 3 / 1 / 4 / 3; }
+html.layout-b .game-shell .bottom-nav .tab-send {
+  order: 4; grid-area: 3 / 1 / 4 / 3; }
 html.layout-b .game-shell .bottom-nav .tab-build { grid-area: 4 / 1 / 5 / 3; }
 html.layout-b .game-shell .bottom-nav [data-tab] {
   width: calc(var(--sq) * 2 + 4px);
@@ -7126,7 +7092,7 @@ dialog:has(.catalog-grid.techtree) {
 b.val.gold { color: #ffe27a; }
 b.val.inc { color: #6ee87a; }
 b.val.exp { color: #d2b0ff; }
-.tower-splat .ts-frame { box-sizing: border-box; overflow: hidden; }
+.tower-splat .ts-frame { box-sizing: border-box; }
 .tower-splat .ts-frame img { aspect-ratio: 1; height: auto; min-height: 0; display: block; }
 .first-blood.bloodthirst b, .first-blood.bloodrage b { font-size: clamp(30px, 9vw, 42px); }
 /* v0.19k: Auto-Spawn slot a little bigger (as big as the level button looks), its name inside, no "Auto" headline and no tier badge */
@@ -7149,7 +7115,8 @@ b.val.exp { color: #d2b0ff; }
 .first-blood .fb-name, .tower-splat .fb-name { font-size: 30px; }
 
 .tower-splat b { font-size: clamp(26px, 8vw, 36px); }
-.tower-splat .ts-frame { width: min(132px, 36vw); }
+.tower-splat .ts-frame {
+  overflow: hidden; width: min(132px, 36vw); }
 
 /* v0.19l: EXP reward in splats 30 % larger */
 .first-blood .fb-exp, .tower-splat .fb-exp { font-size: 18.9px; }
@@ -7587,7 +7554,6 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
   left: 3px;
   top: 3px;
   bottom: auto;
-  text-align: center;
 }
 :root:is(:not([data-design]), [data-design="original"]) .game-shell[data-page="send"] .unit-card[data-kind="send"].framed .card-stock,
 :root.layout-wide:is(:not([data-design]), [data-design="original"]) .game-shell #cards-send .unit-card[data-kind="send"].framed .card-stock {
@@ -7623,7 +7589,6 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
   filter: drop-shadow(0 1px 1px #3b241355);
 }
 
-
 /* ---- v0.23b: option rows: the label spans all rows, so a second row of buttons sits under the first one
    (Design: Candy under Original, Paws under Meadow); a lone button in the second row is centred ---------------- */
 .choice-row > span { grid-row: 1 / span 4; align-self: center; }
@@ -7648,6 +7613,7 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
 /* v0.23j: recruit number on creep cards: no frame, a larger white number with a black outline */
 :root:is(:not([data-design]), [data-design="original"]) .game-shell[data-page="send"] .unit-card[data-kind="send"] .card-stock,
 :root.layout-wide:is(:not([data-design]), [data-design="original"]) .game-shell #cards-send .unit-card[data-kind="send"] .card-stock {
+  text-align: center;
   min-width: 0;
   height: auto;
   padding: 0;
@@ -7780,9 +7746,7 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
    The desktop version across the screen: player info windows stacked in a column on the left, the cards (Build and
    Send) with the Build/Send bar in a column on the right, the board in the middle using the full height. */
 .choice-row.layout-row [data-ctl="wide"] { grid-row: 1; grid-column: 3; }
-:root.layout-wide {
-  --wide-right: clamp(300px, 26vw, 400px);
-}
+
 :root.layout-wide .game-shell {
   width: min(100%, 1680px);
 }
@@ -7848,7 +7812,6 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
   max-height: 100%;
   padding: 2px;
   overflow-x: hidden;
-  overflow-y: auto;
 }
 :root.layout-wide .command-deck .cards > .unit-card {
   width: 100% !important;
@@ -8008,6 +7971,7 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
 }
 :root.layout-wide .command-deck .cards,
 :root.layout-wide .game-shell[data-page="build"] .cards.grid-build:not(.upgrade-mode) {
+  overflow-y: auto;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 6px;
   align-content: start;
@@ -8315,9 +8279,7 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
 
 /* ---- v0.24q: Desktop Wide: every player window in your window's layout, 2ndLocalInfoWindow with the tier,
    the auto-spawn slot left of the creep cards, tower cards in the default (Desktop) shape ---- */
-:root {
-  --exp-fill: linear-gradient(90deg, #7d3cff, #c48bff);
-}
+
 .wide-players {
   display: none;
 }
@@ -8386,7 +8348,6 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
   inset: 8px;
 }
 :root.layout-wide .wide-player.target::after {
-  content: "";
   position: absolute;
   background: url("assets/art/icon-attack.webp") center / contain no-repeat;
   filter: drop-shadow(0 1px 2px #000);
@@ -8653,6 +8614,7 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
 }
 /* Desktop Wide: wider player windows */
 :root.layout-wide {
+  --wide-right: clamp(300px, 26vw, 400px);
   --wide-left: clamp(260px, 22vw, 350px);
 }
 /* Desktop Wide: the 2ndLocalInfoWindow sits at the top of the right column, a short distance below the screen edge */
@@ -8712,9 +8674,7 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
 
 /* ---- v0.25b: Desktop Wide: player windows clickable (show that field), portrait frames in the player's colour,
    "Lv" at the left end of the EXP bar ---- */
-:root.layout-wide .wide-player {
-  pointer-events: auto;
-}
+
 :root.layout-wide .wide-player .portrait {
   --fc: var(--pc, #888);
   width: 100%;
@@ -8726,6 +8686,7 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
   box-shadow: 0 0 0 1px #0009, 0 1px 2px #0008;
 }
 :root.layout-wide .wide-player {
+  pointer-events: auto;
   padding-bottom: 20px;
 }
 :root.layout-wide .wp-expline {
@@ -8750,6 +8711,19 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
 /* ---- v0.25e: the tier in the player windows: a larger flame-orange badge with a Roman numeral (an orange redder and
    deeper than the player colour Orange #fb8500); the paused round timer shows a drawn pause sign and breathes in grey ---- */
 :root {
+  --ink: #f6f1e4;
+  --muted: #a8bccb;
+  --night: #07141a;
+  --steel-light: #b9cad6;
+  --gold: #ffcf4a;
+  --green: #6be05b;
+  --red: #ff5d5d;
+  --orange-hi: #ffc04a;
+  --orange-lo: #e46c16;
+  --font-display: "Barlow Condensed", "DM Sans", system-ui, sans-serif;
+  --font-number: "Lilita One", "Barlow Condensed", system-ui, sans-serif;
+  --font-body: "DM Sans", system-ui, sans-serif;
+  --exp-fill: linear-gradient(90deg, #7d3cff, #c48bff);
   --tier-orange: #ff5f2e;
   --tier-orange-dark: #8a2a0c;
 }
@@ -8827,6 +8801,7 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
 /* ---- v0.25f: Desktop Wide: the sword of your target centred over its portrait and 10 % larger; three basic towers
    get three larger cards per row; the tier badge has a white outline ---- */
 :root.layout-wide .wide-player.target::after {
+  content: "";
   top: -8px;
   left: 26px; /* card border 2 + padding 10 + half the 52 px portrait − half the sword */
   width: 24px;
@@ -9101,7 +9076,6 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
   width: auto;
   padding: 4px;
   background: #07131b99;
-  letter-spacing: 0;
   text-transform: none;
   zoom: 1.1;
 }
@@ -9296,6 +9270,7 @@ html.menu-tint dialog .modal-header {
 
 /* v0.27zyF: Desktop Wide: the auto-spawn slot sits in the upper left corner of the creep menu, attached on top of it */
 :root.layout-wide .command-deck > .side-dock {
+  letter-spacing: 0;
   align-self: flex-start;
   margin: auto 0 -4px 1px !important;
   border-radius: 12px 12px 0 0;
@@ -9374,14 +9349,9 @@ html.menu-tint dialog .modal-header {
 
 :root.layout-wide .command-deck #cards.upgrade-mode > .up-card .up-title {
   font-size: 17.5px;
-  line-height: 1.1;
-  white-space: nowrap;
   overflow: hidden;
 }
 
-:root.layout-wide .command-deck #cards.upgrade-mode > .up-card .up-art img {
-  object-fit: contain;
-}
 :root.layout-wide .command-deck #cards.upgrade-mode > .up-card .up-cost .price {
   font-size: 18px;
   zoom: var(--bz, 1);
@@ -9402,12 +9372,12 @@ html.menu-tint dialog .modal-header {
   left: 4px;
   right: 4px;
   z-index: 2;
-  text-align: center;
 }
 :root.layout-wide .command-deck #cards.upgrade-mode > .up-card .up-art {
   z-index: 0;
 }
 :root.layout-wide .command-deck #cards.upgrade-mode > .up-card .up-art img {
+  object-fit: contain;
   width: 100%;
   height: 100%;
 }
@@ -9456,6 +9426,9 @@ html.menu-tint dialog .modal-header {
   inset: 26px 18% 26px;
 }
 :root.layout-wide .command-deck #cards.upgrade-mode > .up-card .up-title {
+  line-height: 1.1;
+  white-space: nowrap;
+  text-align: center;
   top: 3px;
   text-shadow: 0 1px 0 #0009, 0 0 3px #000a;
 }

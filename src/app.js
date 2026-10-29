@@ -25,6 +25,9 @@ import {
   RESEARCH_ELEMENT,
   RESEARCH_PERKS, // v0.21
   perkLook,
+  MAGIC_CHARGE_SECONDS, // v0.27zzgF
+  magicEmpower, // v0.27zzgF
+  ARCANE_MISSILE_HEAVY, // v0.27zzgF
   FIRE_ARROWS,
   grantExp,
   targetOf,
@@ -188,7 +191,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.27zzf",
+const APP_VERSION = "0.27zzg",
   APP_BRANCH = "F", // v0.23q: author marker (F = Felix, S = Steven) and branch text, shown behind the version; APP_VERSION stays plain for online matches (VersionPublishingRules.md)
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "29.10.2026";
@@ -2194,6 +2197,9 @@ function abilityDesc(name, item) {
       slow = fv(a, "Spo2", lvl) || POISON_SLOW;
     if (a) return `Slows by ${pctN(slow)}% and deals ${num(dps)} damage per second, can stack.`;
   }
+  // v0.27zzgF: the Magic Tower's Arcane Missile with its real values
+  if (name === "Arcane Missile" && /^Magic Tower/.test(String(item?.name || "").replace(/\|c\w{8}|\|r/g, "")))
+    return `Every ${num(MAGIC_CHARGE_SECONDS)} s the next attack is an arcane missile: ${num(Math.round(magicEmpower(item) * 100) / 100)}× damage, +${Math.round(ARCANE_MISSILE_HEAVY * 100)}% against heavy and boss creeps`;
   if (name === "Tier Boss") return "Reduced damage from attacks, 50% less duration for debuffs, 30% slow resistance";
   if (name === "Entangle" && item?.id === "h00G") return "Every 6 s entangles a random creep in range for 10 s, 840 damage per second"; // v0.27zaF
   // v0.21z: Treant EXP (30 − Treants you bought) and the Meat Golem's Enrage

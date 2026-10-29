@@ -490,12 +490,12 @@ export const ANIM_MANIFEST = Object.freeze({
   "tower-arrowtower-v2": { kind: "attack", frames: 15, cols: 5, fw: 448, fh: 432, ox: 50, oy: 20, ms: 50, start: 1 },
   "tower-arrowtower-v3": { kind: "attack", frames: 15, cols: 5, fw: 448, fh: 432, ox: 50, oy: 20, ms: 50, start: 1 },
   // v0.27zsF: Bombard attack sheets (torch to the cannon, sparks, muzzle flash, smoke, recoil)
-  "tower-cannon": { kind: "attack", frames: 10, cols: 5, fw: 400, fh: 432, ox: 50, oy: 30, ms: 70, start: 1 },
-  "tower-cannon-v2": { kind: "attack", frames: 10, cols: 5, fw: 400, fh: 432, ox: 50, oy: 30, ms: 70, start: 1 },
-  "tower-cannon-v3": { kind: "attack", frames: 10, cols: 5, fw: 400, fh: 432, ox: 50, oy: 30, ms: 70, start: 1 },
-  "tower-cannon-elite": { kind: "attack", frames: 10, cols: 5, fw: 416, fh: 432, ox: 50, oy: 30, ms: 70, start: 1 },
-  "tower-cannon-elite-v1": { kind: "attack", frames: 10, cols: 5, fw: 416, fh: 432, ox: 50, oy: 30, ms: 70, start: 1 },
-  "tower-cannon-elite-v2": { kind: "attack", frames: 10, cols: 5, fw: 416, fh: 432, ox: 50, oy: 30, ms: 70, start: 1 },
+  "tower-cannon": { kind: "attack", frames: 10, cols: 5, fw: 400, fh: 432, ox: 50, oy: 30, ms: 70, start: 1, fire: 4 },
+  "tower-cannon-v2": { kind: "attack", frames: 10, cols: 5, fw: 400, fh: 432, ox: 50, oy: 30, ms: 70, start: 1, fire: 4 },
+  "tower-cannon-v3": { kind: "attack", frames: 10, cols: 5, fw: 400, fh: 432, ox: 50, oy: 30, ms: 70, start: 1, fire: 4 },
+  "tower-cannon-elite": { kind: "attack", frames: 10, cols: 5, fw: 416, fh: 432, ox: 50, oy: 30, ms: 70, start: 1, fire: 4 },
+  "tower-cannon-elite-v1": { kind: "attack", frames: 10, cols: 5, fw: 416, fh: 432, ox: 50, oy: 30, ms: 70, start: 1, fire: 4 },
+  "tower-cannon-elite-v2": { kind: "attack", frames: 10, cols: 5, fw: 416, fh: 432, ox: 50, oy: 30, ms: 70, start: 1, fire: 4 },
   // v0.23a (creep graphic overhaul): 8-way walks (rows: front, front-right, right, back-right, back, back-left,
   // left, front-left; 6 frames each, foot point footX/footY, figure height figH, size figS = max(figH, width / 1.4)) and 6-frame deaths (key + "-death")
   "creep-n-arcane-golem": { kind: "walk", dirs: 8, frames: 6, cols: 6, fw: 219, fh: 175, footX: 106, footY: 169, figH: 79, ms: 95, figS: 79 },

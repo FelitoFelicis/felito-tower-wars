@@ -1786,7 +1786,13 @@ export function mountArena({
               dur: clamp(d / (cell * 10), 0.07, 0.34) / (!firesCannonball(def) && (/arrow/i.test(def?.fields?.ua1m || "") || def?.attackType === "pierce") ? 1.3 : 1),
               ...style,
               arc: style.splash ? cell * 0.5 : 0,
+              // v0.27zzgF: the Magic Tower's Arcane Missile: a larger, slightly slower orb with an arcane glow
+              ...(e.empowered && /^Magic Tower/.test(String(def?.name || "").replace(/\|c\w{8}|\|r/g, "")) ? { missile: true, glow: true, color: 0xff7fe6, size: 6.4 } : {}),
             });
+            if (e.empowered && this.projectiles.at(-1).missile) this.projectiles.at(-1).dur *= 1.4;
+            // v0.27zzgF: sheets with a muzzle-flash frame (`fire`) release the shot when that frame shows
+            const am = !e.bounce && ANIM_MANIFEST[artFor(def)];
+            if (am?.fire != null) this.projectiles.at(-1).wait = Math.max(0, ((am.fire - (am.start || 0)) * am.ms) / 1000);
           }
         } else if (e.type === "skill" && e.player === view) {
           const q = this.point(e.x, e.y);
@@ -3567,6 +3573,10 @@ export function mountArena({
       // Homing projectiles: travel visibly from tower to the creep they hit.
       for (let i = this.projectiles.length - 1; i >= 0; i--) {
         const p = this.projectiles[i];
+        if (p.wait > 0) {
+          p.wait -= dt; // v0.27zzgF: still in the barrel until the muzzle flash
+          continue;
+        }
         p.t += dt;
         const target = player.creeps.find((c) => c.id === p.targetId);
         if (target && target.hp > 0) {
@@ -3618,6 +3628,20 @@ export function mountArena({
             this.burst(p.tx, p.ty, 0xfff1c4, 4, 50, 2, 0.2, 0, true);
           }
           continue;
+        }
+        if (p.missile) {
+          // v0.27zzgF: Arcane Missile: wide pink halo, a sparkling tail and a white core
+          fa.fillStyle(0xb44cff, 0.22);
+          fa.fillCircle(x, y, p.size * 3.6);
+          fa.lineStyle(p.size * 1.6, 0xff7fe6, 0.4);
+          fa.lineBetween(bx, by, x, y);
+          for (let s = 1; s <= 3; s++) {
+            const ks = clamp(k - s * 0.07, 0, 1),
+              sx2 = lerp(p.x0, p.tx, ks) + Math.sin(p.t * 40 + s * 2.1) * p.size * 0.6,
+              sy2 = lerp(p.y0, p.ty, ks) + Math.cos(p.t * 37 + s * 1.7) * p.size * 0.6;
+            fa.fillStyle(0xffd6f6, 0.55 - s * 0.13);
+            fa.fillCircle(sx2, sy2, p.size * (0.45 - s * 0.08));
+          }
         }
         if (p.glow) {
           fa.lineStyle(p.size * 2.2, p.color, 0.35);

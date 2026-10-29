@@ -4810,6 +4810,8 @@ const CANNON_CORE = 0.35, // cells
   CANNON_RING_FACTOR = 0.25, // v0.17a: outer ring 50 % -> 25 %
   BOMBARD_RADIUS = 0.9; // v0.17b: the outer splash radius of the whole Bombard line is 10 % smaller
 export const MAGIC_CHARGE_SECONDS = 8;
+/** v0.27zzgF: the Arcane Missile deals 50 % more to heavy and boss creeps. */
+export const ARCANE_MISSILE_HEAVY = 0.5;
 export const MAGIC_EMPOWER = 5; // v0.24i: Arcane Missile (the empowered bolt) 4× → 5× damage
 /** v0.24j: Arcane Missile of the Magic Tower levels 5 and 6: +20 % and +33 % on top. */
 export const MAGIC_EMPOWER_LEVEL = { 5: 1.2, 6: 1.33 };
@@ -5344,7 +5346,7 @@ function attack(game, p, tower, dt, known = null) {
   const magic = isMagicTower(item);
   let empowered = false;
   if (magic && tower.mana >= stats.mana - EPS && stats.mana > 0) {
-    damage *= magicEmpower(item); // v0.24j: stronger on levels 5 and 6
+    damage *= magicEmpower(item) * (heavyCreep(target) ? 1 + ARCANE_MISSILE_HEAVY : 1); // v0.24j: stronger on levels 5 and 6; v0.27zzgF: +50 % against heavy and boss creeps
     tower.mana = 0;
     empowered = true;
     emit(game, "skill", { player: p.id, kind: "empower", x: target.x, y: target.y, towerId: tower.id });
