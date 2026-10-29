@@ -85,10 +85,13 @@ const ELEMENT_COLOR = {
 // in the data and showed a gold archer streak)
 const CANNON_SHOT = /cannon|mortar|catapult|bombard/i;
 const firesCannonball = (def) => def?.attackType === "siege" || CANNON_SHOT.test(def?.fields?.ua1m || "") || /bombard|cannon/i.test(def?.name || "");
+/** v0.27zzeF: towers whose attack is an instant lightning bolt drawn from the weapon to the creep (Hall of Storm). */
+const zapsLightning = (def) => /MonsoonBolt/i.test(def?.fields?.ua1m || "") || /Hall of Storm/i.test(def?.name || "");
 function shotStyle(def) {
   const color = ELEMENT_COLOR[def?.element] ?? (firesCannonball(def) ? 0x3b302a : 0xffe28a);
   const splash = (def?.splashFull || 0) + (def?.splashMedium || 0) + (def?.splashSmall || 0) > 0;
-  return { color, splash, glow: !!ELEMENT_COLOR[def?.element], size: splash ? 4.4 : def?.attackType === "magic" ? 3.6 : 2.6 };
+  const ball = firesCannonball(def) && !ELEMENT_COLOR[def?.element]; // v0.27zzeF: a round, dark cannonball without a streak
+  return { color, splash, ball, glow: !!ELEMENT_COLOR[def?.element], size: ball ? 4.8 : splash ? 4.4 : def?.attackType === "magic" ? 3.6 : 2.6 };
 }
 /** Small deterministic hash for per-cell variation. */
 const hash = (x, y, s = 0) => {
@@ -303,7 +306,44 @@ export function pipGeometry(z) {
 const TIER_AURA = false;
 const TOWER_SCALE = 0.95;
 /** v0.27ziF: muzzle of a figure's weapon, in pixels of its picture (level variants use the base figure's). */
-const WEAPON_TIP = { "tower-earth-laser": [296, 170], "tower-glaive": [238, 160] };
+// v0.27zzeF: the point every shooting figure fires from (still-picture pixels; level variants share their base figure's)
+const WEAPON_TIP = {
+  "tower-earth-laser": [296, 170],
+  "tower-glaive": [238, 160],
+  "tower-archer": [288, 150],
+  "tower-archer-gold": [288, 148],
+  "tower-archer-elite": [312, 155],
+  "tower-arrowtower": [300, 205],
+  "tower-cannon": [240, 213], // the mouth of the barrel
+  "tower-cannon-elite": [230, 140],
+  "tower-birdhunter": [210, 135],
+  "tower-fire-archer": [320, 150],
+  "tower-poison-archer": [295, 155],
+  "tower-frost-archer": [305, 155],
+  "tower-naga-archer": [310, 155],
+  "tower-headhunter": [315, 165],
+  "tower-trueshot": [320, 175],
+  "tower-water-elemental": [255, 185],
+  "tower-fire-elemental": [290, 180],
+  "tower-hall": [135, 50],
+  "tower-fire": [40, 110],
+  "tower-frost": [40, 85],
+  "tower-earth": [260, 120],
+  "tower-arcane": [275, 80],
+  "tower-poison": [240, 95],
+  "tower-tree-of-life": [70, 130],
+  "tower-fire-lord": [290, 150],
+  "tower-magic-city": [110, 30],
+  "tower-treant": [250, 110],
+  "tower-archmage": [255, 60],
+  "tower-phoenix": [215, 110],
+  "tower-magic-elite": [275, 55],
+  "tower-magic-grand": [55, 45],
+  "tower-hydra": [165, 95],
+  "tower-disease": [290, 40],
+  "tower-storm": [230, 82], // the staff crystal
+  "tower-lich": [45, 125], // the green flame in the left hand (Death Coil)
+};
 const tipOf = (artKey) => WEAPON_TIP[artKey] || WEAPON_TIP[artKey.replace(/-v\d$/, "")] || null;
 const LEVEL_SCALE = [0.92, 0.92, 0.925, 0.93, 0.965, 1, 1.04, 1.08, 1.12, 1.16];
 const levelScale = (level) => LEVEL_SCALE[Math.max(1, Math.min(9, level | 0))];
@@ -444,6 +484,8 @@ export function mountArena({
       this.particles = [];
       this.rings = [];
       this.swipes = [];
+      this.zapBolts = []; // v0.27zzeF: Hall of Storm lightning (0.15 s)
+      this.zaps = new Map(); // v0.27zzeF: creep id -> time it was struck (black-and-white cartoon flash)
       this.beams = new Map(); // v0.18b: Focus Fire beams (Earth Laser), one per tower
       this.tips = new Map(); // v0.27ziF: tower id -> screen point of its weapon's muzzle (beams, shots, smoke)
       this.bolts = []; // v0.12
@@ -764,7 +806,7 @@ export function mountArena({
         s.setTintMode(TINT.MULTIPLY).clearTint();
         s.setTexture(tex, meta.first || 0).setOrigin(meta.footX / meta.fw, meta.footY / meta.fh).setScale(sx, sy).setRotation(0).setAlpha(1);
         s.setVisible(true).setDepth(lift > 2 ? 4190 + Math.floor(s.y + lift) : this.fallenDepth(s.y + lift)); // v0.23e: fallen creeps sort with towers too
-        this.dying.push({ s, view, start: time, meta, tex, groundY: s.y + lift, lift });
+        this.dying.push({ s, view, start: time, meta, tex, groundY: s.y + lift, lift, zap: this.zaps?.get(key.slice(key.lastIndexOf(":c:") + 3)) }); // v0.27zzeF: struck by lightning: keeps flashing while it falls
       }
       this.gone.length = 0;
       if (this.killed?.size > 64) for (const [k, t] of this.killed) if (time - t > 2000) this.killed.delete(k);
@@ -782,6 +824,13 @@ export function mountArena({
         const fall = clamp(el / (d.meta.ms * 4), 0, 1);
         d.s.setPosition(d.s.x, d.groundY - d.lift * (1 - fall * fall));
         d.s.setAlpha(el > play + hold ? 1 - (el - play - hold) / fade : 1);
+        if (d.zap != null) {
+          if (time - d.zap <= 150) d.s.setTint(Math.floor((time - d.zap) / 38) % 2 ? 0x101010 : 0xffffff).setTintFill(1);
+          else {
+            d.s.setTintMode(TINT.MULTIPLY).clearTint();
+            d.zap = null;
+          }
+        }
         return true;
       });
     }
@@ -1705,7 +1754,13 @@ export function mountArena({
           const tip = !e.bounce && this.tips.get(view + ":" + e.towerId),
             sx = tip ? tip.x : from.x,
             sy = tip ? tip.y : from.y - cell * 0.55;
-          if (e.focus) {
+          if (zapsLightning(def) && !e.bounce) {
+            // v0.27zzeF: Hall of Storm: an instant lightning bolt from the wand onto the creep, gone after 0.15 s
+            const to = this.point(e.to.x, e.to.y);
+            this.zapBolts.push({ x0: sx, y0: sy, tx: to.x, ty: to.y - cell * 0.25, life: 0.15, max: 0.15, cell });
+            this.zaps.set(e.targetId, time);
+            this.burst(to.x, to.y - cell * 0.25, 0xe8e4ff, 6, 70, 1.8, 0.15, 0, true);
+          } else if (e.focus) {
             // v0.18b: Focus Fire: a steady beam from the tower to its target, stronger the longer it holds
             const to = this.point(e.to.x, e.to.y),
               beam = this.beams.get(e.towerId) || {};
@@ -2437,7 +2492,7 @@ export function mountArena({
           bars.fillCircle(hx, hy, Math.max(1, hr * 0.14));
         }
         // v0.27ziF: the muzzle of the weapon on screen (follows scale and the attack bend of the figure)
-        const tipPx = !anim && tipOf(artKey);
+        const tipPx = tipOf(artKey); // v0.27zzeF: also figures with an attack sheet (all of them now)
         let tip = null;
         if (tipPx) {
           const sxs = base * pop * (1 + recoil * 0.05),
@@ -2747,7 +2802,10 @@ export function mountArena({
         {
           sprite.setTintMode(TINT.MULTIPLY);
           if (!!c.clone !== sprite.getData("clone")) sprite.setData("clone", !!c.clone).setAlpha(c.clone ? 0.85 : 1); // v0.23w: clones 15 % see-through
-          if (divineShield(game, c)) sprite.setTint(0xfff2b0);
+          const zap = this.zaps.get(c.id);
+          if (zap != null && time - zap > 150) this.zaps.delete(c.id);
+          if (zap != null && time - zap <= 150) sprite.setTint(Math.floor((time - zap) / 38) % 2 ? 0x101010 : 0xffffff).setTintFill(1); // v0.27zzeF: electrocuted: the figure flashes white and black like in cartoons
+          else if (divineShield(game, c)) sprite.setTint(0xfff2b0);
           else if (statuses.some((st) => st.abilityId === "entangle")) sprite.setTint(0xa8ff9a);
           else if (statuses.some((st) => st.stun)) sprite.setTint(0xfff3a0);
           else if (statuses.some((st) => st.abilityId === "frost")) sprite.setTint(0xb4e0ff).setTintFill(0.4); // v0.27ztF: frost: a frosty pale-blue glaze over the figure (no sphere)
@@ -3566,8 +3624,14 @@ export function mountArena({
           fa.lineBetween(bx, by, x, y);
           fa.fillStyle(p.color, 0.45);
           fa.fillCircle(x, y, p.size * 2.4);
+        } else if (p.ball) {
+          // cannonball: a soft smoke puff behind it, no streak
+          f.fillStyle(0x9a9088, 0.25);
+          f.fillCircle(bx, by, p.size * 0.9);
+          f.fillStyle(0x15110e, 1);
+          f.fillCircle(x, y, p.size * 1.12);
         } else {
-          f.lineStyle(p.size * 0.9, p.color === 0x3b302a ? 0x8a7a6a : p.color, 0.55);
+          f.lineStyle(p.size * 0.9, p.color, 0.55);
           f.lineBetween(bx, by, x, y);
         }
         f.fillStyle(p.color, 1);
@@ -3676,6 +3740,45 @@ export function mountArena({
         fa.fillCircle(b.x0, b.y0, cell * (0.045 + 0.08 * heat));
         fa.fillStyle(mixColor(0xff8a2a, 0xfff2c8, p), (0.35 + 0.55 * p) * fade);
         fa.fillCircle(b.x0, b.y0, cell * (0.02 + 0.045 * heat));
+      }
+      for (let i = this.zapBolts.length - 1; i >= 0; i--) {
+        // v0.27zzeF: Hall of Storm lightning: a jagged white bolt with a violet glow, re-forked every frame, fades in 0.15 s
+        const b = this.zapBolts[i];
+        b.life -= dt;
+        if (b.life <= 0) {
+          this.zapBolts.splice(i, 1);
+          continue;
+        }
+        const fade = b.life / b.max,
+          dx = b.tx - b.x0,
+          dy = b.ty - b.y0,
+          len = Math.hypot(dx, dy) || 1,
+          nx = -dy / len,
+          ny = dx / len,
+          steps = Math.max(4, Math.round(len / (b.cell * 0.32))),
+          amp = b.cell * 0.16,
+          pts = [{ x: b.x0, y: b.y0 }];
+        for (let k = 1; k < steps; k++) {
+          const u = k / steps,
+            off = (Math.random() * 2 - 1) * amp * Math.sin(u * Math.PI);
+          pts.push({ x: b.x0 + dx * u + nx * off, y: b.y0 + dy * u + ny * off });
+        }
+        pts.push({ x: b.tx, y: b.ty });
+        const stroke = (w, color, alpha) => {
+          fa.lineStyle(w, color, alpha);
+          for (let k = 1; k < pts.length; k++) fa.lineBetween(pts[k - 1].x, pts[k - 1].y, pts[k].x, pts[k].y);
+        };
+        stroke(b.cell * 0.16, 0x8f7cff, 0.32 * fade);
+        stroke(b.cell * 0.07, 0xd8d0ff, 0.75 * fade);
+        stroke(Math.max(1.2, b.cell * 0.025), 0xffffff, fade);
+        // one short fork off the middle of the bolt
+        const m = pts[Math.floor(pts.length / 2)],
+          side = Math.random() < 0.5 ? -1 : 1;
+        fa.lineStyle(Math.max(1, b.cell * 0.03), 0xe8e4ff, 0.8 * fade);
+        fa.lineBetween(m.x, m.y, m.x + (dx / len) * b.cell * 0.3 + nx * b.cell * 0.28 * side, m.y + (dy / len) * b.cell * 0.3 + ny * b.cell * 0.28 * side);
+        fa.fillStyle(0xffffff, 0.5 * fade);
+        fa.fillCircle(b.x0, b.y0, b.cell * 0.09);
+        fa.fillCircle(b.tx, b.ty, b.cell * 0.12);
       }
       for (let i = this.swipes.length - 1; i >= 0; i--) {
         const s = this.swipes[i];
@@ -4020,6 +4123,8 @@ export function mountArena({
       this.particles = [];
       this.rings = [];
       this.swipes = [];
+      this.zapBolts = [];
+      this.zaps = new Map();
       this.beams = new Map();
       this.tips = new Map();
       this.bolts = [];

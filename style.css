@@ -160,11 +160,7 @@ svg {
 
 /* ---- shell ------------------------------------------------------------------- */
 .game-shell {
-  position: relative;
-  align-self: start;
   width: min(100%, 520px);
-  height: 100vh;
-  height: calc(100dvh - var(--lift, 0px));
   overflow: hidden;
   isolation: isolate;
   background: var(--night);
@@ -229,12 +225,8 @@ dialog,
   align-items: stretch;
 }
 .player-plate {
-  display: flex;
-  align-items: center;
-  gap: 6px;
   min-width: 0;
   height: 52px;
-  padding: 5px 7px;
   border-radius: 12px;
 }
 .player-plate.own {
@@ -245,8 +237,6 @@ dialog,
     0 4px 10px #0009;
 }
 .player-plate.rival {
-  justify-content: flex-end;
-  background: linear-gradient(180deg, #4a1f26, #2a1016 70%);
   box-shadow:
     inset 0 0 0 2px #b85a5a,
     inset 0 0 0 3px #1a0a0d,
@@ -281,7 +271,6 @@ dialog,
   font: 800 12px var(--font-display);
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--steel-light);
   white-space: nowrap;
   text-overflow: ellipsis;
 }
@@ -289,7 +278,6 @@ dialog,
   display: flex;
   align-items: center;
   gap: 4px;
-  margin-top: 3px;
 }
 .plate-stat img {
   width: 20px;
@@ -312,15 +300,11 @@ dialog,
 .round-plate {
   display: grid;
   justify-items: center;
-  align-content: center;
-  min-width: 78px;
   height: 52px;
-  padding: 3px 8px;
   border-radius: 12px;
 }
 .round-label {
   font: 800 11px var(--font-display);
-  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--gold);
   line-height: 1;
@@ -329,8 +313,6 @@ dialog,
   position: relative;
   display: grid;
   place-items: center;
-  width: 30px;
-  height: 30px;
 }
 .income-timer svg {
   position: absolute;
@@ -352,11 +334,9 @@ dialog,
 }
 #income-time {
   position: relative;
-  font-size: 12px;
 }
 .match-time {
   font: 700 10px var(--font-display);
-  color: var(--muted);
   letter-spacing: 0.06em;
   line-height: 1;
   font-variant-numeric: tabular-nums;
@@ -461,7 +441,6 @@ dialog,
   display: flex;
   flex: none;
   gap: 6px;
-  height: 122px;
   padding: 6px 2px 4px;
   overflow-x: auto;
   overflow-y: hidden;
@@ -478,7 +457,6 @@ dialog,
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  flex: 0 0 calc((100% - 18px) / 4);
   min-width: 78px;
   height: 110px;
   min-height: 0;
@@ -779,11 +757,7 @@ dialog,
 #toast {
   position: absolute;
   z-index: 8;
-  left: 14px;
-  right: 14px;
   bottom: calc(var(--nav-size) + 150px + env(safe-area-inset-bottom));
-  padding: 9px 14px;
-  border-radius: 12px;
   background: #0a1822ee;
   border: 1.5px solid #d9b45a;
   box-shadow: 0 6px 16px #000a;
@@ -876,7 +850,6 @@ dialog,
   z-index: 10;
   left: 50%;
   top: 34%;
-  display: grid;
   justify-items: center;
   gap: 2px;
   width: min(92%, 420px);
@@ -1372,8 +1345,6 @@ dialog[open] {
 dialog.welcome-modal {
   width: min(100%, 520px);
   max-width: 520px;
-  height: 100dvh;
-  max-height: 100dvh;
   margin: auto;
   padding: 0;
   border: 0;
@@ -1388,7 +1359,6 @@ dialog.welcome-modal::backdrop {
 .welcome-modal #modal-body {
   position: relative;
   height: 100%;
-  justify-content: space-between;
   gap: 0;
   padding: calc(16px + env(safe-area-inset-top)) 16px calc(16px + env(safe-area-inset-bottom));
 }
@@ -1478,9 +1448,7 @@ dialog.welcome-modal::backdrop {
     height: 44px;
     min-height: 44px;
   }
-  .cards {
-    height: 104px;
-  }
+  
   .unit-card {
     height: 94px;
   }
@@ -1788,7 +1756,6 @@ dialog.welcome-modal::backdrop {
   display: flex;
   align-items: center;
   gap: 6px;
-  height: 26px;
   padding: 0 14px 0 10px;
   transform: translate(-50%, -62%);
   border-radius: 999px;
@@ -1850,8 +1817,6 @@ dialog.welcome-modal::backdrop {
   }
 }
 .sheet-head {
-  display: flex;
-  align-items: baseline;
   gap: 8px;
   padding: 0 2px 8px;
 }
@@ -1931,17 +1896,13 @@ dialog.welcome-modal::backdrop {
   position: absolute;
   z-index: 2;
   top: calc(10px + env(safe-area-inset-top));
-  right: 12px;
   font: 600 11px/1 var(--font-number, system-ui), system-ui, sans-serif;
   letter-spacing: 0.04em;
   color: #ffffffb3;
   text-shadow: 0 1px 2px #000;
   pointer-events: none;
 }
-.player-plate,
-.round-plate {
-  height: 62px;
-}
+
 .player-plate {
   pointer-events: auto;
   cursor: pointer;
@@ -1956,7 +1917,6 @@ dialog.welcome-modal::backdrop {
 .plate-econ {
   display: flex;
   align-items: center;
-  gap: 3px;
   margin-top: 2px;
   font: 700 12px/1 var(--font-number, system-ui), system-ui, sans-serif;
   font-variant-numeric: tabular-nums;
@@ -1964,8 +1924,6 @@ dialog.welcome-modal::backdrop {
   white-space: nowrap;
 }
 .plate-econ img {
-  width: 13px;
-  height: 13px;
   object-fit: contain;
 }
 .plate-econ b {
@@ -2000,13 +1958,7 @@ dialog.welcome-modal::backdrop {
 /* ---- v0.01: send deck — all 12 monsters of the tier as squares, art centred ---------- */
 .game-shell[data-page="send"] .cards {
   display: grid;
-  grid-template-columns: 30px repeat(6, minmax(0, 1fr));
   grid-auto-flow: row;
-  grid-auto-rows: auto;
-  gap: 4px;
-  height: auto;
-  padding: 4px 2px;
-  overflow: hidden;
   touch-action: none;
   -webkit-mask-image: none;
   mask-image: none;
@@ -2017,8 +1969,6 @@ dialog.welcome-modal::backdrop {
   display: grid;
   place-content: center;
   justify-items: center;
-  gap: 2px;
-  border-radius: 9px;
   background: linear-gradient(#4a2440, #241326);
   box-shadow: inset 0 0 0 1.5px #a0628c;
   color: #ffd9f0;
@@ -2037,11 +1987,7 @@ dialog.welcome-modal::backdrop {
 :root.layout-wide .game-shell #cards-send .unit-card {
   display: block;
   position: relative;
-  width: 100%;
   min-width: 0;
-  height: auto;
-  aspect-ratio: 1;
-  border-radius: 9px;
   transform: none;
   -webkit-user-select: none;
   user-select: none;
@@ -2059,30 +2005,18 @@ dialog.welcome-modal::backdrop {
 .game-shell[data-page="send"] .unit-card .card-art,
 :root.layout-wide .game-shell #cards-send .unit-card .card-art {
   position: absolute;
-  inset: 3px 3px 15px;
   margin: 0;
-  border-radius: 6px;
 }
-.game-shell[data-page="send"] .unit-card .card-art img,
-:root.layout-wide .game-shell #cards-send .unit-card .card-art img {
-  inset: 6%;
-  width: 88%;
-  height: 88%;
-  object-position: 50% 50%;
-}
+
 .game-shell[data-page="send"] .unit-card .card-foot,
 :root.layout-wide .game-shell #cards-send .unit-card .card-foot {
   position: absolute;
   left: 0;
   right: 0;
   bottom: 1px;
-  height: 14px;
-  padding: 0;
-  justify-content: center;
 }
 .game-shell[data-page="send"] .unit-card .price,
 :root.layout-wide .game-shell #cards-send .unit-card .price {
-  font-size: 11px;
   gap: 1px;
 }
 .game-shell[data-page="send"] .unit-card .price::before,
@@ -2092,25 +2026,13 @@ dialog.welcome-modal::backdrop {
 }
 .game-shell[data-page="send"] .unit-card .card-note,
 :root.layout-wide .game-shell #cards-send .unit-card .card-note {
-  position: absolute;
-  right: 3px;
-  bottom: 16px;
-  padding: 0 3px;
-  border-radius: 6px;
   background: #07130fcc;
-  font-size: 10px;
-  line-height: 13px;
 }
 .game-shell[data-page="send"] .unit-card .card-note::before,
 :root.layout-wide .game-shell #cards-send .unit-card .card-note::before {
   display: none;
 }
-.game-shell[data-page="send"] .unit-card .card-status,
-:root.layout-wide .game-shell #cards-send .unit-card .card-status {
-  inset: 3px 3px 15px;
-  font-size: 13px;
-  border-radius: 6px;
-}
+
 .game-shell[data-page="send"] .unit-card.holding,
 :root.layout-wide .game-shell #cards-send .unit-card.holding {
   box-shadow: inset 0 0 0 2px #ffe27a, 0 0 10px #ffcf4a90;
@@ -2135,10 +2057,7 @@ dialog.welcome-modal::backdrop {
 }
 
 /* ---- v0.01: header without resource strip; wood on the plates ---------------------- */
-.player-plate {
-  gap: 5px;
-  padding: 5px 6px;
-}
+
 .player-plate .portrait {
   width: 34px;
   height: 34px;
@@ -2234,7 +2153,6 @@ dialog.welcome-modal::backdrop {
   box-shadow: inset 0 0 0 2px #b8913a, 0 3px 0 #050d13;
 }
 .sell-card .up-art img {
-  height: 58%;
   max-width: 58%;
 }
 .sell-card .price::before {
@@ -2273,30 +2191,21 @@ dialog.welcome-modal::backdrop {
 
 /* ---- v0.02: the dock keeps one height on every tab, so the maze never resizes -------- */
 .command-deck {
-  /* v0.07l: the old auto-send row (40px) is gone; the board gets that height */
-  height: calc(122px + 12px);
   justify-content: flex-end;
 }
 .game-shell[data-page="send"] .cards {
-  height: 122px;
   grid-template-rows: repeat(2, minmax(0, 1fr));
   grid-auto-rows: unset;
   align-items: center;
 }
 .game-shell[data-page="send"] .unit-card,
 :root.layout-wide .game-shell #cards-send .unit-card {
-  width: auto;
-  height: 100%;
   max-width: 100%;
   justify-self: center;
 }
 @media (max-height: 700px) {
-  .command-deck {
-    height: calc(104px + 12px);
-  }
-  .game-shell[data-page="send"] .cards {
-    height: 104px;
-  }
+  
+  
 }
 
 /* ---- v0.04: send deck — creep art fills each button, buttons packed edge to edge ---- */
@@ -2305,9 +2214,7 @@ dialog.welcome-modal::backdrop {
   padding-right: 4px;
 }
 .game-shell[data-page="send"] .cards {
-  grid-template-columns: 20px repeat(6, minmax(0, 1fr));
   gap: 2px;
-  padding: 2px 0;
 }
 .game-shell[data-page="send"] .tier-tag {
   border-radius: 6px;
@@ -2329,31 +2236,19 @@ dialog.welcome-modal::backdrop {
   border-width: 1px;
   box-shadow: inset 0 0 0 1px #6a3b5a, 0 1px 0 #050d13;
   background: radial-gradient(circle at 50% 62%, #6a3b5a, #241326 72%);
-  overflow: hidden;
 }
 .game-shell[data-page="send"] .unit-card .card-art,
 :root.layout-wide .game-shell #cards-send .unit-card .card-art {
-  inset: 0;
-  border-radius: 0;
   background: none;
 }
 .game-shell[data-page="send"] .unit-card .card-art img,
 :root.layout-wide .game-shell #cards-send .unit-card .card-art img {
-  inset: -4% -8% 0;
-  width: 116%;
-  height: 104%;
   object-fit: contain;
   object-position: 50% 30%;
 }
 .game-shell[data-page="send"] .unit-card .card-foot,
 :root.layout-wide .game-shell #cards-send .unit-card .card-foot {
-  inset: 0;
-  height: auto;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
   padding-bottom: 1px;
-  background: linear-gradient(#0a081000 68%, #0a0810d9 90%);
   pointer-events: none;
 }
 .game-shell[data-page="send"] .unit-card .price,
@@ -2367,15 +2262,10 @@ dialog.welcome-modal::backdrop {
   top: 1px;
   right: 1px;
   bottom: auto;
-  padding: 0 2px;
   border-radius: 4px;
-  font-size: 9px;
-  line-height: 11px;
 }
 .game-shell[data-page="send"] .unit-card .card-status,
 :root.layout-wide .game-shell #cards-send .unit-card .card-status {
-  inset: 0;
-  border-radius: 0;
   background: #050d1373;
   font-size: 12px;
 }
@@ -2406,8 +2296,6 @@ dialog.welcome-modal::backdrop {
   cursor: pointer;
 }
 .welcome-options img {
-  width: 24px;
-  height: 24px;
   object-fit: contain;
 }
 .welcome-options:focus-visible {
@@ -2605,17 +2493,12 @@ dialog.welcome-modal::backdrop {
 .level-button {
   position: absolute;
   z-index: 3;
-  right: 6px;
   top: 40%;
-  width: 44px;
-  height: 44px;
   display: grid;
   place-content: center;
   justify-items: center;
   padding: 0;
-  border-radius: 12px;
   border: 2px solid #1a0b2e;
-  background: radial-gradient(circle at 50% 30%, #8e55ff, #3b1a75 75%);
   box-shadow: inset 0 0 0 1.5px #c9a6ff, 0 3px 0 #12061f;
   color: #fff;
   cursor: pointer;
@@ -2634,11 +2517,9 @@ dialog.welcome-modal::backdrop {
   position: absolute;
   top: -6px;
   right: -6px;
-  width: 18px;
   height: 18px;
   display: grid;
   place-items: center;
-  border-radius: 50%;
   background: #ffcf4a;
   color: #2a1600;
   font: 800 12px/1 var(--font-display);
@@ -2662,7 +2543,6 @@ dialog.welcome-modal::backdrop {
 .pick-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
 }
 .pick-card {
   --el: #b47cff;
@@ -2724,8 +2604,6 @@ dialog.welcome-modal::backdrop {
   display: block;
   position: absolute;
   z-index: 3;
-  left: 3px;
-  bottom: 13px;
   font: 400 13px/1 var(--font-number);
   color: #fff;
   text-shadow: -1.2px -1.2px 0 #000, 1.2px -1.2px 0 #000, -1.2px 1.2px 0 #000, 1.2px 1.2px 0 #000, 0 0 2px #000;
@@ -2740,14 +2618,7 @@ dialog.welcome-modal::backdrop {
   text-align: center;
   justify-content: center;
 }
-.frame-boss,
-.frame-air {
-  position: absolute;
-  z-index: 4;
-  inset: 0;
-  pointer-events: none;
-  background: center / 100% 100% no-repeat;
-}
+
 .frame-boss {
   background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20100%20100%22%20preserveAspectRatio%3D%22none%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22m%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23e3e8ec%22/%3E%3Cstop%20offset%3D%22.45%22%20stop-color%3D%22%237d8890%22/%3E%3Cstop%20offset%3D%22.55%22%20stop-color%3D%22%23a9b3ba%22/%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%233d464d%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect%20x%3D%222.5%22%20y%3D%222.5%22%20width%3D%2295%22%20height%3D%2295%22%20rx%3D%227%22%20fill%3D%22none%22%20stroke%3D%22%231a1f23%22%20stroke-width%3D%225%22/%3E%3Crect%20x%3D%222.5%22%20y%3D%222.5%22%20width%3D%2295%22%20height%3D%2295%22%20rx%3D%227%22%20fill%3D%22none%22%20stroke%3D%22url%28%23m%29%22%20stroke-width%3D%223.4%22/%3E%3Ccircle%20cx%3D%2230%22%20cy%3D%223%22%20r%3D%221.6%22%20fill%3D%22%23d9dee2%22%20stroke%3D%22%232a3136%22%20stroke-width%3D%22.6%22/%3E%3Ccircle%20cx%3D%2250%22%20cy%3D%223%22%20r%3D%221.6%22%20fill%3D%22%23d9dee2%22%20stroke%3D%22%232a3136%22%20stroke-width%3D%22.6%22/%3E%3Ccircle%20cx%3D%2270%22%20cy%3D%223%22%20r%3D%221.6%22%20fill%3D%22%23d9dee2%22%20stroke%3D%22%232a3136%22%20stroke-width%3D%22.6%22/%3E%3Ccircle%20cx%3D%2230%22%20cy%3D%2297%22%20r%3D%221.6%22%20fill%3D%22%23d9dee2%22%20stroke%3D%22%232a3136%22%20stroke-width%3D%22.6%22/%3E%3Ccircle%20cx%3D%2250%22%20cy%3D%2297%22%20r%3D%221.6%22%20fill%3D%22%23d9dee2%22%20stroke%3D%22%232a3136%22%20stroke-width%3D%22.6%22/%3E%3Ccircle%20cx%3D%2270%22%20cy%3D%2297%22%20r%3D%221.6%22%20fill%3D%22%23d9dee2%22%20stroke%3D%22%232a3136%22%20stroke-width%3D%22.6%22/%3E%3Ccircle%20cx%3D%223%22%20cy%3D%2230%22%20r%3D%221.6%22%20fill%3D%22%23d9dee2%22%20stroke%3D%22%232a3136%22%20stroke-width%3D%22.6%22/%3E%3Ccircle%20cx%3D%223%22%20cy%3D%2250%22%20r%3D%221.6%22%20fill%3D%22%23d9dee2%22%20stroke%3D%22%232a3136%22%20stroke-width%3D%22.6%22/%3E%3Ccircle%20cx%3D%223%22%20cy%3D%2270%22%20r%3D%221.6%22%20fill%3D%22%23d9dee2%22%20stroke%3D%22%232a3136%22%20stroke-width%3D%22.6%22/%3E%3Ccircle%20cx%3D%2297%22%20cy%3D%2230%22%20r%3D%221.6%22%20fill%3D%22%23d9dee2%22%20stroke%3D%22%232a3136%22%20stroke-width%3D%22.6%22/%3E%3Ccircle%20cx%3D%2297%22%20cy%3D%2250%22%20r%3D%221.6%22%20fill%3D%22%23d9dee2%22%20stroke%3D%22%232a3136%22%20stroke-width%3D%22.6%22/%3E%3Ccircle%20cx%3D%2297%22%20cy%3D%2270%22%20r%3D%221.6%22%20fill%3D%22%23d9dee2%22%20stroke%3D%22%232a3136%22%20stroke-width%3D%22.6%22/%3E%3Cg%20transform%3D%22translate%289%2010%29%20scale%280.95%29%22%3E%3Cpath%20d%3D%22M0-6c-4%200-7%203-7%206.5%200%202.2%201.1%203.6%202.6%204.4V8h8.8V4.9C5.9%204.1%207%202.7%207%20.5%207-3%204-6%200-6z%22%20fill%3D%22%23efe6d2%22%20stroke%3D%22%231b1410%22%20stroke-width%3D%221.2%22/%3E%3Ccircle%20cx%3D%22-2.6%22%20cy%3D%220.6%22%20r%3D%221.7%22%20fill%3D%22%231b1410%22/%3E%3Ccircle%20cx%3D%222.6%22%20cy%3D%220.6%22%20r%3D%221.7%22%20fill%3D%22%231b1410%22/%3E%3Cpath%20d%3D%22M-2%206v2M0%206v2M2%206v2%22%20stroke%3D%22%231b1410%22%20stroke-width%3D%220.9%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%2891%2010%29%20scale%280.95%29%22%3E%3Cpath%20d%3D%22M0-6c-4%200-7%203-7%206.5%200%202.2%201.1%203.6%202.6%204.4V8h8.8V4.9C5.9%204.1%207%202.7%207%20.5%207-3%204-6%200-6z%22%20fill%3D%22%23efe6d2%22%20stroke%3D%22%231b1410%22%20stroke-width%3D%221.2%22/%3E%3Ccircle%20cx%3D%22-2.6%22%20cy%3D%220.6%22%20r%3D%221.7%22%20fill%3D%22%231b1410%22/%3E%3Ccircle%20cx%3D%222.6%22%20cy%3D%220.6%22%20r%3D%221.7%22%20fill%3D%22%231b1410%22/%3E%3Cpath%20d%3D%22M-2%206v2M0%206v2M2%206v2%22%20stroke%3D%22%231b1410%22%20stroke-width%3D%220.9%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%289%2089%29%20scale%280.95%29%22%3E%3Cpath%20d%3D%22M0-6c-4%200-7%203-7%206.5%200%202.2%201.1%203.6%202.6%204.4V8h8.8V4.9C5.9%204.1%207%202.7%207%20.5%207-3%204-6%200-6z%22%20fill%3D%22%23efe6d2%22%20stroke%3D%22%231b1410%22%20stroke-width%3D%221.2%22/%3E%3Ccircle%20cx%3D%22-2.6%22%20cy%3D%220.6%22%20r%3D%221.7%22%20fill%3D%22%231b1410%22/%3E%3Ccircle%20cx%3D%222.6%22%20cy%3D%220.6%22%20r%3D%221.7%22%20fill%3D%22%231b1410%22/%3E%3Cpath%20d%3D%22M-2%206v2M0%206v2M2%206v2%22%20stroke%3D%22%231b1410%22%20stroke-width%3D%220.9%22/%3E%3C/g%3E%3Cg%20transform%3D%22translate%2891%2089%29%20scale%280.95%29%22%3E%3Cpath%20d%3D%22M0-6c-4%200-7%203-7%206.5%200%202.2%201.1%203.6%202.6%204.4V8h8.8V4.9C5.9%204.1%207%202.7%207%20.5%207-3%204-6%200-6z%22%20fill%3D%22%23efe6d2%22%20stroke%3D%22%231b1410%22%20stroke-width%3D%221.2%22/%3E%3Ccircle%20cx%3D%22-2.6%22%20cy%3D%220.6%22%20r%3D%221.7%22%20fill%3D%22%231b1410%22/%3E%3Ccircle%20cx%3D%222.6%22%20cy%3D%220.6%22%20r%3D%221.7%22%20fill%3D%22%231b1410%22/%3E%3Cpath%20d%3D%22M-2%206v2M0%206v2M2%206v2%22%20stroke%3D%22%231b1410%22%20stroke-width%3D%220.9%22/%3E%3C/g%3E%3C/svg%3E");
 }
@@ -2888,12 +2759,8 @@ dialog.welcome-modal::backdrop {
 .cards.upgrade-mode.many .up-card {
   flex: 1 1 0;
 }
-.cards.upgrade-mode.many .up-title {
-  font-size: 8.5px;
-}
-.cards.upgrade-mode.many .up-cost .price {
-  font-size: 11px;
-}
+
+
 .pick-element img {
   width: 60px;
   height: 60px;
@@ -2953,10 +2820,7 @@ dialog.welcome-modal::backdrop {
   color: #ffcf4a;
   text-shadow: 0 1px 0 #000, 0 0 3px #000;
 }
-.side-dock .auto-slot {
-  width: var(--slot);
-  height: var(--slot);
-}
+
 .side-dock .tier-badge {
   padding: 2px 6px;
   font-size: 10px;
@@ -2983,8 +2847,7 @@ dialog.welcome-modal::backdrop {
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
   mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
-  filter: drop-shadow(0 0 4px #c48bff);
-  animation: level-halo 3.6s linear infinite; /* v0.10x: calmer halo (was 1.3 s) */
+  filter: drop-shadow(0 0 4px #c48bff); /* v0.10x: calmer halo (was 1.3 s) */
   pointer-events: none;
 }
 @keyframes level-halo {
@@ -3053,7 +2916,6 @@ dialog.welcome-modal::backdrop {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 3px;
   padding: 0 2px;
   border-radius: 0 0 6px 6px;
   background: linear-gradient(#0a0810cc, #0a0810f2);
@@ -3081,7 +2943,6 @@ dialog.welcome-modal::backdrop {
 .game-shell[data-page="send"] .unit-card .card-foot.long .card-note,
 :root.layout-wide .game-shell #cards-send .unit-card .card-foot.long .price,
 :root.layout-wide .game-shell #cards-send .unit-card .card-foot.long .card-note {
-  font-size: 9.5px;
   letter-spacing: -0.02em;
 }
 .game-shell[data-page="send"] .unit-card .card-foot.long .price::before,
@@ -3116,11 +2977,7 @@ dialog.welcome-modal::backdrop {
   height: 15px;
   border-radius: 0;
 }
-.game-shell[data-page="send"] .unit-card.framed .card-stock,
-:root.layout-wide .game-shell #cards-send .unit-card.framed .card-stock {
-  left: 8px;
-  bottom: 23px;
-}
+
 .frame-boss,
 .frame-air {
   position: absolute;
@@ -3261,8 +3118,6 @@ dialog.welcome-modal::backdrop {
 .color-picker {
   display: grid;
   grid-template-columns: repeat(12, 1fr);
-  gap: 6px;
-  padding: 6px 4px;
   border-radius: 13px;
   background: #07131b;
   box-shadow: inset 0 2px 6px #000a;
@@ -3291,7 +3146,6 @@ dialog.welcome-modal::backdrop {
 }
 .color-picker button.active {
   transform: scale(1.12);
-  box-shadow: 0 0 0 2px var(--gold, #ffcf4a), 0 0 12px var(--c);
 }
 .color-picker button.active i {
   opacity: 1;
@@ -3300,10 +3154,7 @@ dialog.welcome-modal::backdrop {
   color: #fff;
 }
 /* v0.07e: low colour chips like the old element picker; the choice gets a gold frame */
-.color-picker {
-  gap: 5px;
-  padding: 5px;
-}
+
 /* v0.08a: twelve colours in one row */
 .color-picker {
   gap: 4px;
@@ -3312,7 +3163,6 @@ dialog.welcome-modal::backdrop {
 .color-picker button,
 .color-picker button.active {
   aspect-ratio: auto;
-  height: 18px;
   border-radius: 6px;
   border: 2px solid #050d13;
   background: linear-gradient(180deg, color-mix(in srgb, var(--c) 82%, #fff), var(--c) 45%, color-mix(in srgb, var(--c) 72%, #000));
@@ -3337,7 +3187,6 @@ dialog.welcome-modal::backdrop {
 }
 .pick-card[class*="el-"]::before,
 .pick-card[class*="el-"]::after {
-  content: "";
   position: absolute;
   left: 7px;
   right: 7px;
@@ -3346,8 +3195,6 @@ dialog.welcome-modal::backdrop {
   background-position: center;
 }
 .pick-card[class*="el-"]::before {
-  top: -4px;
-  height: 9px;
   background-size: 26px 9px;
 }
 .pick-card[class*="el-"]::after {
@@ -3371,8 +3218,6 @@ dialog.welcome-modal::backdrop {
   --el: #ffcf4a;
 }
 .pick-perk img {
-  width: 60px;
-  height: 60px;
   object-fit: contain;
 }
 .perk-badge {
@@ -3409,8 +3254,6 @@ dialog.welcome-modal::backdrop {
   box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--el) 80%, #000);
 }
 .owned-tile img {
-  width: 30px;
-  height: 30px;
   object-fit: contain;
 }
 .owned-tile b {
@@ -3426,11 +3269,9 @@ dialog.welcome-modal::backdrop {
   font: 800 10px/1.5 var(--font-display);
   text-align: center;
 }
-.owned-tile.perk-recruit,
-.owned-tile.perk-feudal,
-.owned-tile.perk-archery,
-.owned-tile.perk-patrol {
-  --el: #ffcf4a;
+/* v0.27zzeF: perks without an element wear the grey-white frame, like on the reward and card-book cards */
+.owned-tile[class*=" perk-"]:not([class*=" el-"]) {
+  --el: #e6eaf0;
 }
 
 /* v0.08b: value tooltips for creeps and towers */
@@ -3510,7 +3351,6 @@ dialog.welcome-modal::backdrop {
   transform-origin: 50% 55%;
 }
 #income-time.soon {
-  color: #ffd75a;
   animation: income-pulse 0.5s ease-in-out infinite alternate;
 }
 @keyframes income-pulse {
@@ -3563,7 +3403,6 @@ dialog.welcome-modal::backdrop {
 /* abilities of every player (level button without a waiting reward) */
 .abil-player {
   margin-top: 10px;
-  padding: 8px 10px 10px;
   border-radius: 10px;
   background: #0b182299;
   box-shadow: inset 3px 0 0 var(--pc);
@@ -3573,15 +3412,11 @@ dialog.welcome-modal::backdrop {
 }
 .abil-head {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
   gap: 8px;
 }
 .abil-head b {
-  color: var(--pc);
   font: 800 15px var(--font-display);
   letter-spacing: 0.03em;
-  filter: brightness(1.3);
 }
 .abil-head span {
   color: var(--muted, #a8bccb);
@@ -3681,11 +3516,7 @@ dialog.welcome-modal::backdrop {
 .enemy-cell {
   position: relative;
   display: grid;
-  justify-items: center;
-  align-content: center;
-  gap: 1px;
   min-width: 0;
-  padding: 2px 1px 1px;
   border: 0;
   border-radius: 8px;
   color: #fff;
@@ -3708,24 +3539,16 @@ dialog.welcome-modal::backdrop {
   place-items: center;
 }
 .enemy-cell .portrait {
-  width: 26px;
-  height: 26px;
   border-radius: 7px;
   border: 2px solid var(--pc);
   box-shadow: 0 0 0 1px #000;
 }
 .enemy-cell .plate-skull {
   top: 1px;
-  width: 22px;
-  height: 22px;
 }
 .ec-target {
   display: none;
   position: absolute;
-  right: -9px;
-  top: -5px;
-  width: 17px;
-  height: 17px;
   object-fit: contain;
   filter: drop-shadow(0 1px 1px #000);
 }
@@ -3738,12 +3561,9 @@ dialog.welcome-modal::backdrop {
 .ec-lives {
   display: flex;
   align-items: center;
-  gap: 2px;
   line-height: 1;
 }
 .ec-lives img {
-  width: 10px;
-  height: 10px;
   object-fit: contain;
 }
 .ec-lives b {
@@ -3859,33 +3679,14 @@ dialog.with-flag .modal-header {
 /* v0.09a: enemy cells — lives beside the portrait, gold and income below */
 .enemy-cell {
   gap: 2px;
-  padding: 3px 2px 2px;
 }
 .ec-top {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
   max-width: 100%;
 }
-.enemy-cell .portrait {
-  width: 24px;
-  height: 24px;
-}
-.enemy-cell .plate-skull {
-  width: 20px;
-  height: 20px;
-}
-.ec-target {
-  right: -6px;
-  top: -6px;
-  width: 15px;
-  height: 15px;
-}
-.ec-lives {
-  flex-direction: column;
-  gap: 1px;
-}
+
+
+
+
 .ec-gold {
   display: flex;
   align-items: center;
@@ -3912,37 +3713,22 @@ dialog.with-flag .modal-header {
 }
 /* v0.09b: portrait to the left so the heart and lives fit beside it */
 .ec-top {
-  justify-content: flex-start;
   align-self: stretch;
-  gap: 2px;
-  padding-left: 1px;
 }
-.ec-target {
-  right: auto;
-  left: -7px;
-}
+
 .ec-lives b {
   font-size: 12px;
 }
 /* v0.09c: sword back at the top right; picture further left, heart beside the lives */
 .ec-target {
   left: auto;
-  right: -6px;
-  top: -6px;
 }
-.ec-top {
-  gap: 1px;
-  padding-left: 0;
-  margin-left: -1px;
-}
+
 .enemy-cell {
   padding-left: 1px;
   padding-right: 1px;
 }
-.enemy-cell .portrait {
-  width: 23px;
-  height: 23px;
-}
+
 .ec-lives {
   flex-direction: row;
   gap: 1px;
@@ -3963,13 +3749,10 @@ dialog.with-flag .modal-header {
   padding: 6px 4px;
 }
 .pick-card[class*="el-"] {
-  border: 5px solid transparent;
   border-image-slice: 14;
   border-image-width: 15px;
   border-image-outset: 4px;
   border-image-repeat: round;
-  padding: 12px 7px 13px;
-  border-radius: 6px;
 }
 .pick-card[class*="el-"]::before,
 .pick-card[class*="el-"]::after {
@@ -3985,7 +3768,6 @@ dialog.with-flag .modal-header {
 .enemy-cell {
   justify-items: stretch;
   align-content: start;
-  padding: 3px 3px 2px;
 }
 .ec-top {
   display: grid;
@@ -4006,13 +3788,8 @@ dialog.with-flag .modal-header {
   flex-direction: row;
   gap: 1px;
 }
-.enemy-cell .ec-lives img {
-  width: 12px;
-  height: 12px;
-}
-.enemy-cell .ec-lives b {
-  font-size: 17px;
-}
+
+
 .ec-level {
   display: flex;
   align-items: center;
@@ -4023,11 +3800,7 @@ dialog.with-flag .modal-header {
   width: 10px;
   height: 10px;
 }
-.ec-level b {
-  font: 400 10px/1 var(--font-number);
-  color: #e6d2ff;
-  text-shadow: -1px -1px 0 #000, 1px 1px 0 #000;
-}
+
 .enemy-cell .ec-gold,
 .enemy-cell .ec-inc {
   justify-self: center;
@@ -4124,8 +3897,6 @@ dialog.with-flag .modal-header {
 }
 .volley-button .volley-cd {
   position: absolute;
-  inset: 0;
-  background: conic-gradient(#000a calc(var(--cd, 0) * 360deg), transparent 0);
   pointer-events: none;
 }
 .volley-button b {
@@ -4298,7 +4069,6 @@ dialog.with-flag .modal-header {
   z-index: 60;
   left: 50%;
   top: 34%;
-  width: min(300px, 78vw);
   aspect-ratio: 200 / 120;
   display: grid;
   place-items: center;
@@ -4391,11 +4161,7 @@ dialog.with-flag .modal-header {
 /* ---- in-game view fits short app views (v0.09y) --------------------------------------------- */
 /* Same idea as the start menu: the whole game ends above the hidden bottom edge (lift), and on
    short views the card rows and buttons get tighter so the board keeps its room. */
-.game-shell {
-  height: calc(100vh - var(--lift, 0px));
-  height: calc(100dvh - var(--lift, 0px));
-  max-height: calc(100dvh - var(--lift, 0px));
-}
+
 
 /* ---- welcome menu groups (v0.09z): Vs AI / Vs Player ------------------------------------------ */
 .welcome-group {
@@ -4496,7 +4262,6 @@ dialog.with-flag .modal-header {
 }
 .welcome-mode .mode-icon {
   position: absolute;
-  left: 14px;
   top: 50%;
   width: 36px;
   height: 36px;
@@ -4652,11 +4417,11 @@ html:root {
 }
 
 /* v0.10f: seven enemies, same slim cells as five or six */
-.enemy-stack[data-count="7"] .enemy-cell .portrait { width: 18px; height: 18px; border-width: 1.5px; }
+.enemy-stack[data-count="7"] .enemy-cell .portrait { border-width: 1.5px; }
 .enemy-stack[data-count="7"] .enemy-cell .plate-skull { width: 15px; height: 15px; }
 .enemy-stack[data-count="7"] .ec-inc,
 .enemy-stack[data-count="7"] .ec-level { display: none; }
-.enemy-stack[data-count="7"] .enemy-cell { font-size: 9px; padding: 1px 0; }
+.enemy-stack[data-count="7"] .enemy-cell { font-size: 9px; }
 .enemy-stack[data-count="7"] { gap: 2px; }
 
 /* ---- fill the whole screen (v0.10g) -------------------------------------------------------- */
@@ -4803,10 +4568,7 @@ dialog.welcome-modal {
   -webkit-mask-composite: xor;
   mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
 }
-.pick-card.el-fire::before,
-.perk-book.book-el.el-fire::before {
-  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 18'%3E%3Cg transform='translate(0 18) scale(1 -1)'%3E%3Cpath d='M0 18 C3 10 5 14 7 8 C8 12 10 13 11 6 C13 11 15 12 17 2 C19 9 21 11 23 5 C25 11 27 12 29 4 C31 10 33 11 35 7 C37 12 38 13 40 18Z' fill='%23ff6a1a'/%3E%3Cpath d='M2 18 C5 13 7 15 9 11 C11 15 13 15 15 9 C17 14 19 15 21 10 C23 15 25 15 27 10 C29 15 31 15 33 12 C35 15 37 16 38 18Z' fill='%23ffc23a'/%3E%3C/g%3E%3C/svg%3E") top center / 20px 9px repeat-x, url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 18'%3E%3Cpath d='M0 18 C3 10 5 14 7 8 C8 12 10 13 11 6 C13 11 15 12 17 2 C19 9 21 11 23 5 C25 11 27 12 29 4 C31 10 33 11 35 7 C37 12 38 13 40 18Z' fill='%23ff6a1a'/%3E%3Cpath d='M2 18 C5 13 7 15 9 11 C11 15 13 15 15 9 C17 14 19 15 21 10 C23 15 25 15 27 10 C29 15 31 15 33 12 C35 15 37 16 38 18Z' fill='%23ffc23a'/%3E%3C/svg%3E") bottom center / 20px 9px repeat-x, url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 40'%3E%3Cg transform='translate(18 0) rotate(90)'%3E%3Cpath d='M0 18 C3 10 5 14 7 8 C8 12 10 13 11 6 C13 11 15 12 17 2 C19 9 21 11 23 5 C25 11 27 12 29 4 C31 10 33 11 35 7 C37 12 38 13 40 18Z' fill='%23ff6a1a'/%3E%3Cpath d='M2 18 C5 13 7 15 9 11 C11 15 13 15 15 9 C17 14 19 15 21 10 C23 15 25 15 27 10 C29 15 31 15 33 12 C35 15 37 16 38 18Z' fill='%23ffc23a'/%3E%3C/g%3E%3C/svg%3E") left center / 9px 20px repeat-y, url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 18 40'%3E%3Cg transform='translate(0 40) rotate(-90)'%3E%3Cpath d='M0 18 C3 10 5 14 7 8 C8 12 10 13 11 6 C13 11 15 12 17 2 C19 9 21 11 23 5 C25 11 27 12 29 4 C31 10 33 11 35 7 C37 12 38 13 40 18Z' fill='%23ff6a1a'/%3E%3Cpath d='M2 18 C5 13 7 15 9 11 C11 15 13 15 15 9 C17 14 19 15 21 10 C23 15 25 15 27 10 C29 15 31 15 33 12 C35 15 37 16 38 18Z' fill='%23ffc23a'/%3E%3C/g%3E%3C/svg%3E") right center / 9px 20px repeat-y;
-}
+
 .pick-card.el-water::before,
 .perk-book.book-el.el-water::before {
   background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 12'%3E%3Cg transform='translate(0 12) scale(1 -1)'%3E%3Cpath d='M0 6 C5 0 10 0 15 6 S25 12 30 6 S37 0 40 4 V12 H0Z' fill='%232f8fe0'/%3E%3Cpath d='M0 9 C5 4 10 4 15 9 S25 14 30 9 S37 5 40 7 V12 H0Z' fill='%239fe2ff' opacity='.85'/%3E%3C/g%3E%3C/svg%3E") top center / 30px 9px repeat-x, url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 12'%3E%3Cpath d='M0 6 C5 0 10 0 15 6 S25 12 30 6 S37 0 40 4 V12 H0Z' fill='%232f8fe0'/%3E%3Cpath d='M0 9 C5 4 10 4 15 9 S25 14 30 9 S37 5 40 7 V12 H0Z' fill='%239fe2ff' opacity='.85'/%3E%3C/svg%3E") bottom center / 30px 9px repeat-x, url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 40'%3E%3Cg transform='translate(12 0) rotate(90)'%3E%3Cpath d='M0 6 C5 0 10 0 15 6 S25 12 30 6 S37 0 40 4 V12 H0Z' fill='%232f8fe0'/%3E%3Cpath d='M0 9 C5 4 10 4 15 9 S25 14 30 9 S37 5 40 7 V12 H0Z' fill='%239fe2ff' opacity='.85'/%3E%3C/g%3E%3C/svg%3E") left center / 9px 30px repeat-y, url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 40'%3E%3Cg transform='translate(0 40) rotate(-90)'%3E%3Cpath d='M0 6 C5 0 10 0 15 6 S25 12 30 6 S37 0 40 4 V12 H0Z' fill='%232f8fe0'/%3E%3Cpath d='M0 9 C5 4 10 4 15 9 S25 14 30 9 S37 5 40 7 V12 H0Z' fill='%239fe2ff' opacity='.85'/%3E%3C/g%3E%3C/svg%3E") right center / 9px 30px repeat-y;
@@ -4972,14 +4734,8 @@ dialog.welcome-modal {
 /* highest income: a soft golden glitter */
 .top-income {
   position: relative;
-  color: #fff3a8 !important;
-  background: linear-gradient(100deg, #ffe27a 0%, #ffe27a 38%, #fffbe6 50%, #ffe27a 62%, #ffe27a 100%);
-  background-size: 260% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
   -webkit-text-fill-color: transparent;
   text-shadow: none !important;
-  filter: drop-shadow(0 0 3px #ffd34a99) drop-shadow(1px 1px 0 #000) drop-shadow(-1px -1px 0 #000);
   animation: income-shine 2.4s linear infinite;
 }
 .top-income::after {
@@ -4989,7 +4745,6 @@ dialog.welcome-modal {
   top: -4px;
   width: 7px;
   height: 7px;
-  background: radial-gradient(circle, #fff 0 18%, #ffe27a00 60%), conic-gradient(from 0deg, #fff0 0 10%, #fffbe0 12% 13%, #fff0 15% 35%, #fffbe0 37% 38%, #fff0 40% 60%, #fffbe0 62% 63%, #fff0 65% 85%, #fffbe0 87% 88%, #fff0 90%);
   border-radius: 50%;
   -webkit-text-fill-color: initial;
   animation: income-sparkle 1.6s ease-in-out infinite;
@@ -5706,7 +5461,6 @@ dialog.welcome-modal.hard-eyes .welcome-eyes {
   align-items: center;
   column-gap: 2px;
   min-width: 0;
-  height: auto;
   padding: 1px 3px 1px 2px;
   font-size: 9.5px;
   overflow: visible;
@@ -5766,12 +5520,7 @@ dialog.welcome-modal.hard-eyes .welcome-eyes {
   overflow: hidden;
   text-overflow: clip;
 }
-.enemy-stack[data-count="5"] .enemy-cell .portrait,
-.enemy-stack[data-count="6"] .enemy-cell .portrait,
-.enemy-stack[data-count="7"] .enemy-cell .portrait {
-  width: 20px;
-  height: 20px;
-}
+
 .enemy-stack[data-count="5"] .ec-target,
 .enemy-stack[data-count="6"] .ec-target,
 .enemy-stack[data-count="7"] .ec-target {
@@ -5891,7 +5640,6 @@ dialog.welcome-modal.hard-eyes .welcome-eyes {
 .first-blood small {
   display: flex;
   align-items: baseline;
-  gap: 4px;
 }
 .first-blood .fb-name {
   font: 800 24px/1 var(--font-display);
@@ -6225,7 +5973,7 @@ b.val {
 .book-card small { font-size: 9.5px; }
 .book-card { cursor: default; position: relative; }
 .book-card:hover { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--el) 70%, #000), 0 3px 0 #050d13; }
-.book-card img { max-width: 44px; height: 44px; }
+
 .book-card small { color: #c9b4f0; font-weight: 600; }
 .book-empty { margin: 12px; color: var(--muted, #b9c6cf); text-align: center; }
 
@@ -6287,11 +6035,9 @@ html.layout-b .game-shell .bottom-nav {
   width: 88px;
   height: 300px;
   padding: 0;
-  display: flex;
   flex-flow: row wrap;
   justify-content: space-between;
   align-content: space-between;
-  gap: 4px;
   background: none;
   border: 0;
   pointer-events: none;
@@ -6310,16 +6056,11 @@ html.layout-b .game-shell .bottom-nav .tab-build { order: 3; }
 html.layout-b .game-shell .bottom-nav .tab-send { order: 4; }
 html.layout-b .game-shell .bottom-nav [data-tab] {
   flex-direction: column;
-  gap: 0;
   padding: 2px 0 0;
-  font-size: 9px;
   letter-spacing: 0.02em;
   line-height: 1;
 }
-html.layout-b .game-shell .bottom-nav [data-tab] img {
-  width: 24px;
-  height: 24px;
-}
+
 html.layout-b .game-shell .side-button img {
   width: 22px;
   height: 22px;
@@ -6398,9 +6139,7 @@ html.layout-b .game-shell .side-button img {
 }
 
 /* v0.17g: EXP numbers in tooltips and cards in the EXP purple */
-b.val.exp {
-  color: #c9a2ff;
-}
+
 .choice-row.layout-row .choice-button small {
   font-size: 8.5px;
   letter-spacing: 0;
@@ -6627,9 +6366,7 @@ html.layout-full .game-shell .bottom-nav {
   100% { opacity: 0; transform: translate(-50%, -44%); }
 }
 /* v0.17q: a note line below the version number */
-.app-version {
-  text-align: right;
-}
+
 .app-version-note {
   display: block;
   margin-top: 3px;
@@ -6704,10 +6441,6 @@ html.layout-full .game-shell .bottom-nav {
   margin: 4px 0 8px;
 }
 .qm-player {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  align-items: center;
-  gap: 2px 10px;
   padding: 10px 14px;
   border-radius: 12px;
   background: var(--pc);
@@ -7079,7 +6812,6 @@ body.menu-under-on #modal::backdrop {
 .auto-slot.mode .auto-slot-off { inset: 0 0 auto; }
 /* v0.19: lobbies with four to six players: two columns, a little tighter */
 .qm-lobby.many {
-  grid-template-columns: 1fr 1fr;
   gap: 6px;
 }
 .qm-lobby.many .qm-player {
@@ -7308,7 +7040,6 @@ dialog:has(.catalog-grid.techtree) {
 .tower-splat.ts-silver { --m1: #ffffff; --m2: #aab4bf; --m3: #4f5965; }
 .tower-splat.ts-gold { --m1: #fff2a8; --m2: #e0a62a; --m3: #7a4d06; }
 .tower-splat .ts-frame {
-  width: 58%;
   aspect-ratio: 1;
   display: grid;
   place-items: center;
@@ -7319,7 +7050,6 @@ dialog:has(.catalog-grid.techtree) {
 }
 .tower-splat .ts-frame img {
   width: 100%;
-  height: 100%;
   object-fit: contain;
   border-radius: 10%;
   background: radial-gradient(circle at 50% 40%, #2b3d46, #0c171c 75%);
@@ -7417,7 +7147,7 @@ b.val.exp { color: #d2b0ff; }
 .tower-splat .ts-frame .ts-picto { width: 100%; height: 100%; display: block; border-radius: 10%; background: radial-gradient(circle at 50% 35%, #34505c, #0c171c 75%); box-shadow: inset 0 0 0 2px var(--m3), inset 0 0 10px #000c; }
 /* v0.19k: player name and EXP in every splat a little larger */
 .first-blood .fb-name, .tower-splat .fb-name { font-size: 30px; }
-.first-blood .fb-exp, .tower-splat .fb-exp { font-size: 14.5px; }
+
 .tower-splat b { font-size: clamp(26px, 8vw, 36px); }
 .tower-splat .ts-frame { width: min(132px, 36vw); }
 
@@ -7429,7 +7159,7 @@ b.val.exp { color: #d2b0ff; }
 .room-opts { display: grid; gap: 6px; margin: 8px 0 2px; }
 .room-opts .room-opt { margin: 0; }
 p.room-opts { text-align: center; }
-.qm-lobby.teams { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: start; }
+.qm-lobby.teams { display: grid; gap: 8px; align-items: start; }
 .team-col { display: grid; gap: 6px; align-content: start; min-height: 120px; padding: 6px; border-radius: 12px; border: 2px solid color-mix(in srgb, var(--tc) 70%, #050d13); background: color-mix(in srgb, var(--tc) 14%, #0a1520cc); transition: box-shadow 0.15s; }
 .team-col.drop { box-shadow: 0 0 0 3px var(--tc), 0 0 14px var(--tc); }
 .team-head { display: flex; align-items: center; gap: 6px; font: 400 14px/1 var(--font-number); color: color-mix(in srgb, var(--tc) 55%, #fff); text-transform: uppercase; }
@@ -7565,7 +7295,7 @@ p.room-opts { text-align: center; }
 .perk-lab .lab-head { display: flex; align-items: center; gap: 12px; }
 .perk-lab .lab-body { display: grid; grid-template-columns: minmax(150px, 210px) 1fr; gap: 16px; align-items: start; padding: 4px 2px 8px; }
 .perk-lab .lab-card { cursor: default; }
-.perk-lab .lab-card img { max-width: 64px; height: 64px; }
+
 .perk-lab .lab-card b { font-size: 14px; }
 .perk-lab .lab-card span { font-size: 12.5px; }
 .perk-lab .lab-controls { display: grid; gap: 10px; }
@@ -7857,17 +7587,7 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
   left: 3px;
   top: 3px;
   bottom: auto;
-  min-width: 15px;
-  height: 15px;
-  padding: 0 2px;
-  border: 1.5px solid #2a180b;
-  border-radius: 3px;
-  background: linear-gradient(#fdf0d2, #ecd0a0);
-  box-shadow: 0 1px 0 #2a180b66;
-  font: 400 11px/12px var(--font-number);
   text-align: center;
-  color: #2a180b;
-  text-shadow: none;
 }
 :root:is(:not([data-design]), [data-design="original"]) .game-shell[data-page="send"] .unit-card[data-kind="send"].framed .card-stock,
 :root.layout-wide:is(:not([data-design]), [data-design="original"]) .game-shell #cards-send .unit-card[data-kind="send"].framed .card-stock {
@@ -8061,7 +7781,6 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
    Send) with the Build/Send bar in a column on the right, the board in the middle using the full height. */
 .choice-row.layout-row [data-ctl="wide"] { grid-row: 1; grid-column: 3; }
 :root.layout-wide {
-  --wide-left: clamp(220px, 19vw, 290px);
   --wide-right: clamp(300px, 26vw, 400px);
 }
 :root.layout-wide .game-shell {
@@ -8108,7 +7827,6 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
   width: var(--wide-right);
   height: auto !important;
   padding: 12px 10px 8px;
-  justify-content: flex-end;
   background: linear-gradient(270deg, #0a1822f2, #0a1822d9);
   border-left: 1px solid #ffffff10;
 }
@@ -8118,19 +7836,14 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
   width: var(--wide-right);
 }
 :root.layout-wide .command-deck .cards-wrap {
-  flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
 }
 :root.layout-wide .command-deck .cards,
 :root.layout-wide .game-shell[data-page="build"] .cards.grid-build:not(.upgrade-mode) {
   display: grid !important;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
   grid-auto-flow: row;
-  align-content: end;
-  gap: 8px;
   height: auto !important;
   max-height: 100%;
   padding: 2px;
@@ -8179,15 +7892,12 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
   grid-auto-flow: row;
   grid-auto-columns: auto;
   grid-template-columns: minmax(0, 1fr);
-  gap: 5px;
   height: auto;
 }
 :root.layout-wide .enemy-stack .enemy-cell {
   grid-template-columns: auto 1fr auto;
   grid-template-rows: auto auto;
   align-items: center;
-  column-gap: 8px;
-  padding: 4px 8px;
 }
 :root.layout-wide .enemy-stack .enemy-cell .ec-top { grid-column: 1; grid-row: 1 / 3; }
 :root.layout-wide .enemy-stack .enemy-cell .ec-gold { grid-column: 2; grid-row: 1; }
@@ -8281,7 +7991,6 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
   display: none;
 }
 :root.layout-wide .command-deck {
-  justify-content: flex-start;
   gap: 4px;
 }
 :root.layout-wide .wide-deck-title {
@@ -8295,7 +8004,6 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
 :root.layout-wide .command-deck #cards-send {
   display: grid !important;
   flex: 0 1 auto;
-  max-height: 52%;
   align-content: start;
 }
 :root.layout-wide .command-deck .cards,
@@ -8313,7 +8021,6 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
 /* v0.24p: the own plate shows gold and income again; the stats panel sits in the card column on the right */
 :root.layout-wide .wide-stats {
   display: grid;
-  grid-template-columns: 1fr 1fr;
   gap: 8px;
   margin: 0 0 12px;
   padding: 10px;
@@ -8524,8 +8231,6 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
    on the right below the version number */
 .welcome-options.welcome-install {
   top: calc(28px + env(safe-area-inset-top));
-  left: auto;
-  right: 10px;
   border-color: #4a1d04;
   background: linear-gradient(var(--orange-hi), var(--orange-lo));
   box-shadow:
@@ -8551,14 +8256,12 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
 /* ---- v0.24p: Desktop Wide: cards at the bottom, stats panel above them, mini maps beside the player windows ---- */
 :root.layout-wide .command-deck {
   justify-content: flex-end;
-  padding-bottom: calc(var(--nav-size) + 10px);
 }
 :root.layout-wide .command-deck .side-dock {
   margin-bottom: auto;
 }
 :root.layout-wide .command-deck .wide-stats {
   flex: none;
-  margin: 8px 0 6px;
 }
 :root.layout-wide .command-deck .cards-wrap {
   flex: none;
@@ -8685,10 +8388,6 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
 :root.layout-wide .wide-player.target::after {
   content: "";
   position: absolute;
-  top: -6px;
-  left: -6px;
-  width: 22px;
-  height: 22px;
   background: url("assets/art/icon-attack.webp") center / contain no-repeat;
   filter: drop-shadow(0 1px 2px #000);
 }
@@ -8733,7 +8432,6 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
   color: #d8bfff;
 }
 :root.layout-wide .wp-tier {
-  margin-left: 4px;
   color: #c78cff;
 }
 :root.layout-wide .wp-lv b,
@@ -8758,10 +8456,7 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
   gap: 2px;
   margin-left: auto;
 }
-:root.layout-wide .wp-els img {
-  width: 16px;
-  height: 16px;
-}
+
 :root.layout-wide .wp-exp {
   position: absolute;
   left: 8px;
@@ -8793,19 +8488,14 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
 }
 :root.layout-wide .ws-tier-badge {
   grid-row: 1 / 3;
-  display: grid;
   place-items: center;
   width: 26px;
   height: 26px;
   border-radius: 7px;
-  background: linear-gradient(#6b3fb0, #3a1f6e);
-  box-shadow: inset 0 0 0 1px #c78cff;
   font: 800 13px var(--font-display);
   color: #fff;
 }
-:root.layout-wide .ws-tier b {
-  color: #e2c8ff;
-}
+
 /* the auto-spawn slot left of the creep cards */
 .wide-send-row {
   display: contents;
@@ -8966,9 +8656,7 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
   --wide-left: clamp(260px, 22vw, 350px);
 }
 /* Desktop Wide: the 2ndLocalInfoWindow sits at the top of the right column, a short distance below the screen edge */
-:root.layout-wide .command-deck .wide-stats {
-  margin: 0 0 auto;
-}
+
 /* Desktop Wide: the auto-spawn slot at the right end of the Send title, right above the creep cards */
 :root.layout-wide #wd-send-title {
   display: flex;
@@ -9003,9 +8691,7 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
 .wide-hud-row {
   display: none;
 }
-:root.layout-wide .command-deck .wide-stats {
-  margin: 0;
-}
+
 :root.layout-wide .wide-hud-row {
   display: flex;
   align-items: center;
@@ -9192,9 +8878,7 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
 }
 /* ---- v0.25g: Desktop Wide: round timer and level button left of the board at its top; the 2ndLocalInfoWindow keeps
    the top of the right column; selected tower cards are no longer cut off at the top ---- */
-:root.layout-wide .command-deck .wide-stats {
-  margin: 0 0 auto;
-}
+
 :root.layout-wide #arena > .wide-hud-row {
   position: absolute;
   z-index: 4;
@@ -9317,7 +9001,6 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
 }
 :root.layout-wide .ws-tier #ws-tier {
   margin-left: 0;
-  font-size: 22px !important;
   letter-spacing: 0.04em;
   text-shadow:
     -1.5px -1.5px 0 #fff,
@@ -9405,25 +9088,18 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
   text-shadow: 0 1px 0 #12061f, 0 0 3px #12061f;
 }
 :root.layout-wide .wide-stats .level-button i {
-  top: -9px;
-  left: -8px;
   right: auto;
 }
 /* the rotating halo belongs to the square button; the wide bar only breathes with its glow layer */
 :root.layout-wide .wide-stats .level-button.ready::before {
   display: none;
 }
-:root.layout-wide .wide-stats .level-button.ready::after {
-  border-radius: 10px;
-}
+
 :root.layout-wide .command-deck > .side-dock {
   flex: none;
   flex-direction: row;
-  align-self: flex-end;
   width: auto;
-  margin: 0 1px auto 0 !important;
   padding: 4px;
-  border-radius: 12px;
   background: #07131b99;
   letter-spacing: 0;
   text-transform: none;
@@ -9695,19 +9371,14 @@ html.menu-tint dialog .modal-header {
 }
 
 /* ---- v0.27zzaF: Desktop Wide: upgrade blueprints in the format of the build blueprints (name, picture, cost) ---- */
-:root.layout-wide .command-deck #cards.upgrade-mode {
-  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-}
+
 :root.layout-wide .command-deck #cards.upgrade-mode > .up-card .up-title {
   font-size: 17.5px;
   line-height: 1.1;
   white-space: nowrap;
   overflow: hidden;
 }
-:root.layout-wide .command-deck #cards.upgrade-mode > .up-card .up-art {
-  flex: 1 1 auto;
-  min-height: 0;
-}
+
 :root.layout-wide .command-deck #cards.upgrade-mode > .up-card .up-art img {
   object-fit: contain;
 }
@@ -9728,15 +9399,12 @@ html.menu-tint dialog .modal-header {
 }
 :root.layout-wide .command-deck #cards.upgrade-mode > .up-card .up-title {
   position: absolute;
-  top: 0;
   left: 4px;
   right: 4px;
   z-index: 2;
   text-align: center;
 }
 :root.layout-wide .command-deck #cards.upgrade-mode > .up-card .up-art {
-  position: absolute;
-  inset: 2px;
   z-index: 0;
 }
 :root.layout-wide .command-deck #cards.upgrade-mode > .up-card .up-art img {
@@ -9815,4 +9483,47 @@ html.menu-tint dialog .modal-header {
 .book-card .pick-book {
   width: 60px;
   height: 50px;
+}
+
+/* ---- v0.27zzeF: card book, Hall of Elements: the combination towers stand right of each top hall, under their elements ---- */
+.tt-towers .tt-chain.tt-has-combos {
+  align-items: flex-end;
+}
+.tt-towers .tt-chain.tt-has-combos > .tt-arrow {
+  align-self: flex-end;
+  margin-bottom: 28px;
+}
+.tt-combos {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+}
+.tt-combo {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+}
+.tt-combo-els {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  height: 18px;
+}
+.tt-combo-els img {
+  width: 17px;
+  height: 17px;
+  object-fit: contain;
+  filter: drop-shadow(0 1px 1px #0009);
+}
+.tt-combo-els i {
+  font: 800 11px/1 var(--font-display);
+  font-style: normal;
+  color: #ffffffb0;
+}
+.tt-combo .tt-node.tt-ref {
+  min-height: 74px;
+}
+.tt-combo .tt-node.tt-ref > img {
+  width: 40px;
+  height: 40px;
 }

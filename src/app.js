@@ -188,7 +188,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.27zzd",
+const APP_VERSION = "0.27zze",
   APP_BRANCH = "F", // v0.23q: author marker (F = Felix, S = Steven) and branch text, shown behind the version; APP_VERSION stays plain for online matches (VersionPublishingRules.md)
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "29.10.2026";
@@ -5064,8 +5064,10 @@ function pickCard(o, i, p) {
   if (o.type === "forget") {
     // v0.26eF: Amnesia: an owned perk to forget, with the rewards it brings
     const d = PERKS[o.id],
-      level = p.perks?.[o.id] || 0;
-    return `<button class="pick-card pick-perk pick-forget perk-${o.id}" data-pick="${i}"><img src="${PERK_ART[o.id](level)}" alt="" decoding="sync" style="filter:grayscale(.6)"><b>${esc(t(d.name))}</b><span>${t("Forget it: +{n} rewards", { n: 1 + level })}</span><small>${t("Lv. {n}", { n: level })}</small></button>`;
+      level = p.perks?.[o.id] || 0,
+      els = perkLook(o.id),
+      pel = els.length ? elementOf(els.find((e) => p.research[elementOf(e)?.unlock]) || els[0]) : null; // v0.27zzeF: the perk's element frame here too
+    return `<button class="pick-card pick-perk pick-forget perk-${o.id}${pel ? " pick-element el-" + pel.id : ""}" data-pick="${i}"${pel ? ` style="--el:${pel.color}"` : ""}><img src="${PERK_ART[o.id](level)}" alt="" decoding="sync" style="filter:grayscale(.6)"><b>${esc(t(d.name))}</b><span>${t("Forget it: +{n} rewards", { n: 1 + level })}</span><small>${t("Lv. {n}", { n: level })}</small></button>`;
   }
   if (o.type === "quest") {
     const q = QUESTS[o.id];
@@ -6343,6 +6345,18 @@ function itemDetail(id, towerId, detailPlayer = own, back = null) {
  * shows once in full and as a small link elsewhere. Creeps run tier by tier, the boss leading to
  * the next tier; upgrades are grouped by element.
  */
+/** v0.27zzeF: the elements a combination tower needs, in the order of its name ("Phoenix [Fire & Storm]": Fire, Storm). */
+function comboEls(item) {
+  const byUnlock = (id) => catalog.factions.find((f) => f.unlock === id || f.research === id),
+    need = (item?.requires || []).map((r) => byUnlock(r.id)).filter(Boolean);
+  if (need.length < 2) return need;
+  const tag = String(item.name || "").replace(/\|c\w{8}|\|r/g, "").match(/\[([^\]]+)\]/)?.[1] || "",
+    pos = (f) => {
+      const k = tag.toLowerCase().indexOf(String(f.name).toLowerCase());
+      return k < 0 ? 99 : k;
+    };
+  return [...need].sort((a, b) => pos(a) - pos(b));
+}
 const TREE_ROOTS = ["h003", "h000", "h02R", "h03V", "h01F", "h05L", "hWAL"];
 function techTree(kind) {
   const elColor = (item) => elementOf(item?.element)?.color || "",
@@ -6375,11 +6389,25 @@ function techTree(kind) {
         chain.push(main);
         last = main;
       }
+      // v0.27zzeF: the top halls' combination towers stand to the right of the last hall, each under its two element symbols
+      const last1 = sides.find((sd) => sd.col === chain.length - 1 && sd.items.every((c) => comboEls(c).length >= 2));
+      if (last1) sides.splice(sides.indexOf(last1), 1);
+      const combos = last1
+        ? `${arrow}<div class="tt-combos">${last1.items
+            .map((c) => {
+              const ref = seen.has(c.id);
+              seen.add(c.id);
+              return `<div class="tt-combo"><span class="tt-combo-els">${comboEls(c)
+                .map((f) => `<img src="${iconUrl(ELEMENT_ICON[f.id])}" alt="${esc(t(f.name))}" title="${esc(t(f.name))}">`)
+                .join('<i aria-hidden="true">+</i>')}</span>${node(c, ref)}</div>`;
+            })
+            .join("")}</div>`
+        : "";
       const below = sides
         .sort((a, b) => b.col - a.col)
         .map((sd) => `<div class="tt-side" style="--col:${sd.col}"><span class="tt-down" aria-hidden="true">↓</span>${sd.items.map((c) => (seen.has(c.id) ? `<div class="tt-branch">${node(c, true)}</div>` : branch(c))).join("")}</div>`)
         .join("");
-      return `<div class="tt-branch"><div class="tt-chain">${chain.map((c) => node(c)).join(arrow)}</div>${below}</div>`;
+      return `<div class="tt-branch"><div class="tt-chain${combos ? " tt-has-combos" : ""}">${chain.map((c) => node(c)).join(arrow)}${combos}</div>${below}</div>`;
     };
     return TREE_ROOTS.map((id) => catalog.byId[id])
       .filter(Boolean)
