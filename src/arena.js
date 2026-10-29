@@ -1,5 +1,5 @@
 import { getStats, attackInfo, divineShield, isHeavy, isMagicTower, isMeleeTower, towerAt, towerSize, footprintOf, STRIP, HELLFIRE, loneActive, zoneOf, hpBarScale, tierSends, laneRows, baseRows, MINI_BOSS } from "./simulation.js";
-import { ART_MANIFEST, ANIM_MANIFEST, animUrl, artFor, artUrl, towerTier, TEAM_COLORS, CLOTH_COLORS, recolorTeam, activeArtSet, artSetFor, useArtSet, setArtKey, setArtMeta, setPropUrl, SET_ART } from "./art.js";
+import { ART_MANIFEST, ANIM_MANIFEST, animUrl, keepsBlue, artFor, artUrl, towerTier, TEAM_COLORS, CLOTH_COLORS, recolorTeam, activeArtSet, artSetFor, useArtSet, setArtKey, setArtMeta, setPropUrl, SET_ART } from "./art.js";
 // v0.23n: design variants removed: no per-figure motion profiles (motion.js) any more
 const towerIdle = () => ({ lean: 0, stretch: 1 }),
   towerAttack = () => null,
@@ -520,7 +520,7 @@ export function mountArena({
         if (set && setArtKey(key) !== key) continue; // level variants are not drawn in a set (they keep the original art)
         const url = artUrl(key);
         if (stage.urlOf(tex) === url) continue;
-        stage.reloadImage(tex, url, { meta: setArtMeta(set, key), paint: colorId ? (this.painters[colorId] ||= (d) => recolorTeam(d, colorId)) : null });
+        stage.reloadImage(tex, url, { meta: setArtMeta(set, key), paint: colorId && !keepsBlue(key) ? (this.painters[colorId] ||= (d) => recolorTeam(d, colorId)) : null });
       }
       // the scenery of the new look (its atlas loads now if needed; the old look's atlas is let go)
       for (const key of [...stage.textures.keys()]) if ((key === "terrain" || key.startsWith("terrain:")) && key !== (boardProps() && set ? "terrain:" + currentDesign() : "terrain")) stage.dropTexture(key);
@@ -538,7 +538,7 @@ export function mountArena({
       const still = !key.startsWith("anim:");
       if (still) key = this.fold(key); // v0.23a: art sets: level variants draw their base figure
       const color = CLOTH_COLORS[colorId],
-        recolor = !!color && color.hue !== null;
+        recolor = !!color && color.hue !== null && !keepsBlue(key);
       let tex = key;
       if (recolor) {
         let byColor = this.skinKeys.get(key);
@@ -625,7 +625,7 @@ export function mountArena({
       const still = !key.startsWith("anim:");
       if (still) key = this.fold(key);
       const color = CLOTH_COLORS[colorId],
-        recolor = !!color && color.hue !== null;
+        recolor = !!color && color.hue !== null && !keepsBlue(key);
       let tex = key;
       if (recolor) {
         let byColor = this.skinKeys.get(key);

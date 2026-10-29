@@ -1153,7 +1153,7 @@ dialog[open] {
 .modal-hero-wrap { position: relative; width: fit-content; max-width: 70%; margin: 2px auto; }
 .modal-hero-wrap .modal-hero { max-width: 100%; margin: 0 auto; }
 /* v0.27vF: element symbols a little further left, without the coloured circle behind them */
-.hero-elements { position: absolute; top: 0; left: -12px; display: flex; flex-direction: column; gap: 4px; }
+.hero-elements { position: absolute; top: 0; left: -34px; display: flex; flex-direction: column; gap: 4px; }
 .hero-el { display: grid; place-items: center; width: 26px; height: 26px; }
 .hero-el img { width: 24px; height: 24px; object-fit: contain; filter: drop-shadow(0 1px 2px #000c); }
 .modal-kicker {

@@ -164,7 +164,7 @@ import { mountArena, artFor } from "./arena.js";
 const designRow = () => "",
   setDesign = () => {},
   currentDesign = () => "original";
-import { artUrl, iconUrl, ELEMENT_ICON, ART_MANIFEST, ANIM_MANIFEST, animUrl, registerTowerArt, TEAM_COLORS, recolorTeam, setPropUrl, activeArtSet, uiArt, useArtSet, artSetFor, ART_VERSION, CREEP_PORTRAIT, loadPacks, packsDone, packProgress, onPackProgress, unpack, PACK_PENDING } from "./art.js";
+import { artUrl, iconUrl, ELEMENT_ICON, ART_MANIFEST, ANIM_MANIFEST, animUrl, keepsBlue, registerTowerArt, TEAM_COLORS, recolorTeam, setPropUrl, activeArtSet, uiArt, useArtSet, artSetFor, ART_VERSION, CREEP_PORTRAIT, loadPacks, packsDone, packProgress, onPackProgress, unpack, PACK_PENDING } from "./art.js";
 import { createSoundtrack } from "./soundtrack.js";
 import { createSfx, haptic } from "./sfx.js";
 import { t, num, goldText } from "./i18n.js";
@@ -187,7 +187,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.27zu",
+const APP_VERSION = "0.27zv",
   APP_BRANCH = "F", // v0.23q: author marker (F = Felix, S = Steven) and branch text, shown behind the version; APP_VERSION stays plain for online matches (VersionPublishingRules.md)
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "28.10.2026";
@@ -1547,7 +1547,7 @@ const teamArt = new Map();
 function towerArtUrl(key, quiet = false) {
   const url = artUrl(key),
     color = colorChoice; // v0.27xF: the colour asked for (online matches assign a colour while pictures still load)
-  if (TEAM_COLORS[color]?.hue == null || !/^(tower|creep)-/.test(key)) return url; // v0.15: creep cards too
+  if (TEAM_COLORS[color]?.hue == null || !/^(tower|creep)-/.test(key) || keepsBlue(key)) return url; // v0.15: creep cards too; v0.27zvF: water figures stay blue
   const id = url + "#" + color, // the url: design variants draw the same key from another art set
     hit = teamArt.get(id);
   if (typeof hit === "string") return hit;
@@ -2613,7 +2613,7 @@ function heroSheet(key, color) {
         const img = new Image();
         img.onload = () => {
           try {
-            if (TEAM_COLORS[color]?.hue == null) return ok(img);
+            if (TEAM_COLORS[color]?.hue == null || keepsBlue(key)) return ok(img);
             const c = Object.assign(document.createElement("canvas"), { width: img.naturalWidth, height: img.naturalHeight }),
               ctx = c.getContext("2d", { willReadFrequently: true });
             ctx.drawImage(img, 0, 0);
@@ -6154,7 +6154,17 @@ function researchDetail(id) {
 /** `back` (v0.22): opened from the card book, a Back button returns there. */
 /** v0.22n2: the info dialog's picture with the elements the tower needs as symbols in its upper left corner. */
 function heroWithElements(item) {
-  const els = item.kind === "tower" || item.isBuildable ? catalog.factions.filter((f) => (item.requires || []).some((r) => r.id === f.unlock || r.id === f.research)) : [];
+  // v0.27zvF: the element a tower line needs is often only set on its first level (Bouncing Shot 4–6 showed no Storm):
+  // the requirements of every tower it is upgraded from count too
+  const reqs = [];
+  if (item.kind === "tower" || item.isBuildable) {
+    const seen = new Set();
+    for (let cur = item; cur && !seen.has(cur.id); cur = catalog.units?.find?.((u) => u.upgrades?.includes(cur.id)) || Object.values(catalog.byId).find((u) => u?.upgrades?.includes?.(cur.id))) {
+      seen.add(cur.id);
+      reqs.push(...(cur.requires || []));
+    }
+  }
+  const els = reqs.length ? catalog.factions.filter((f) => reqs.some((r) => r.id === f.unlock || r.id === f.research)) : [];
   const key = artFor(item),
     anim = ANIM_MANIFEST[key]?.kind === "attack" && !activeArtSet() ? ` data-anim="${key}"` : "", // v0.27ztF: towers with an attack sheet play it here
     img = `<img class="modal-hero" src="${towerArtUrl(key)}"${anim} alt="">`,
