@@ -9154,6 +9154,12 @@ html.creep-scroll .game-shell[data-page="send"] .cards > .unit-card {
   left: auto;
   right: 14px;
 }
+/* v0.28.019F: the Training shield a little larger (centre kept in line with the PvP swords) */
+.welcome-mode .mode-icon.training-icon {
+  width: 42px;
+  height: 42px;
+  right: 11px;
+}
 
 /* ---- v0.27yF: menus in the player's colour (html.menu-tint, set by applyMenuColor in app.js; "Random" keeps gold and
    blue). Main buttons in the full colour, secondary buttons in a darker shade of it, labels, lines and highlights in
@@ -10222,4 +10228,25 @@ dialog.welcome-modal.easy-wolf .mood-easy-wolf { opacity: 1; }
   text-align: left;
   text-shadow: 0 0 6px #7a2fd0aa;
   animation: hardo-rise 0.6s ease-out both;
+}
+
+/* ---- v0.28.019F: Desktop Wide: the tier indicator sits in the upper right corner of each player info window ---- */
+:root.layout-wide .wide-player .wp-tier {
+  position: absolute;
+  top: 7px;
+  right: 11px;
+  margin: 0;
+}
+
+/* ---- v0.28.019F: Desktop Wide (square creep buttons): the padlock centred on the button (it hung below the middle);
+   the chains stay where they are ---- */
+:root.layout-wide #cards-send .card-lock svg > path,
+:root.layout-wide #cards-send .card-lock svg > rect,
+:root.layout-wide .card-lock.lock-fly svg > path,
+:root.layout-wide .card-lock.lock-fly svg > rect {
+  translate: 0 -10px;
+}
+:root.layout-wide #cards-send .card-lock b,
+:root.layout-wide .card-lock.lock-fly b {
+  margin-top: 0;
 }

@@ -3083,13 +3083,13 @@ function goldPerkOpen(game, p) {
 export const QUESTS = Object.freeze({
   goblin: { name: "Goblin Banter", avail: "2-3", kind: "banter", model: "n00E", creeps: ["n00E", "n00U"], hp: 0.7, plural: "Goblins", pair: "Goblins & Trenchlins", discount: 0.2, exp: 100 }, // v0.23b: 20 % (rounded up: Goblin 4, Imp 40)
   // v0.27nF: Untouchable in 3 versions: no breach for 5 / 7 / 10 rounds (QUEST_VERSIONS)
-  untouchable: { name: "Untouchable", avail: "6-12", kind: "untouchable" },
+  untouchable: { name: "Untouchable", avail: "8+", kind: "untouchable" }, // v0.28.019F: 8+ (was 6-12)
   troll: { name: "Troll Banter", avail: "8-12", kind: "banter", model: "n010", creeps: ["n010", "n00F"], hp: 0.8, plural: "Trolls", pair: "Trolls & Witch Doctors", exp: 200 },
   undead: { name: "Undead Banter", avail: "13-18", kind: "banter", model: "n016", creeps: ["n016", "n01D"], hp: 0.85, plural: "Zombies", pair: "Zombies & Ghouls", exp: 300 },
   hound: { name: "Hound Banter", avail: "19-25", kind: "banter", model: "n02L", creeps: ["n02L", "n00L"], hp: 0.9, plural: "Demon Hounds", pair: "Demon Hounds & Wolves", exp: 450 },
   scarab: { name: "Scarab Banter", avail: "26-35", kind: "banter", model: "n01S", creeps: ["n01S", "n02V"], hp: 0.95, plural: "Scarabs", pair: "Scarabs & Spawn Spiders", exp: 600 },
   // v0.27nF: Breach Contract replaces Blood and Unholy Contract: score a breach within 10 / 8 / 6 / 4 rounds (QUEST_VERSIONS)
-  breach: { name: "Breach Contract", avail: "3+", kind: "breach" },
+  breach: { name: "Breach Contract", avail: "5+", kind: "breach" }, // v0.28.019F: 5+ (was 3+)
 });
 /**
  * v0.27nF: versions of Breach Contract and Untouchable, drawn when the quest is offered. EXP = base + player level ×

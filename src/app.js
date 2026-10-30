@@ -198,7 +198,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.28.018",
+const APP_VERSION = "0.28.019",
   APP_BRANCH = "F", // v0.23q: author marker (F = Felix, S = Steven) and branch text, shown behind the version; APP_VERSION stays plain for online matches (VersionPublishingRules.md)
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "30.10.2026";
@@ -3910,25 +3910,24 @@ function hardoCode(step) {
   if (hardoInput.join() !== HARDO_CODE.join()) return;
   hardoUnlocked = true;
   hardoInput = [];
-  hardoHoldScroll(2600);
+  hardoHoldScroll(1700);
   tone("hardo");
   hardoMusicDelay = 5.2; // the organ theme starts after the signal and a moment of silence
   // v0.28.015F: the other levels stay in the menu; Hardo slams in on the right, next to Hard, and is picked
   const row = document.querySelector("#modal-body .ai-levels"),
     hardo = row?.querySelector('[data-ai="insane"]');
-  setTimeout(() => {
-    if (!row || !hardoUnlocked) return;
-    row.classList.add("with-hardo");
-    if (hardo) {
-      hardo.hidden = false;
-      hardo.classList.add("hardo-impact");
-      hardo.addEventListener("animationend", () => hardo.classList.remove("hardo-impact"), { once: true });
-    }
-    pickAiLevel("insane");
-    const panel = $("welcome-panel");
-    panel?.classList.add("hardo-shake");
-    setTimeout(() => panel?.classList.remove("hardo-shake"), 700);
-  }, 900);
+  // v0.28.019F: Hardo slams in right away (the 0.9 s wait was left over from the old falling-buttons animation)
+  if (!row) return;
+  row.classList.add("with-hardo");
+  if (hardo) {
+    hardo.hidden = false;
+    hardo.classList.add("hardo-impact");
+    hardo.addEventListener("animationend", () => hardo.classList.remove("hardo-impact"), { once: true });
+  }
+  pickAiLevel("insane");
+  const panel = $("welcome-panel");
+  panel?.classList.add("hardo-shake");
+  setTimeout(() => panel?.classList.remove("hardo-shake"), 700);
 }
 /** v0.14: the wolf in the main-menu picture lets its eyes glow while Hard is picked for Vs AI (v0.21z: all evil creeps, skull on the moon; Very Easy: everyone asleep). */
 function wolfEyes() {
@@ -7477,12 +7476,14 @@ function perkLab(id, back) {
   else $("sub-back").onclick = back;
   grid.scrollTop = 0;
 }
+// v0.28.019F: card book: Breach Contract and Untouchable first, the Banter quests last
+const isBanterQuest = (e) => e.type === "quest" && QUESTS[e.id]?.kind === "banter";
 function perkBook(query = "") {
   const p = game?.players?.[own] || { perks: {}, research: {}, picks: [], level: 1, tier: 1 },
     entries = perkBookEntries().filter((e) => !query || [e.name, e.id].join(" ").toLowerCase().includes(query));
   return ["neutral", ...catalog.factions.map((f) => f.id), "quests"]
     .map((g) => {
-      const list = entries.filter((e) => e.groups.includes(g) && e.type !== "element").sort((a, b) => (b.kind === "element") - (a.kind === "element") || bookFirstLevel(a) - bookFirstLevel(b) || BOOK_RANK[a.kind] - BOOK_RANK[b.kind] || a.name.localeCompare(b.name)), // v0.20d: by earliest level
+      const list = entries.filter((e) => e.groups.includes(g) && e.type !== "element").sort((a, b) => (b.kind === "element") - (a.kind === "element") || isBanterQuest(a) - isBanterQuest(b) || bookFirstLevel(a) - bookFirstLevel(b) || BOOK_RANK[a.kind] - BOOK_RANK[b.kind] || a.name.localeCompare(b.name)), // v0.20d: by earliest level
         f = elementOf(g);
       if (!list.length) return "";
       return `<section class="tt-tree perk-book${f ? " book-el el-" + f.id : g === "quests" ? "" : " book-neutral"}"${f ? ` style="--el:${f.color}"` : ""}><h3>${f ? `<img class="book-el-icon" src="${iconUrl(ELEMENT_ICON[f.id])}" alt="">` : ""}${esc(f ? t(f.name) : t(g === "quests" ? "Quests" : "Neutral"))}</h3><div class="pick-grid book-grid">${list.map((e) => perkBookCard(e, p, g)).join("")}</div></section>`; // v0.22h1: element icon before the heading instead of an element card
