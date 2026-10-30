@@ -1068,7 +1068,7 @@ function sendIncomeParts(p, item) {
   if (sanction) decimal += Math.round((base * 100 + (item.incomeHundredths || 0)) * sanction);
   // v0.19a1: Healing Power (+2 %), Creep Armor (+1.5 %) per level, Blood / Unholy Contract
   const tail = perkLevel(p, "tailwind"),
-    creepInc = HEALING.income * perkLevel(p, "medicine") + CREEP_ARMOR.income * perkLevel(p, "carmor") + LEADERSHIP_INCOME * perkLevel(p, "leadership") + contractShare(p, item, "income") + (tail ? TAILWIND.income + TAILWIND.incomePer * tail : 0); // v0.27aF: Leadership; v0.28.004F: Tailwind
+    creepInc = HEALING.income * perkLevel(p, "medicine") + MIND.income * perkLevel(p, "mind") + CREEP_ARMOR.income * perkLevel(p, "carmor") + LEADERSHIP_INCOME * perkLevel(p, "leadership") + contractShare(p, item, "income") + (tail ? TAILWIND.income + TAILWIND.incomePer * tail : 0); // v0.27aF: Leadership; v0.28.004F: Tailwind
   if (creepInc) decimal += Math.round((base * 100 + (item.incomeHundredths || 0)) * creepInc);
   // v0.10p: Wings of War: +10 % income per level for flying creeps
   const wings = item.flying ? perkLevel(p, "wings") : 0;
@@ -1154,6 +1154,8 @@ export const PERKS = Object.freeze({
   exhume: { name: "Exhumination", max: 3, element: "plague", text: "Undead creeps cost {exhume} less and recruit {exhumeSpeed} faster" }, // v0.26cF: recruit 10 % faster per level // v0.20c: 10 % faster instead of 20 % slower // v0.10r; v0.19j: tooltip (they still restock 20% slower)
   fireblock: { name: "Fire Block", max: 3, element: "fire", text: "Every {fireBlockCd} s first breach is pushed back {fireBlockBack} fields and explodes 3× for {fireBlock}", detail: "Every {fireBlockCd} s the first breach is pushed back {fireBlockBack} fields and explodes at once: {fireBlock} damage 3 times" }, // v0.19j
   airblock: { name: "Air Block", max: 3, element: "storm", text: "Every {airBlockCd} s first flying breach is pushed back {airBlockBack} fields, struck for {airBlock} and stunned {airBlockStun} s", detail: "Every {airBlockCd} s the first flying breach is pushed back {airBlockBack} fields, struck by lightning for {airBlock} damage and stunned {airBlockStun} s. Each block cuts your Monsun cooldown by {airBlockMonsun} s" }, // v0.20c; v0.24s: Monsun cooldown per block
+  meditation: { name: "Meditation", max: 5, element: "arcane", unpopular: 0.5, text: "Active abilities cool down {meditation} faster", detail: "The cooldowns of your active abilities (Arrow Volley, Pillar of Fire, Arcane Burst, Frost Bolt, Monsun, Arcane Golem, Infested Ground) run {meditation} faster" }, // v0.28.017F
+  arcaneblock: { name: "Arcane Block", max: 3, element: "arcane", text: "Every {arcaneBlockCd} s a breach is denied: the creep becomes your arcane clone{arcaneBlockText}", detail: "Every {arcaneBlockCd} s the first creep that breaks through is stopped. Its owner cannot recruit that creep type for {arcaneBlockLock} rounds; the creep turns into your arcane clone (its health stays{arcaneBlockBuff}){arcaneBlockDetail}" }, // v0.28.017F
   supergrowth: { name: "Supergrowth", max: 3, element: "earth", text: "Buying strong ground creeps gives their type up to +{growth} HP", detail: "Each purchase of a ground creep from the stronger half of its tier gives that creep type +{growth} HP, less for weaker ones" }, // v0.20f
   waterblock: { name: "Water Block", max: 3, element: "water", text: "Every {blockCd} s first breach is pushed back {blockBack} fields and frozen {blockSlow} slower", detail: "Every {blockCd} s the first breach is pushed back {blockBack} fields (flyers {blockBackAir}) and frozen {blockSlow} slower" }, // v0.10r
   pocks: { name: "Giant's Pocks", max: 5, element: "plague", text: "Every 4 s the strongest creep loses {pocks} HP and is poisoned", detail: "Every 4 s the strongest creep in your field loses {pocks} HP and is poisoned" }, // v0.10q
@@ -1192,7 +1194,7 @@ export const PERKS = Object.freeze({
   leadership: { name: "Leadership", max: 20, element: "fire", text: "Creeps +{leadership} HP, creep income +{leadershipInc}" }, // v0.27aF: +1 % creep income per level
   alchemist: { name: "Poison Alchemist", max: 10, element: "plague", text: "Your poisons last {alchemistDur} longer, max stacks +{alchemistStacks}" }, // v0.27aF
   tailwind: { name: "Tailwind", max: 10, element: "storm", text: "Creep Speed +{tailwind}, creep income +{tailwindInc}" }, // v0.28.004F: income
-  mind: { name: "Obsession", max: 10, element: "plague", text: "Creep HP +{mindHp}, speed +{mindSpeed} (flyers half)" }, // v0.23: flyers get half (MIND.air); v0.26cF: Mind Control → Obsession
+  mind: { name: "Obsession", max: 10, element: "plague", text: "Creep HP +{mindHp}, speed +{mindSpeed} (flyers half), income +{mindInc}" }, // v0.23: flyers get half (MIND.air); v0.26cF: Mind Control → Obsession
   medicine: { name: "Creep Medicine", max: 20, element: "water", text: "Creep HP +{medHp}, creep income +{medInc}" },
   melee: { name: "Melee Protocol", max: 20, element: "water", text: "Melee attack speed +{melee}" },
   heavy: { name: "Heavy Weapons", max: 20, element: "earth", text: "Footman-Line and Bombard-Line +{heavy} damage" },
@@ -1327,7 +1329,7 @@ export const monsunDamage = (p, level = perkLevel(p, "monsun")) => 30 + 20 * lev
 /** v0.20c: perks that sit out more than one level after a pick (Supergrowth: two). */
 /** v0.26dF: levels a perk sits out after a pick when PERK_SKIP_LEVELS has no value for it. */
 const PERK_SKIP_DEFAULT = 2;
-const PERK_SKIP_LEVELS = { carmor: 3, breeding: 3, novice: 3, wolves: 3, mind: 3, exhume: 3, ring: 3, revenge: 3, backup: 3, tides: 3, supergrowth: 2, hellfire: 2, frostbolt: 2, clones: 2, infested: 2, lone: 2, bank: 3, monsun: 2 }; // v0.28.004F: Ring of Life skips 3 (was 2); v0.26cF: Spirit Wolves, Obsession, Exhumination, Revenge skip 3 // v0.24q: Backup Line, Low Tides skip 3 // v0.24j: Monsun skips 2 // v0.24i: Magic Bank skips 3 // v0.23zi: Spartans skip 2 // v0.23w: Frost Bolt, Clones // v0.21x: Lava Floor skips 2
+const PERK_SKIP_LEVELS = { meditation: 3, arcaneblock: 3, carmor: 3, breeding: 3, novice: 3, wolves: 3, mind: 3, exhume: 3, ring: 3, revenge: 3, backup: 3, tides: 3, supergrowth: 2, hellfire: 2, frostbolt: 2, clones: 2, infested: 2, lone: 2, bank: 3, monsun: 2 }; // v0.28.004F: Ring of Life skips 3 (was 2); v0.26cF: Spirit Wolves, Obsession, Exhumination, Revenge skip 3 // v0.24q: Backup Line, Low Tides skip 3 // v0.24j: Monsun skips 2 // v0.24i: Magic Bank skips 3 // v0.23zi: Spartans skip 2 // v0.23w: Frost Bolt, Clones // v0.21x: Lava Floor skips 2
 const PERK_SKIP = new Set(["pillar", "agolem", "monsun", "slave", "guardian", "mind", "tailwind", "carmor", "owl", "autoloader", "hills"]); // v0.22g1: Autoloader // v0.19a1: Mind Control, Tailwind, Creep Armor, Watcher Owl
 /**
  * v0.19a1: reworked level-up upgrades (research perks). Their effects live here instead of the map
@@ -1359,7 +1361,7 @@ export const bankRate = (level) => {
   for (let k = 2; k <= level; k++) r += Math.max(0, 0.05 - 0.01 * k);
   return r;
 };
-export const MIND = { hp: 0.1, speed: 0.1, air: 0.5 };
+export const MIND = { hp: 0.06, speed: 0.06, air: 0.5, income: 0.01 }; // v0.28.017F: 6 % / 6 % (was 10 / 10), +1 % creep income per level
 export const TAILWIND = { speed: 0.1, income: 0.02, incomePer: 0.01 }; // v0.28.004F: + (2 + 1 per level) % creep income
 export const CREEP_ARMOR = { hp: 0.08, hpLater: 0.06, income: 0.015, armorFrom: 2, place: 4, armorMax: 20, step: 0.2 }; // v0.27oF; v0.27pF: armorMax, step
 /** v0.27oF: Creep Armor HP: 8 % at level 1, +6 % per level after it. */
@@ -1768,7 +1770,10 @@ function zoneSpeed(game, p, c) {
 /** Sanction Policy (Arcane): gold, lock length in rounds, income bonus, ability cooldown cut. */
 export const SANCTION = { gold: 0, rounds: 20, income: 0.15, first: 0.15, cooldown: 0.15 }; // v0.27zzcF: the 1st creep gets the full +15 % too // v0.19h1: no gold, 15 % shorter cooldowns
 /** v0.18h: cooldown of an active ability for this player (Sanction Policy: 20 % shorter). */
-export const abilityCd = (p, cd) => cd * (perkLevel(p, "sanction") ? 1 - SANCTION.cooldown : 1);
+/** v0.28.017F: Meditation: active abilities cool down faster (levels 4 and 5 continue the curve, values to be confirmed). */
+export const MEDITATION = { faster: [0.18, 0.3, 0.4, 0.46, 0.5] };
+export const meditationCut = (p, level = Math.min(MEDITATION.faster.length, perkLevel(p, "meditation"))) => (level > 0 ? MEDITATION.faster[level - 1] : 0);
+export const abilityCd = (p, cd) => cd * (perkLevel(p, "sanction") ? 1 - SANCTION.cooldown : 1) * (1 - meditationCut(p));
 function lockStock(game, p, id, rounds) {
   const st = (p.stock[id] ||= { count: 0, next: LOCKED_NEXT });
   st.lockRound = Math.max(st.lockRound || 0, game.round) + rounds; // added onto a lock that is still running
@@ -1953,12 +1958,19 @@ function tickGolems(game, p) {
       // the portal row: the golem moves on into the next lane as a creep
       g.dead = true;
       const target = targetOf(game, p.id),
-        c = target && target.id !== p.id && !target.out ? spawnCreep(game, p.id, GOLEM_ID, null, target.id) : null;
+        c = target && target.id !== p.id && !target.out ? spawnCreep(game, p.id, g.unitId || GOLEM_ID, null, target.id, true) : null;
       if (c) {
         c.hp = g.hp;
         c.maxHp = g.maxHp;
-        c.golem = true;
-        p.golemReady = Math.max(p.golemReady || 0, game.time) + AGOLEM.portalCharge; // v0.28.013F
+        if (g.unitId) {
+          // v0.28.017F: a creep turned by Arcane Block (Lv. 3) moves on as itself, an arcane clone
+          c.clone = true;
+          c.arcane = true;
+          c.scale = g.scale || 1;
+        } else {
+          c.golem = true;
+          p.golemReady = Math.max(p.golemReady || 0, game.time) + AGOLEM.portalCharge; // v0.28.013F
+        }
       }
       emit(game, "golemPortal", { player: p.id, x: g.x, y: g.y, lane: target?.id ?? -1 });
     }
@@ -2446,6 +2458,82 @@ export function treasureIncome(game, p) {
 export const AIRBLOCK = { cooldown: [15, 13, 11], back: [3, 5, 7], stun: [2, 3, 4], monsun: [6, 8, 10], base: 25, perLevel: 20 }; // v0.24s: Monsun cooldown cut 6 / 8 / 10 s
 export const airBlockDamage = (p, level = Math.min(3, perkLevel(p, "airblock"))) =>
   Math.round((AIRBLOCK.base + AIRBLOCK.perLevel * Math.max(1, level)) * PILLAR_TIER[Math.max(1, Math.min(PILLAR_TIER.length, p?.tier || 1)) - 1] * (1 + 0.05 * (p?.level || 1)));
+/**
+ * v0.28.017F: Arcane Block: every 30 / 25 / 20 s the first breach is denied. The sender cannot recruit that creep
+ * type for 3 / 4 / 5 rounds (arcane lock), and the creep becomes the defender's arcane clone (health kept; Lv. 2:
+ * +10 % size and +25 % max health, Lv. 3: +20 % and +50 %). It is sent to the defender's current target; on
+ * level 3 it first walks the own path backwards like the Arcane Golem, pushing creeps back, and then moves on.
+ */
+export const ARCANEBLOCK = { cooldown: [30, 25, 20], lock: [3, 4, 5], scale: [1, 1.1, 1.2], hp: [1, 1.25, 1.5] };
+function arcaneBlock(game, p, c) {
+  const level = Math.min(3, perkLevel(p, "arcaneblock"));
+  if (!level || c.owner < 0 || c.owner === p.id || p.arcaneBlockReady > game.time + EPS) return false;
+  if (creepSkills(c).some((sk) => sk.type === "tierBoss")) return false; // tier bosses cannot be turned
+  p.arcaneBlockReady = game.time + ARCANEBLOCK.cooldown[level - 1];
+  const sender = game.players[c.owner],
+    stock = sender?.stock?.[c.typeId];
+  if (stock) {
+    stock.lockRound = Math.max(stock.lockRound || 0, game.round + ARCANEBLOCK.lock[level - 1]);
+    stock.arcaneLock = stock.lockRound; // the card shows the arcane lock while this lock lasts
+  }
+  emit(game, "skill", { player: p.id, kind: "arcaneblock", x: c.x, y: c.y, owner: c.owner, typeId: c.typeId });
+  const grow = ARCANEBLOCK.hp[level - 1];
+  c.owner = p.id;
+  c.clone = true;
+  c.arcane = true;
+  c.scale = (c.scale || 1) * ARCANEBLOCK.scale[level - 1];
+  c.hp += c.maxHp * (grow - 1);
+  c.maxHp *= grow;
+  c.statuses = c.statuses.filter((st) => !st.stun);
+  c.laps = 0;
+  if (level >= 3) {
+    // walks the own path backwards like the Arcane Golem, then moves on to the next lane
+    const route = findPath(game, p.id);
+    if (route?.length) {
+      (p.golems ||= []).push({
+        id: "g" + game.nextId++,
+        typeId: c.typeId,
+        unitId: c.typeId,
+        owner: p.id,
+        golem: true,
+        clone: true,
+        scale: c.scale,
+        level: Math.max(1, perkLevel(p, "agolem")),
+        x: c.x,
+        y: c.y,
+        path: route.slice().reverse(),
+        pathIndex: 1,
+        hp: c.hp,
+        maxHp: c.maxHp,
+        speed: c.speed,
+        statuses: [],
+        hit: [],
+      });
+      c.dead = true; // leaves silently (no bounty, no kill)
+      c.hp = 0;
+      c.vanished = true;
+      return true;
+    }
+  }
+  const target = targetOf(game, p.id),
+    column = spawnColumn(game),
+    start = pos(game, column, -1);
+  if (!target || target.out || target.id === p.id) {
+    c.dead = true;
+    c.vanished = true;
+    return true;
+  }
+  c.moveTo = target.id;
+  c.defender = target.id;
+  c.x = start.x;
+  c.y = start.y;
+  c.progress = 0;
+  c.maxProgress = 0;
+  c.path = c.flying ? [start, exitPos(game, target, column)] : findPath(game, target.id, { x: column, y: -1 }) || [];
+  c.pathIndex = 0;
+  c.prevNode = null;
+  return true;
+}
 function airBlock(game, p, c) {
   const level = Math.min(3, perkLevel(p, "airblock"));
   if (!level || !c.flying || p.airBlockReady > game.time + EPS) return false;
@@ -2646,6 +2734,8 @@ export const PERK_AVAILABILITY = {
   waterblock: "3+",
   fireblock: "3+", // v0.19j
   airblock: "3+", // v0.20c
+  meditation: "4+", // v0.28.017F
+  arcaneblock: "3+", // v0.28.017F
   supergrowth: "10+", // v0.20c: sits out the next two levels after a pick (PERK_SKIP_LEVELS)
   // v0.12
   lone: "3-5", // v0.22g1; v0.22t2: levels 3–5, later again once owned (ContinousPick)
@@ -2731,7 +2821,7 @@ const perkAvailable = (o, level, p) => {
   return o.type === "perk" && perkLevel(p, id) >= 1 && !!PERK_AVAILABILITY_OWNED[id] && parseAvailability(PERK_AVAILABILITY_OWNED[id])(level);
 };
 /** v0.26: perks that strengthen the own defence (towers, spells and traps on the own field); a mission can leave them out. */
-export const DEFENSIVE_PERKS = new Set(["alchemist", "gunpowder", "archery", "militia", "evolution", "volley", "hellfire", "frostbolt", "infested", "burst", "fireblock", "airblock", "waterblock", "pocks", "permafrost", "hills", "stormfeathers", "crowd", "lone", "summon", "pillar", "fort", "agolem", "backup", "tides", "monsun", "owl", "melee", "heavy", "frenzy", "firearrows", "autoloader"]);
+export const DEFENSIVE_PERKS = new Set(["arcaneblock", "alchemist", "gunpowder", "archery", "militia", "evolution", "volley", "hellfire", "frostbolt", "infested", "burst", "fireblock", "airblock", "waterblock", "pocks", "permafrost", "hills", "stormfeathers", "crowd", "lone", "summon", "pillar", "fort", "agolem", "backup", "tides", "monsun", "owl", "melee", "heavy", "frenzy", "firearrows", "autoloader"]);
 /** v0.23k: with exactly one element owned, its element perks are 10 % more likely to be drawn than neutral perks. */
 export const ELEMENT_PERK_WEIGHT = 1.1;
 /** v0.28.002F: perks offered in a reward dialog have this weight in the next reward dialog only. */
@@ -5904,6 +5994,7 @@ function moveCreep(game, p, c, dt) {
       if (airBlock(game, p, c)) break; // v0.20c: flyers first meet the Air Block
       if (waterBlock(game, p, c)) break; // v0.10r
       if (fireBlock(game, p, c)) break; // v0.19j; v0.21m: pushes the creep back, no breach
+      if (arcaneBlock(game, p, c)) break; // v0.28.017F
       touchdown(game, p, c);
       break;
     }

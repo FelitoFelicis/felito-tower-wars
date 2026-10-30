@@ -30,6 +30,8 @@ import {
   ARCANE_MISSILE_HEAVY, // v0.27zzgF
   FIRE_ARROWS,
   grantExp,
+  meditationCut,
+  ARCANEBLOCK,
   placeFixedRocks,
   ROCK_ID,
   targetOf,
@@ -196,7 +198,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.28.016",
+const APP_VERSION = "0.28.017",
   APP_BRANCH = "F", // v0.23q: author marker (F = Felix, S = Steven) and branch text, shown behind the version; APP_VERSION stays plain for online matches (VersionPublishingRules.md)
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "30.10.2026";
@@ -1920,13 +1922,15 @@ const LOCK_SVG = `<svg viewBox="0 0 100 100" aria-hidden="true"><defs><linearGra
     return `<g class="lk-chain" data-k="${k}">${links.join("")}</g>`;
   })
   .join("")}<path d="M36 46V36a14 14 0 0 1 28 0v10" fill="none" stroke="#2a3038" stroke-width="10"/><path d="M36 46V36a14 14 0 0 1 28 0v10" fill="none" stroke="url(#lk-steel)" stroke-width="6"/><rect x="27" y="44" width="46" height="38" rx="7" fill="url(#lk-body)" stroke="#3a2404" stroke-width="3"/><rect x="31" y="47" width="38" height="5" rx="2.5" fill="#fff6c0" opacity=".55"/></svg>`;
+/** v0.28.017F: a creep type locked by an enemy Arcane Block (its lock shows arcane chains). */
+const arcaneLocked = (st) => !!st?.arcaneLock && st.arcaneLock === st.lockRound && lockRoundsLeft(game, st) > 0;
 /** v0.28.014F: lock symbols on freshly rendered send cards, so a re-render never shows them unlocked for a moment. */
 function syncLocks(root) {
   const p = game?.players?.[own];
   if (!root || !p || p.out) return;
   root.querySelectorAll("[data-card]").forEach((b) => {
     const item = cardItem(b);
-    if (item?.kind === "send") cardLock(b, Math.max(game.warmup ? 1 : 0, lockRoundsLeft(game, p.stock[item.id])));
+    if (item?.kind === "send") cardLock(b, Math.max(game.warmup ? 1 : 0, lockRoundsLeft(game, p.stock[item.id])), arcaneLocked(p.stock[item.id]));
   });
 }
 /** v0.28.014F: a deck rendered while it is not on screen (online, before the board shows) is fitted once it is. */
@@ -1944,7 +1948,7 @@ function fitLater(root, fit, asTab) {
     }
   }, 200);
 }
-function cardLock(card, rounds) {
+function cardLock(card, rounds, arcane = false) {
   let el = card.querySelector(".card-lock:not(.unlocking)");
   if (!rounds) {
     if (el) {
@@ -1973,6 +1977,7 @@ function cardLock(card, rounds) {
   const text = String(rounds);
   if (el.lastChild.textContent !== text) el.lastChild.textContent = text;
   el.title = t(rounds === 1 ? "Unlocks next round" : "Unlocks in {n} rounds", { n: rounds });
+  if (el.classList.contains("arcane") !== !!arcane) el.classList.toggle("arcane", !!arcane); // v0.28.017F: Arcane Block lock
 }
 function stockCount(item) {
   return Math.max(0, Math.floor(game.players[own].stock[item.id]?.count ?? 0));
@@ -5583,6 +5588,8 @@ const PERK_ART = {
   exhume: () => elPerkArt("exhume"),
   waterblock: () => elPerkArt("waterblock"),
   airblock: () => elPerkArt("airblock"),
+  meditation: () => uiArt("assets/art/perks/meditation.webp?v=v028017"), // v0.28.017F
+  arcaneblock: () => uiArt("assets/art/perks/arcaneblock.webp?v=v028017"), // v0.28.017F
   supergrowth: () => elPerkArt("supergrowth"),
   // v0.12
   lone: () => uiArt("assets/art/perk-lone.webp?v=v022h1"), // v0.21u: painted shield and sword; v0.22h1: zoomed in further, brighter glow
@@ -5694,6 +5701,7 @@ const perkVars = (level, q, lv, next) => {
     tailwindInc: pctOf(lv ? TAILWIND.income + TAILWIND.incomePer * lv : 0), // v0.28.004F
     mindHp: pctOf(MIND.hp * lv),
     mindSpeed: pctOf(MIND.speed * lv),
+    mindInc: pctOf(MIND.income * lv), // v0.28.017F
     medHp: pctOf(HEALING.hp * lv),
     medInc: pctOf(HEALING.income * lv),
     melee: pctOf(MELEE_PROTOCOL * lv),
@@ -5742,6 +5750,12 @@ const perkVars = (level, q, lv, next) => {
     blockBackAir: WATERBLOCK.backAir[l3], // v0.22h1
     blockSlow: pct(WATERBLOCK.slow[l3]),
     airBlockCd: AIRBLOCK.cooldown[l3], // v0.20c
+    meditation: pct(meditationCut(q, Math.min(5, lv))), // v0.28.017F
+    arcaneBlockCd: ARCANEBLOCK.cooldown[l3],
+    arcaneBlockLock: ARCANEBLOCK.lock[l3],
+    arcaneBlockText: lv >= 3 ? ", walking your path backwards first" : "",
+    arcaneBlockBuff: lv >= 2 ? `, +${Math.round((ARCANEBLOCK.scale[l3] - 1) * 100)}% size and +${Math.round((ARCANEBLOCK.hp[l3] - 1) * 100)}% max health` : "",
+    arcaneBlockDetail: lv >= 3 ? ". It walks your path backwards like the Arcane Golem, pushing enemy creeps back, then moves on to the player you target" : " and is sent to the player you target",
     airBlockBack: AIRBLOCK.back[l3],
     airBlockStun: AIRBLOCK.stun[l3],
     airBlockMonsun: AIRBLOCK.monsun[l3],
@@ -6404,7 +6418,7 @@ function refreshUI() {
       note.classList.toggle("buffed", inc > item.income + 0.004);
     }
     setText(b.querySelector(".card-status"), cardStatus(item));
-    if (item.kind === "send" && !game.players[own].out) cardLock(b, Math.max(game.warmup ? 1 : 0, lockRoundsLeft(game, game.players[own].stock[item.id]))); // v0.15/v0.17
+    if (item.kind === "send" && !game.players[own].out) cardLock(b, Math.max(game.warmup ? 1 : 0, lockRoundsLeft(game, game.players[own].stock[item.id])), arcaneLocked(game.players[own].stock[item.id])); // v0.15/v0.17; v0.28.017F: arcane lock
     const stock = b.querySelector(".card-stock");
     if (stock) setText(stock, stockCount(item));
     if (item.kind === "send") {
@@ -7147,7 +7161,8 @@ function heroWithElements(item) {
   if (spawns.length && !els.length)
     return `<div class="modal-hero-wrap">${img}<div class="spawn-links${spawns.length > 1 ? " many" : ""}" aria-label="${esc(t("Spawns on death"))}">${spawns.map((id) => `<button type="button" class="spawn-link" data-spawn="${id}" title="${esc(itemName(catalog.byId[id]))}"><img src="${headCrop(artUrl(artFor(catalog.byId[id])))}" alt="${esc(itemName(catalog.byId[id]))}"></button>`).join("")}</div></div>`;
   if (!els.length) return img;
-  return `<div class="modal-hero-wrap">${img}<div class="hero-elements">${els.map((f) => `<span class="hero-el" style="--el:${f.color}" title="${esc(t(f.name))}"><img src="${iconUrl(ELEMENT_ICON[f.id])}" alt="${esc(t(f.name))}"></span>`).join("")}</div></div>`;
+  const ar = ART_MANIFEST[key] ? ART_MANIFEST[key].w / ART_MANIFEST[key].h : 0; // v0.28.017F: element symbols keep their place when the animation replaces the picture
+  return `<div class="modal-hero-wrap"${ar ? ` style="--hero-ar:${ar.toFixed(3)}"` : ""}>${img}<div class="hero-elements">${els.map((f) => `<span class="hero-el" style="--el:${f.color}" title="${esc(t(f.name))}"><img src="${iconUrl(ELEMENT_ICON[f.id])}" alt="${esc(t(f.name))}"></span>`).join("")}</div></div>`;
 }
 function itemDetail(id, towerId, detailPlayer = own, back = null) {
   const item = catalog.byId[id],
@@ -7218,12 +7233,16 @@ function comboEls(item) {
 const TREE_ROOTS = ["h003", "h000", "h02R", "h03V", "h05L", ["Pacifist", "h01F", "hWAL"]];
 function techTree(kind) {
   const elColor = (item) => elementOf(item?.element)?.color || "",
-    node = (item, ref = false) => {
+    node = (item, ref = false, plain = false) => {
       const pair = String(item?.name || "").match(/\[\s*(Water|Fire|Earth|Storm|Arcane|Plague)\s*&\s*(Water|Fire|Earth|Storm|Arcane|Plague)\s*\]/i), // v0.27.008F: combination towers: frame in both element colours
         duo = pair ? [pair[1], pair[2]].map((x) => elementOf(x.toLowerCase())?.color).filter(Boolean) : [],
         el = duo.length === 2 ? `${duo[0]};--el2:${duo[1]}` : elColor(item),
         price = item.kind === "research" ? "" : format(item.cost || 0);
-      return `<button class="tt-node${ref ? " tt-ref" : ""}${el ? " tt-el" : ""}${duo.length === 2 ? " tt-combo" : ""}${item.kind === "send" && item.flying && !bossFrame(item) ? " tt-air" : ""}${item.kind === "send" && bossFrame(item) ? ` tt-boss tt-boss-${Math.max(1, Math.min(5, item.tier || 1))}` : ""}" type="button" data-card="${item.id}"${el ? ` style="--el:${el}"` : ""}>${item.kind === "send" && bossFrame(item) ? `<span class="frame-boss" aria-hidden="true"></span>` : ""}<img src="${item.kind === "research" ? researchArt(item) : towerArtUrl(artFor(item))}" alt=""><b>${esc(itemName(item))}</b>${item.level > 1 && item.kind !== "send" && item.kind !== "research" ? `<i>Lv ${item.level}</i>` : ""}${price ? `<small><img src="${iconUrl("coin")}" alt="">${price}</small>` : ""}</button>`;
+      const btn = `<button class="tt-node${ref ? " tt-ref" : ""}${el ? " tt-el" : ""}${duo.length === 2 ? " tt-combo" : ""}${item.kind === "send" && item.flying && !bossFrame(item) ? " tt-air" : ""}${item.kind === "send" && bossFrame(item) ? ` tt-boss tt-boss-${Math.max(1, Math.min(5, item.tier || 1))}` : ""}" type="button" data-card="${item.id}"${el ? ` style="--el:${el}"` : ""}>${item.kind === "send" && bossFrame(item) ? `<span class="frame-boss" aria-hidden="true"></span>` : ""}<img src="${item.kind === "research" ? researchArt(item) : towerArtUrl(artFor(item))}" alt=""><b>${esc(itemName(item))}</b>${item.level > 1 && item.kind !== "send" && item.kind !== "research" ? `<i>Lv ${item.level}</i>` : ""}${price ? `<small><img src="${iconUrl("coin")}" alt="">${price}</small>` : ""}</button>`;
+      // v0.28.017F: combination towers show their two element symbols above them everywhere in the tech tree
+      const combo = !plain && item.kind !== "send" && item.kind !== "research" ? comboEls(item) : [];
+      if (combo.length < 2) return btn;
+      return `<div class="tt-combo tt-combo-inline"><span class="tt-combo-els">${combo.map((f) => `<img src="${iconUrl(ELEMENT_ICON[f.id])}" alt="${esc(t(f.name))}" title="${esc(t(f.name))}">`).join('<i aria-hidden="true">+</i>')}</span>${btn}</div>`;
     },
     arrow = '<span class="tt-arrow" aria-hidden="true">›</span>';
   if (kind === "tower") {
@@ -7259,7 +7278,7 @@ function techTree(kind) {
               seen.add(c.id);
               return `<div class="tt-combo"><span class="tt-combo-els">${comboEls(c)
                 .map((f) => `<img src="${iconUrl(ELEMENT_ICON[f.id])}" alt="${esc(t(f.name))}" title="${esc(t(f.name))}">`)
-                .join('<i aria-hidden="true">+</i>')}</span>${node(c, ref)}</div>`;
+                .join('<i aria-hidden="true">+</i>')}</span>${node(c, ref, true)}</div>`;
             })
             .join("")}</div>`
         : "";

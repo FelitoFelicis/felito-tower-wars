@@ -10088,3 +10088,75 @@ html.ui-wide .ui-moved {
   position: relative;
   z-index: 7;
 }
+
+/* ---- v0.28.017F: tower info: the element symbols stay in place when the attack animation replaces the picture
+   (they are placed from the still picture's width, not from the wider animation canvas) ---- */
+.modal-hero-wrap { --hero-h: 120px; }
+@media (max-height: 700px) {
+  .modal-hero-wrap { --hero-h: 90px; }
+}
+.modal-hero-wrap[style*="--hero-ar"] .hero-elements {
+  left: calc(50% - var(--hero-h) * var(--hero-ar) / 2 - 44px);
+}
+/* ---- v0.28.017F: card book: combination towers anywhere in the tech tree carry their two element symbols ---- */
+.tt-combo-inline {
+  display: inline-grid;
+  vertical-align: bottom;
+}
+/* ---- v0.28.017F: Arcane Block lock: arcane glow on the chains and the padlock, a calm pulse ---- */
+.card-lock.arcane svg {
+  filter: hue-rotate(250deg) saturate(1.4) drop-shadow(0 0 4px #d86cff) drop-shadow(0 0 9px #a64dffaa);
+  animation: arcane-lock 2.4s ease-in-out infinite;
+}
+.card-lock.arcane b {
+  color: #f3dcff;
+  text-shadow: 0 0 6px #c46bff, 0 1px 0 #2a0b45;
+}
+@keyframes arcane-lock {
+  0%, 100% { filter: hue-rotate(250deg) saturate(1.3) drop-shadow(0 0 3px #d86cff) drop-shadow(0 0 7px #a64dff88); }
+  50% { filter: hue-rotate(250deg) saturate(1.5) drop-shadow(0 0 6px #e59cff) drop-shadow(0 0 12px #b866ffcc); }
+}
+
+/* ---- v0.28.017F: every checkbox: a wider iron frame, ticked with a green check mark (slim black outline) that
+   reaches over the frame ---- */
+input[type="checkbox"],
+.tip-toggle input,
+.qm-bots input {
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  border: 3px solid transparent;
+  border-radius: 4px;
+  background:
+    linear-gradient(#0a1822, #13263a) padding-box,
+    linear-gradient(145deg, #eef1f4, #9aa3ab 35%, #4d555d 55%, #8d969e 75%, #c9d0d6) border-box;
+  box-shadow: 0 1px 2px #000a, inset 0 1px 2px #000c;
+  overflow: visible;
+  cursor: pointer;
+  vertical-align: middle;
+}
+.qm-bots input { width: 24px; height: 24px; }
+input[type="checkbox"]::after,
+.tip-toggle input:checked::after,
+.tip-toggle input::after {
+  content: none;
+}
+input[type="checkbox"]:checked::after {
+  content: "";
+  position: absolute;
+  left: -2px;
+  top: -9px;
+  width: 135%;
+  height: 135%;
+  border: 0;
+  border-radius: 0;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M3 17l5-5 6 6L27 3l4 5-17 19z' fill='%2342d14a' stroke='%23000' stroke-width='1.6' stroke-linejoin='round'/%3E%3Cpath d='M6 16.5l2-2 6 6 1.5-1.6' fill='none' stroke='%23b8ffb8' stroke-width='1.2' stroke-linecap='round' opacity='.8'/%3E%3C/svg%3E") center / contain no-repeat;
+  transform: none;
+  pointer-events: none;
+}

@@ -1923,6 +1923,12 @@ export function mountArena({
           } else if (e.kind === "waterblock") {
             this.floatText(q.x, q.y - cell * 0.6, t("BLOCKED"), "#9ee0ff", 13, 34, 1.1);
             this.ring(q.x, q.y, cell * 0.2, cell * 1.1, 0x7fd0ff, 0.8, 4);
+          } else if (e.kind === "arcaneblock") {
+            // v0.28.017F: Arcane Block: the breach is caught in an arcane flash, the creep turns
+            this.ring(q.x, q.y, cell * 0.15, cell * 1.3, 0xd86cff, 0.85, 4);
+            this.ring(q.x, q.y, cell * 0.1, cell * 0.8, 0xffffff, 0.5, 2);
+            this.burst(q.x, q.y - cell * 0.3, 0xe2a8ff, 18, 120, 3, 0.7, -20, true);
+            this.floatText(q.x, q.y - cell * 0.8, t("ARCANE BLOCK"), "#e2c2ff", 13, 34, 1.2);
           } else if (e.kind === "airblock") {
             // v0.20c: Air Block: a gust ring and a short text where the flyer was turned back
             this.floatText(q.x, q.y - cell * 0.7, t("AIR BLOCK"), "#c8f6ff", 13, 34, 1.1);
