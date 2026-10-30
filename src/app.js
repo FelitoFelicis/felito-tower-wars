@@ -194,10 +194,10 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.27.007",
+const APP_VERSION = "0.28",
   APP_BRANCH = "F", // v0.23q: author marker (F = Felix, S = Steven) and branch text, shown behind the version; APP_VERSION stays plain for online matches (VersionPublishingRules.md)
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
-  APP_DATE = "29.10.2026";
+  APP_DATE = "30.10.2026";
 // v0.18: the version also stands in the page title (browser tab and the artifact window in chats)
 try {
   document.title = `${currentDesign() === "original" ? "Felito" : "Circle"} Tower Wars · v${APP_VERSION}${APP_BRANCH}`; // design variants: the new looks are called Circle Tower Wars
@@ -1801,6 +1801,7 @@ const lastSendCards = [null, null];
 const uiPauses = new Set();
 let deckSignature = "";
 let queued = [],
+  pausedSends = [], // v0.27.008F: creeps queued while a solo game is paused (up to PAUSE_SENDS), sent when it goes on
   upQueue = [], // upgrades waiting for gold or for construction to finish: { towerId, id, from }
   queuedFor = null;
 const researchCopy = {
@@ -4190,8 +4191,47 @@ function startLocal({ hotseat = false, ffa = false, seats = 4, mission = null, r
   recStart(); // v0.22b
   warmMatchArt(); // v0.25m
 }
+/** v0.27.008F: Training, AI FFA and Campaign: while paused, towers can be pre-placed and creeps queued. */
+const PAUSE_SENDS = 20;
+const soloPaused = () => !!game?.paused && !room && !game.rankedBot && ["training", "ffa", "campaign"].includes(sessionMode) && game.running && !game.players[own]?.out;
+function queuePausedSend(id) {
+  const item = catalog.byId[id],
+    p = game.players[own];
+  if (!item || item.kind !== "send") return;
+  if (pausedSends.length >= PAUSE_SENDS) {
+    toast(t("Up to {n} creeps can wait while paused.", { n: PAUSE_SENDS }));
+    tone("error");
+    return;
+  }
+  const a = available(game, own, "send", id),
+    reserved = pausedSends.reduce((sum, q) => sum + (catalog.byId[q]?.cost || 0), 0);
+  if (!a.ok && !/paused/i.test(a.reason || "")) {
+    toast(a.reason);
+    tone("error");
+    return;
+  }
+  if (p.gold - reserved < (item.cost || 0)) {
+    toast("Not enough gold for one more queued creep.");
+    tone("error");
+    return;
+  }
+  pausedSends.push(id);
+  tone("send");
+  sendFx(id, item.spawnIds?.length || 1);
+  if (pausedSends.length === 1) note("Creeps queued: they are sent when the game goes on.");
+  refreshUI();
+}
+function flushPausedSends() {
+  if (!pausedSends.length || !game || game.paused || !begun) return;
+  const list = pausedSends;
+  pausedSends = [];
+  let failed = 0;
+  for (const id of list) if (!dispatch({ type: "send", id }, { quiet: true })?.ok) failed++;
+  if (failed) toast(t("{n} queued creeps could not be sent.", { n: failed }));
+}
 function dispatch(input, { quiet = false, fromQueue = false } = {}) {
   if (!begun) return;
+  if (input.type === "send" && soloPaused()) return queuePausedSend(input.id);
   // queued pre-builds go ahead whichever lane is on screen
   if (view !== own && input.type === "build" && !fromQueue) {
     toast("Switch back to your defence first.");
@@ -5750,6 +5790,16 @@ function refreshUI() {
     if (item.kind === "send" && !game.players[own].out) cardLock(b, Math.max(game.warmup ? 1 : 0, lockRoundsLeft(game, game.players[own].stock[item.id]))); // v0.15/v0.17
     const stock = b.querySelector(".card-stock");
     if (stock) setText(stock, stockCount(item));
+    if (item.kind === "send") {
+      // v0.27.008F: creeps queued during a pause
+      const qn = pausedSends.reduce((n, q) => n + (q === item.id), 0);
+      let qb = b.querySelector(".card-queued");
+      if (qn && !qb) b.append((qb = Object.assign(document.createElement("span"), { className: "card-queued" })));
+      if (qb) {
+        qb.hidden = !qn;
+        setText(qb, "+" + qn);
+      }
+    }
     // v0.21l: the spoken label needs the card text, which is costly: rebuilt when price or state change, else every 4th refresh
     const ariaKey = label + "|" + a.ok + "|" + (a.reason || "");
     if (b.dataset.ariaKey !== ariaKey || uiRefreshCount % 4 === 0) {
@@ -5786,6 +5836,7 @@ function onCell(tapped) {
   $("tower-panel").hidden = true;
   const cell = anchorFor(selected, tapped.gridX, tapped.gridY);
   const check = canBuild(game, own, cell.gridX, cell.gridY, selected);
+  if (soloPaused()) return pausedBuild(selected, cell, check); // v0.27.008F
   if (tryQueue(selected, cell.gridX, cell.gridY, check)) return;
   if (!check.ok) {
     pending = { gridX: cell.gridX, gridY: cell.gridY, until: performance.now() + 1400 };
@@ -5802,6 +5853,32 @@ function onCell(tapped) {
   }
   pending = null;
   dispatch({ type: "build", id: selected, ...cell });
+}
+/** v0.27.008F: a solo game is paused: the tower is pre-placed (shown as a pre-build) and built when the game goes on. */
+function pausedBuild(id, cell, check, confirmFirst = true) {
+  if (!check.ok && !/creep/i.test(check.reason || "")) {
+    pending = { gridX: cell.gridX, gridY: cell.gridY, until: performance.now() + 1400 };
+    toast(check.reason);
+    tone("error");
+    return;
+  }
+  const n = footprintOf(id);
+  if (queued.some((q) => { const m = footprintOf(q.id); return cell.gridX < q.gridX + m && q.gridX < cell.gridX + n && cell.gridY < q.gridY + m && q.gridY < cell.gridY + n; })) {
+    toast("A pre-build is already planned there.");
+    tone("error");
+    return;
+  }
+  const confirmed = pending && pending.gridX === cell.gridX && pending.gridY === cell.gridY && pending.ok;
+  if (confirmFirst && buildPreview && !confirmed && check.ok) {
+    pending = { gridX: cell.gridX, gridY: cell.gridY, ok: true };
+    tone("tap");
+    return;
+  }
+  pending = null;
+  queued.push({ id, gridX: cell.gridX, gridY: cell.gridY });
+  note("Pre-build: built as soon as the game goes on.");
+  tone("tap");
+  refreshUI();
 }
 /** v0.18a: cancels the pre-build on that field (tap, click or right click); true if there was one. */
 let queueCancelAt = 0;
@@ -5838,6 +5915,7 @@ function runQueue() {
   if (queuedFor !== gameKey()) {
     queued = [];
     upQueue = [];
+    pausedSends = [];
     queuedFor = gameKey();
   }
   if (!begun) return;
@@ -6132,6 +6210,7 @@ function endCardDrag(e, cancelled = false) {
   pending = null;
   const at = anchorFor(d.id, d.cell.gridX, d.cell.gridY);
   const check = canBuild(game, own, at.gridX, at.gridY, d.id);
+  if (soloPaused()) return pausedBuild(d.id, at, check, false); // v0.27.008F
   if (tryQueue(d.id, at.gridX, at.gridY, check)) return;
   if (!check.ok) {
     toast(check.reason);
@@ -6395,6 +6474,41 @@ function researchDetail(id) {
   );
 }
 /** `back` (v0.22): opened from the card book, a Back button returns there. */
+// v0.27.008F: tower info: the camcorder button switches the attack animation off and on (kept for the next info dialog),
+// the book button opens the tower in the card book
+const HERO_ANIM_PREF = "felito.heroAnim";
+const heroAnimOn = () => pref(HERO_ANIM_PREF, "on") !== "off";
+const CAMCORDER_SVG = `<svg viewBox="0 0 32 32" aria-hidden="true"><rect x="3.5" y="9" width="17" height="14" rx="3" fill="#e9eef2" stroke="#0b1a26" stroke-width="1.6"/><path d="M20.5 14.5l7-4v11l-7-4z" fill="#e9eef2" stroke="#0b1a26" stroke-width="1.6" stroke-linejoin="round"/><circle cx="9" cy="13.5" r="2" fill="#d9b45a"/><path class="cam-off" d="M5 27L27 5" stroke="#ff4a3a" stroke-width="3" stroke-linecap="round"/></svg>`;
+function heroTools(item) {
+  if (!(item.kind === "tower" || item.isBuildable) || item.isSend) return "";
+  const anim = ANIM_MANIFEST[artFor(item)]?.kind === "attack" && !activeArtSet(),
+    on = heroAnimOn();
+  return `<div class="hero-tools">${anim ? `<button type="button" class="hero-tool${on ? "" : " off"}" id="hero-anim" aria-pressed="${on}" title="${esc(t(on ? "Show the still picture" : "Show the attack animation"))}">${CAMCORDER_SVG}</button>` : ""}<button type="button" class="hero-tool" id="hero-book" title="${esc(t("Show in the card book"))}"><img src="${"data:image/svg+xml," + encodeURIComponent(BOOK_SVG)}" alt="${esc(t("Card book"))}"></button></div>`;
+}
+function bindHeroTools(item, reopen) {
+  const cam = $("hero-anim");
+  if (cam)
+    cam.onclick = () => {
+      const on = !heroAnimOn();
+      savePref(HERO_ANIM_PREF, on ? "on" : "off");
+      cam.classList.toggle("off", !on);
+      cam.setAttribute("aria-pressed", String(on));
+      cam.title = t(on ? "Show the still picture" : "Show the attack animation");
+      const key = artFor(item),
+        cur = $("modal-body").querySelector(".modal-hero");
+      if (cur) {
+        const img = document.createElement("img");
+        img.className = "modal-hero";
+        img.alt = "";
+        img.src = towerArtUrl(key);
+        if (on) img.dataset.anim = key; // the modal's observer starts the animation
+        cur.replaceWith(img);
+      }
+      sfx.play("tap");
+    };
+  const book = $("hero-book");
+  if (book) book.onclick = () => catalogModal({ filter: "tower", focus: item.id, back: reopen });
+}
 /** v0.22n2: the info dialog's picture with the elements the tower needs as symbols in its upper left corner. */
 function heroWithElements(item) {
   // v0.27zvF: the element a tower line needs is often only set on its first level (Bouncing Shot 4–6 showed no Storm):
@@ -6409,7 +6523,7 @@ function heroWithElements(item) {
   }
   const els = reqs.length ? catalog.factions.filter((f) => reqs.some((r) => r.id === f.unlock || r.id === f.research)) : [];
   const key = artFor(item),
-    anim = ANIM_MANIFEST[key]?.kind === "attack" && !activeArtSet() ? ` data-anim="${key}"` : "", // v0.27ztF: towers with an attack sheet play it here
+    anim = heroAnimOn() && ANIM_MANIFEST[key]?.kind === "attack" && !activeArtSet() ? ` data-anim="${key}"` : "", // v0.27ztF: towers with an attack sheet play it here; v0.27.008F: unless switched off
     img = `<img class="modal-hero" src="${towerArtUrl(key)}"${anim} alt="">`,
     // v0.24s: creeps that spawn others on death: square buttons to the spawned creeps' info, bottom right
     spawns = item.isSend || item.kind === "send" ? deathSpawnTypes(item.id).filter((id) => id !== item.id) : [];
@@ -6423,10 +6537,10 @@ function itemDetail(id, towerId, detailPlayer = own, back = null) {
     stats = item.kind === "research" ? null : getStats(game, detailPlayer, id),
     canAct = detailPlayer === own;
   showModal(
-    `${back ? subHeader(itemName(item)) : modalHeader(itemName(item))}${heroWithElements(item)}${stats ? `<div class="help-tip stats detail-tip">${statTip(item, "info", towerId, detailPlayer, true).html}</div>` : `<p class="modal-copy">${esc(cardHint(item))}</p>`}${
+    `${back ? subHeader(itemName(item)) : modalHeader(itemName(item))}<div class="hero-row">${heroWithElements(item)}${heroTools(item)}</div>${stats ? `<div class="help-tip stats detail-tip">${statTip(item, "info", towerId, detailPlayer, true).html}</div>` : `<p class="modal-copy">${esc(cardHint(item))}</p>`}${
       // v0.18b: a placed tower shows no upgrade buttons here, but a way to its place in the tech tree
       towerId
-        ? `<button class="secondary-button" id="detail-techtree">${t("Techtree")}</button>`
+        ? "" // v0.27.008F: the book button next to the picture opens the card book (was a "Techtree" button)
         : item.upgrades?.length && !back // v0.22n2: opened from the card book: no upgrade buttons
         ? `<div class="rule-row"><strong>${t("Upgrade")}</strong>${item.upgrades
             .map((uid) => {
@@ -6452,7 +6566,7 @@ function itemDetail(id, towerId, detailPlayer = own, back = null) {
   $("modal-body")
     .querySelectorAll("[data-spawn]")
     .forEach((b) => (b.onclick = () => itemDetail(b.dataset.spawn, undefined, detailPlayer, () => itemDetail(id, towerId, detailPlayer, back)))); // v0.24s
-  if ($("detail-techtree")) $("detail-techtree").onclick = () => catalogModal({ filter: "tower", focus: id, back: () => itemDetail(id, towerId, detailPlayer, back) }); // v0.22n2: Back to the tower
+  bindHeroTools(item, () => itemDetail(id, towerId, detailPlayer, back)); // v0.27.008F (v0.22n2: Back returns to the tower)
   if (!towerId && canAct && (item.kind === "research" || item.isRoot)) { // v0.17h: no "Send creep" button for creeps
     const action = document.createElement("button");
     action.className = "primary-button";
@@ -6488,9 +6602,11 @@ const TREE_ROOTS = ["h003", "h000", "h02R", "h03V", "h05L", ["Pacifist", "h01F",
 function techTree(kind) {
   const elColor = (item) => elementOf(item?.element)?.color || "",
     node = (item, ref = false) => {
-      const el = elColor(item),
+      const pair = String(item?.name || "").match(/\[\s*(Water|Fire|Earth|Storm|Arcane|Plague)\s*&\s*(Water|Fire|Earth|Storm|Arcane|Plague)\s*\]/i), // v0.27.008F: combination towers: frame in both element colours
+        duo = pair ? [pair[1], pair[2]].map((x) => elementOf(x.toLowerCase())?.color).filter(Boolean) : [],
+        el = duo.length === 2 ? `${duo[0]};--el2:${duo[1]}` : elColor(item),
         price = item.kind === "research" ? "" : format(item.cost || 0);
-      return `<button class="tt-node${ref ? " tt-ref" : ""}${el ? " tt-el" : ""}${item.kind === "send" && item.flying && !bossFrame(item) ? " tt-air" : ""}${item.kind === "send" && bossFrame(item) ? ` tt-boss tt-boss-${Math.max(1, Math.min(5, item.tier || 1))}` : ""}" type="button" data-card="${item.id}"${el ? ` style="--el:${el}"` : ""}>${item.kind === "send" && bossFrame(item) ? `<span class="frame-boss" aria-hidden="true"></span>` : ""}<img src="${item.kind === "research" ? researchArt(item) : towerArtUrl(artFor(item))}" alt=""><b>${esc(itemName(item))}</b>${item.level > 1 && item.kind !== "send" && item.kind !== "research" ? `<i>Lv ${item.level}</i>` : ""}${price ? `<small><img src="${iconUrl("coin")}" alt="">${price}</small>` : ""}</button>`;
+      return `<button class="tt-node${ref ? " tt-ref" : ""}${el ? " tt-el" : ""}${duo.length === 2 ? " tt-combo" : ""}${item.kind === "send" && item.flying && !bossFrame(item) ? " tt-air" : ""}${item.kind === "send" && bossFrame(item) ? ` tt-boss tt-boss-${Math.max(1, Math.min(5, item.tier || 1))}` : ""}" type="button" data-card="${item.id}"${el ? ` style="--el:${el}"` : ""}>${item.kind === "send" && bossFrame(item) ? `<span class="frame-boss" aria-hidden="true"></span>` : ""}<img src="${item.kind === "research" ? researchArt(item) : towerArtUrl(artFor(item))}" alt=""><b>${esc(itemName(item))}</b>${item.level > 1 && item.kind !== "send" && item.kind !== "research" ? `<i>Lv ${item.level}</i>` : ""}${price ? `<small><img src="${iconUrl("coin")}" alt="">${price}</small>` : ""}</button>`;
     },
     arrow = '<span class="tt-arrow" aria-hidden="true">›</span>';
   if (kind === "tower") {
@@ -6836,15 +6952,28 @@ const RULES_DE = [
   ["Experience & levels", "The purple bar shows your EXP. Breakthroughs, some creeps and EXP generators give experience. With every level-up you choose one of three rewards from the level button beside the board."],
   ["No juggling", "A new tower may lengthen the way of walking creeps but never force them to turn back. Sold towers open shortcuts only for the next creeps."],
   ["Building & upgrading", "Pick a tower card and tap a field: you see the new path and how many fields longer it gets, a second tap builds. Faster: drag the card straight onto the board. Every row can be built on. Creeps appear at the purple portal strip at the top and break through as soon as they leave the board at the bottom. Towers shape the path; blocking it completely is not allowed. Tap towers to upgrade or sell them. Without enough gold an upgrade is queued and starts by itself."],
-  ["Auto-spawn", "Drag a creep card into the frame left of the board: that creep is sent automatically. Tap to switch it off and on, drag it out to clear it."],
+  ["Auto-spawn", "Drag a creep card into the frame left of the board: that creep is sent automatically. Tap it (or press Space) to switch it off and on, drag it out to clear it."],
   ["Six elements", "Water, fire, storm, earth, arcane and plague. At the start you choose one of three elements; levels 10 and 25 add one more each. All other levels offer upgrades."],
   ["Neutral waves", "From round 3, every two rounds a neutral wave runs through both lanes on top of the creeps sent. Every wave has a trait: swarm, fast, armored, flyers (only anti-air hits), regeneration, magic immune, splitting, mixed, and every tenth is a boss that costs 3 lives. Waves keep getting stronger. A breakthrough costs lives but gives nobody a life. Can be switched on and off in the main menu."],
   ["Stronger creeps", "Buying a boss unlocks the next tier; your creeps of the old tier still in play lose 20 % speed. Armor, damage types, flyers, restocking and groups shape the duel."],
   ["Current port status", "This is a playable 1v1 development build with extracted original data. The mobile board, the AI and some missing Warcraft base values are new. Not every special spell and JASS trigger works exactly like the original yet. Details are on every card and in the project documentation."],
 ];
+// v0.27.008F: the team in the rulebook, names in gold; new names go above Heini, who stays last
+const CREDITS = [
+  ["Chris", "Campaign Design and Testing"],
+  ["Uschi", "Head of In-Game AI Development"],
+  ["Aldi", "Diversity, Equity and Inclusion Manager and Makeup"],
+  ["Clarence", "Human Resources"],
+  ["Jette", "Animal Welfare Officer"],
+  ["Daddy Trash", "Head of Audio Design and Vice Animal Welfare Officer"],
+  ["Evan", "Marketing and Advertisement"],
+  ["Denny", "Multiplayer Rollout and Testing"],
+  ["Spadi", "Brain, Muzzle and Looks"],
+  ["Heini", "Heini"],
+];
 function rulesModal(back = null) {
   showModal(
-    `${back ? subHeader(t("The rulebook")) : modalHeader(t("The rulebook"))}<div class="rules-credits"><b>${t("Created by Stevito and Felito in October 2026")}</b><div class="credits-team"><b>${t("Team")}</b><span>Chris · ${t("Campaign Design and Testing")}</span><span>Uschi · ${t("Head of In-Game AI Development")}</span><span>Aldi · ${t("Diversity, Equity and Inclusion Manager and Makeup")}</span><span>Clarence · ${t("Human Resources")}</span><span>Jette · ${t("Animal Welfare Officer")}</span><span>Daddy Trash · ${t("Head of Audio Design and Vice Animal Welfare Officer")}</span><span>Heini · Heini</span></div><div class="credits-team"><b>${t("Obituary")}</b><span style="font-style:italic">${t("In loving memory of our friend Kos, who was terrible at Line Tower Wars but excelled at being a good-hearted and patient version of himself.")}</span></div></div>${RULES_DE.filter(([h]) => h !== "Neutral waves" || !game || game.waves).map(([h, text]) => `<div class="rule-row"><strong>${t(h)}</strong>${t(text)}</div>`).join("")}<button class="primary-button" data-close>${t("Back to the arena")}</button>`,
+    `${back ? subHeader(t("The rulebook")) : modalHeader(t("The rulebook"))}<div class="rules-credits"><b>${t("Created by Stevito and Felito in October 2026")}</b><div class="credits-team"><b>${t("Team")}</b>${CREDITS.map(([name, role]) => `<span><em class="credit-name">${name}</em> · ${role === name ? name : t(role)}</span>`).join("")}</div><div class="credits-team"><b>${t("Obituary")}</b><span style="font-style:italic">${t("In loving memory of our friend Kos, who was terrible at Line Tower Wars but excelled at being a good-hearted and patient version of himself.")}</span></div></div>${RULES_DE.filter(([h]) => h !== "Neutral waves" || !game || game.waves).map(([h, text]) => `<div class="rule-row"><strong>${t(h)}</strong>${t(text)}</div>`).join("")}<button class="primary-button" data-close>${t("Back to the arena")}</button>`,
   );
   if (back && $("sub-back")) $("sub-back").onclick = back; // v0.22n2
 }
@@ -6926,7 +7055,7 @@ function graphicModal(back) {
     savePref(CONTROL_PREF, controlMode);
     applyControlMode();
     $("menu-controls").innerHTML = controlsRow();
-    toast(controlMode === "pc" ? "Desktop version: mouse hover shows tips, mouse wheel and arrow keys switch fields, B / S switch Build and Send." : "Mobile version: touch controls, tips only in help mode.");
+    toast(controlMode === "pc" ? "Desktop version: mouse hover shows tips, mouse wheel and arrow keys switch fields, B / S switch Build and Send, Space switches auto-spawn." : "Mobile version: touch controls, tips only in help mode.");
     tone("select");
   };
   // Design variants: Original (default), Sonnenwiese, Bonbon, Pfotenwelt. Only the look changes; board, figures and icons follow at once.
@@ -8638,6 +8767,7 @@ function tick(dt) {
   if (queueTime >= 0.25) {
     queueTime = 0;
     runQueue();
+    flushPausedSends(); // v0.27.008F: after the pre-builds had their turn
     predatorCheck(); // v0.15
   }
   saveTime += dt;
@@ -9158,6 +9288,25 @@ async function init() {
         clearTimeout(slotTipTimer);
         if (helpFor === $("auto-slot") && !helpMode) setTimeout(hideHelp, 900);
       });
+    // v0.27.008F: the space bar switches auto-spawn off and on (like a tap on the filled auto-spawn slot), in every control mode
+    let spaceTaken = false;
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== " " || !game || !begun || $("modal").open) return;
+      if (e.target.closest?.("input, textarea, select, dialog")) return;
+      e.preventDefault(); // a focused button must not be clicked by the space bar as well
+      spaceTaken = true;
+      if (e.repeat) return;
+      const p = game.players[own];
+      if (!p || game.winner != null) return;
+      if (p.autoSend || (p.autoMode && p.autoMode !== "default")) {
+        dispatch({ type: "autoSend", active: p.autoSendActive === false });
+        sfx.play("tap");
+        refreshAutoSend();
+      } else toast("Auto-spawn: drag a creep card into the auto-spawn slot first.");
+    });
+    document.addEventListener("keyup", (e) => {
+      if (e.key === " " && spaceTaken) (e.preventDefault(), (spaceTaken = false));
+    });
     $("auto-slot").onclick = (e) => {
       // keyboard activation; pointer taps are handled on release
       if (performance.now() < suppressClickUntil || e.detail) return; // v0.22m2: a pointer click never toggles a second time

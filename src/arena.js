@@ -814,15 +814,16 @@ export function mountArena({
       this.dying = this.dying.filter((d) => {
         const el = time - d.start,
           play = d.meta.ms * d.meta.frames,
-          hold = 900,
-          fade = 500;
+          air = d.lift > 2, // v0.27.008F: flying creeps: the last frame (feathers, debris in the air) fades at once instead of standing still
+          hold = air ? 60 : 900,
+          fade = air ? 300 : 500;
         if (d.view !== view || el > play + hold + fade || d.s.destroyed) {
           d.s.destroy();
           return false;
         }
         this.showFrame(d.s, d.tex, (d.meta.first || 0) + Math.min(d.meta.frames - 1, Math.floor(el / d.meta.ms)));
         const fall = clamp(el / (d.meta.ms * 4), 0, 1);
-        d.s.setPosition(d.s.x, d.groundY - d.lift * (1 - fall * fall));
+        d.s.setPosition(d.s.x, d.groundY - d.lift * (1 - fall * fall) + (air && el > play ? Math.min(1, (el - play) / (hold + fade)) * d.lift * 0.12 : 0)); // the remains sink a little while they fade
         d.s.setAlpha(el > play + hold ? 1 - (el - play - hold) / fade : 1);
         if (d.zap != null) {
           if (time - d.zap <= 150) d.s.setTint(Math.floor((time - d.zap) / 38) % 2 ? 0x101010 : 0xffffff).setTintFill(1);
@@ -2142,6 +2143,13 @@ export function mountArena({
         return false;
       const dt = redraw ? 0 : Math.min((wall - (this.drawnAt ?? wall - delta)) / 1000, 0.1);
       this.drawnAt = wall;
+      // v0.27.008F: a paused game freezes every board animation (path arrows, breathing, glows, effects): the board
+      // runs on its own clock, which stands still while paused
+      const frozen = !!game.paused;
+      this.clock = (this.clock ?? time) + (redraw || frozen ? 0 : Math.min(wall - (this.clockAt ?? wall), 100));
+      this.clockAt = wall;
+      time = this.clock;
+      this.frozen = frozen;
       this.prefetch(wall);
       if (this.gameSeed !== game.seed || game.eventId < this.lastEvent) {
         this.gameSeed = game.seed;
@@ -2427,6 +2435,7 @@ export function mountArena({
         const pts = path.map((p) => this.point(p.x, p.y));
         this.chevrons(pl, pts, time, cell, 0x4a3018, preview?.ok ? 0.18 : 0.38, true);
       }
+      this.drawPathLength(pl, game, player, cell);
       // ---- placement aids
       if (selected?.towerId) {
         const t = player.towers.find((t) => t.id === selected.towerId);
@@ -2612,9 +2621,7 @@ export function mountArena({
             sb.fillCircle(sx, sy, tc * (0.055 + age * 0.13));
           }
         }
-        // team glow under the pedestal
-        glow.fillStyle(team, 0.16);
-        glow.fillEllipse(cx, cy + tc * 0.06, tc * 1.0, tc * 0.5);
+        // v0.27.008F: no team glow under the pedestal any more: the additive layer lies above the towers and washed the stone base out
         // v0.13: Lone Guardians active: a white aura with beams turning outwards
         if (!building && def.attacks && loneActive(player)) { // v0.22g1: limit by perk level
           const pulse = 0.5 + 0.5 * Math.sin(time * 0.005 + phase),
@@ -3189,7 +3196,7 @@ export function mountArena({
       for (const key of this.waiting.keys()) if (!alive.has(key)) this.waiting.delete(key); // v0.23
       this.consumeEvents(game, view, own, catalog, z, time);
       this.settleDeaths(view, time);
-      this.drawFx(game, player, dt, cell, view);
+      this.drawFx(game, player, this.frozen ? 0 : dt, cell, view);
       this.drawPip(game, view, own, z, catalog, time);
       this.drawVignette(z, dt);
     }
@@ -3517,6 +3524,41 @@ export function mountArena({
       g.lineStyle(2, 0xbff3ff, 0.65);
       g.strokeCircle(q.x, q.y, r);
     }
+    /**
+     * v0.27.008F: a path longer than the straight lane: a chequered finish line at the bottom of its last field and
+     * the path length (fields on the lane) pressed into the dirt there.
+     */
+    drawPathLength(g, game, player, cell) {
+      const rows = laneRows(game, player),
+        tiles = (player.path || []).filter((p) => p.gridY >= 0 && p.gridY < rows),
+        last = tiles[tiles.length - 1],
+        show = !!last && last.gridY === rows - 1 && tiles.length > rows;
+      if (!this.lenText) {
+        const style = { fontFamily: FONT, fontSize: "20px", resolution: DPR };
+        this.lenLight = this.stage.text(0, 0, "", { ...style, color: "#f3c58e" }).setOrigin(0.5, 1).setDepth(5.5).setAlpha(0.55);
+        this.lenText = this.stage.text(0, 0, "", { ...style, color: "#4a2a12" }).setOrigin(0.5, 1).setDepth(5.6).setAlpha(0.72);
+      }
+      this.lenText.setVisible(show);
+      this.lenLight.setVisible(show);
+      if (!show) return;
+      const q = this.point(last.x, last.y),
+        half = cell / 2,
+        bottom = q.y + half,
+        n = 8,
+        w = cell / n,
+        h = Math.max(2.5, cell * 0.065);
+      for (let i = 0; i < n; i++)
+        for (let j = 0; j < 2; j++) {
+          g.fillStyle((i + j) % 2 ? 0x1c140d : 0xf1e8d4, 0.82);
+          g.fillRect(q.x - half + i * w, bottom - h * (2 - j), w, h);
+        }
+      const size = Math.max(10, Math.round(cell * 0.42)),
+        y = bottom - h * 2 - cell * 0.05,
+        text = String(tiles.length);
+      // pressed in: dark letters with a light rim below right, like the edge of a groove catching the light
+      this.lenText.setText(text).setFontSize(size).setPosition(q.x, y);
+      this.lenLight.setText(text).setFontSize(size).setPosition(q.x + Math.max(1, size * 0.06), y + Math.max(1, size * 0.06));
+    }
     drawPreview(game, view, preview, catalog, z, time) {
       const g = this.overlay;
       if (!preview || preview.player !== view) {
@@ -3595,7 +3637,7 @@ export function mountArena({
       f.clear();
       fa.clear();
       // v0.27oF: immolation flames at the feet of burning creeps (collected in the creep loop of this frame)
-      const now = performance.now();
+      const now = this.clock ?? performance.now(); // v0.27.008F: stands still while paused
       for (const b of this.immoFx || []) {
         for (let k = 0; k < 5; k++) {
           const ph = now * 0.012 + b.seed * 7 + k * 1.9,
