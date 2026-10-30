@@ -10156,10 +10156,10 @@ input[type="checkbox"]::after,
 input[type="checkbox"]:checked::after {
   content: "";
   position: absolute;
-  left: -2px;
-  top: -9px;
-  width: 135%;
-  height: 135%;
+  left: -3px; /* v0.28.020F: 10 % larger (was 135 %), a little lower, closer to the box's centre (was -2 / -9 px) */
+  top: -6px;
+  width: 149%;
+  height: 149%;
   border: 0;
   border-radius: 0;
   background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M3 17l5-5 6 6L27 3l4 5-17 19z' fill='%2342d14a' stroke='%23000' stroke-width='1.6' stroke-linejoin='round'/%3E%3Cpath d='M6 16.5l2-2 6 6 1.5-1.6' fill='none' stroke='%23b8ffb8' stroke-width='1.2' stroke-linecap='round' opacity='.8'/%3E%3C/svg%3E") center / contain no-repeat;
@@ -10249,4 +10249,124 @@ dialog.welcome-modal.easy-wolf .mood-easy-wolf { opacity: 1; }
 :root.layout-wide #cards-send .card-lock b,
 :root.layout-wide .card-lock.lock-fly b {
   margin-top: 0;
+}
+
+/* ---- v0.28.020F: Desktop Wide: the upgrade cards no longer slide up over the "Upgrade" title (the glow room above
+   the blueprints, padding 22 px / margin −20 px, pulled them up; upgrade cards do not lift) ---- */
+:root.layout-wide .command-deck #cards.upgrade-mode {
+  padding-top: 2px;
+  margin-top: 0;
+}
+
+
+/* ---- v0.28.020F: Desktop Wide (square creep buttons): gold cost and income larger (were 12 px in a 15 px bar); the
+   price bar is taller, and fitPrices now also grows them up to 20 % here where the card has room ---- */
+:root.layout-wide .game-shell #cards-send .unit-card[data-kind="send"] .card-foot,
+:root.layout-wide:is(:not([data-design]), [data-design="original"]) .game-shell #cards-send .unit-card[data-kind="send"] .card-foot,
+:root.layout-wide:is(:not([data-design]), [data-design="original"]) .game-shell #cards-send .unit-card[data-kind="send"].framed .card-foot {
+  height: 19px;
+  gap: 3px;
+}
+:root.layout-wide .game-shell #cards-send .unit-card[data-kind="send"] .card-foot .price,
+:root.layout-wide .game-shell #cards-send .unit-card[data-kind="send"] .card-foot .card-note,
+:root.layout-wide .game-shell #cards-send .unit-card[data-kind="send"].framed .card-foot .card-note {
+  font-size: 14px;
+}
+:root.layout-wide .game-shell #cards-send .unit-card[data-kind="send"].price-big .card-foot .price {
+  font-size: 15px;
+}
+:root.layout-wide .game-shell #cards-send .unit-card[data-kind="send"] .card-foot.long .price,
+:root.layout-wide .game-shell #cards-send .unit-card[data-kind="send"] .card-foot.long .card-note {
+  font-size: 12.5px;
+}
+:root.layout-wide .game-shell #cards-send .unit-card[data-kind="send"].price-big .card-foot.long .price {
+  font-size: 13.5px;
+}
+:root.layout-wide .game-shell #cards-send .unit-card[data-kind="send"] .card-foot .price::before {
+  width: 12px;
+  height: 12px;
+}
+:root.layout-wide .game-shell #cards-send .unit-card[data-kind="send"] .card-foot.long .price::before {
+  width: 10px;
+  height: 10px;
+}
+
+/* ---- v0.28.020F: Sell tool: the cursor carries a coin over the board; the sell value floats above the tower under it ---- */
+body.tool-sell #arena canvas {
+  cursor: url("assets/art/cursor-coin.png") 16 16, pointer;
+}
+body.tool-upgrade #arena canvas {
+  cursor: url("assets/art/cursor-upgrade.png") 16 2, pointer;
+}
+.sell-hint.upgrade {
+  border-color: #5fe06a;
+  color: #e9ffe9;
+}
+.sell-hint.off {
+  border-color: #c9473f;
+  color: #ffb0a8;
+}
+.sell-hint .tool-up-arrow {
+  width: 11px;
+  height: 13px;
+  margin: 0 1px 0 3px;
+}
+.sell-hint {
+  position: absolute;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 8px 2px 3px;
+  border: 1.5px solid #ffd36a;
+  border-radius: 999px;
+  background: #140c04e8;
+  box-shadow: 0 2px 6px #000a;
+  font: 800 15px/1 var(--font-display);
+  color: #ffd36a;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translate(-50%, -100%);
+}
+.sell-hint[hidden] {
+  display: none;
+}
+.sell-hint img {
+  width: 17px;
+  height: 17px;
+}
+
+/* ---- v0.28.020F: Desktop Wide: upgrade blueprints show their tower like the level-1 build blueprints: the picture
+   fills the card (2 px in), stands on its foot and is scaled the same way (was a small box between name and cost) ---- */
+:root.layout-wide .command-deck #cards.upgrade-mode > .up-card:not(.sell-card) .up-art {
+  inset: 2px !important;
+  border-radius: 9px;
+  overflow: hidden;
+}
+:root.layout-wide .command-deck #cards.upgrade-mode > .up-card:not(.sell-card) .up-art img {
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: 50% 100%;
+  transform: translateY(9%) scale(1.06);
+  transform-origin: 50% 100%;
+}
+/* the name box ends inside the card (width 100 % plus the 4 px offset reached past its right edge, so a long name such
+   as "Hall of Storm 3" was cut off instead of shrinking to fit) */
+:root.layout-wide .command-deck #cards.upgrade-mode > .up-card .up-title {
+  width: auto;
+  left: 6px;
+  right: 6px;
+}
+/* ---- v0.28.020F: element frames of tower cards sit (mostly) outside the card's edge, like the boss frames of the
+   creep buttons, leaving the room inside to name, picture and cost ---- */
+.unit-card .el-frame {
+  inset: -2px;
+  border-radius: 12px;
+}
+
+/* ---- v0.28.020F: the flying creeps' frame sits half outside the button's edge too, like the boss frame ---- */
+.unit-card > .frame-air {
+  inset: -3.5px;
 }

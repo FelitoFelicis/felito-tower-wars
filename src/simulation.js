@@ -437,7 +437,7 @@ export function createGame({
     if (p.ai && aiLevels?.[p.id] && Object.hasOwn(AI_LEVELS, aiLevels[p.id])) p.aiLevel = aiLevels[p.id];
     p.picks.push(makePick(game, p, "element"));
     p.path = findPath(game, p.id);
-    for (const s of getCatalog().sends) p.stock[s.id] = { count: s.stockStart > 0 ? 0 : s.stockMax, next: s.stockStart * (game.incomeInterval || RULES.incomeInterval) }; // v0.27iF: stockStart in rounds
+    for (const s of getCatalog().sends) p.stock[s.id] = { count: s.stockStart > 0 ? 0 : stockMaxOf(p, s), next: s.stockStart * (game.incomeInterval || RULES.incomeInterval) }; // v0.27iF: stockStart in rounds
     stockTier(game, p, 1, 0);
   }
   if (mission) applyMission(game, mission);
@@ -1157,7 +1157,7 @@ export const PERKS = Object.freeze({
   meditation: { name: "Meditation", max: 5, element: "arcane", unpopular: 0.5, text: "Active abilities cool down {meditation} faster", detail: "The cooldowns of your active abilities (Arrow Volley, Pillar of Fire, Arcane Burst, Frost Bolt, Monsun, Arcane Golem, Infested Ground) run {meditation} faster" }, // v0.28.017F
   arcaneblock: { name: "Arcane Block", max: 3, element: "arcane", text: "Every {arcaneBlockCd} s a breach is denied: the creep becomes your arcane clone{arcaneBlockText}", detail: "Every {arcaneBlockCd} s the first creep that breaks through is stopped. Its owner cannot recruit that creep type for {arcaneBlockLock} rounds; the creep turns into your arcane clone (its health stays{arcaneBlockBuff}){arcaneBlockDetail}" }, // v0.28.017F
   supergrowth: { name: "Supergrowth", max: 3, element: "earth", text: "Buying strong ground creeps gives their type up to +{growth} HP", detail: "Each purchase of a ground creep from the stronger half of its tier gives that creep type +{growth} HP, less for weaker ones" }, // v0.20f
-  waterblock: { name: "Frost Block", max: 3, element: "water", text: "Every {blockCd} s first breach is pushed back {blockBack} fields and frozen {blockSlow} slower", detail: "Every {blockCd} s the first breach is pushed back {blockBack} fields (flyers {blockBackAir}) and frozen {blockSlow} slower" }, // v0.10r
+  waterblock: { name: "Frost Block", max: 3, element: "water", text: "Every {blockCd} s first breach is pushed back {blockBack} fields and frozen {blockSlow} slower; the first {blockChain} creeps it passes freeze too", detail: "Every {blockCd} s the first breach is pushed back {blockBack} fields (flyers {blockBackAir}) and frozen {blockSlow} slower. The first {blockChain} creeps it passes on the way back are frozen {blockChainSlow} slower for {blockChainTime} s" }, // v0.10r
   pocks: { name: "Giant's Pocks", max: 5, element: "plague", text: "Every 4 s the strongest creep loses {pocks} HP and is poisoned", detail: "Every 4 s the strongest creep in your field loses {pocks} HP and is poisoned" }, // v0.10q
   permafrost: { name: "Frozen Ground", max: 10, element: "water", text: "Ground creeps {permafrost} slower", detail: "Ground creeps in your field {permafrost} slower" }, // v0.10o; v0.22h1: was Permafrost, 5 % per level
   hills: { name: "Hill Paths", max: 5, element: "earth", weight: 0.75, text: "Uphill ground creeps {hills} slower", detail: "Ground creeps walking upwards in your field {hills} slower" }, // v0.22h1
@@ -2445,7 +2445,7 @@ function fireBlock(game, p, c) {
   tickPillars(game);
   return true;
 }
-export const WATERBLOCK = { cooldown: [15, 13, 11], back: [6, 8, 10], backAir: [3, 5, 6], frost: 5, slow: [0.75, 0.85, 0.9] }; // v0.22h1: ground 4 + 2 × level fields, flyers 3 / 5 / 6, frozen 75 / 85 / 90 % slower
+export const WATERBLOCK = { cooldown: [15, 13, 11], back: [6, 8, 10], backAir: [3, 5, 6], frost: 5, slow: [0.75, 0.85, 0.9], chain: [2, 4, 6], chainSlow: 0.5, chainTime: 0.7 }; // v0.22h1: ground 4 + 2 × level fields, flyers 3 / 5 / 6, frozen 75 / 85 / 90 % slower; v0.28.020F: the first 2 / 4 / 6 creeps it passes freeze too (half the slow, 70 % of the time)
 export const treasureGold = (game) => Math.max(1, game?.round || 0) * 30; // v0.19e2: +20 % (was 25 per round)
 /** v0.19e2: Gold Treasure income: +60, doubled while the player has less than 40 % of the highest income. */
 export const TREASURE = { income: 60, behind: 0.4 };
@@ -2578,8 +2578,49 @@ function waterBlock(game, p, c) {
     frost.slow = Math.max(frost.slow, slow);
     frost.ice = true;
   } else c.statuses.push({ abilityId: "frost", remaining: WATERBLOCK.frost, slow, dps: 0, owner: p.id, ice: true });
+  frostChain(game, p, c, back, slow, level); // v0.28.020F
   emit(game, "skill", { player: p.id, kind: "waterblock", x: c.x, y: c.y });
   return true;
+}
+/**
+ * v0.28.020F: Frost Block: the first 2 / 4 / 6 creeps the pushed-back creep passes on its way back are frozen too,
+ * with half the slow and 70 % of the time. Ground: the creeps on the maze within the push-back distance from the exit,
+ * nearest first; flyers (pushed straight up): the creeps in its column within that distance.
+ */
+function frostChain(game, p, c, back, slow, level) {
+  const n = WATERBLOCK.chain[level - 1] || 0;
+  if (!n) return;
+  const others = p.creeps.filter((o) => o !== c && !o.dead && o.hp > 0);
+  let near;
+  if (c.flying) {
+    const g = gridAt(game, c);
+    near = others
+      .filter((o) => {
+        const og = gridAt(game, o);
+        return og.x === g.x && og.y <= g.y && og.y >= g.y - back;
+      })
+      .map((o) => [o, Math.abs(o.y - c.y)]);
+  } else {
+    const field = exitField(game, p);
+    near = others
+      .filter((o) => !o.flying)
+      .map((o) => {
+        const og = gridAt(game, o);
+        return [o, og.y >= 0 && og.y < game.grid.rows ? field[square(game, og.x, og.y)] : -1];
+      })
+      .filter(([, d]) => d > 0 && d <= back + 1);
+  }
+  near.sort((a, b) => a[1] - b[1] || dist(game, a[0], c) - dist(game, b[0], c));
+  const chainSlow = slow * WATERBLOCK.chainSlow,
+    time = WATERBLOCK.frost * WATERBLOCK.chainTime;
+  for (const [o] of near.slice(0, n)) {
+    const frost = o.statuses.find((st) => st.abilityId === "frost");
+    if (frost) {
+      frost.remaining = Math.max(frost.remaining, time);
+      frost.slow = Math.max(frost.slow, chainSlow);
+      frost.ice = true;
+    } else o.statuses.push({ abilityId: "frost", remaining: time, slow: chainSlow, dps: 0, owner: p.id, ice: true });
+  }
 }
 /** Archer (h003) and every tower that grows out of it. */
 let ARCHER_LINE = null;
@@ -2646,7 +2687,16 @@ export function stockRegenOf(p, s) {
 }
 /** Highest stock of a send for this player (v0.10i: Recruitment no longer adds stock). */
 export function stockMaxOf(p, s) {
-  return s ? s.stockMax + (perkLevel(p, "slave") && firstOfTier(s) ? SLAVE.stock * Math.min(SLAVE.max, perkLevel(p, "slave")) : 0) : 0; // v0.14: Slave Labour
+  if (!s) return 0;
+  // v0.28.020F: the first four creeps of tier 1 hold 2 fewer while tier 1 is still locked (before the Mud Golem)
+  const cut = tierOneLocked(p) && s.tier === 1 && firstFourOfTierOne(s) ? STOCK_LOCKED_CUT : 0;
+  return Math.max(1, s.stockMax - cut) + (perkLevel(p, "slave") && firstOfTier(s) ? SLAVE.stock * Math.min(SLAVE.max, perkLevel(p, "slave")) : 0); // v0.14: Slave Labour
+}
+export const STOCK_LOCKED_CUT = 2;
+let FIRST_FOUR = null;
+function firstFourOfTierOne(s) {
+  FIRST_FOUR ||= new Set(tierSends(1).filter((x) => !x.bossTier).slice(0, MINI_BOSS.slot).map((x) => x.id));
+  return FIRST_FOUR.has(s.id);
 }
 // ---- Experience and level picks (v0.06, replaces wood) --------------------------------
 // EXP comes from everything that used to give wood: breakthroughs, creeps crossing the enemy
@@ -3545,7 +3595,7 @@ function completeTower(game, p, t) {
  * and the first tower upgraded to its last level. Each gives a little EXP.
  */
 export const TOWER_ACHIEVEMENTS = Object.freeze({
-  element: { name: "Elementalist", text: "Your first element tower", exp: 25 },
+  element: { name: "Elementalist", text: "Your first element tower", exp: 30 }, // v0.28.020F: 30 (was 25)
   maxed: { name: "Master Builder", text: "Your first tower at its highest level", exp: 200 }, // v0.16: 200 EXP
 });
 function towerAchievements(game, p, t, item) {
@@ -3565,7 +3615,7 @@ function towerAchievements(game, p, t, item) {
  * and Creep Collector I–V (every creep of a tier bought at least once, the boss excepted).
  */
 export const GLOBAL_ACHIEVEMENTS = Object.freeze({ labyrinth: { name: "Labyrinth", fields: 30, exp: 100 } });
-export const collectorExp = (tier) => tier * 100 + 50;
+export const collectorExp = (tier) => [0, 150, 250, 400, 600, 800][tier] ?? tier * 100 + 50; // v0.28.020F: III 400, IV 600, V 800 (were 350/450/550)
 const ROMAN = ["", "I", "II", "III", "IV", "V"];
 function labyrinthCheck(game, p) {
   const a = (game.achievements ||= { tiers: [], halls: 0, hallNextTime: 0 }),
@@ -3679,7 +3729,7 @@ function builderCheck(game, p) {
 /** v0.19j: Bloodthirst (10+ lives stolen) and Bloodrage (30+) — global, first player only, a splat like First Blood. */
 export const BLOOD_ACHIEVEMENTS = Object.freeze([
   { key: "bloodthirst", name: "Bloodthirst", lives: 10, mult: 3 },
-  { key: "bloodrage", name: "Bloodrage", lives: 30, mult: 5 },
+  { key: "bloodrage", name: "Bloodrage", lives: 30, mult: 6 }, // v0.28.020F: 300 EXP (was 250)
 ]);
 function bloodCheck(game, sender) {
   const a = (game.achievements ||= { tiers: [], halls: 0, hallNextTime: 0 }),
@@ -3688,7 +3738,7 @@ function bloodCheck(game, sender) {
   for (const b of BLOOD_ACHIEVEMENTS) {
     if (Object.hasOwn(done, b.key) || stolen < b.lives) continue;
     done[b.key] = sender.id;
-    const exp = RULES.firstBloodWood * b.mult; // 200 % / 400 % more than First Blood
+    const exp = RULES.firstBloodWood * b.mult; // 3× / 6× First Blood
     gainExp(game, sender, exp, "achievement");
     emit(game, "firstBlood", { player: sender.id, exp, kind: b.key, name: b.name });
   }
@@ -6389,6 +6439,19 @@ const HARDO_STYLES = Object.freeze([
   { id: "economy", p: { greed: 3.374, splash: 1.966, push: 0.076, pushSize: 1.126, pushMargin: 1.258, bossRound: 6.646, expGen: 1.175, upgradeBias: 1.295, caution: 1.183, rateShare: 0.29, waveShare: 0.45, airThreshold: 0.159, researchBias: 1.248, flyerBias: 1.294, mazeRush: 0.181, mazeValue: 1.079, bankWatch: 0.647, killShot: 8.03, sendPick: 1.063 } },
   { id: "pressure", p: { greed: 2.486, splash: 1.228, push: 0.228, pushSize: 2.346, pushMargin: 1.704, bossRound: 5.075, expGen: 1.04, upgradeBias: 0.921, caution: 1.17, rateShare: 0.226, waveShare: 0.534, airThreshold: 0.18, researchBias: 1.404, flyerBias: 1.186, mazeRush: 0.344, mazeValue: 0.888, bankWatch: 0.805, killShot: 6.135, sendPick: 1.856 } },
 ]);
+/**
+ * v0.28.020F: Hardo's experiments against humans: one per match, on top of his style. The app picks the one that
+ * worked best in the recorded matches (with some exploring) and sets game.hardoExp; without it the seed picks.
+ * The experiment is recorded with the match (options.hardoExp), so the match data shows which ones work.
+ */
+export const HARDO_EXPERIMENTS = Object.freeze([
+  { id: "control", text: "No change (baseline)" },
+  { id: "air-probe", text: "Flyer waves when the opponent's anti-air reads thin", set: { airProbe: 1, airThreshold: 0.3 } },
+  { id: "early-punish", text: "Punishes a thin defence sooner (thin read 1.8 instead of 2.5)", set: { punishThin: 1.8 } },
+  { id: "greedy", text: "Economy 15 % greedier", mul: { greed: 1.15 } },
+  { id: "safe", text: "Defence 12 % more cautious", mul: { caution: 1.12 } },
+  { id: "bank-skeptic", text: "Trusts a human's banked gold less (it is often saved for a tier, not a push)", set: { bankStep: 0.25, bankFloor: 0.1 } }, // match of 30.10. #2
+]);
 function aiPersonality(game, p) {
   if (p.aiPersona) return p.aiPersona;
   const roll = ([a, b]) => a + (b - a) * random(game);
@@ -6410,6 +6473,11 @@ function aiPersonality(game, p) {
     const style = HARDO_STYLES[game.seed % HARDO_STYLES.length];
     p.hardoStyle = style.id;
     Object.assign(p.aiPersona, style.p);
+    // v0.28.020F: the match's experiment
+    const exp = HARDO_EXPERIMENTS.find((e) => e.id === game.hardoExp) || HARDO_EXPERIMENTS[Math.floor(game.seed / HARDO_STYLES.length) % HARDO_EXPERIMENTS.length];
+    p.hardoExp = exp.id;
+    for (const [k, f] of Object.entries(exp.mul || {})) p.aiPersona[k] = (p.aiPersona[k] ?? 1) * f;
+    Object.assign(p.aiPersona, exp.set || {});
   }
   return p.aiPersona;
 }
@@ -6426,7 +6494,7 @@ function bankTrust(game, p, a, persona) {
     tr.gold = a.gold;
     tr.round = game.round;
   }
-  return clamp(1 - 0.15 * Math.max(0, tr.idle - 2), 0.25, 1);
+  return clamp(1 - (persona.bankStep ?? 0.15) * Math.max(0, tr.idle - 2), persona.bankFloor ?? 0.25, 1); // v0.28.020F: experiment bank-skeptic
 }
 /** v0.22u2: gold an opponent banks right below its next boss is mostly the boss (one creep), not a push. */
 function bankedGold(a, persona) {
@@ -7419,7 +7487,7 @@ function adaptPersona(game, p, enemy, persona) {
     k = AI_ADAPT,
     out = { ...persona },
     tags = [];
-  if (game.round >= 4 && r.thin > k.thin) {
+  if (game.round >= 4 && r.thin > (persona.punishThin ?? k.thin)) { // v0.28.020F: experiment early-punish
     tags.push("punish");
     out.push = Math.max(out.push ?? 0, k.punishPush);
     out.pushSize = Math.min(out.pushSize ?? 2, 2);
@@ -7651,7 +7719,10 @@ function think(game, p) {
     const mud = obj(MINI_BOSS.id);
     if (mud && sendAllowed(p, mud)) {
       if (p.gold >= mud.cost + Math.min(p.income, 20) && available(game, p.id, "send", mud.id).ok && command(game, { type: "send", player: p.id, id: mud.id }).ok) return;
-      if (p.income >= MINI_BOSS.aiIncome || game.round >= MINI_BOSS.aiSave) return;
+      // v0.28.020F: Hardo (and adaptive Hard) keep sending until the golem is at most two rounds of income away
+      // (match of 30.10.: rounds 6–8 without a send while saving, 60 income against the human's 107 in round 9)
+      const near = !persona.adaptive || p.gold + p.income * 2 >= mud.cost + Math.min(p.income, 20);
+      if (near && (p.income >= MINI_BOSS.aiIncome || game.round >= MINI_BOSS.aiSave)) return;
     }
   }
   const sends = tierSends(p.tier).filter((s) => available(game, p.id, "send", s.id).ok),
@@ -7659,7 +7730,15 @@ function think(game, p) {
   if (p.aiPush) {
     const plan = p.aiPush,
       item = obj(plan.id);
-    if (game.round > plan.until || !item) p.aiPush = null;
+    plan.since ??= game.round;
+    // v0.28.020F: a push that has saved for 3 rounds without launching is dropped, and no new one is planned for 3
+    // rounds (match of 30.10. #2: a 17-Trenchlin push waited 10 rounds while defence spending ate the gold it saved,
+    // and the saving held back every income send: income stuck at 543 for 12 rounds)
+    const stale = persona.adaptive && !plan.sending && game.round - plan.since >= 3;
+    if (game.round > plan.until || !item || stale) {
+      if (!plan.sending && persona.adaptive) p.aiPushCool = game.round + 3;
+      p.aiPush = null;
+    }
     else if (plan.smart && !plan.sending && p.gold >= item.cost * plan.left) {
       // v0.07l: with a neutral wave close, launch together with it: their towers are busy then
       const next = (persona.waveTiming ?? 0) > 0 ? nextWave(game) : null;
@@ -7688,6 +7767,7 @@ function think(game, p) {
       if (plan.left <= 0) {
         if (persona.adaptive || (persona.airLearn && item.flying)) p.aiPushCheck = { tick: game.tick + Math.round(35 / TICK), leaks0: plan.leaks0 ?? p.stats.leaks, air: !!item.flying };
         p.aiPush = null;
+        if (finishing) finisherDump(game, p); // v0.28.020F: the finishing push goes out with every spare coin
       }
       return;
     } else return; // saving
@@ -7737,11 +7817,34 @@ function think(game, p) {
     }
   }
   // v0.07l: a low opponent gets a finishing push as soon as one can break through
-  if (!p.aiPush && (persona.killShot ?? 0) > 0 && enemy.lives <= persona.killShot && game.round >= 4) {
+  // v0.28.020F: while finishing (human at 5 lives or fewer) also without a killShot persona; with no plan in reach
+  // Hardo throws its banked gold at the lane once per round (match of 30.10.: 9 rounds for the last 3 lives,
+  // 4 Satyrs a round while 500–1,150 gold sat in the bank)
+  if (!p.aiPush && (finishing || ((persona.killShot ?? 0) > 0 && enemy.lives <= persona.killShot)) && game.round >= 4) {
     const plan = breakthroughPlan(game, p, enemy, finishing ? { ...persona, pushSize: 1 } : persona); // v0.22zc2: finish now, not in 3 rounds
     if (plan) {
       p.aiPush = plan;
       return;
+    }
+    if (finishing && p.aiFinishRound !== game.round && p.gold > p.income) {
+      p.aiFinishRound = game.round;
+      finisherDump(game, p);
+      return;
+    }
+  }
+  // v0.28.020F: experiment "air-probe": once a round, a flyer wave when the opponent's anti-air reads thin
+  if (!p.aiPush && !(p.aiPushCool > game.round) && persona.airProbe && game.round >= 5 && p.aiAirProbe !== game.round) {
+    p.aiAirProbe = game.round;
+    if (weakAirOf(game, p, enemy, persona)) {
+      let best = null;
+      for (const f of tierSends(p.tier).filter((s) => s.flying && !s.bossTier && s.playable && sendAllowed(p, s) && p.stock[s.id])) {
+        const plan = breakthroughPlan(game, p, enemy, persona, f.id);
+        if (plan && (!best || plan.left * (obj(plan.id)?.cost || 0) < best.left * (obj(best.id)?.cost || 0))) best = plan;
+      }
+      if (best) {
+        p.aiPush = best;
+        return;
+      }
     }
   }
   // A push: saved-up gold for one wave big enough to break through. The smart planner sizes it
@@ -7750,7 +7853,7 @@ function think(game, p) {
   // v0.16j: now and then (rarely in tier 1, more often from tier 2) the bot checks whether a
   // saved-up wave of one strong or fast creep type would really break through, and saves for it
   const saves = (p.aiSaves ||= {});
-  if (!p.aiPush && game.round >= 4 && persona.smartPush && !((saves[Math.min(3, p.tier)] || 0) >= (saveRule(p).max ?? Infinity)) && random(game) < aiSaveChance(p) * (persona.saveMore ?? 1)) {
+  if (!p.aiPush && !(p.aiPushCool > game.round) && game.round >= 4 && persona.smartPush && !((saves[Math.min(3, p.tier)] || 0) >= (saveRule(p).max ?? Infinity)) && random(game) < aiSaveChance(p) * (persona.saveMore ?? 1)) {
     const plan = savePlan(game, p, enemy, persona);
     if (plan) {
       saves[Math.min(3, p.tier)] = (saves[Math.min(3, p.tier)] || 0) + 1;
@@ -7758,7 +7861,7 @@ function think(game, p) {
       return;
     }
   }
-  if (!p.aiPush && game.round >= (persona.smartPush ? 4 : 6) && random(game) < persona.push * 0.12 * (interval / 10) ** (persona.adaptive ? 1 : 0) && !(persona.adaptive && p.tier === 1 && p.aiStyle !== "punish" && !p.aiStyle?.startsWith("punish"))) {
+  if (!p.aiPush && !(p.aiPushCool > game.round) && game.round >= (persona.smartPush ? 4 : 6) && random(game) < persona.push * 0.12 * (interval / 10) ** (persona.adaptive ? 1 : 0) && !(persona.adaptive && p.tier === 1 && p.aiStyle !== "punish" && !p.aiStyle?.startsWith("punish"))) {
     const plan = persona.smartPush ? breakthroughPlan(game, p, enemy, persona) : legacyPushPlan(game, p, enemy, persona);
     if (plan) {
       p.aiPush = plan;
@@ -7830,6 +7933,20 @@ function savePlan(game, p, enemy, persona, onlyId = null) {
   return best && { id: best.id, left: best.left, until: game.round + Math.ceil(best.rounds) + 2, smart: true, saved: true };
 }
 const hpOf = (s) => s.spawnIds.reduce((h, id) => h + (obj(id)?.hp || 0), 0);
+/**
+ * v0.28.020F: the finishing blow: banked gold goes into the toughest creeps per gold (ground and air, no boss),
+ * down to a quarter of a round's income, at most 40 sends at once.
+ */
+function finisherDump(game, p) {
+  const keep = p.income * 0.25,
+    pool = tierSends(p.tier)
+      .filter((s) => !s.bossTier && s.playable && s.cost > 0 && sendAllowed(p, s))
+      .sort((a, b) => hpOf(b) / b.cost - hpOf(a) / a.cost);
+  for (let i = 0; i < 40; i++) {
+    const s = pool.find((x) => p.gold - x.cost >= keep && available(game, p.id, "send", x.id).ok);
+    if (!s || !command(game, { type: "send", player: p.id, id: s.id }).ok) return;
+  }
+}
 /**
  * The opponent's kill capacity against one armour (v0.07l): pass damage of each tower times its
  * attack type against that armour type and value. Cached for a few seconds per bot.

@@ -123,6 +123,7 @@ import {
   QUEST_HUNTER,
   BUILDER_ACHIEVEMENTS,
   BLOOD_ACHIEVEMENTS,
+  HARDO_EXPERIMENTS, // v0.28.020F
   PILLAR,
   AGOLEM,
   bankRate,
@@ -198,7 +199,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.28.019",
+const APP_VERSION = "0.28.020",
   APP_BRANCH = "F", // v0.23q: author marker (F = Felix, S = Steven) and branch text, shown behind the version; APP_VERSION stays plain for online matches (VersionPublishingRules.md)
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "30.10.2026";
@@ -2113,14 +2114,63 @@ function setToolMode(mode, announce = false) {
     b?.setAttribute("aria-pressed", String(toolMode === m));
   }
   document.body.classList.toggle("tool-sell", toolMode === "sell");
+  if (sellHintEl) sellHintEl.hidden = true; // v0.28.020F: shown again on the next hover
   document.body.classList.toggle("tool-upgrade", toolMode === "upgrade");
   if (announce) {
     toast(toolMode === "sell" ? "Sell: click your towers to sell them." : toolMode === "upgrade" ? "Upgrade: click your towers to upgrade them." : "Sell / Upgrade off.");
     tone("tap");
   }
 }
+// v0.28.020F: Sell and Upgrade tools: the cursor carries a coin / the green arrow (style.css); the sell value or the next
+// upgrade's cost floats above the own tower under the pointer
+let sellHintEl = null;
+function nextUpgradeOf(tw) {
+  const options = (catalog.byId[tw.typeId]?.upgrades || []).filter((id) => catalog.byId[id] && !isLocked(available(game, own, "upgrade", id, tw.id)));
+  if (!options.length) return null;
+  if (upHistoryGame === gameKey())
+    for (const target of upHistory) {
+      const steps = upgradePath(tw.typeId, target);
+      if (steps && options.includes(steps[0])) return steps[0];
+    }
+  return options.length === 1 ? options[0] : "choose";
+}
+function sellHint(cell) {
+  const p = game?.players?.[own],
+    tw = (toolMode === "sell" || toolMode === "upgrade") && cell && view === own && p ? towerAt(p, cell.gridX, cell.gridY) : null,
+    pt = tw && arena?.cellCenter?.(tw.gridX + (towerAt(p, tw.gridX + 1, tw.gridY) === tw ? 0.5 : 0), tw.gridY + (towerAt(p, tw.gridX, tw.gridY + 1) === tw ? 0.5 : 0));
+  if (!tw || !pt) {
+    if (sellHintEl) sellHintEl.hidden = true;
+    return;
+  }
+  if (!sellHintEl) {
+    sellHintEl = Object.assign(document.createElement("div"), { className: "sell-hint" });
+    sellHintEl.setAttribute("aria-hidden", "true");
+    $("arena").append(sellHintEl);
+  }
+  const big = towerAt(p, tw.gridX + 1, tw.gridY) === tw,
+    half = (arena.geometry?.().cw || 48) * (big ? 1 : 0.5);
+  let html, kind;
+  if (toolMode === "sell") {
+    kind = "sell";
+    html = `<img src="${iconUrl("coin")}" alt=""><b>${format(Math.floor(getSellValue(game, own, tw.id) + 1e-6))}</b>`;
+  } else {
+    const next = nextUpgradeOf(tw),
+      up = next && next !== "choose" ? catalog.byId[next] : null;
+    kind = up && available(game, own, "upgrade", up.id, tw.id).ok ? "upgrade" : "upgrade off";
+    html = next === "choose" ? `<i class="tool-up-arrow"></i><b>${t("Choose")}</b>` : up ? `<i class="tool-up-arrow"></i><img src="${iconUrl("coin")}" alt=""><b>${format(up.cost)}</b>` : `<b>${t("Max")}</b>`;
+  }
+  if (sellHintEl.dataset.v !== html) {
+    sellHintEl.dataset.v = html;
+    sellHintEl.innerHTML = html;
+  }
+  sellHintEl.className = "sell-hint " + kind;
+  sellHintEl.style.left = pt.x + "px";
+  sellHintEl.style.top = pt.y - half - 2 + "px";
+  sellHintEl.hidden = false;
+}
 function toolTap(tower) {
   if (toolMode === "sell") {
+    if (sellHintEl) sellHintEl.hidden = true; // v0.28.020F
     upQueue = upQueue.filter((q) => q.towerId !== tower.id);
     if (selectedTower === tower.id) selectedTower = null;
     deckClosed = { at: 0, towerId: null };
@@ -2131,6 +2181,7 @@ function toolTap(tower) {
   }
   deckClosed = { at: 0, towerId: null };
   doubleUpgrade(tower, false);
+  if (sellHintEl) sellHintEl.hidden = true; // v0.28.020F: the next hover shows the following step
 }
 // ---- v0.08b: tooltips for creeps and towers as a list of values ---------------------------
 const ARMOR_NAMES = { small: "light", medium: "medium", large: "heavy", fort: "fortified", hero: "hero", divine: "divine", none: "unarmoured", normal: "medium" };
@@ -2163,6 +2214,7 @@ const ABILITY_DESC = {
   "Magic Resistance": "Magic attacks and spells inflict less damage",
   "Slow Resistance": "Reduces slowing debuffs",
   "Tier Boss": "Reduced damage from attacks, 50% less duration for debuffs", // v0.22n2; v0.28.014F: Slow Resistance is its own ability
+  "Mini Boss": "Reduced damage from arrows, 50% less duration for debuffs and push-backs. Recruiting it unlocks the rest of tier 1", // v0.28.020F
   "Splash Attack": "Part of the damage also hits creeps nearby",
   "Speed Aura": "Creeps nearby run faster; flying creeps get half the bonus", // v0.17p: was Endurance Aura
   "Divine Shield": "Now and then invulnerable for a few seconds",
@@ -2384,7 +2436,9 @@ function abilityNames(item) {
     .map((n) => ABILITY_RENAME[n] || n)
     .filter((n) => n && !n.startsWith("*") && !/^Ani|Animation|Dummy|Spellbook/i.test(n));
   if (fireArcher(item.id)) names.push("Multishot"); // v0.16
-  return [...new Set(names)];
+  // v0.28.020F: Tier Boss and Mini Boss always lead the list (the sort is stable, the rest keeps its order)
+  const lead = (n) => (n === "Tier Boss" || n === "Mini Boss" ? 0 : 1);
+  return [...new Set(names)].sort((a, b) => lead(a) - lead(b));
 }
 /** v0.17c: classes perks and quests refer to (undead, heavy, flying, boss, spawns on death). */
 function creepClasses(item) {
@@ -2638,11 +2692,17 @@ const buffTip = Object.assign(document.createElement("div"), { className: "help-
 buffTip.setAttribute("role", "tooltip");
 document.body.append(buffTip);
 let tipGrace = 0;
+// v0.28.020F: a tooltip closes as soon as the pointer leaves its button; only a tooltip with perk icons to rest on
+// keeps a short grace (was 300 ms for every tooltip, and resting on the tooltip kept it open)
 const graceHide = () => {
   clearTimeout(tipGrace);
+  if (!helpTip.querySelector(".tip-buffs .tip-icon")) {
+    if (helpFor) hideHelp();
+    return;
+  }
   tipGrace = setTimeout(() => {
     if (helpFor && !helpTip.matches(":hover") && !helpFor.matches?.(":hover")) hideHelp();
-  }, 300);
+  }, 200);
 };
 helpTip.addEventListener("pointerover", (e) => {
   const icon = e.target.closest?.(".tip-buffs .tip-icon");
@@ -3910,6 +3970,7 @@ function hardoCode(step) {
   if (hardoInput.join() !== HARDO_CODE.join()) return;
   hardoUnlocked = true;
   hardoInput = [];
+  loadHardoStats(); // v0.28.020F
   hardoHoldScroll(1700);
   tone("hardo");
   hardoMusicDelay = 5.2; // the organ theme starts after the signal and a moment of silence
@@ -4667,10 +4728,12 @@ function recFlush(final = false) {
   rec.meta.chunks = rec.chunk;
   rec.meta.lastRound = game.round;
   rec.meta.options.hardo = game.players.find((q) => q.hardoStyle)?.hardoStyle || null; // v0.25l
+  rec.meta.options.hardoExp = game.players.find((q) => q.hardoExp)?.hardoExp || game.hardoExp || null; // v0.28.020F
   if (final) {
     rec.meta.status = "ended";
     rec.meta.result = { winner: game.winner, time: Math.round(game.time), round: game.round, lives: game.players.map((q) => q.lives), endTick: game.tick };
   }
+  if (final) hardoLearn(rec.meta); // v0.28.020F: the result counts for the next pick at once
   recWrite("matches/" + rec.id, rec.meta);
 }
 function recTick() {
@@ -4724,6 +4787,55 @@ function afterPacks(fn) {
     fn();
   });
 }
+/* ---- v0.28.020F: Hardo learns from the recorded matches against humans which of his experiments work --------------
+   Every recorded 1v1 Training match against Hardo carries its experiment (options.hardoExp) and result. Before a match
+   the results are read (the artifact's database, else the records kept on this device) and the experiment with the
+   best upper confidence bound (win rate plus a bonus for few tries) is picked; untried ones go first. */
+let hardoStats = null,
+  hardoStatsLoading = null;
+const hardoSeen = new Set();
+function hardoLearn(meta) {
+  const o = meta?.options || {},
+    r = meta?.result;
+  if (!o.hardoExp || !r || meta.status !== "ended" || hardoSeen.has(meta.id)) return;
+  const levels = o.aiLevels || [],
+    seat = levels.indexOf("insane");
+  if (seat < 0 || levels.length !== 2 || levels.some((l, i) => i !== seat && l)) return; // only 1v1 against a human
+  hardoSeen.add(meta.id);
+  const s = ((hardoStats ||= {})[o.hardoExp] ||= { n: 0, wins: 0, taken: 0 });
+  s.n++;
+  if (r.winner === seat) s.wins++;
+  s.taken += Math.max(0, 30 - (r.lives?.[1 - seat] ?? 30)) / 30; // share of the human's 30 starting lives taken
+}
+function loadHardoStats() {
+  if (hardoStatsLoading) return hardoStatsLoading;
+  hardoStatsLoading = (async () => {
+    hardoStats ||= {};
+    try {
+      const all = JSON.parse(localStorage.getItem(KEEP_RECORDS) || "{}");
+      for (const [k, v] of Object.entries(all)) if (/^matches\/[^/]+$/.test(k)) hardoLearn(v);
+    } catch {}
+    try {
+      const db = await recDb();
+      const snap = db ? await db.collection("matches").limit(500).get() : null;
+      for (const d of snap?.docs || []) hardoLearn(d.data?.());
+    } catch {}
+    return hardoStats;
+  })();
+  return hardoStatsLoading;
+}
+function pickHardoExperiment() {
+  const stats = hardoStats || {},
+    ids = HARDO_EXPERIMENTS.map((e) => e.id),
+    untried = ids.filter((id) => !stats[id]?.n);
+  if (untried.length) return untried[Math.floor(Math.random() * untried.length)];
+  const total = ids.reduce((n, id) => n + stats[id].n, 0),
+    score = (id) => {
+      const s = stats[id];
+      return (s.wins + 0.25 * s.taken) / s.n + 0.6 * Math.sqrt(Math.log(total + 1) / s.n);
+    };
+  return ids.reduce((best, id) => (score(id) > score(best) ? id : best), ids[0]);
+}
 function startLocal({ hotseat = false, ffa = false, seats = 4, mission = null, rankedBot = null } = {}) {
   disconnectRoom();
   arena?.releaseArt?.(); // v0.24j: the last match's creep sheets and colour copies go
@@ -4748,6 +4860,7 @@ function startLocal({ hotseat = false, ffa = false, seats = 4, mission = null, r
     mission, // v0.17: campaign
   });
   if (!hotseat) game.players[0].icon = iconChoice === "hardo" && hardoGame() ? "player" : iconChoice; // v0.19c1; v0.22za2: never Hardo's own icon against Hardo
+  if (!hotseat && !mission && !rankedBot && hardoGame() && game.players.length === 2) game.hardoExp = pickHardoExperiment(); // v0.28.020F
   game.training = !hotseat && !mission && !rankedBot; // v0.19d2: smaller sell penalty against very easy / easy bots
   if (rankedBot) {
     // v0.24d: a rated 1v1 against an AI of the player's level (the AI counts with the player's own rating)
@@ -4809,13 +4922,30 @@ function queuePausedSend(id) {
   if (pausedSends.length === 1) note("Creeps queued: they are sent when the game goes on.");
   refreshUI();
 }
+// v0.28.020F: creeps queued during a pause go out one by one with a short gap (all in one frame made the game stutter);
+// if the game is paused again, the rest waits for the next resume
+const PAUSE_SEND_GAP = 0.12;
+let pausedDrain = false,
+  pausedDrainTime = 0,
+  pausedFailed = 0;
 function flushPausedSends() {
   if (!pausedSends.length || !game || game.paused || !begun) return;
-  const list = pausedSends;
-  pausedSends = [];
-  let failed = 0;
-  for (const id of list) if (!dispatch({ type: "send", id }, { quiet: true })?.ok) failed++;
-  if (failed) toast(t("{n} queued creeps could not be sent.", { n: failed }));
+  pausedDrain = true;
+}
+function drainPausedSends(dt) {
+  if (!pausedDrain) return;
+  if (!pausedSends.length || !game || !begun || game.paused) {
+    pausedDrain = false;
+    pausedDrainTime = 0;
+    if (!pausedSends.length && pausedFailed) toast(t("{n} queued creeps could not be sent.", { n: pausedFailed }));
+    if (!pausedSends.length) pausedFailed = 0;
+    return;
+  }
+  pausedDrainTime -= dt;
+  if (pausedDrainTime > 0) return;
+  pausedDrainTime = PAUSE_SEND_GAP;
+  const id = pausedSends.shift();
+  if (!dispatch({ type: "send", id }, { quiet: true })?.ok) pausedFailed++;
 }
 function dispatch(input, { quiet = false, fromQueue = false } = {}) {
   if (!begun) return;
@@ -5209,7 +5339,7 @@ function onTowerRightClick(tower, at = performance.now()) {
 }
 /** v0.17: creep gold costs one step larger where the card's foot has room for cost and income. */
 function fitPrices(root) {
-  if (tab !== "send") return;
+  if (tab !== "send" && !(root.id === "cards-send" && wideDeck())) return; // v0.28.020F: also the Desktop Wide send row
   if (root.isConnected && !root.clientWidth) return fitLater(root, fitPrices, "send"); // v0.28.014F
   // v0.23: batched: every step first writes all cards, then measures all of them, so the whole deck costs
   // at most one layout per step (was up to 6 forced layouts per card). The result is the same: each foot is
@@ -5364,6 +5494,9 @@ function renderCards() {
   $("tier-select").hidden = true;
   const upTower = upgradeTower();
   $("cards").classList.toggle("upgrade-mode", !!upTower);
+  // v0.28.020F: Desktop Wide: the blueprint title reads "Upgrade" while a tower's upgrades are shown
+  const buildTitle = $("wd-build-title");
+  if (buildTitle) buildTitle.textContent = t(upTower ? "Upgrade" : "Build");
   if (!upTower) $("cards").classList.remove("many");
   if (upTower) return upgradeDeck(upTower);
   const list = deckItems();
@@ -5611,7 +5744,7 @@ const PERK_ART = {
   boots: () => elPerkArt("boots"),
   exhume: () => elPerkArt("exhume"),
   waterblock: () => uiArt("assets/art/perks/frostblock.webp?v=v028018"), // v0.28.018F: Frost Block shield
-  airblock: () => uiArt("assets/art/perks/stormblock.webp?v=v028018"), // v0.28.018F: Storm Block shield
+  airblock: () => uiArt("assets/art/perks/stormblock.webp?v=v028020"), // v0.28.018F: Storm Block shield; v0.28.020F: cut out cleanly (white leftovers gone)
   meditation: () => uiArt("assets/art/perks/meditation.webp?v=v028017"), // v0.28.017F
   arcaneblock: () => uiArt("assets/art/perks/arcaneblock.webp?v=v028018"), // v0.28.017F
   supergrowth: () => elPerkArt("supergrowth"),
@@ -5773,6 +5906,9 @@ const perkVars = (level, q, lv, next) => {
     blockBack: WATERBLOCK.back[l3],
     blockBackAir: WATERBLOCK.backAir[l3], // v0.22h1
     blockSlow: pct(WATERBLOCK.slow[l3]),
+    blockChain: WATERBLOCK.chain[l3], // v0.28.020F
+    blockChainSlow: pct(WATERBLOCK.slow[l3] * WATERBLOCK.chainSlow),
+    blockChainTime: format(WATERBLOCK.frost * WATERBLOCK.chainTime),
     airBlockCd: AIRBLOCK.cooldown[l3], // v0.20c
     meditation: pct(meditationCut(q, Math.min(5, lv))), // v0.28.017F
     arcaneBlockCd: ARCANEBLOCK.cooldown[l3],
@@ -6571,6 +6707,8 @@ function runQueue() {
     queued = [];
     upQueue = [];
     pausedSends = [];
+    pausedDrain = false; // v0.28.020F
+    pausedFailed = 0;
     queuedFor = gameKey();
   }
   if (!begun) return;
@@ -9418,6 +9556,7 @@ function tick(dt) {
   if (room) netPulse(performance.now());
   else if (begun) step(game, dt * gameSpeed);
   if (rec) recTick(); // v0.22b
+  drainPausedSends(dt); // v0.28.020F
   hardoTalkTime += dt;
   if (hardoTalkTime >= 1) {
     hardoTalkTime = 0;
@@ -9621,16 +9760,8 @@ function tick(dt) {
       startLocal({ hotseat: sessionMode === "hotseat", ffa: sessionMode === "ffa", seats: game.players.length });
     };
     if (sessionMode === "campaign") campaignResult(won); // v0.17
-    // v0.22e: beating Hardo once gives you his goblin as your player icon (until you pick another)
-    if (beatHardo) {
-      const first = !hardoIconEarned();
-      savePref(HARDO_ICON_PREF, true);
-      if (first || iconChoice !== "hardo") {
-        iconChoice = "hardo";
-        savePref(ICON_PREF, iconChoice);
-        toast(t("You beat Hardo! His goblin is now your player icon."), "level", true);
-      }
-    }
+    // v0.22e: beating Hardo is remembered; v0.28.020F: your player icon no longer changes to his goblin
+    if (beatHardo) savePref(HARDO_ICON_PREF, true);
     if ($("play-harder"))
       $("play-harder").onclick = () => {
         aiChoice = { veryEasy: "easy", easy: "normal", normal: "hard", hard: hardoUnlocked ? "insane" : "hard" }[game.aiLevel] || "hard";
@@ -9851,6 +9982,7 @@ async function init() {
           : null,
       onHover: (cell) => {
         hoverCell = cell && tab === "build" && selected && view === own ? cell : null;
+        sellHint(cell); // v0.28.020F
       },
       onTick: tick,
       getPrefetch: prefetchArt, // v0.23

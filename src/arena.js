@@ -1835,9 +1835,9 @@ export function mountArena({
           if (zapsLightning(def) && !e.bounce) {
             // v0.27zzeF: Hall of Storm: an instant lightning bolt from the wand onto the creep, gone after 0.15 s
             const to = this.point(e.to.x, e.to.y);
-            this.zapBolts.push({ x0: sx, y0: sy, tx: to.x, ty: to.y - cell * 0.25, life: 0.15, max: 0.15, cell });
+            this.zapBolts.push({ x0: sx, y0: sy, tx: to.x, ty: to.y - cell * 0.25, life: 0.18, max: 0.18, cell }); // v0.28.020F: 0.18 s (was 0.15)
             this.zaps.set(e.targetId, time);
-            this.burst(to.x, to.y - cell * 0.25, 0xe8e4ff, 6, 70, 1.8, 0.15, 0, true);
+            this.burst(to.x, to.y - cell * 0.25, 0xe8e4ff, 6, 70, 1.8, 0.18, 0, true);
           } else if (e.focus) {
             // v0.18b: Focus Fire: a steady beam from the tower to its target, stronger the longer it holds
             const to = this.point(e.to.x, e.to.y),
@@ -2484,7 +2484,7 @@ export function mountArena({
       if (aim && this.pointer) {
         const r = aim.radius * cell,
           px = this.pointer.x,
-          py = this.pointer.y,
+          py = this.pointer.y + (this.stage.scrollY || 0), // v0.28.020F: the pointer is in screen pixels, the board in world space (scrolled maze: the marker sat off by the scroll)
           pulse = 0.5 + 0.5 * Math.sin(time * 0.01);
         const ac = aim.arcane ? 0xc07aff : aim.fire ? 0xff7a2a : aim.ice ? 0x5ac8ff : aim.plague ? 0x7dff3a : 0xffd27a,
           al = aim.arcane ? 0xeacbff : aim.fire ? 0xffc89a : aim.ice ? 0xd8f6ff : aim.plague ? 0xdcffb8 : 0xffe7a8; // v0.23w: ice blue for Frost Bolt; v0.23x: acid green for Infested Ground
