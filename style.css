@@ -7299,7 +7299,7 @@ p.room-opts { text-align: center; }
   transition: opacity 0.5s ease;
 }
 .mood-easy { background-image: url("assets/art/keyart-easy.webp?v=021z"); }
-.mood-hard { background-image: url("assets/art/keyart-hard.webp?v=021z"); }
+.mood-hard { background-image: url("assets/art/keyart-hard.webp?v=v028018"); } /* v0.28.018F: the moon shows through the skull shadow's eyes and nose */
 .mood-hard-glow { background-image: url("assets/art/keyart-hard-glow.webp?v=021z"); }
 dialog.welcome-modal.easy-eyes .mood-easy,
 dialog.welcome-modal.hard-eyes .mood-hard { opacity: 1; }
@@ -9980,8 +9980,8 @@ html.ui-wide.ui-editing .ui-tool {
 }
 html.ui-wide .ui-tool { text-transform: uppercase; }
 
-/* v0.28.014F: main-menu logo 15% larger (main menu and its submenus) */
-.welcome-modal .welcome-logo { scale: 1.15; transform-origin: 50% 0; margin-bottom: 2.5dvh; }
+/* v0.28.014F: main-menu logo 15% larger; v0.28.018F: another 10% (main menu and its submenus) */
+.welcome-modal .welcome-logo { scale: 1.265; transform-origin: 50% 0; margin-bottom: 4dvh; }
 
 /* ---- v0.28.015F: Training menu: difficulty colours, Hardo next to Hard, Mixed difficulty selector ---- */
 .segmented.ai-levels {
@@ -10159,4 +10159,67 @@ input[type="checkbox"]:checked::after {
   background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M3 17l5-5 6 6L27 3l4 5-17 19z' fill='%2342d14a' stroke='%23000' stroke-width='1.6' stroke-linejoin='round'/%3E%3Cpath d='M6 16.5l2-2 6 6 1.5-1.6' fill='none' stroke='%23b8ffb8' stroke-width='1.2' stroke-linecap='round' opacity='.8'/%3E%3C/svg%3E") center / contain no-repeat;
   transform: none;
   pointer-events: none;
+}
+
+/* ---- v0.28.018F: Desktop Wide: tower blueprints overlapped the row below: the rows were sized from the cards'
+   content while the cards took their height from their width (aspect-ratio). The card height is now given outright
+   (its column's width / 1.06, 12 columns with 5 px gaps, a card spans 4), so each row is exactly as tall as its cards ---- */
+:root.layout-wide .command-deck #cards.wide-fill:not(.upgrade-mode) {
+  container-type: inline-size;
+  max-height: none; /* 100 % of its own wrap clipped the padding off and scrolled by ~20 px */
+}
+/* where the deck's height runs out (it would scroll), app.js (fitWideBlueprints) sets --bp-h: the cards shrink to
+   that height and keep their proportions, centred in their column */
+:root.layout-wide .command-deck #cards.wide-fill:not(.upgrade-mode) > .unit-card[data-per="3"] {
+  height: min(calc(((100cqw - 55px) / 3 + 15px) / 1.06), var(--bp-h, 9999px)) !important;
+  width: min(100%, calc(var(--bp-h, 9999px) * 1.06)) !important;
+  justify-self: center;
+  aspect-ratio: auto;
+}
+
+/* ---- v0.28.018F: Desktop Wide (square creep buttons): Mud Golem portrait a tad smaller (was 10 % larger) ---- */
+:root.layout-wide #cards-send .unit-card[data-card="nMDG"] .card-art img {
+  transform: scale(0.96);
+}
+/* ---- v0.28.018F: creep buttons: the boss frame sits half outside the button's edge, leaving more room inside ---- */
+.unit-card > .frame-boss {
+  inset: -3.5px;
+}
+/* ---- v0.28.018F: single-digit lock numbers 8 % larger ---- */
+.card-lock.one-digit b {
+  font-size: calc(1.08 * clamp(14px, 4.4vw, 22px));
+}
+/* ---- v0.28.018F: tier indicator: a white outline around the black one, in the second own info window and in every
+   player info window alike (the player windows take the second window's design: metal number, black + white outline) ---- */
+.plate-exp .plate-tier[data-tier],
+.ec-level .ec-tier[data-tier],
+:root:not(.layout-wide) .plate-exp .plate-tier[data-tier],
+:root:not(.layout-wide) .ec-level .ec-tier[data-tier],
+:root.layout-wide .wp-tier[data-tier],
+:root.layout-wide .ws-tier #ws-tier[data-tier] {
+  filter: drop-shadow(1px 0 0 #1a1208) drop-shadow(-1px 0 0 #1a1208) drop-shadow(0 1px 0 #1a1208) drop-shadow(0 -1px 0 #1a1208)
+    drop-shadow(1px 0 0 #fff) drop-shadow(-1px 0 0 #fff) drop-shadow(0 1px 0 #fff) drop-shadow(0 -1px 0 #fff) drop-shadow(0 1px 2px #000a) !important;
+}
+:root.layout-wide .wp-tier[data-tier] {
+  letter-spacing: 0.04em;
+}
+
+/* ---- v0.28.018F: Training on Easy: the wolf's eyes glow yellow (an overlay over its red eyes) ---- */
+.mood-easy-wolf { background-image: url("assets/art/keyart-easy-eyes.webp?v=v028018"); }
+dialog.welcome-modal.easy-wolf .mood-easy-wolf { opacity: 1; }
+/* ---- v0.28.018F: Hardo note beside the greyed-out 1 in the enemy count (replaces "it's just you and Hardo") ---- */
+.segmented.ai-count .hardo-just {
+  min-height: 44px;
+  padding: 4px 8px;
+}
+.segmented.ai-count .hardo-just .hardo-just-note {
+  flex: 1;
+  min-width: 0;
+  color: #e3c8ff;
+  font: 600 12px/1.3 var(--font-body, system-ui);
+  letter-spacing: 0;
+  text-transform: none;
+  text-align: left;
+  text-shadow: 0 0 6px #7a2fd0aa;
+  animation: hardo-rise 0.6s ease-out both;
 }

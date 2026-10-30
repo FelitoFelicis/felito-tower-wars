@@ -198,7 +198,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.28.017",
+const APP_VERSION = "0.28.018",
   APP_BRANCH = "F", // v0.23q: author marker (F = Felix, S = Steven) and branch text, shown behind the version; APP_VERSION stays plain for online matches (VersionPublishingRules.md)
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "30.10.2026";
@@ -283,9 +283,9 @@ const AI_MIX_PREF = "felito.ai.mix",
   AI_MIX_MODES = ["off", "mixed", "random"];
 let aiMix = AI_MIX_MODES.includes(pref(AI_MIX_PREF, "")) ? pref(AI_MIX_PREF, "") : pref(AI_MIXED_PREF, "false") === "true" ? "mixed" : "off";
 // v0.22b/d: Hardo is an experimental secret, only in Training: hidden until the sequence
-// Mixed on, Mixed off, Mixed on, Hard, Normal, Hard. Then the other levels fall out of the menu and
-// Hardo slams in. It lasts until the page reloads; tapping Hardo again brings the levels back.
-const HARDO_CODE = ["mixOn", "mixOff", "mixOn", "hard", "normal", "hard"];
+// v0.28.018F: Hard, Normal, Hard, Easy, Hard. Then Hardo slams in next to Hard.
+// It lasts until the page reloads; tapping Hardo again brings the levels back.
+const HARDO_CODE = ["hard", "normal", "hard", "easy", "hard"];
 let hardoUnlocked = false,
   hardoInput = [];
 let aiChoice = ["veryEasy", "easy", "normal", "hard", "insane"].includes(pref(AI_PREF, "easy")) ? pref(AI_PREF, "easy") : "easy";
@@ -1976,6 +1976,7 @@ function cardLock(card, rounds, arcane = false) {
   card.classList.add("locked");
   const text = String(rounds);
   if (el.lastChild.textContent !== text) el.lastChild.textContent = text;
+  el.classList.toggle("one-digit", text.length === 1); // v0.28.018F: single digits 8 % larger
   el.title = t(rounds === 1 ? "Unlocks next round" : "Unlocks in {n} rounds", { n: rounds });
   if (el.classList.contains("arcane") !== !!arcane) el.classList.toggle("arcane", !!arcane); // v0.28.017F: Arcane Block lock
 }
@@ -3414,7 +3415,7 @@ function welcome() {
   }
   const saved = unusableSave ? null : localStorage.getItem(SAVE);
   showModal(
-    `<div class="welcome-eyes" aria-hidden="true"></div><div class="welcome-mood mood-easy" aria-hidden="true"></div><div class="welcome-mood mood-hard" aria-hidden="true"></div><div class="welcome-mood mood-hard-glow" aria-hidden="true"></div><div class="welcome-art" aria-hidden="true"></div><button class="welcome-options" id="welcome-options" type="button" aria-label="${t("Options")}"><img src="${iconUrl("gear")}" alt=""></button><button class="welcome-options welcome-mute" id="welcome-mute" type="button" aria-pressed="${muted}" aria-label="${t(muted ? "Sound off" : "Sound on")}">${speakerSvg(muted)}</button>${standaloneApp() ? "" : `<button class="welcome-options welcome-install" id="welcome-install" type="button" aria-label="${t("Add to Home Screen")}" title="${t("Add to Home Screen")}"><span class="install-label">${t("Download")}</span>${installSvg()}</button>`}<span class="app-version">v${APP_VERSION}${APP_BRANCH} · ${APP_DATE}${APP_NOTE ? `<small class="app-version-note">${esc(APP_NOTE)}</small>` : ""}</span><img class="welcome-logo" src="${menuLogoUrl()}" alt="${gameName()}">${castMarkup()}<div class="welcome-panel" id="welcome-panel" data-view="home"><div class="welcome-home"><div class="welcome-modes"><button class="primary-button big welcome-mode" data-open="player"><img class="mode-icon" src="${iconUrl("attack")}" alt=""><span class="keep-case">${t("PvP")}</span></button><button class="secondary-button big welcome-mode" data-open="ai"><img class="mode-icon" src="${iconUrl("attack")}" alt="">${t("Training")}</button></div></div><section class="welcome-group" data-sub="ai" aria-label="${t("Training")}"><h3 class="welcome-group-title"><button class="welcome-back" type="button" data-back aria-label="${t("Back")}">${t("Back")}</button>${t("Training")}</h3><div class="segmented ai-levels${hardoUnlocked ? " with-hardo" : ""}" role="radiogroup" aria-label="${t("Difficulty")}">${Object.entries(AI_NAMES).map(([id, name]) => `<button role="radio" data-ai="${id}" aria-checked="${id === aiChoice}" class="lvl-${id}${id === aiChoice ? " active" : ""}${id === "insane" ? " hardo-level" : ""}"${id === "insane" && !hardoUnlocked ? " hidden" : ""}>${t(name)}</button>`).join("")}</div>${hardoUnlocked ? hardoNoteHtml() : ""}<div class="welcome-inline"><span class="modal-label">${t("Neutral waves")}</span><div class="segmented" role="radiogroup" aria-label="${t("Neutral waves")}">${[["on", "On"], ["off", "Off"]].map(([id, name]) => `<button role="radio" data-waves="${id}" aria-checked="${(id === "on") === wavesOn}" class="${(id === "on") === wavesOn ? "active" : ""}">${t(name)}</button>`).join("")}</div></div>${aiMixHtml()}<span class="modal-label">${t("Number of AI enemies")}</span><div class="segmented ai-count" role="radiogroup" aria-label="${t("Number of AI enemies")}">${aiCountHtml()}</div><button class="primary-button big" id="start-training">${t("Start")}</button><button class="secondary-button big campaign-open" id="start-campaign">${t("Campaign")} · ${campaignDone().size}/${MISSIONS.length}</button><button class="secondary-button big tutorial-open" id="start-tutorial">${t("Tutorial")}</button></section><section class="welcome-group" data-sub="player" aria-label="${t("PvP")}"><h3 class="welcome-group-title"><button class="welcome-back" type="button" data-back aria-label="${t("Back")}">${t("Back")}</button><span class="keep-case">${t("PvP")}</span></h3><label class="modal-label name-label pvp-name" for="player-name">${t("Player name")}</label><div class="name-row"><input id="player-name" class="name-input" maxlength="16" autocomplete="nickname" spellcheck="false" placeholder="${t("Your name")}" value="${esc(playerNameChoice)}"><button type="button" class="icon-pick" id="icon-pick" aria-label="${t("Choose your player icon")}" style="--pc:${iconColor()}"><img src="${iconSrc(iconChoice)}" alt=""></button></div><div class="pvp-color"><span class="modal-label">${t("Your color")}: <b id="color-name">${colorLabel()}</b></span><div class="color-picker" role="radiogroup" aria-label="${t("Your color")}">${Object.entries(TEAM_COLORS).map(([id, c]) => `<button role="radio" data-color="${id}" aria-checked="${id === colorPick}" aria-label="${t(c.name)}" title="${t(c.name)}" class="${id === colorPick ? "active" : ""}" style="--c:${c.css}"></button>`).join("")}</div></div><div class="welcome-row pvp-row"><button class="primary-button rank-button rank-ffa" id="start-ranked-ffa" title="${t("Up to 8 players · rated")}">${t("Ranked FFA")}<small>${t(leagueOf(readRating("ffa").r))} · ${readRating("ffa").r}</small>${medalHtml(readRating("ffa").r, iconColor(), "rank-medal", true)}</button><button class="primary-button rank-button" id="start-ranked" title="${t("1v1 · rated")}">${t("Ranked 1v1")}<small>${t(leagueOf(readRating().r))} · ${readRating().r}</small>${medalHtml(readRating().r, iconColor(), "rank-medal", true)}</button><button class="secondary-button" id="start-quick">${t("Quick Match")}</button><button class="secondary-button" id="start-online">${t("Play a friend")}</button></div></section></div>`,
+    `<div class="welcome-eyes" aria-hidden="true"></div><div class="welcome-mood mood-easy" aria-hidden="true"></div><div class="welcome-mood mood-hard" aria-hidden="true"></div><div class="welcome-mood mood-hard-glow" aria-hidden="true"></div><div class="welcome-mood mood-easy-wolf" aria-hidden="true"></div><div class="welcome-art" aria-hidden="true"></div><button class="welcome-options" id="welcome-options" type="button" aria-label="${t("Options")}"><img src="${iconUrl("gear")}" alt=""></button><button class="welcome-options welcome-mute" id="welcome-mute" type="button" aria-pressed="${muted}" aria-label="${t(muted ? "Sound off" : "Sound on")}">${speakerSvg(muted)}</button>${standaloneApp() ? "" : `<button class="welcome-options welcome-install" id="welcome-install" type="button" aria-label="${t("Add to Home Screen")}" title="${t("Add to Home Screen")}"><span class="install-label">${t("Download")}</span>${installSvg()}</button>`}<span class="app-version">v${APP_VERSION}${APP_BRANCH} · ${APP_DATE}${APP_NOTE ? `<small class="app-version-note">${esc(APP_NOTE)}</small>` : ""}</span><img class="welcome-logo" src="${menuLogoUrl()}" alt="${gameName()}">${castMarkup()}<div class="welcome-panel" id="welcome-panel" data-view="home"><div class="welcome-home"><div class="welcome-modes"><button class="primary-button big welcome-mode" data-open="player"><img class="mode-icon" src="${iconUrl("attack")}" alt=""><span class="keep-case">${t("PvP")}</span></button><button class="secondary-button big welcome-mode" data-open="ai"><img class="mode-icon training-icon" src="${uiArt("assets/art/icon-training-shield.webp?v=v028018")}" alt="">${t("Training")}</button></div></div><section class="welcome-group" data-sub="ai" aria-label="${t("Training")}"><h3 class="welcome-group-title"><button class="welcome-back" type="button" data-back aria-label="${t("Back")}">${t("Back")}</button>${t("Training")}</h3><div class="segmented ai-levels${hardoUnlocked ? " with-hardo" : ""}" role="radiogroup" aria-label="${t("Difficulty")}">${Object.entries(AI_NAMES).map(([id, name]) => `<button role="radio" data-ai="${id}" aria-checked="${id === aiChoice}" class="lvl-${id}${id === aiChoice ? " active" : ""}${id === "insane" ? " hardo-level" : ""}"${id === "insane" && !hardoUnlocked ? " hidden" : ""}>${t(name)}</button>`).join("")}</div><div class="welcome-inline"><span class="modal-label">${t("Neutral waves")}</span><div class="segmented" role="radiogroup" aria-label="${t("Neutral waves")}">${[["on", "On"], ["off", "Off"]].map(([id, name]) => `<button role="radio" data-waves="${id}" aria-checked="${(id === "on") === wavesOn}" class="${(id === "on") === wavesOn ? "active" : ""}">${t(name)}</button>`).join("")}</div></div>${aiMixHtml()}<span class="modal-label">${t("Number of AI enemies")}</span><div class="segmented ai-count" role="radiogroup" aria-label="${t("Number of AI enemies")}">${aiCountHtml()}</div><button class="primary-button big" id="start-training">${t("Start")}</button><button class="secondary-button big campaign-open" id="start-campaign">${t("Campaign")} · ${campaignDone().size}/${MISSIONS.length}</button><button class="secondary-button big tutorial-open" id="start-tutorial">${t("Tutorial")}</button></section><section class="welcome-group" data-sub="player" aria-label="${t("PvP")}"><h3 class="welcome-group-title"><button class="welcome-back" type="button" data-back aria-label="${t("Back")}">${t("Back")}</button><span class="keep-case">${t("PvP")}</span></h3><label class="modal-label name-label pvp-name" for="player-name">${t("Player name")}</label><div class="name-row"><input id="player-name" class="name-input" maxlength="16" autocomplete="nickname" spellcheck="false" placeholder="${t("Your name")}" value="${esc(playerNameChoice)}"><button type="button" class="icon-pick" id="icon-pick" aria-label="${t("Choose your player icon")}" style="--pc:${iconColor()}"><img src="${iconSrc(iconChoice)}" alt=""></button></div><div class="pvp-color"><span class="modal-label">${t("Your color")}: <b id="color-name">${colorLabel()}</b></span><div class="color-picker" role="radiogroup" aria-label="${t("Your color")}">${Object.entries(TEAM_COLORS).map(([id, c]) => `<button role="radio" data-color="${id}" aria-checked="${id === colorPick}" aria-label="${t(c.name)}" title="${t(c.name)}" class="${id === colorPick ? "active" : ""}" style="--c:${c.css}"></button>`).join("")}</div></div><div class="welcome-row pvp-row"><button class="primary-button rank-button rank-ffa" id="start-ranked-ffa" title="${t("Up to 8 players · rated")}">${t("Ranked FFA")}<small>${t(leagueOf(readRating("ffa").r))} · ${readRating("ffa").r}</small>${medalHtml(readRating("ffa").r, iconColor(), "rank-medal", true)}</button><button class="primary-button rank-button" id="start-ranked" title="${t("1v1 · rated")}">${t("Ranked 1v1")}<small>${t(leagueOf(readRating().r))} · ${readRating().r}</small>${medalHtml(readRating().r, iconColor(), "rank-medal", true)}</button><button class="secondary-button" id="start-quick">${t("Quick Match")}</button><button class="secondary-button" id="start-online">${t("Play a friend")}</button></div></section></div>`,
     { pauseGame: false, welcome: true },
   );
   $("modal-body")
@@ -3876,8 +3877,9 @@ function wireAiCount() {
         }),
     );
 }
-const hardoNoteHtml = () => `<p class="hardo-note">${t("You found Felito's secret sparring partner, Hardo never cheats but plays cunning and adaptive, good luck!")}</p>`;
-const hardoJustHtml = () => `<div class="hardo-just"><button type="button" role="radio" aria-checked="true" disabled>1</button><span>${t("it's just you and Hardo")}</span></div>`; // v0.22g: the 1 stays a disabled, greyed-out button
+// v0.28.018F: the note only while Hardo is picked, beside the greyed-out 1 (was "it's just you and Hardo";
+// the note sat below the difficulty row and stayed when another level was picked)
+const hardoJustHtml = () => `<div class="hardo-just"><button type="button" role="radio" aria-checked="true" disabled>1</button><span class="hardo-just-note">${t("You found Felito's secret sparring partner, Hardo never cheats but plays cunning and adaptive, good luck!")}</span></div>`; // v0.22g: the 1 stays a disabled, greyed-out button
 let hardoPrevCount = null;
 /** v0.22e: Back from the Training menu: everything returns to normal (levels, count, music). */
 function hardoReset() {
@@ -3926,7 +3928,6 @@ function hardoCode(step) {
     const panel = $("welcome-panel");
     panel?.classList.add("hardo-shake");
     setTimeout(() => panel?.classList.remove("hardo-shake"), 700);
-    if (!row.parentElement.querySelector(".hardo-note")) row.insertAdjacentHTML("afterend", hardoNoteHtml());
   }, 900);
 }
 /** v0.14: the wolf in the main-menu picture lets its eyes glow while Hard is picked for Vs AI (v0.21z: all evil creeps, skull on the moon; Very Easy: everyone asleep). */
@@ -3937,6 +3938,7 @@ function wolfEyes() {
   dialog?.classList.toggle("hard-eyes", training && aiChoice === "hard");
   dialog?.classList.toggle("insane-eyes", training && aiChoice === "insane"); // v0.22b: Hardo: every creep's eyes glow purple
   dialog?.classList.toggle("easy-eyes", training && aiChoice === "veryEasy"); // v0.21z: Very Easy: eyes closed, smileys on the banners
+  dialog?.classList.toggle("easy-wolf", training && aiChoice === "easy"); // v0.28.018F: Easy: the wolf's eyes glow yellow
 }
 // ---- v0.17: single-player campaign ---------------------------------------------------------
 let campaignIndex = 0;
@@ -5274,6 +5276,28 @@ function fitCardNames(root) {
   }
 }
 /** v0.27zzaF: Desktop Wide: upgrade blueprints use the build blueprints' name and cost sizes, shrinking only where needed. */
+/**
+ * v0.28.018F: Desktop Wide: the build blueprints (three per row) have room for their full size only where the deck is
+ * tall enough; where they would scroll, every card shrinks (keeping its proportions) until all rows fit.
+ */
+function fitWideBlueprints() {
+  const c = $("cards");
+  if (!c) return;
+  c.style.removeProperty("--bp-h");
+  if (!wideDeck() || !c.classList.contains("wide-fill") || c.classList.contains("upgrade-mode")) return;
+  const cards = [...c.querySelectorAll('[data-card][data-per="3"]')];
+  const deck = c.closest(".command-deck");
+  if (!cards.length || !deck) return;
+  const box = c.getBoundingClientRect(),
+    ds = getComputedStyle(deck),
+    bottom = deck.getBoundingClientRect().bottom - parseFloat(ds.paddingBottom) - parseFloat(ds.borderBottomWidth);
+  if (box.bottom <= bottom + 1) return;
+  const rows = new Set(cards.map((b) => Math.round(b.offsetTop))).size,
+    cs = getComputedStyle(c),
+    avail = bottom - box.top - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom) - (parseFloat(cs.rowGap) || 0) * (rows - 1);
+  if (avail > rows * 30) c.style.setProperty("--bp-h", `${Math.floor(avail / rows)}px`);
+}
+addEventListener("resize", () => requestAnimationFrame(fitWideBlueprints));
 function fitWideUpCards(root) {
   for (const el of root.querySelectorAll(".up-card .up-title")) {
     let size = 17.5;
@@ -5386,6 +5410,7 @@ function renderCards() {
     });
     void row;
   }
+  fitWideBlueprints(); // v0.28.018F
   fitCardNames($("cards"));
   fitPrices($("cards")); // v0.17
   if (fill) fitWidePrices($("cards")); // v0.27zyF
@@ -5571,12 +5596,12 @@ const PERK_ART = {
   novice: () => uiArt("assets/art/perk-novice-v2.webp?v=v022p2"), // v0.22p2: scroll, quill and candle (v0.21t: painted scroll and quill)
   volley: () => uiArt("assets/art/perk-volley.webp?v=v022q2"), // v0.22q2: painted arrows (was an svg)
   pillage: (lv = 1) => uiArt(`assets/art/perk-pillage-${Math.max(1, Math.min(3, lv || 1))}.webp?v=v022q2`), // v0.22q2: loot bag with dagger / two daggers / axe per level
-  crowd: () => elPerkArt("crowd"),
+  crowd: () => uiArt("assets/art/perks/crowd-scythe.webp?v=v028018"), // v0.28.018F: slime-dripping bone scythe
   golem: () => elPerkArt("golem"),
   permafrost: () => elPerkArt("permafrost"),
   wings: () => elPerkArt("wings"),
   hellfire: () => elPerkArt("hellfire"),
-  fireblock: () => elPerkArt("fireblock"),
+  fireblock: () => uiArt("assets/art/perks/fireblock-shield.webp?v=v028018"), // v0.28.018F: glowing lava shield
   burst: () => elPerkArt("burst"),
   frostbolt: () => uiArt("assets/art/perks/frostbolt.webp?v=v023w"), // v0.23w: icy bolt
   infested: () => uiArt("assets/art/perks/infested.webp?v=v023x"), // v0.23x: scarred field with green glowing acid
@@ -5586,10 +5611,10 @@ const PERK_ART = {
   voltage: () => elPerkArt("voltage"),
   boots: () => elPerkArt("boots"),
   exhume: () => elPerkArt("exhume"),
-  waterblock: () => elPerkArt("waterblock"),
-  airblock: () => elPerkArt("airblock"),
+  waterblock: () => uiArt("assets/art/perks/frostblock.webp?v=v028018"), // v0.28.018F: Frost Block shield
+  airblock: () => uiArt("assets/art/perks/stormblock.webp?v=v028018"), // v0.28.018F: Storm Block shield
   meditation: () => uiArt("assets/art/perks/meditation.webp?v=v028017"), // v0.28.017F
-  arcaneblock: () => uiArt("assets/art/perks/arcaneblock.webp?v=v028017"), // v0.28.017F
+  arcaneblock: () => uiArt("assets/art/perks/arcaneblock.webp?v=v028018"), // v0.28.017F
   supergrowth: () => elPerkArt("supergrowth"),
   // v0.12
   lone: () => uiArt("assets/art/perk-lone.webp?v=v022h1"), // v0.21u: painted shield and sword; v0.22h1: zoomed in further, brighter glow
@@ -5601,7 +5626,7 @@ const PERK_ART = {
   owl: () => elPerkArt("owl"),
   carmor: () => elPerkArt("carmor"),
   leadership: () => elPerkArt("leadership"),
-  tailwind: () => elPerkArt("tailwind"),
+  tailwind: () => uiArt("assets/art/perks/tailwind.webp?v=v028018"), // v0.28.018F: winged boot
   mind: () => elPerkArt("mind"),
   medicine: () => elPerkArt("medicine"),
   melee: () => elPerkArt("melee"),
@@ -5626,10 +5651,10 @@ const PERK_ART = {
   backup: () => elPerkArt("backup"),
   tides: () => elPerkArt("tides"),
   sanction: () => elPerkArt("sanction"),
-  alchemist: () => uiArt("assets/art/perks/alchemist.webp?v=v027a"), // v0.27aF: poison bottle with skull label, knife and arrowhead
+  alchemist: () => uiArt("assets/art/perks/alchemist-flask.webp?v=v028018"), // v0.28.018F: chained poison flask with a skull
   ring: () => uiArt("assets/art/perks/ring.webp?v=v026c"), // v0.26cF: gold ring with an emerald heart
   revenge: () => uiArt("assets/art/perks/revenge.webp?v=v026c"), // v0.26cF: fire wolves
-  scouting: () => uiArt("assets/art/perks/scouting.webp?v=v027b"), // v0.27bF: spyglass before a storm cloud
+  scouting: () => uiArt("assets/art/perks/scouting.webp?v=v028018"), // v0.28.018F: marching scouts in the wind
   amnesia: () => uiArt("assets/art/perks/amnesia.webp?v=v026e"), // v0.26eF: a scroll whose writing fades away
 };
 // v0.22h1: the perk icons load a moment after a match starts, so a reward dialog never waits for them

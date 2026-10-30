@@ -1931,7 +1931,7 @@ export function mountArena({
             this.floatText(q.x, q.y - cell * 0.8, t("ARCANE BLOCK"), "#e2c2ff", 13, 34, 1.2);
           } else if (e.kind === "airblock") {
             // v0.20c: Air Block: a gust ring and a short text where the flyer was turned back
-            this.floatText(q.x, q.y - cell * 0.7, t("AIR BLOCK"), "#c8f6ff", 13, 34, 1.1);
+            this.floatText(q.x, q.y - cell * 0.7, t("STORM BLOCK"), "#c8f6ff", 13, 34, 1.1);
             this.ring(q.x, q.y, cell * 0.2, cell * 1.3, 0xbff0f4, 0.85, 5);
             this.burst(q.x, q.y - cell * 0.2, 0xe8fbff, 14, 120, 2.6, 0.45, -20, true);
           } else if (e.kind === "guardOn") {
