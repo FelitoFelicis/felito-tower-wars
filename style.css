@@ -9289,15 +9289,12 @@ html.menu-tint dialog .modal-header {
 
 /* v0.27zyF: Desktop Wide: with unspent reward points the level bar's outline glows in a slow golden pulse
    (opacity of the glow layer only, never hectic), and the yellow reward badge is larger */
-:root.layout-wide .wide-stats .level-button.ready {
-  border-color: #5a3a00;
-  box-shadow: inset 0 0 0 1.5px #ffd36a, 0 2px 0 #12061f;
-}
+/* v0.27zzlF: the frame keeps its colour; only the glow pulses around it */
 :root.layout-wide .wide-stats .level-button.ready::after {
   inset: -3px;
   z-index: 2;
   border-radius: 11px;
-  box-shadow: inset 0 0 0 2px #ffe08a, 0 0 10px 2px #ffc23acc, 0 0 22px 4px #ffb70366;
+  box-shadow: 0 0 10px 2px #ffc23acc, 0 0 22px 4px #ffb70366;
   animation: glow-layer 1.6s ease-in-out infinite alternate;
 }
 :root.layout-wide .wide-stats .level-button i {
@@ -9507,4 +9504,42 @@ html.menu-tint dialog .modal-header {
 .tt-combo .tt-node.tt-ref > img {
   width: 40px;
   height: 40px;
+}
+
+/* v0.27zzlF: Showdown (ranked 1v1 from round 120): skull and crossbones splat, twice as long as the other splats */
+.showdown-splat {
+  position: fixed;
+  z-index: 60;
+  left: 50%;
+  top: 34%;
+  width: min(230px, 62vw);
+  display: grid;
+  justify-items: center;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  animation: ach-splat 4.2s ease-out forwards;
+}
+.showdown-splat svg {
+  width: 72%;
+  height: auto;
+  filter: drop-shadow(0 0 14px #b0001acc) drop-shadow(0 5px 6px #000c);
+}
+.showdown-splat b {
+  margin-top: -4px;
+  font: 400 clamp(36px, 11vw, 52px)/1 var(--font-number);
+  letter-spacing: 0.04em;
+  color: #ffe9e4;
+  text-transform: uppercase;
+  text-shadow: -2px -2px 0 #2a0008, 2px -2px 0 #2a0008, -2px 2px 0 #2a0008, 2px 2px 0 #2a0008, 0 4px 0 #2a0008, 0 0 18px #ff1e3c;
+}
+/* v0.27zzlF: Showdown light: the board darkens towards the edges in blood red and violet (plain alpha, no blend mode) */
+body.showdown #arena::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 80% 70% at 50% 45%, rgba(90, 0, 30, 0.14) 0%, rgba(55, 0, 25, 0.42) 62%, rgba(14, 0, 10, 0.8) 100%),
+    linear-gradient(rgba(60, 10, 80, 0.22), rgba(120, 0, 20, 0.26));
+  transition: opacity 1.2s;
 }

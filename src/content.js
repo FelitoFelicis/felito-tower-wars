@@ -645,7 +645,8 @@ export const CUSTOM_ABILITIES = [
   { id: "XA05", baseId: "AIcf", custom: true, fields: { anam: { 0: "Immolation Aura" }, aare: { 1: 320 }, aub1: { 1: "Deals 400 damage per second\nRange 320\nTargets Ground & Air" } } },
   // v0.27zziF: Firestorm Aura was just another immolation aura: Hall of Fire 2–4, Scorch Demon and Battle Mech get an
   // Immolation Aura with the same values (range 320, full damage to ground and air)
-  ...[["XA20", 15], ["XA21", 50], ["XA22", 125], ["XA23", 300]].map(([id, dps]) => ({ id, baseId: "AIcf", custom: true, fields: { anam: { 0: "Immolation Aura" }, aare: { 1: 320 }, aub1: { 1: `Deals ${dps} damage per second\nRange 320\nTargets Ground & Air` } } })),
+  // v0.27zzlF: Hall of Fire 2–4 (XA20–XA22): flying creeps take 50 % (the sim reads "Flying creeps take N%"); v0.27zzmF: Scorch Demon and Battle Mech (XA23) too
+  ...[["XA20", 15, 50], ["XA21", 50, 50], ["XA22", 125, 50], ["XA23", 300, 50]].map(([id, dps, fly]) => ({ id, baseId: "AIcf", custom: true, fields: { anam: { 0: "Immolation Aura" }, aare: { 1: 320 }, aub1: { 1: `Deals ${dps} damage per second\nRange 320\nTargets Ground & Air${fly < 100 ? `\nFlying creeps take ${fly}% damage` : ""}` } } })),
   // v0.27zziF: Hydra: Slow Aura (air, 33 % in 600) and Frost Aura (ground, 18 % in 550) merged into one Frost Aura for ground
   // and air: 18 % on the ground, 33 % in the air (airFactor), range 600
   { id: "XA24", baseId: "AOae", custom: true, airFactor: 0.33 / 0.18, fields: { anam: { 0: "Frost Aura" }, alev: { 0: 1 }, Oae1: { 1: -0.18 }, Oae2: { 1: 0 }, aare: { 1: 600 }, atar: { 1: "ground,air,enemies,vulnerable" }, abuf: { 1: "B008" } } },
@@ -788,10 +789,16 @@ export const TOWER_DAMAGE_BUFF = {
   // v0.27zziF: Magic City and Skull Mage ×4 (they dealt about 1/10 of the other combination towers per gold)
   h00J: 3, h043: 3,
   h01I: 0.25, h007: 0.25, h039: 0.25, // v0.27zziF: Hall of Storm 2–4 +25 %
-  h046: -0.15, // v0.27zziF: Battle Mech −15 % (still about 1.8× the other combination towers after the Missile Barrage nerf)
+  // v0.27zziF: Battle Mech −15 %; v0.27zzjF: another −15 % (1,600 → 1,360 → 1,156; tower value test: still 3.2× the tier average per gold)
+  h046: -0.2775,
+  // v0.27zzjF: level-7 towers ×2 (tower value test: Death Knight only ~30 % above Zombie L6, Naga Archer equal to Frost Archer L6, for 20,000 more)
+  h02C: 1, h024: 1,
 };
-/** v0.27zziF: fixed prices (upgrade cost of the tower itself): Death Knight 50,000 → 20,000, Naga Archer 35,000 → 20,000. */
-export const TOWER_COST = { h02C: 20000, h024: 20000 };
+/**
+ * v0.27zziF: fixed prices (upgrade cost of the tower itself): Death Knight 50,000 → 20,000, Naga Archer 35,000 → 20,000.
+ * v0.27zzjF: Headhunter 30,000 → 15,000 (air only; 0.45× the tier average per gold).
+ */
+export const TOWER_COST = { h02C: 20000, h024: 20000, h00D: 15000 };
 function applyTowerDamageBuff(byId) {
   for (const [id, pct] of Object.entries(TOWER_DAMAGE_BUFF)) {
     const u = byId[id];
@@ -810,7 +817,7 @@ function applyTowerDamageBuff(byId) {
   }
 }
 // v0.24p: fixed average damage per tower (Footman level 2: 11)
-export const TOWER_DAMAGE_PIN = { h02U: 11, h01M: 77, h00A: 222, h032: 678 }; // v0.27zziF: Hall of Arcane 2–4 (was 65 / 195 / 555)
+export const TOWER_DAMAGE_PIN = { h02U: 11, h01M: 77, h00A: 222, h032: 678, h00D: 1500 }; // v0.27zzlF: Headhunter 1,375 → 1,500 // v0.27zziF: Hall of Arcane 2–4 (was 65 / 195 / 555)
 /**
  * v0.27iF: start delay of every send in rounds (the lock shown on its card). Only sends from the 4th place of a tier
  * on wait; the first three open at once and a tier boss waits one round longer than the creep before it.
@@ -840,7 +847,8 @@ export const LINEAR_ARMOR = {
 /** v0.27mF: other units with old armor 3 or more: old × this (the tier 3 rate of the table above). */
 export const LINEAR_ARMOR_RATE = 9;
 export const CREEP_TUNING = {
-  nMDG: { bountyBase: 18, bountyDice: 0 }, // v0.27F: Mud Golem bounty like a tier 1 creep of its price
+  nMDG: { bountyBase: 18, bountyDice: 0, speed: 136.53 }, // v0.27zzmF: 0.48 fields/s (was 0.69; 0.60 in v0.27zzlF); v0.27F: Mud Golem bounty like a tier 1 creep of its price
+  n00T: { speed: 136.53 }, // v0.27zzmF: Rock Golem 0.48 fields/s (0.60 in v0.27zzlF)
   // v0.27gF: tier 2: Skeleton Berserker and Flying Machine swap places (and start delays); Flying Machine 300 → 500 gold,
   // HP 375 → 625, income 12 → 20 (4 % as before), bounty 34 → 57 (same share of its price)
   n011: { name: "[16] Skeleton Berserker", stockStart: 1 }, // v0.27iF: start delay in rounds

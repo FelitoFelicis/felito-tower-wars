@@ -194,7 +194,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.27zzi",
+const APP_VERSION = "0.27zzm",
   APP_BRANCH = "F", // v0.23q: author marker (F = Felix, S = Steven) and branch text, shown behind the version; APP_VERSION stays plain for online matches (VersionPublishingRules.md)
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "29.10.2026";
@@ -1849,7 +1849,8 @@ function itemName(item) {
   return namesEn[short] || short;
 }
 function cardAction(item) {
-  return item.kind === "send" ? "send" : item.kind === "research" ? "research" : item.isRoot ? "build" : "upgrade";
+  // v0.27zzlF: a level-2 blueprint (tier 2+, directRootOf) is built, not upgraded (its card was greyed out: "Tower not found")
+  return item.kind === "send" ? "send" : item.kind === "research" ? "research" : item.isRoot || (game && directRootOf(game.players[own], item.id)) ? "build" : "upgrade";
 }
 /** v0.21k: a former upgrade's level is its perk's level now (the research level is gone since v0.21). */
 const researchLevel = (q, id) => (RESEARCH_PERKS[id] ? q?.perks?.[RESEARCH_PERKS[id]] || 0 : q?.research?.[id] || 0);
@@ -5588,6 +5589,7 @@ function refreshUI() {
   setText($("income"), "+" + resourceNumber(p.income + (p.incomeDecimal || 0) / 100));
   setProp($("income"), "title", t("+{n} income", { n: format(p.income + (p.incomeDecimal || 0) / 100) }));
   bumpNumber("own-lives", p.lives);
+  document.body.classList.toggle("showdown", !!game.showdown && !!game.running); // v0.27zzlF: sinister light
   // whole numbers only (v0.07j); v0.20: in team games what the player gets each round from the shared team income
   const incomeOf = (pl) => "+" + resourceNumber(Math.floor(!game.teams ? pl.income : game.teams.gold === "shared" ? teamIncome(game, pl) : teamIncome(game, pl) / Math.max(1, teamMates(game, pl).length)));
   setText($("gold-income"), incomeOf(p));
@@ -6118,6 +6120,21 @@ function firstBlood(e) {
   setTimeout(() => pop.remove(), 2100); // v0.17g: splats fade out after 1.5 s; v0.21g: achievement splats 0.2 s longer
   sfx.play("firstBlood");
   haptic([60, 40, 90]);
+}
+/**
+ * v0.27zzlF: Showdown (ranked 1v1, from round 120): skull and crossbones over the board, twice as long as the other
+ * splats (4.2 s), the note "Showdown"; the board turns to a sinister light (body.showdown, set in refreshUI).
+ */
+const SKULL_SVG = `<svg viewBox="0 0 200 200" aria-hidden="true"><g fill="#efe4cc" stroke="#22060a" stroke-width="5" stroke-linejoin="round"><g transform="rotate(32 100 150)"><rect x="18" y="141" width="164" height="18" rx="9"/><circle cx="20" cy="138" r="12"/><circle cx="20" cy="162" r="12"/><circle cx="180" cy="138" r="12"/><circle cx="180" cy="162" r="12"/></g><g transform="rotate(-32 100 150)"><rect x="18" y="141" width="164" height="18" rx="9"/><circle cx="20" cy="138" r="12"/><circle cx="20" cy="162" r="12"/><circle cx="180" cy="138" r="12"/><circle cx="180" cy="162" r="12"/></g><path d="M100 18c-40 0-64 27-64 60 0 21 10 36 25 44v19c0 6 4 10 10 10h58c6 0 10-4 10-10v-19c15-8 25-23 25-44 0-33-24-60-64-60z"/></g><ellipse cx="77" cy="82" rx="16" ry="18" fill="#22060a"/><ellipse cx="123" cy="82" rx="16" ry="18" fill="#22060a"/><circle cx="79" cy="85" r="5" fill="#ff2b3b"/><circle cx="121" cy="85" r="5" fill="#ff2b3b"/><path d="M100 99l-10 17h20z" fill="#22060a"/><path d="M80 133v17M93 135v17M107 135v17M120 133v17" stroke="#22060a" stroke-width="4" stroke-linecap="round"/></svg>`;
+function showdownSplat() {
+  const pop = document.createElement("div");
+  pop.className = "showdown-splat";
+  pop.innerHTML = `${SKULL_SVG}<b>${t("Showdown")}</b>`;
+  $("app")?.appendChild(pop) || document.body.appendChild(pop);
+  setTimeout(() => pop.remove(), 4200); // twice the 2.1 s of the other splats
+  toast(t("Showdown"), "boss", true);
+  sfx.play("showdown");
+  haptic([80, 60, 80, 60, 120]);
 }
 /**
  * v0.19j: Constructor / Highrise / Tycoon — the achiever's most valuable tower in a bronze, silver or gold
@@ -8621,6 +8638,8 @@ function tick(dt) {
       if (e.type === "achievement" && e.player !== own && e.exp) toast(t("{who} achieved {name} +{exp} EXP", { who: seatTag(e.player), name: t(e.name || e.achievement), exp: format(e.exp) }), "level");
       if (e.type === "achievement" && e.player === own && e.name) toast(t("Achievement: {name}", { name: t(e.name) }) + ` · +${e.exp} EXP`, "tier"); // v0.15
       if (e.type === "firstBlood") firstBlood(e);
+      if (e.type === "showdown") showdownSplat(); // v0.27zzlF: ranked 1v1 after round 120
+      if (e.type === "showdownLife") sfx.play("showdownLife");
       if (e.type === "towerSplat") {
         towerSplat(e); // v0.19j
         if (e.player !== own) toast(t("{who} achieved {name} +{exp} EXP", { who: seatTag(e.player), name: t(e.name), exp: format(e.exp) }), "level");

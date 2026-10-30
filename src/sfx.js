@@ -107,6 +107,20 @@ export function createSfx() {
       hiss({ dur: 0.18, gain: 0.04, freq: 900, q: 1, delay: 0.62, sweep: 0.6 });
     },
     // v0.09w: First Blood — a heavy war-drum hit and a low growl under the voice line
+    // v0.27zzlF: Showdown – two tolls of a low bell over a dark drone; a dull thud for every life it takes
+    showdown: () => {
+      [0, 0.95].forEach((d) => {
+        tone({ type: "sine", from: 73, to: 70, dur: 1.5, gain: 0.2, delay: d, attack: 0.01 });
+        tone({ type: "triangle", from: 146, to: 141, dur: 1.1, gain: 0.05, delay: d });
+        tone({ type: "sine", from: 219, to: 212, dur: 0.8, gain: 0.03, delay: d });
+      });
+      tone({ type: "sawtooth", from: 55, to: 52, dur: 2.2, gain: 0.03, attack: 0.4 });
+      hiss({ dur: 0.45, gain: 0.05, freq: 180, q: 0.6, sweep: 0.4 });
+    },
+    showdownLife: () => {
+      tone({ type: "sine", from: 95, to: 45, dur: 0.4, gain: 0.18 });
+      tone({ type: "sine", from: 140, to: 120, dur: 0.3, gain: 0.04, delay: 0.05 });
+    },
     firstBlood: () => {
       tone({ type: "sine", from: 110, to: 40, dur: 0.5, gain: 0.22 });
       hiss({ dur: 0.25, gain: 0.08, freq: 220, q: 0.7, sweep: 0.5 });

@@ -1260,6 +1260,7 @@ export function towerPerkBuffs(game, index, id) {
   if (lv("militia") && item.isBuildable && item.attacks && footmanLine().has(item.id)) out.push({ id: "militia", level: 1, text: `+${MILITIA_DAMAGE} damage` }); // v0.22g1
   if (perkLevel(p, "gunpowder") && item.isBuildable && item.attacks && (isCannonTower(item) || lineSet("h02R").has(item.id))) out.push({ id: "gunpowder", level: perkLevel(p, "gunpowder"), text: `+${gunpowderTiles(perkLevel(p, "gunpowder"))} tiles splash` });
   if (perkLevel(p, "archery") && archerLine().has(item.id)) out.push({ id: "archery", level: perkLevel(p, "archery"), text: `+${5 * perkLevel(p, "archery")}% damage` });
+  if (lv("owl") && item.isBuildable && item.attacks && archerLine().has(item.id)) out.push({ id: "owl", level: lv("owl"), text: `+${Math.round(owlRange(lv("owl")) * 100) / 100} fields range` }); // v0.27zzlF: Watcher Owl was missing
   if (loneActive(p) && item.isBuildable && item.attacks) out.push({ id: "lone", level: perkLevel(p, "lone"), text: `+${Math.round(loneSpeed(perkLevel(p, "lone")) * 100)}% attack speed` });
   if (item.isBuildable && item.attacks && p.backupOn && perkLevel(p, "backup") && archerLine().has(item.id)) out.push({ id: "backup", level: perkLevel(p, "backup"), text: `+${Math.round(backupSpeed(perkLevel(p, "backup")) * 100)}% attack speed` }); // v0.18h; v0.24q: Archer-Line attack speed
   if (item.isBuildable && item.attacks && p.tidesOn && perkLevel(p, "tides") && isMeleeTower(item)) out.push({ id: "tides", level: perkLevel(p, "tides"), text: `+${Math.round(tidesDamage(perkLevel(p, "tides")) * 100)}% damage` });
@@ -6003,6 +6004,10 @@ function incomeTick(game) {
   }
   game.expGenRemaining = EXP_GEN_EVERY; // v0.19d2: a generator tick at the start of every round, then every 4 s
   expGenTick(game);
+  if (game.round >= RULES.suddenDeathRound && isShowdownMatch(game)) {
+    showdownRound(game);
+    return;
+  }
   if (game.round >= RULES.suddenDeathRound) {
     if (!game.suddenDeath) {
       game.suddenDeath = true;
@@ -6029,6 +6034,34 @@ function incomeTick(game) {
         }
     }
   }
+}
+/** v0.27zzlF: Showdown – only ranked 1v1 matches (app sets game.ranked before the first tick; not Ranked FFA). */
+export const isShowdownMatch = (game) => !!game.ranked && !game.rankedFfa && game.players.length === 2 && !game.teams;
+/**
+ * v0.27zzlF: Showdown (ranked 1v1, from round 120 instead of the sudden death): at the end of every round each player
+ * loses 1 life, no floor. "showdown" once (skull splat, sinister light), "showdownLife" per lost life (skull at the
+ * finish line). Both lives at 0 in the same round: the player whose creeps broke through more often wins (then fewer
+ * neutral-wave leaks taken, then seat 0 – never a draw).
+ */
+function showdownRound(game) {
+  if (!game.showdown) {
+    game.showdown = true;
+    game.suddenDeath = true;
+    emit(game, "showdown");
+  }
+  const alive = game.players.filter((p) => !p.out);
+  for (const p of alive) {
+    p.lives = Math.max(0, p.lives - 1);
+    gainExp(game, p, 25, "suddenDeath");
+    const at = exitPos(game, p, (game.grid.cols - 1) / 2); // the middle of the finish line
+    emit(game, "showdownLife", { player: p.id, lives: p.lives, x: at.x, y: at.y });
+  }
+  const dead = alive.filter((p) => p.lives <= 0);
+  if (!dead.length || !game.running) return;
+  if (dead.length === 1) return defeat(game, dead[0]);
+  // the loser: fewer breaches in the opponent's lane, then more neutral-wave leaks taken, then the higher seat
+  const [loser] = [...dead].sort((a, b) => (a.stats.leaks || 0) - (b.stats.leaks || 0) || (b.stats.waveLeaks || 0) - (a.stats.waveLeaks || 0) || b.id - a.id);
+  defeat(game, loser);
 }
 /**
  * Training opponents. "normal" is the original mobile AI unchanged. The other
@@ -6274,7 +6307,15 @@ let splashView = 0,
   rowView = 0; // v0.25l: persona.rowAware – value towers by row (melee splash near the spawn, ranged lower down)
 /** Measured splash curve over the rows, scaled to an average of 1 (top row ×1.3, bottom ×0.86). */
 const splashShape = (game, y) => (1.9 + 1.2 * (1 - Math.min(1, y / baseRows(game))) ** 3) / 2.2; // v0.24r: shape of a fresh maze
+/**
+ * v0.27zzkF: the bot's own-defence estimate overrated long-range towers (Hall of Storm range 900, Bouncing Shot 650 rated as
+ * area splash on top of its bounce): Storm bots rated their lane at almost twice its real strength, built too little and lost
+ * 73 % of their Storm starts. Range capped at 450 in the estimate, Bouncing Shot ×1.2: Storm losses 11 %, bot strength unchanged.
+ */
+const AI_RANGE_CAP = 450,
+  AI_BOUNCE_FACTOR = 1.2;
 function splashFactor(game, item, y, size, air = false) {
+  if (item?.weapon === "mbounce") return AI_BOUNCE_FACTOR; // v0.27zzkF: bouncing missiles are not area splash
   if (rowView && !air && splashView === 1) {
     const depth = Math.min(1, Math.max(0, (y + size / 2) / baseRows(game))),
       melee = isMeleeTower(item),
@@ -6293,7 +6334,8 @@ function towerPassDamage(game, p, item, x, y, size, path, air = false) {
   const stats = statsFor(game, p, item),
     dps = stats.damage / Math.max(0.1, stats.cooldown),
     splash = splashFactor(game, item, y, size, air),
-    secs = (reachOn(game, item, stats, x, y, size, path) * game.grid.cellUnits) / (240 * movementMultiplier(game));
+    // v0.27zzkF: the reach counts at most AI_RANGE_CAP: a single-target tower cannot hit every creep in a long range at once
+    secs = (reachOn(game, item, stats.range > AI_RANGE_CAP ? { ...stats, range: AI_RANGE_CAP } : stats, x, y, size, path) * game.grid.cellUnits) / (240 * movementMultiplier(game));
   return dps * splash * secs;
 }
 /** Flyers cross straight down the column they spawn in; any column is equally likely. */
@@ -6428,6 +6470,7 @@ function observeEnemy(game, p, persona = p.aiPersona) {
       if (c.flying) {
         seen.air += c.maxHp;
         freshAir += c.maxHp;
+        p.aiAirSeenAt = game.round; // v0.27zzjF: the opponent really sends air (for AIR_GATED)
       }
     }
   seen.burst = Math.max(seen.burst * 0.97, fresh);
@@ -7050,6 +7093,13 @@ function bestSpot(game, p, item, persona, air = false, ctx = {}) {
   return ctx.strict && maze ? scan(true) : scan(false);
 }
 /** Upgrades and new towers that add kill capacity, best value per gold first. */
+/**
+ * v0.27zzjF: Headhunter L7 (air only, 15,000) only when the opponent really sent flyers in the last
+ * AIR_GATE_ROUNDS rounds (30.10. tests: 21 % of all bot tower gold went into it for 2 % of the damage,
+ * bought against the neutral air waves and kept idle).
+ */
+const AIR_GATED = new Set(["h00D"]),
+  AIR_GATE_ROUNDS = 15;
 function defenceOptions(game, p, persona, level, style, cap, wantAir, onlyBuild = false, need = 0) {
   const options = [],
     maze = mazePlan(game, p, level),
@@ -7065,6 +7115,7 @@ function defenceOptions(game, p, persona, level, style, cap, wantAir, onlyBuild 
         if (typed?.goals.has(t.id)) continue; // still on its way to an Ogre or a Bird Hunter
         const item = obj(id);
         if (!item?.attacks || !available(game, p.id, "upgrade", id, t.id).ok) continue;
+        if (AIR_GATED.has(id) && !(game.round - (p.aiAirSeenAt ?? -Infinity) <= AIR_GATE_ROUNDS)) continue; // v0.27zzjF
         if (wantAir ? !item.targets.includes("air") : !item.targets.includes("ground")) continue;
         const before = wantAir ? airPass(game, p, obj(t.typeId), t.gridX, t.gridY, towerSize(t)) : pass(obj(t.typeId), t),
           after = wantAir ? airPass(game, p, item, t.gridX, t.gridY, towerSize(t)) : pass(item, t);
@@ -7257,8 +7308,27 @@ function missionArchers(game, p) {
     }
   return !!best && command(game, { type: "build", player: p.id, id: "h003", gridX: best.x, gridY: best.y }).ok;
 }
+/**
+ * v0.27zzlF: bot decisions that would fall on the same tick are split: of the bots due this tick only the one that waited
+ * longest decides (ties: lower seat), the others stay due and decide on the next ticks. Two Hardo bots (every tick) now
+ * alternate; bots with a longer interval already think on different ticks (nextAiTick starts at seat × 3) and wait at most
+ * a tick or two. -1 = no bot due (or a single bot: no turn needed).
+ */
+function aiTurnOf(game) {
+  let best = null,
+    bots = 0;
+  for (const p of game.players) {
+    if (!p.ai || p.out) continue;
+    bots++;
+    if (game.tick < p.nextAiTick) continue;
+    if (!best || (p.lastAiTick ?? -1) < (best.lastAiTick ?? -1)) best = p;
+  }
+  return bots > 1 && best ? best.id : -1;
+}
 function think(game, p) {
   if (game.tick < p.nextAiTick) return;
+  if (game.aiTurn >= 0 && game.aiTurn !== p.id) return; // v0.27zzlF: another bot decides this tick
+  p.lastAiTick = game.tick;
   const level = aiLevel(game, p),
     interval = { veryEasy: 80, easy: 40, normal: 20, hard: 10, insane: 1 }[level] || 20, // v0.25l: Hardo thinks every tick
     style = AI_STYLE[level] || AI_STYLE.normal;
@@ -7987,6 +8057,7 @@ function fixedTickInner(game) {
       for (const w of due) w.quest ? spawnQuestCreep(game, w) : w.aux ? spawnAuxCreep(game, w) : spawnWaveCreep(game, w); // v0.15: quest creeps; v0.26: auxiliaries
     }
   }
+  game.aiTurn = aiTurnOf(game); // v0.27zzlF: one bot decision per tick
   for (const p of game.players) {
     if (p.out) {
       // v0.24j: clouds on a knocked-out lane would never tick down: they go with the lane

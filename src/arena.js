@@ -1718,6 +1718,15 @@ export function mountArena({
       t.setText(text).setColor(color).setFontSize(size).setStroke(bonus ? "#3a2200" : "#14231e", bonus ? 9 : 5).setPosition(x, y).setAlpha(1).setScale(0.6).setVisible(true);
       this.floaters.push({ t, x, y, rise, life, max: life, bonus, size, seed: Math.random() * 6.28 });
     }
+    /** v0.27zzlF: a big pop-up (Showdown skull) that does not depend on the pop-up options. */
+    bigPop(x, y, text, color, size, rise, life) {
+      if (this.floaters.length > 36) this.recycle(this.floaters.shift());
+      const t =
+        this.textPool.pop() ||
+        this.stage.text(0, 0, "", { fontFamily: FONT, stroke: "#14231e", strokeThickness: 5, resolution: DPR }).setOrigin(0.5, 1).setDepth(6000);
+      t.setText(text).setColor(color).setFontSize(size).setStroke("#1a0006", Math.max(5, size * 0.08)).setPosition(x, y).setAlpha(1).setScale(0.6).setVisible(true);
+      this.floaters.push({ t, x, y, rise, life, max: life, bonus: false, size, seed: Math.random() * 6.28 });
+    }
     recycle(f) {
       f.t.setVisible(false);
       this.textPool.push(f.t);
@@ -1747,6 +1756,13 @@ export function mountArena({
             from = this.point(origin.x, origin.y);
           const sprite = this.units.get(`${view}:t:${e.towerId}`);
           if (sprite) {
+            // v0.27zzlF: a holding attack sheet (Earth Laser) starts a new recoil only for a new target or after a pause
+            if (sprite.getData("hold") != null && !e.bounce) {
+              const win = (def?.cooldown || 1) * 1300 + 150,
+                last = sprite.getData("atk");
+              if (last == null || time - last > win || sprite.getData("atkTarget") !== e.targetId) sprite.setData("atk0", time);
+              sprite.setData("atkTarget", e.targetId).setData("holdWin", win);
+            }
             sprite.setData("recoil", time + 120).setData("atk", time);
             sprite.setData("aimX", e.to.x < (tower || e.from).x ? -1 : 1);
           }
@@ -2023,6 +2039,15 @@ export function mountArena({
             this.flash = 1;
             if (here) this.stage.shake(140, 0.005);
           } else this.gainFlash = 1;
+        } else if (e.type === "showdownLife" && e.player === view && e.x !== undefined) {
+          // v0.27zzlF: Showdown: a large skull rises from the finish line of the lane that lost a life
+          const q = this.point(e.x, e.y);
+          this.bigPop(q.x, q.y + cell * 0.1, "\u2620", "#f4ecdc", Math.round(cell * 1.5), cell * 2.6, 2.2);
+          this.ring(q.x, q.y, cell * 0.2, cell * 2, 0x9e0b2b, 0.8, 5);
+          this.burst(q.x, q.y - cell * 0.2, 0x5a0418, 16, 110, 3.2, 0.8, -40);
+          if (e.player === own) this.floatText(q.x + cell * 1.1, q.y - cell * 0.3, "\u22121 \u2665", "#ff9aa0", 22, 46, 1.4);
+          this.flash = 1;
+          this.stage.shake(220, 0.007);
         } else if ((e.type === "build" || e.type === "upgrade") && e.player === view) {
           const tower = lane.towers.find((t) => t.id === e.towerId);
           if (tower) {
@@ -2441,6 +2466,7 @@ export function mountArena({
           this.units.set(key, sprite);
         }
         if (sprite.visible === look.hide) sprite.setVisible(!look.hide);
+        if (sprite.getData("hold") !== anim?.hold) sprite.setData("hold", anim?.hold); // v0.27zzlF: holding attack sheets
         const building = (t.buildRemaining || 0) > 0,
           // Higher levels of the same figure stand a little taller on a slightly larger pedestal.
           base = ((tc * 0.98 * TOWER_SCALE) / m.plateW) * levelScale(def.level || 1) * (t.stone === "large" ? 1.23 : t.stone === "small" ? 0.8 : 1), // v0.18h: Quarry stones; v0.19c1: large ones 6 % larger
@@ -2466,7 +2492,17 @@ export function mountArena({
           // Attack swing from the shot event; frame 0 is the still pose.
           const atk = sprite.getData("atk");
           let frame = 0;
-          if (atk != null && !building) {
+          if (atk != null && !building && anim.hold != null) {
+            // v0.27zzlF: recoil once, hold the back position while shots keep coming, return when the target is lost
+            const k = Math.floor((time - (sprite.getData("atk0") ?? atk)) / anim.ms) + (anim.start || 0),
+              win = sprite.getData("holdWin") || 1500;
+            if (k <= anim.hold) frame = k;
+            else if (time - atk <= win) frame = anim.hold;
+            else {
+              const r = anim.hold + 1 + Math.floor((time - atk - win) / anim.ms);
+              frame = r < anim.frames ? r : 0;
+            }
+          } else if (atk != null && !building) {
             const k = Math.floor((time - atk) / anim.ms) + (anim.start || 0);
             if (k < anim.frames) frame = k;
           }
