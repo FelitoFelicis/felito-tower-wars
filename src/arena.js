@@ -152,6 +152,13 @@ export function arenaGeometry(width, height, grid = { cols: 6, rows: 9 }, mode =
     const bottom = z.h - Math.max(0, insets?.bottom || 0) - 4,
       end = z.top + z.bh + (z.frameV || 5) + 6;
     if (end > bottom + 1) z.scroll = { lo: 0, hi: end - bottom, def: 0, lane: true };
+    // v0.28.002F: Desktop Wide: the board can be pulled down about one field past its top and stays there, so the
+    // spawn area is easier to see (the mouse wheel keeps switching lanes while the lane itself fits on screen)
+    if (layoutWide()) {
+      const extra = Math.round(z.ch * 1.1);
+      if (z.scroll) z.scroll.lo = -extra;
+      else z.scroll = { lo: -extra, hi: 0, def: 0, lane: true, overTop: true };
+    }
   }
   return z;
 }
@@ -501,7 +508,6 @@ export function mountArena({
       this.badgeNames = {};
       this.flash = 0;
       this.gainFlash = 0;
-      this.fireflies = Array.from({ length: 18 }, (_, i) => ({ seed: i * 7.31, x: hash(i, 3), y: hash(i, 9) }));
       this.artSetShown = activeArtSet(); // design variants: the set whose pictures the board is loading or showing
       this.folded = new Map(); // v0.23a: art key -> the key the active set draws
       this.atlasLoads = new Map(); // v0.23a: scenery atlases on their way
@@ -953,7 +959,7 @@ export function mountArena({
         "wheel",
         (ev) => {
           const range = this.geometry().scroll;
-          if (!range || range.hi - range.lo < 1 || Math.abs(ev.deltaX) > Math.abs(ev.deltaY)) return;
+          if (!range || range.overTop || range.hi - range.lo < 1 || Math.abs(ev.deltaX) > Math.abs(ev.deltaY)) return;
           ev.preventDefault();
           ev.stopPropagation(); // v0.25j: a vertical wheel moves the maze up and down instead of switching lanes
           this.scrollVel = 0;
@@ -1846,6 +1852,7 @@ export function mountArena({
               // v0.23b: arrows fly 30 % faster
               dur: clamp(d / (cell * 10), 0.07, 0.34) / (!firesCannonball(def) && (/arrow/i.test(def?.fields?.ua1m || "") || def?.attackType === "pierce") ? 1.3 : 1),
               ...style,
+              marks: !!tower?.trueshot, // v0.28.004F: under the Marksman Aura the arrowhead glows white
               arc: style.splash ? cell * 0.5 : 0,
               // v0.27zzgF: the Magic Tower's Arcane Missile: a larger, slightly slower orb with an arcane glow
               ...(e.empowered && /^Magic Tower/.test(String(def?.name || "").replace(/\|c\w{8}|\|r/g, "")) ? { missile: true, glow: true, color: 0xff7fe6, size: 6.4 } : {}),
@@ -2188,7 +2195,7 @@ export function mountArena({
         preview = z.passive ? null : getPreview();
       this.drawPathTiles(player, z);
       this.drawSnow(player, z, time, getCatalog()); // v0.27.006: Hall of Water frost aura
-      // ---- ambient light: braziers, portal, castle, fireflies
+      // ---- ambient light: braziers, portal, castle
       for (const b of this.braziers || []) {
         const flick = 0.75 + 0.25 * Math.sin(time * 0.013 + b.seed * 3) * Math.sin(time * 0.007 + b.seed);
         glow.fillStyle(0xff9a3c, 0.1 * flick);
@@ -2205,15 +2212,7 @@ export function mountArena({
         glow.fillStyle(0xa04dff, 0.1 + 0.08 * pulse);
         glow.fillEllipse(cx, z.top - z.strip / 2, cell * 0.9, z.strip * 1.6);
       }
-      for (const f of boardPalette() ? [] : this.fireflies) {
-        const x = (f.x * z.w + Math.sin(time * 0.0004 + f.seed) * 40 + z.w) % z.w,
-          y = ((f.y * z.h + Math.cos(time * 0.0003 + f.seed * 2) * 30 + z.h) % z.h) + (this.stage.scrollY || 0),
-          a = 0.35 + 0.35 * Math.sin(time * 0.003 + f.seed * 5);
-        glow.fillStyle(0xd8ff8a, a * 0.35);
-        glow.fillCircle(x, y, 4);
-        glow.fillStyle(0xf4ffc8, a);
-        glow.fillCircle(x, y, 1.4);
-      }
+      // v0.28.002F: no fireflies drifting over the board any more
       // ---- v0.10p: Lava Floor (v0.10q: 6th row; v0.23k: random tiles). v0.22i1: looks like its perk tile (dark basalt plates on
       // glowing lava, bright cracks and bubbles) and lies under every field of the row, towers included
       // v0.23k: on the player's lava tiles (random fields) instead of the whole 6th row
@@ -2454,10 +2453,7 @@ export function mountArena({
             g.lineStyle(2, 0xffc47a, 0.75);
             g.strokeCircle(sq.x, sq.y, sr);
           }
-          const pulse = 0.5 + 0.5 * Math.sin(time * 0.008);
-          const sc = cell * towerSize(t);
-          g.lineStyle(3, 0xffe47a, 0.55 + pulse * 0.4);
-          g.strokeEllipse(q.x, q.y + sc * 0.12, sc * 0.98, sc * 0.5);
+          // v0.28.003F: no yellow selection ring under the selected tower any more
         }
       } // v0.17l: no more glowing frames on free fields while a tower card is picked
       // v0.09q: Arrow Volley aim — the area follows the pointer
@@ -2572,10 +2568,10 @@ export function mountArena({
         if (t.curse && t.curse.until > game.time) sprite.setTint(0xd2b0ff).setTintMode(TINT.MULTIPLY);
         else if (t.stone === "large") sprite.setTint(0xb8ae9e).setTintMode(TINT.MULTIPLY); // v0.18h: large stones a shade darker
         else sprite.clearTint();
-        // v0.17p: Trueshot Aura buff: a small, transparent crosshair on the figure's torso (static, no flicker)
+        // v0.17p: Marksman Aura buff (was Trueshot Aura): a small, transparent crosshair; v0.28.004F: on the front of the base
         if (t.trueshot && !building) {
           const hx = cx,
-            hy = cy - tc * 0.42,
+            hy = cy + tc * 0.2,
             hr = tc * 0.1,
             bars = this.bars;
           bars.lineStyle(1.6, 0xfff2c0, 0.42);
@@ -3781,7 +3777,13 @@ export function mountArena({
           f.lineStyle(p.size * 0.9, p.color, 0.55);
           f.lineBetween(bx, by, x, y);
         }
-        f.fillStyle(p.color, 1);
+        if (p.marks) {
+          fa.fillStyle(0xffffff, 0.35);
+          fa.fillCircle(x, y, p.size * 2.8);
+          fa.fillStyle(0xffffff, 0.6);
+          fa.fillCircle(x, y, p.size * 1.6);
+        }
+        f.fillStyle(p.marks ? 0xffffff : p.color, 1);
         f.fillCircle(x, y, p.size);
         f.fillStyle(0xffffff, 0.85);
         f.fillCircle(x - p.size * 0.25, y - p.size * 0.25, p.size * 0.4);

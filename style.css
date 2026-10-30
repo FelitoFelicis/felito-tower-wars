@@ -4083,10 +4083,15 @@ dialog.with-flag .modal-header {
   padding-bottom: calc(16px + env(safe-area-inset-bottom) + var(--lift, 0px));
   justify-content: flex-start;
 }
+/* v0.28.001F: the logo ends above the portal of the key art (it must not cover the cave and the wolf): the art is
+   cover-scaled from 900×1592, the portal starts 300 px down the art */
+.welcome-modal {
+  --logo-max: calc(max(min(100vw, 520px) / 3, 100dvh * 0.1884) - 20px - env(safe-area-inset-top));
+}
 .welcome-modal .welcome-logo {
   flex: 0 1 auto;
   min-height: 70px;
-  max-height: 34dvh;
+  max-height: min(34dvh, var(--logo-max));
   width: auto;
   max-width: min(82%, 340px);
   object-fit: contain;
@@ -4100,7 +4105,7 @@ dialog.with-flag .modal-header {
     padding-top: calc(8px + env(safe-area-inset-top));
   }
   .welcome-modal .welcome-logo {
-    max-height: 26dvh;
+    max-height: min(26dvh, var(--logo-max));
   }
   .welcome-modal .welcome-panel {
     gap: 6px;
@@ -4115,7 +4120,7 @@ dialog.with-flag .modal-header {
 }
 @media (max-height: 620px) {
   .welcome-modal .welcome-logo {
-    max-height: 20dvh;
+    max-height: min(20dvh, var(--logo-max));
   }
   .welcome-modal .modal-label {
     font-size: 12px;
@@ -9651,3 +9656,127 @@ body.tool-upgrade #arena canvas { cursor: pointer; }
 .unit-card .card-queued[hidden] { display: none; }
 /* v0.27.008F: team names in the rulebook in gold */
 .rules-credits .credits-team .credit-name { font-style: normal; font-weight: 700; color: #ffd36a; }
+/* v0.28.002F: Desktop Wide: the creep (send) buttons are square */
+:root.layout-wide .command-deck #cards-send > .unit-card,
+:root.layout-wide .wide-send-row #cards-send > .unit-card {
+  aspect-ratio: 1 !important;
+  height: auto !important;
+}
+
+/* ---- v0.28.003F: tier indicator: plain number, filled with the tier's metal like the level metals of the towers
+   (bronze, iron, silver, gold; diamond for tier 5), larger number in the player windows ---- */
+:root {
+  --tier-m1: linear-gradient(180deg, #ffe0b4 0%, #e3a465 38%, #9c5f2c 68%, #d89a5e 100%);
+  --tier-m2: linear-gradient(180deg, #c3c8cf 0%, #858b94 38%, #3f444c 68%, #767c86 100%);
+  --tier-m3: linear-gradient(180deg, #ffffff 0%, #dfe4eb 38%, #9aa3b0 68%, #e6eaf0 100%);
+  --tier-m4: linear-gradient(180deg, #fff6b8 0%, #ffd34a 38%, #c98a14 68%, #ffe27a 100%);
+  --tier-m5: linear-gradient(160deg, #ffffff 0%, #b8f3ff 22%, #4cc3ff 42%, #f2fdff 54%, #7fb2ff 72%, #e8dcff 100%);
+}
+[data-tier="1"] { --tier-metal: var(--tier-m1); }
+[data-tier="2"] { --tier-metal: var(--tier-m2); }
+[data-tier="3"] { --tier-metal: var(--tier-m3); }
+[data-tier="4"] { --tier-metal: var(--tier-m4); }
+[data-tier="5"] { --tier-metal: var(--tier-m5); }
+.plate-exp .plate-tier[data-tier],
+.ec-level .ec-tier[data-tier],
+:root:not(.layout-wide) .plate-exp .plate-tier[data-tier],
+:root:not(.layout-wide) .ec-level .ec-tier[data-tier],
+:root.layout-wide .wp-tier[data-tier],
+:root.layout-wide .ws-tier #ws-tier[data-tier] {
+  display: inline-block !important;
+  background: var(--tier-metal) !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  color: transparent !important;
+  -webkit-text-stroke: 0 !important;
+  text-shadow: none !important;
+  filter: drop-shadow(1px 0 0 #1a1208) drop-shadow(-1px 0 0 #1a1208) drop-shadow(0 1px 0 #1a1208) drop-shadow(0 -1px 0 #1a1208) drop-shadow(0 1px 2px #000a);
+}
+.plate-exp .plate-tier[data-tier] b,
+.ec-level .ec-tier[data-tier] b,
+:root:not(.layout-wide) .plate-exp .plate-tier[data-tier] b,
+:root:not(.layout-wide) .ec-level .ec-tier[data-tier] b,
+:root.layout-wide .wp-tier[data-tier] b {
+  color: transparent !important;
+  -webkit-text-stroke: 0 !important;
+  text-shadow: none !important;
+  background: none !important;
+}
+/* the number as large as in the second own info window (Desktop Wide), scaled to each window */
+:root.layout-wide .wp-tier[data-tier],
+:root.layout-wide .wp-tier[data-tier] b {
+  font-size: 22px !important;
+  line-height: 0.9 !important;
+}
+:root:not(.layout-wide) .plate-exp .plate-tier[data-tier],
+:root:not(.layout-wide) .plate-exp .plate-tier[data-tier] b {
+  font-size: 17px !important;
+  line-height: 0.9 !important;
+}
+:root:not(.layout-wide) .ec-level .ec-tier[data-tier],
+:root:not(.layout-wide) .ec-level .ec-tier[data-tier] b {
+  font-size: 14px !important;
+  line-height: 0.9 !important;
+}
+.tier-badge[data-tier] {
+  background: var(--tier-metal);
+  box-shadow: inset 0 0 0 1.5px #0008;
+  color: #1a1208;
+}
+/* v0.28.003F: tower info buttons (animation, card book) in the default button colour, no golden frame */
+.hero-tool {
+  border-color: #0f2c48;
+  background: linear-gradient(#5b9ad0, #24578a);
+  box-shadow: inset 0 2px 0 #ffffff55, 0 3px 0 #0f2c48;
+}
+.hero-tool:hover,
+.hero-tool:focus-visible {
+  box-shadow: inset 0 2px 0 #ffffff70, 0 3px 0 #0f2c48, 0 0 8px #9fd0ff88;
+}
+html.menu-tint dialog .hero-tool {
+  background: linear-gradient(color-mix(in srgb, var(--mc) 72%, #ffffff), color-mix(in srgb, var(--mc) 78%, #000000));
+  border-color: color-mix(in srgb, var(--mc) 30%, #000000);
+  box-shadow: inset 0 2px 0 #ffffff60, 0 3px 0 color-mix(in srgb, var(--mc) 30%, #000000);
+}
+/* v0.28.003F: room above the blueprints for the whole glow of a selected (lifted) card; it was cut off at the top */
+:root.layout-wide .command-deck #cards {
+  padding-top: 22px;
+  margin-top: -20px;
+}
+:root.creep-scroll .game-shell[data-page="build"] .cards.grid-build:not(.upgrade-mode) {
+  padding-top: 22px;
+  margin-top: -20px;
+}
+/* v0.28.004F: first element picked at random (its dialog was closed without a choice): element symbol, name below in its colour */
+.element-splat {
+  position: fixed;
+  z-index: 60;
+  left: 50%;
+  top: 36%;
+  width: min(220px, 60vw);
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  animation: ach-splat 2.6s ease-out forwards;
+}
+.element-splat img {
+  width: 62%;
+  height: auto;
+  filter: drop-shadow(0 0 16px var(--el)) drop-shadow(0 5px 6px #000c);
+}
+.element-splat b {
+  font: 400 clamp(34px, 10vw, 48px)/1 var(--font-number);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--el);
+  text-shadow: -2px -2px 0 #050d13, 2px -2px 0 #050d13, -2px 2px 0 #050d13, 2px 2px 0 #050d13, 0 4px 0 #050d13, 0 0 16px var(--el);
+}
+.element-splat small {
+  font: 700 13px/1 var(--font-display);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #ffffffd0;
+  text-shadow: 0 1px 2px #000c;
+}

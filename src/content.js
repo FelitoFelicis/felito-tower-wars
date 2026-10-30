@@ -674,7 +674,7 @@ export const CUSTOM_ABILITIES = [
   // v0.27F: Mud Golem (tier 1 mini boss): half of the Rock Golem's Tier Boss resistances (simulation.js MINI_BOSS)
   { id: "XA14", baseId: "Xmbs", custom: true, fields: { anam: { 0: "Mini Boss" }, aub1: { 1: "Half the resistances of a Tier Boss. Recruiting it unlocks the rest of tier 1" } } },
   // v0.26cF: Mountain Golem: unlocks no tier; display only (the effect runs in simulation.js MOUNTAIN_GOLEM)
-  { id: "XA13", baseId: "Xinf", custom: true, fields: { anam: { 0: "Mountain Might" }, aub1: { 1: "Can be recruited again. Each one gives your tier 5 creeps +5% HP for good" } } },
+  { id: "XA13", baseId: "Xinf", custom: true, fields: { anam: { 0: "Oblivion Might" }, aub1: { 1: "Can be recruited again. Each one gives your tier 5 creeps +5% HP for good" } } },
   { id: "XA06", baseId: "Xfoc", custom: true, step: 0.09, interval: 0.25, max: 5, fields: { anam: { 0: "Focus Fire" }, aub1: { 1: "Damage +9% every 0.25 s while attacking the same target, up to 500%" } } },
 ];
 /**

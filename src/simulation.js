@@ -1058,7 +1058,8 @@ function sendIncomeParts(p, item) {
   const sanction = p.sanction?.bonus?.[item.id];
   if (sanction) decimal += Math.round((base * 100 + (item.incomeHundredths || 0)) * sanction);
   // v0.19a1: Healing Power (+2 %), Creep Armor (+1.5 %) per level, Blood / Unholy Contract
-  const creepInc = HEALING.income * perkLevel(p, "medicine") + CREEP_ARMOR.income * perkLevel(p, "carmor") + LEADERSHIP_INCOME * perkLevel(p, "leadership") + contractShare(p, item, "income"); // v0.27aF: Leadership
+  const tail = perkLevel(p, "tailwind"),
+    creepInc = HEALING.income * perkLevel(p, "medicine") + CREEP_ARMOR.income * perkLevel(p, "carmor") + LEADERSHIP_INCOME * perkLevel(p, "leadership") + contractShare(p, item, "income") + (tail ? TAILWIND.income + TAILWIND.incomePer * tail : 0); // v0.27aF: Leadership; v0.28.004F: Tailwind
   if (creepInc) decimal += Math.round((base * 100 + (item.incomeHundredths || 0)) * creepInc);
   // v0.10p: Wings of War: +10 % income per level for flying creeps
   const wings = item.flying ? perkLevel(p, "wings") : 0;
@@ -1157,7 +1158,7 @@ export const PERKS = Object.freeze({
   lone: { name: "Spartans", max: 5, element: "storm", // v0.24p: Storm; v0.23zi: Last Guardians → Spartans; v0.23v: 5 levels
     text: "Towers attack {lone} faster with {loneTowers} towers or fewer", detail: "All towers attack {lone} faster while you own {loneTowers} towers or fewer. Towers that do not fight count as 1/4, Walls as 1/10." }, // v0.22g1: 4 levels // v0.20c: no bracket note; v0.16h: back to the v0.13 effect; v0.19g1: was Lone Guardians
   manufacture: { name: "Creep Manufacture", max: 3, element: "earth", text: "8th creep {manufacture} cheaper, recruits 15% faster", detail: "8th creep of every tier {manufacture} cheaper, recruits 15% faster" }, // v0.20d: Earth, 8th creep
-  synthesizer: { name: "Creep Synthesizer", max: 3, element: "water", text: "4th creep {synthesizer} cheaper, recruits 12% faster", detail: "4th creep of every tier {synthesizer} cheaper, recruits 12% faster" }, // v0.20d
+  synthesizer: { name: "Creep Synthesizer", max: 3, element: "water", text: "3rd creep {synthesizer} cheaper, recruits 12% faster", detail: "3rd creep of every tier {synthesizer} cheaper, recruits 12% faster" }, // v0.20d; v0.28.004F: 3rd creep (was 4th)
   scholar: { name: "Scholar", max: 10, element: "arcane", text: "Upgrades 2 non-Arcane perks. EXP +{scholar}", detail: "Upgrades 2 of your non-Arcane perks. EXP gain +{scholar}" }, // v0.20d
   summon: { name: "Summon Tower", max: 1, element: "arcane", powerup: true, text: "Summons a random level 1–3 tower", detail: "Summons a random level 1-3 tower on a free field" }, // v0.20c: no bracket note
   nobility: { name: "Heavy Nobility", max: 3, element: "earth", text: "Heavy creeps {nobility} cheaper, +{nobilityHp} HP", detail: "Heavy creeps {nobility} cheaper, +{nobilityHp} HP, restock 10% faster" },
@@ -1181,7 +1182,7 @@ export const PERKS = Object.freeze({
   carmor: { name: "Creep Armor", max: 20, element: "earth", text: "Creep HP +{carmorHp}, income +{carmorInc}. Lv 2+: 4th+ creeps +{carmorArmor} armor", detail: "Creep HP +{carmorHp} and income +{carmorInc}. From level 2 the creeps from the 4th place of every tier on get armor: {carmorArmor}" }, // v0.27oF
   leadership: { name: "Leadership", max: 20, element: "fire", text: "Creeps +{leadership} HP, creep income +{leadershipInc}" }, // v0.27aF: +1 % creep income per level
   alchemist: { name: "Poison Alchemist", max: 10, element: "plague", text: "Your poisons last {alchemistDur} longer, max stacks +{alchemistStacks}" }, // v0.27aF
-  tailwind: { name: "Tailwind", max: 10, element: "storm", text: "Creep Speed +{tailwind}" },
+  tailwind: { name: "Tailwind", max: 10, element: "storm", text: "Creep Speed +{tailwind}, creep income +{tailwindInc}" }, // v0.28.004F: income
   mind: { name: "Obsession", max: 10, element: "plague", text: "Creep HP +{mindHp}, speed +{mindSpeed} (flyers half)" }, // v0.23: flyers get half (MIND.air); v0.26cF: Mind Control → Obsession
   medicine: { name: "Creep Medicine", max: 20, element: "water", text: "Creep HP +{medHp}, creep income +{medInc}" },
   melee: { name: "Melee Protocol", max: 20, element: "water", text: "Melee attack speed +{melee}" },
@@ -1310,7 +1311,7 @@ export const monsunDamage = (p, level = perkLevel(p, "monsun")) => 30 + 20 * lev
 /** v0.20c: perks that sit out more than one level after a pick (Supergrowth: two). */
 /** v0.26dF: levels a perk sits out after a pick when PERK_SKIP_LEVELS has no value for it. */
 const PERK_SKIP_DEFAULT = 2;
-const PERK_SKIP_LEVELS = { carmor: 3, breeding: 3, novice: 3, wolves: 3, mind: 3, exhume: 3, ring: 2, revenge: 3, backup: 3, tides: 3, supergrowth: 2, hellfire: 2, frostbolt: 2, clones: 2, infested: 2, lone: 2, bank: 3, monsun: 2 }; // v0.26cF: Spirit Wolves, Obsession, Exhumination, Revenge skip 3, Ring of Life skips 2 // v0.24q: Backup Line, Low Tides skip 3 // v0.24j: Monsun skips 2 // v0.24i: Magic Bank skips 3 // v0.23zi: Spartans skip 2 // v0.23w: Frost Bolt, Clones // v0.21x: Lava Floor skips 2
+const PERK_SKIP_LEVELS = { carmor: 3, breeding: 3, novice: 3, wolves: 3, mind: 3, exhume: 3, ring: 3, revenge: 3, backup: 3, tides: 3, supergrowth: 2, hellfire: 2, frostbolt: 2, clones: 2, infested: 2, lone: 2, bank: 3, monsun: 2 }; // v0.28.004F: Ring of Life skips 3 (was 2); v0.26cF: Spirit Wolves, Obsession, Exhumination, Revenge skip 3 // v0.24q: Backup Line, Low Tides skip 3 // v0.24j: Monsun skips 2 // v0.24i: Magic Bank skips 3 // v0.23zi: Spartans skip 2 // v0.23w: Frost Bolt, Clones // v0.21x: Lava Floor skips 2
 const PERK_SKIP = new Set(["pillar", "agolem", "monsun", "slave", "guardian", "mind", "tailwind", "carmor", "owl", "autoloader", "hills"]); // v0.22g1: Autoloader // v0.19a1: Mind Control, Tailwind, Creep Armor, Watcher Owl
 /**
  * v0.19a1: reworked level-up upgrades (research perks). Their effects live here instead of the map
@@ -1343,7 +1344,7 @@ export const bankRate = (level) => {
   return r;
 };
 export const MIND = { hp: 0.1, speed: 0.1, air: 0.5 };
-export const TAILWIND = { speed: 0.1 };
+export const TAILWIND = { speed: 0.1, income: 0.02, incomePer: 0.01 }; // v0.28.004F: + (2 + 1 per level) % creep income
 export const CREEP_ARMOR = { hp: 0.08, hpLater: 0.06, income: 0.015, armorFrom: 2, place: 4, armorMax: 20, step: 0.2 }; // v0.27oF; v0.27pF: armorMax, step
 /** v0.27oF: Creep Armor HP: 8 % at level 1, +6 % per level after it. */
 export const creepArmorHp = (level) => (level > 0 ? CREEP_ARMOR.hp + CREEP_ARMOR.hpLater * (level - 1) : 0);
@@ -1480,6 +1481,8 @@ export const HEAVY_SHY = 0.5;
 const heavyCreep = (c) => c.heavy || isHeavy(obj(c.typeId)) || !!obj(c.typeId)?.bossTier || !!c.waveBoss;
 /** The 4th creep of a tier (Creep Manufacture). */
 const fourthOf = (item) => !!item?.isSend && !item.bossTier && tierSends(item.tier)[3]?.id === item.id;
+/** v0.28.004F: Creep Synthesizer works on the 3rd creep of every tier (was the 4th). */
+const thirdOf = (item) => !!item?.isSend && !item.bossTier && tierSends(item.tier)[2]?.id === item.id;
 const sixthOf = (item) => !!item?.isSend && !item.bossTier && tierSends(item.tier)[5]?.id === item.id; // v0.21c: Creep Forge
 const eighthOf = (item) => !!item?.isSend && !item.bossTier && tierSends(item.tier)[7]?.id === item.id; // v0.20d: Creep Manufacture
 /** Budget creeps: the first three of a tier and what they bring along (Pillar of Fire). */
@@ -2330,7 +2333,7 @@ function bossDiscount(p, item, gold) {
   if (perkLevel(p, "breeding") && hasDeathrattle(item.id)) share *= 1 - BREEDING.discount; // v0.27aF: Breeding Pools spawners
   if (UNDEAD_SENDS.has(item.id) && perkLevel(p, "exhume")) share *= 1 - EXHUME.discount[Math.min(3, perkLevel(p, "exhume")) - 1]; // v0.10r/s
   if (perkLevel(p, "manufacture") && eighthOf(item)) share *= 1 - MANUFACTURE.discount[Math.min(3, perkLevel(p, "manufacture")) - 1]; // v0.12; v0.20d: 8th creep
-  if (perkLevel(p, "synthesizer") && fourthOf(item)) share *= 1 - SYNTHESIZER.discount[Math.min(3, perkLevel(p, "synthesizer")) - 1]; // v0.20d
+  if (perkLevel(p, "synthesizer") && thirdOf(item)) share *= 1 - SYNTHESIZER.discount[Math.min(3, perkLevel(p, "synthesizer")) - 1]; // v0.20d
   if (perkLevel(p, "forge") && sixthOf(item)) share *= 1 - FORGE.discount[Math.min(3, perkLevel(p, "forge")) - 1]; // v0.21c
   if (perkLevel(p, "nobility") && isHeavy(item)) share *= 1 - NOBILITY.discount[Math.min(3, perkLevel(p, "nobility")) - 1]; // v0.12
   let up = false;
@@ -2531,7 +2534,7 @@ export function stockRegenOf(p, s) {
   const level = perkLevel(p, "recruit");
   const slave = perkLevel(p, "slave") && firstOfTier(s) ? 1 + slaveSpeed(perkLevel(p, "slave")) : 1; // v0.14
   const slower = UNDEAD_SENDS.has(s.id) && perkLevel(p, "exhume") ? 1 / (1 + exhumeSpeed(perkLevel(p, "exhume"))) : 1; // v0.10s: Exhumination (v0.20c: faster; v0.26cF: 10 % per level)
-  const faster = (perkLevel(p, "manufacture") && eighthOf(s) ? MANUFACTURE.restock : 1) * (perkLevel(p, "synthesizer") && fourthOf(s) ? SYNTHESIZER.restock : 1) * (perkLevel(p, "forge") && sixthOf(s) ? FORGE.restock : 1) * (perkLevel(p, "nobility") && isHeavy(s) ? NOBILITY.restock : 1); // v0.12
+  const faster = (perkLevel(p, "manufacture") && eighthOf(s) ? MANUFACTURE.restock : 1) * (perkLevel(p, "synthesizer") && thirdOf(s) ? SYNTHESIZER.restock : 1) * (perkLevel(p, "forge") && sixthOf(s) ? FORGE.restock : 1) * (perkLevel(p, "nobility") && isHeavy(s) ? NOBILITY.restock : 1); // v0.12
   const contract = 1 + contractShare(p, s, "restock"); // v0.19d2: Blood Contract
   const flow = perkLevel(p, "recruitflow") && !s.bossTier ? 1 + RECRUIT_FLOW * Math.min(5, perkLevel(p, "recruitflow")) : 1; // v0.27zzcF: Recruitment Flow
   return ((s.stockRegen || 0) / (level && !s.bossTier ? 1 + 0.1 * level : 1)) * slower / faster / slave / contract / flow;
@@ -2712,10 +2715,25 @@ const perkAvailable = (o, level, p) => {
 export const DEFENSIVE_PERKS = new Set(["alchemist", "gunpowder", "archery", "militia", "evolution", "volley", "hellfire", "frostbolt", "infested", "burst", "fireblock", "airblock", "waterblock", "pocks", "permafrost", "hills", "stormfeathers", "crowd", "lone", "summon", "pillar", "fort", "agolem", "backup", "tides", "monsun", "owl", "melee", "heavy", "frenzy", "firearrows", "autoloader"]);
 /** v0.23k: with exactly one element owned, its element perks are 10 % more likely to be drawn than neutral perks. */
 export const ELEMENT_PERK_WEIGHT = 1.1;
-function makePick(game, p, kind, noQuest = false, focus = null) {
+/** v0.28.002F: perks offered in a reward dialog have this weight in the next reward dialog only. */
+export const RECENT_OFFER_WEIGHT = 0.5;
+function makePick(game, p, kind, noQuest = false, focus = null, remember = true) {
   const oneElement = FACTIONS.filter((f) => p.research[f.unlock]).length === 1,
+    recent = kind === "element" ? null : p.offeredLast || null,
     // v0.24q: times the perk's own draft weight (Hill Paths 0.75)
-    weight = (o) => (oneElement && o?.type === "perk" && perkElements(o.id).length ? ELEMENT_PERK_WEIGHT : 1) * (o?.type === "perk" ? (PERKS[o.id]?.weight ?? 1) : 1);
+    weight = (o) =>
+      (oneElement && o?.type === "perk" && perkElements(o.id).length ? ELEMENT_PERK_WEIGHT : 1) *
+      (o?.type === "perk" ? (PERKS[o.id]?.weight ?? 1) : 1) *
+      (o?.type === "perk" && recent?.includes(o.id) ? RECENT_OFFER_WEIGHT : 1);
+  if (kind !== "element" && remember) {
+    // the dialog made here remembers its perks for the next one (after the draw below)
+    const pick = makePickDraw(game, p, kind, noQuest, focus, weight);
+    p.offeredLast = pick.options.filter((o) => o.type === "perk").map((o) => o.id);
+    return pick;
+  }
+  return makePickDraw(game, p, kind, noQuest, focus, weight);
+}
+function makePickDraw(game, p, kind, noQuest, focus, weight) {
   // weighted draw without putting back (all weights 1: the same as the plain draw before)
   const draw = (list, n) => {
     const pool = list.slice(),
@@ -2799,7 +2817,7 @@ function refreshPicks(game, p) {
     const seen = new Set(),
       keep = pick.options.filter((o) => optionValid(game, p, o) && !seen.has(optionKey(o)) && seen.add(optionKey(o)));
     if (keep.length === pick.options.length) continue;
-    const fresh = makePick(game, p, pick.kind, true, pick.focus || null).options.filter((o) => !seen.has(optionKey(o))); // v0.22i1: a focused dialog stays focused
+    const fresh = makePick(game, p, pick.kind, true, pick.focus || null, false).options.filter((o) => !seen.has(optionKey(o))); // v0.22i1: a focused dialog stays focused
     while (keep.length < 3 && fresh.length) keep.push(fresh.shift());
     pick.options = keep;
   }
@@ -3118,7 +3136,7 @@ function finishQuest(game, p, won) {
     exp = questVersionExp(st.id, st.version, p.level);
     for (let i = 0; i < (v.random || 0); i++) {
       // a random perk: never Amnesia (it asks for a choice of its own)
-      const options = makePick(game, p, "upgrade", true).options.filter((o) => o.type === "perk" && o.id !== "amnesia");
+      const options = makePick(game, p, "upgrade", true, null, false).options.filter((o) => o.type === "perk" && o.id !== "amnesia");
       if (!options.length) continue;
       const option = options[Math.floor(random(game) * options.length)];
       applyOption(game, p, option, p.level);
@@ -4041,7 +4059,7 @@ function sellTower(game, p, towerId) {
     undone = u.gold;
   }
   const item = obj(t.typeId);
-  if (t.buildRemaining > EPS) return { ok: false, reason: "Still under construction" };
+  // v0.28.004F: a tower still under construction can be sold too (same sell value as a finished one)
   if (t.typeId === ROCK_ID) {
     // v0.17: a rock is cleared for gold, not sold
     const price = t.stonePrice ?? game.mission?.rockCost ?? 40;
@@ -4350,6 +4368,8 @@ const AURA_KINDS = new Set(["AOae", "AHad", "AEar", "ACat", "AUau"]);
 const AURA_CACHE = new Map();
 // v0.24n: Trueshot Aura of the Trueshot Tower levels 3–6: +10 / 20 / 33 / 50 % damage (map values were 5 / 12 / 22 / 36 %)
 const TRUESHOT_BONUS = { h01W: 0.1, h01D: 0.2, h019: 0.33, h01E: 0.5 };
+/** v0.28.004F: the Trueshot Tower line (levels 3–6), the source of the Marksman Aura (was called Trueshot Aura). */
+const isTrueshotTower = (typeId) => typeId in TRUESHOT_BONUS || /^Trueshot Tower/.test(String(obj(typeId)?.name || "").replace(/\|c\w{8}|\|r/g, ""));
 let auraCatalog = null;
 function aurasOf(unit) {
   if (unit.wave) return [];
@@ -4451,6 +4471,7 @@ function auraAt(game, target, owner, units) {
         const it = obj(target.typeId);
         if (!it?.attacks) continue;
         if (a.only === "archer" ? !archerLine().has(target.typeId) : !isMeleeTower(it)) continue;
+        if (a.only === "archer" && isTrueshotTower(target.typeId)) continue; // v0.28.004F: Marksman Aura never boosts Trueshot Towers (its own one included)
         if (a.only === "archer" && a.ear1 > 0) trueshot = true;
       }
       if (a.baseId === "AOae") {

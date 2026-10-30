@@ -194,7 +194,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.28",
+const APP_VERSION = "0.28.005",
   APP_BRANCH = "F", // v0.23q: author marker (F = Felix, S = Steven) and branch text, shown behind the version; APP_VERSION stays plain for online matches (VersionPublishingRules.md)
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "30.10.2026";
@@ -844,8 +844,9 @@ function renderEnemyStack(force = false) {
     if (cell.querySelector(".ec-lives b").textContent !== lives) cell.querySelector(".ec-lives b").textContent = lives;
     const lvl = String(q.level || 1);
     if (cell.querySelector(".ec-level b").textContent !== lvl) cell.querySelector(".ec-level b").textContent = lvl;
-    const tierText = tierRoman(q.tier); // v0.22u2; v0.25e: Roman numerals
+    const tierText = tierRoman(q.tier); // v0.22u2
     if (cell.querySelector(".ec-tier b").textContent !== tierText) cell.querySelector(".ec-tier b").textContent = tierText;
+    markTier(cell.querySelector(".ec-tier"), q.tier);
     setGoldFit(cell.querySelector(".ec-gold b"), gold); // v0.25: full number while it fits
     if (cell.querySelector(".ec-inc").textContent !== inc) cell.querySelector(".ec-inc").textContent = inc;
     if (cell.getAttribute("aria-label") !== label) {
@@ -1448,7 +1449,7 @@ function nextLane() {
  */
 function applyMenuColor() {
   const root = document.documentElement,
-    id = colorPick === "random" ? null : game && begun ? colorChoice : colorPick,
+    id = null, // v0.28.005F: menus and dialogs keep the default button colours again; only the in-game UI wears the player colour
     c = id && TEAM_COLORS[id];
   root.classList.toggle("menu-tint", !!c);
   if (!c) return;
@@ -1836,13 +1837,13 @@ const REWORK_HINT = {
   R001: (lv) => t("Creep HP +{a}, creep income +{b}", { a: pctOf(HEALING.hp * lv), b: pctOf(HEALING.income * lv) }), // v0.20c
   R006: (lv) => t("{v} interest on your gold at the start of each round", { v: pctOf(bankRate(lv)) }), // v0.24i
   R00X: (lv) => t("Creep HP +{a}, speed +{b} (flyers half)", { a: pctOf(MIND.hp * lv), b: pctOf(MIND.speed * lv) }), // v0.23: flyers half
-  R00W: (lv) => t("Creep Speed +{v}", { v: pctOf(TAILWIND.speed * lv) }),
+  R00W: (lv) => t("Creep Speed +{v}, creep income +{i}", { v: pctOf(TAILWIND.speed * lv), i: pctOf(lv ? TAILWIND.income + TAILWIND.incomePer * lv : 0) }), // v0.28.004F: income
   R00U: (lv) => t("Creep HP +{a}, income +{b}", { a: pctOf(creepArmorHp(lv)), b: pctOf(CREEP_ARMOR.income * lv) }),
   R00J: (lv) => t("Archer-Line +{v} damage", { v: pctOf(0.1 * lv) }),
 };
 
 // The original names, except for the creeps and buildings renamed in this port.
-const namesEn = { Robogoblin: "Battle Mech", Peon: "Goblin", "Chaos Peon": "Trenchlin", Akolyte: "Goblin Zealot", Dragonspawn: "Crystal Lizard", "Frost Wyrm": "Bone Dragon", "Lord Garithos": "Dark Knight", "Witch Doctor": "Undoctor", "Centaur Warrior": "Satyr", "Forest Troll": "Centaur", "Grom Hellscream": "Bandit Leader", "Fel Raider": "Rouge Knight", Horse: "Pony", "Cairne Bloodhoof": "Minotaurus", Lumbermill: "EXP Generator", "Skeleton Grunt": "Skeleton Berserker", "Draenai Marauder": "Scaleworm", "Siege Golem": "Iron Golem", Abomination: "Zombie Ogre", "Demon Hunter": "Demon Knight", Faceless: "Dark Monk", Spellbreaker: "Witch Hunter", "Void Walker": "Banshee", "Kel Thuzad": "Skull Mage", "Pit Lord": "Terror Demon", "Fire Lord": "Scorch Demon" }; // v0.27zziF: Fire Lord → Scorch Demon // v0.27xF // v0.21h: two renames; v0.23d: Horse and Boar Scout keep their names
+const namesEn = { Robogoblin: "Battle Mech", Peon: "Goblin", "Chaos Peon": "Trenchlin", Akolyte: "Goblin Zealot", Dragonspawn: "Crystal Lizard", "Frost Wyrm": "Bone Dragon", "Lord Garithos": "Dark Knight", "Witch Doctor": "Undoctor", "Centaur Warrior": "Satyr", "Forest Troll": "Centaur", "Grom Hellscream": "Bandit Leader", "Fel Raider": "Rouge Knight", Horse: "Pony", "Cairne Bloodhoof": "Minotaurus", Lumbermill: "EXP Generator", "Skeleton Grunt": "Skeleton Berserker", "Draenai Marauder": "Scaleworm", "Siege Golem": "Iron Golem", Abomination: "Zombie Ogre", "Demon Hunter": "Demon Knight", Faceless: "Dark Monk", Spellbreaker: "Witch Hunter", "Void Walker": "Banshee", "Kel Thuzad": "Skull Mage", "Pit Lord": "Terror Demon", "Fire Lord": "Scorch Demon", "Mountain Golem": "Oblivion Golem" }; // v0.28.004F: Oblivion Golem // v0.27zziF: Fire Lord → Scorch Demon // v0.27xF // v0.21h: two renames; v0.23d: Horse and Boar Scout keep their names
 function itemName(item) {
   if (researchCopy[item?.id]) return t(researchCopy[item.id][0]);
   if (item?.id === "n00Y" && game && burningTreant(game.players[own])) return t("Burning Treant"); // v0.10w
@@ -2012,6 +2013,7 @@ function refreshAutoSend() {
     slot = $("auto-slot"),
     key = `${id}|${on}|${mode}`;
   $("tier-badge").textContent = `T${p.tier}`;
+  markTier($("tier-badge"), p.tier);
   if (slot.dataset.key === key) return;
   slot.dataset.key = key;
   slot.classList.toggle("filled", !!item || !!mode);
@@ -2144,7 +2146,7 @@ const ABILITY_DESC = {
   "Flames and Decay": "Burns targets; chance of a flame strike",
   Slow: "Slows the attacks of a tower",
   "Entangle Aura": "Slightly slows ground creeps nearby",
-  "Trueshot Aura": "Archer-Line towers nearby deal more damage", // v0.17p; v0.24n: Archer-Line only
+  "Marksman Aura": "Archer-Line towers nearby deal more damage (Trueshot Towers excepted)", // v0.17p; v0.24n: Archer-Line only; v0.28.004F: renamed from Trueshot Aura, not on Trueshot Towers
   Production: "Generates EXP every 4 seconds",
   Howl: "When creeps come within 1.5 fields: 25% slower and +20% damage from towers for 12 s (cooldown 20 s)", // v0.17p
   "Terror Aura": "Creeps nearby take 30% more damage from towers", // v0.27yF; v0.27zaF: 30 %; v0.27zziF: no range in aura tooltips
@@ -2325,7 +2327,7 @@ function valHtml(text) {
   return esc(text).replace(/(^|[^&#\w])([+−-]?\d+(?:[.,]\d+)?(?!\d|st\b|nd\b|rd\b|th\b)(?:\s?(?:%|s\b|fields?\b|gold\b|EXP\b|×))?)/g, (m, a, v, at, all) => `${a}<b class="val${kindOf(v, all.slice(Math.max(0, at - 32), at + a.length), all.slice(at + m.length, at + m.length + 30))}">${v}</b>`).replace(LINE_NAME_RE, '<span class="line-name">$1-Line</span>'); // v0.22g1: tower line names in white
 }
 /** v0.16k: typos in the map data, fixed for display. */
-const ABILITY_RENAME = { Invisibillity: "Invisibility", "Mana Regenration Aura": "Mana Regeneration Aura", "Scale Armor": "Armor", Evasion: "Dodge", "Flash Execution": "Execute" }; // v0.27zziF: Execute // v0.22n2: Armor, Dodge
+const ABILITY_RENAME = { "Trueshot Aura": "Marksman Aura", Invisibillity: "Invisibility", "Mana Regenration Aura": "Mana Regeneration Aura", "Scale Armor": "Armor", Evasion: "Dodge", "Flash Execution": "Execute" }; // v0.27zziF: Execute // v0.22n2: Armor, Dodge
 /** Readable ability names of a unit (internal helpers and colour codes left out). */
 function abilityNames(item) {
   const names = (item.abilities || [])
@@ -2750,6 +2752,40 @@ function heroSheet(key, color) {
     );
   return heroSheets.get(id);
 }
+/** v0.28.003F: a whole attack sheet shrunk once in halving steps (clean downscaling), kept per sheet and size. */
+const shrunkSheets = new WeakMap();
+function shrunkSheet(sheet, fit) {
+  const key = fit.toFixed(3),
+    cache = shrunkSheets.get(sheet) || new Map();
+  shrunkSheets.set(sheet, cache);
+  if (cache.has(key)) return cache.get(key);
+  const W = sheet.naturalWidth || sheet.width,
+    H = sheet.naturalHeight || sheet.height,
+    tw = Math.max(1, Math.round(W * fit)),
+    th = Math.max(1, Math.round(H * fit));
+  let cur = sheet,
+    w = W,
+    h = H;
+  while (w / 2 > tw) {
+    const nw = Math.round(w / 2),
+      nh = Math.round(h / 2),
+      step = Object.assign(document.createElement("canvas"), { width: nw, height: nh }),
+      sc = step.getContext("2d");
+    sc.imageSmoothingEnabled = true;
+    sc.imageSmoothingQuality = "high";
+    sc.drawImage(cur, 0, 0, w, h, 0, 0, nw, nh);
+    cur = step;
+    w = nw;
+    h = nh;
+  }
+  const out = Object.assign(document.createElement("canvas"), { width: tw, height: th }),
+    oc = out.getContext("2d");
+  oc.imageSmoothingEnabled = true;
+  oc.imageSmoothingQuality = "high";
+  oc.drawImage(cur, 0, 0, w, h, 0, 0, tw, th);
+  cache.set(key, out);
+  return out;
+}
 function playHeroAnims(root) {
   for (const img of root.querySelectorAll("img.modal-hero[data-anim]")) {
     const key = img.dataset.anim,
@@ -2767,13 +2803,26 @@ function playHeroAnims(root) {
           c = Object.assign(document.createElement("canvas"), { width: cw, height: ch, className: "modal-hero hero-anim" });
         c.style.setProperty("--k", String(ch / m.h));
         c.style.setProperty("--mt", String(-padT / m.h));
-        const ctx = c.getContext("2d"),
-          cols = a.cols || 5,
-          draw = (f) => {
-            ctx.clearRect(0, 0, cw, ch);
-            ctx.drawImage(sheet, (f % cols) * a.fw + a.ox - padX, Math.floor(f / cols) * a.fh + a.oy - padT, cw, ch, 0, 0, cw, ch);
-          };
+        const cols = a.cols || 5;
         img.replaceWith(c);
+        // v0.28.003F: the canvas is drawn at its shown size (device pixels) with high-quality downscaling; shrunk by
+        // CSS from the full sheet size it looked grainy and shimmered between frames (a browser scales canvases coarsely)
+        const shown = c.getBoundingClientRect().height,
+          dpr = Math.min(3, window.devicePixelRatio || 1),
+          fit = shown > 0 ? Math.min(1, (shown * dpr) / ch) : 1;
+        if (fit < 1) {
+          c.width = Math.max(1, Math.round(cw * fit));
+          c.height = Math.max(1, Math.round(ch * fit));
+        }
+        const ctx = c.getContext("2d"),
+          src = fit < 1 ? shrunkSheet(sheet, fit) : sheet,
+          k = fit < 1 ? src.width / (sheet.naturalWidth || sheet.width) : 1,
+          draw = (f) => {
+            ctx.clearRect(0, 0, c.width, c.height);
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = "high";
+            ctx.drawImage(src, ((f % cols) * a.fw + a.ox - padX) * k, (Math.floor(f / cols) * a.fh + a.oy - padT) * k, cw * k, ch * k, 0, 0, c.width, c.height);
+          };
         draw(0);
         const start = a.start || 0,
           rest = 900;
@@ -3147,7 +3196,32 @@ new MutationObserver((list) => {
 }).observe(document.documentElement, { childList: true, subtree: true });
 addEventListener("resize", fitTitles);
 document.fonts?.ready.then(fitTitles);
+/**
+ * v0.28.004F: the first element is obligatory: a first-element dialog closed without a choice picks one of its offered
+ * elements at random and shows it as a splat (element symbol, its name in the element colour below).
+ */
+function forceFirstElement() {
+  const p = game?.players?.[own],
+    pick = p?.picks?.[0];
+  if (!begun || !pick || pick.kind !== "element" || pick.level > 1 || !pick.options?.length || p.out) return;
+  const index = Math.floor(Math.random() * pick.options.length),
+    f = elementOf(pick.options[index].id),
+    result = dispatch({ type: "pick", index });
+  if (result && !result.ok) return;
+  if (f) elementSplat(f);
+}
+function elementSplat(f, tries = 0) {
+  if (document.getElementById("art-loader") && tries < 75) return void setTimeout(() => elementSplat(f, tries + 1), 200); // shown once the match art is in
+  const pop = document.createElement("div");
+  pop.className = "element-splat";
+  pop.style.setProperty("--el", f.color);
+  pop.innerHTML = `<img src="${iconUrl(ELEMENT_ICON[f.id])}" alt=""><b>${esc(t(f.name))}</b><small>${esc(t("Random element"))}</small>`;
+  $("app")?.appendChild(pop) || document.body.appendChild(pop);
+  setTimeout(() => pop.remove(), 2600);
+  tone("upgrade");
+}
 function showModal(body, { pauseGame = true, welcome = false } = {}) {
+  delete $("modal").dataset.firstElement; // v0.28.004F: set again by the first-element dialog
   // v0.18g: a dialog opened from the main menu keeps the menu (its current page) underneath,
   // blurred, instead of showing an old board behind the dialog
   if (welcome || begun) clearMenuUnder();
@@ -3188,7 +3262,9 @@ $("modal").addEventListener("close", () => {
 });
 $("modal").addEventListener("cancel", (e) => {
   e.preventDefault();
+  const first = !!$("modal").dataset.firstElement; // v0.28.004F: Esc on the first-element dialog picks at random
   if (begun) closeModal();
+  if (first) forceFirstElement();
 });
 /** v0.18g: the main menu moved under a dialog opened from it (see showModal). */
 function keepMenuUnder() {
@@ -4191,6 +4267,8 @@ function startLocal({ hotseat = false, ffa = false, seats = 4, mission = null, r
   recStart(); // v0.22b
   warmMatchArt(); // v0.25m
 }
+/** v0.28.002F: online PvP and ranked matches (also a ranked match against an AI stand-in) keep running while a player picks a reward or reviews perks. */
+const multiplayerMatch = () => sessionMode === "online" || !!room || !!game?.rankedBot;
 /** v0.27.008F: Training, AI FFA and Campaign: while paused, towers can be pre-placed and creeps queued. */
 const PAUSE_SENDS = 20;
 const soloPaused = () => !!game?.paused && !room && !game.rankedBot && ["training", "ffa", "campaign"].includes(sessionMode) && game.running && !game.players[own]?.out;
@@ -4232,6 +4310,7 @@ function flushPausedSends() {
 function dispatch(input, { quiet = false, fromQueue = false } = {}) {
   if (!begun) return;
   if (input.type === "send" && soloPaused()) return queuePausedSend(input.id);
+  if (input.type === "sell") upQueue = upQueue.filter((q) => q.towerId !== input.towerId); // v0.28.004F: selling drops the tower's queued upgrades
   // queued pre-builds go ahead whichever lane is on screen
   if (view !== own && input.type === "build" && !fromQueue) {
     toast("Switch back to your defence first.");
@@ -5094,6 +5173,7 @@ const perkVars = (level, q, lv, next) => {
     alchemistDur: pctOf(ALCHEMIST.duration * lv), // v0.27aF: Poison Alchemist
     alchemistStacks: ALCHEMIST.stacks * lv,
     tailwind: pctOf(TAILWIND.speed * lv),
+    tailwindInc: pctOf(lv ? TAILWIND.income + TAILWIND.incomePer * lv : 0), // v0.28.004F
     mindHp: pctOf(MIND.hp * lv),
     mindSpeed: pctOf(MIND.speed * lv),
     medHp: pctOf(HEALING.hp * lv),
@@ -5344,7 +5424,7 @@ function abilitiesModal() {
       `<div class="abil-player${q.out ? " out" : ""}" style="--pc:${TEAM_COLORS[colors[q.id]]?.css || "#6a8496"}"><div class="abil-head"><b>${esc(playerName(q))}</b>${abilEls(q)}<span>Lv ${q.level} · ${format(Math.floor(q.exp))}/${format(q.expNext)} EXP</span></div>${ownedTiles(q, { names: true, label: false, elements: false }) || `<p class="modal-note">${t("No abilities chosen yet.")}</p>`}</div>`;
   showModal(
     `${modalHeader(t("Abilities"))}${order.map(section).join("")}<p class="modal-note">${t("Lv. {n}: collect EXP for the next reward.", { n: p.level })}</p>`,
-    { pauseGame: sessionMode !== "online" },
+    { pauseGame: !multiplayerMatch() }, // v0.28.002F: multiplayer matches never pause for the reward dialog or the perk review
   );
 }
 /** v0.17q: tooltip text of an element: what it unlocks (its perks by name). */
@@ -5409,8 +5489,18 @@ function pickModal() {
   const title = pick.kind === "amnesia" ? t("Amnesia: choose a perk to forget") : pick.kind === "element" ? (pick.level <= 1 ? t("Choose your first element") : t("Lv. {n}: new element", { n: pick.level })) : t("Lv. {n}: choose a reward", { n: pick.level });
   showModal(
     `${modalHeader(title)}<div class="pick-grid">${pick.options.map((o, i) => pickCard(o, i, p)).join("")}</div>${ownedTiles(p)}${p.picks.length > 2 ? `<p class="modal-note">${t("{n} more rewards after this.", { n: p.picks.length - 1 })}</p>` : p.picks.length > 1 ? `<p class="modal-note">${t("One more reward after this.")}</p>` : pick.kind === "element" && pick.level <= 1 ? "" : `<p class="modal-note">${t("EXP comes from breakthroughs, boss creeps and achievements.")}</p>`}`,
-    { pauseGame: sessionMode !== "online" },
+    { pauseGame: !multiplayerMatch() }, // v0.28.002F: multiplayer matches never pause for the reward dialog or the perk review
   );
+  if (pick.kind === "element" && pick.level <= 1) {
+    // v0.28.004F: the first element is obligatory: closing this dialog picks one of the offered elements at random
+    $("modal").dataset.firstElement = "1";
+    $("modal-body")
+      .querySelectorAll("[data-close]")
+      .forEach((b) => (b.onclick = () => {
+        closeModal();
+        forceFirstElement();
+      }));
+  }
   $("modal-body")
     .querySelectorAll("[data-pick]")
     .forEach(
@@ -5625,9 +5715,13 @@ const matchClock = () =>
   game ? `${String(Math.floor(game.time / 60)).padStart(2, "0")}:${String(Math.floor(game.time % 60)).padStart(2, "0")}` : "00:00";
 // v0.21l: write to the page only what changed (refreshUI runs every 150 ms)
 let uiRefreshCount = 0;
-/** v0.25e: the tier in the player windows as a Roman numeral (I, II, III …). */
-const TIER_ROMAN = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"];
-const tierRoman = (n) => TIER_ROMAN[(n || 1) - 1] || String(n);
+/** v0.25e: the tier in the player windows (Roman numerals until v0.28.003F, now plain numbers again). */
+const tierRoman = (n) => String(n || 1);
+/** v0.28.003F: the tier indicator is filled with the tier's metal (bronze, iron, silver, gold, diamond: CSS by data-tier). */
+const markTier = (el, n) => {
+  const v = String(Math.max(1, Math.min(5, n || 1)));
+  if (el && el.dataset.tier !== v) el.dataset.tier = v;
+};
 function setText(el, value) {
   const v = String(value);
   if (el && el.textContent !== v) el.textContent = v;
@@ -5689,7 +5783,8 @@ function refreshUI() {
     setText($("ws-gold"), format(Math.floor(goldShown(p.gold))));
     setText($("ws-income"), incomeOf(p));
     setText($("ws-level"), p.level);
-    setText($("ws-tier"), tierRoman(p.tier)); // v0.24q; v0.25e: Roman numerals
+    setText($("ws-tier"), tierRoman(p.tier)); // v0.24q
+    markTier($("ws-tier"), p.tier);
     setText($("ws-exp"), `${format(Math.floor(p.exp))} / ${format(Math.max(1, Math.round(p.expNext)))} EXP`);
     setStyle($("ws-exp-fill"), "width", `${Math.min(100, (100 * p.exp) / Math.max(1, p.expNext))}%`);
   }
@@ -5698,7 +5793,8 @@ function refreshUI() {
   for (const [prefix, pl] of [["own", p], ["rival", enemy]]) {
     setStyle($(prefix + "-exp"), "width", `${Math.min(100, (100 * pl.exp) / Math.max(1, pl.expNext))}%`); // v0.21l: only on change
     setText($(prefix + "-level"), pl.level);
-    setText($(prefix + "-tier"), tierRoman(pl.tier)); // v0.22u2: tier next to the level; v0.25e: Roman numerals
+    setText($(prefix + "-tier"), tierRoman(pl.tier)); // v0.22u2: tier next to the level
+    markTier($(prefix + "-tier")?.closest(".plate-tier") || $(prefix + "-tier"), pl.tier);
   }
   refreshLevelButton(p);
   refreshVolley(p);
@@ -9317,7 +9413,7 @@ async function init() {
     $("level-button").onclick = () => pickModal();
     // v0.18h: in AI matches a tap on the round timer pauses the game without a menu ("II"), a second tap resumes
     document.querySelector(".round-plate")?.addEventListener("click", (e) => {
-      if (!game || room || !begun || !game.running || sessionMode === "online") return;
+      if (!game || room || !begun || !game.running || sessionMode === "online" || game.ranked) return; // v0.28.003F: ranked matches (also against an AI stand-in) cannot be paused here
       e.stopPropagation();
       setUiPause("manual", !uiPauses.has("manual"));
       sfx.play("tap");
@@ -9662,7 +9758,8 @@ function updateWidePlayers() {
     put(card.querySelector(".wp-inc"), q.out ? "" : "+" + resourceNumber(Math.floor(q.income)));
     put(card.querySelector(".wp-lives"), String(q.lives));
     put(card.querySelector(".wp-level"), String(q.level || 1));
-    put(card.querySelector(".wp-t"), tierRoman(q.tier)); // v0.25e
+    put(card.querySelector(".wp-t"), tierRoman(q.tier));
+    markTier(card.querySelector(".wp-tier"), q.tier);
     setGoldFit(card.querySelector(".wp-worth"), Math.floor(towerWorth(q)));
     const els = catalog.factions.filter((f) => q.research?.[f.unlock]),
       elKey = els.map((f) => f.id).join(","),
