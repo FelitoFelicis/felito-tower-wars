@@ -199,7 +199,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.28.020",
+const APP_VERSION = "0.28.021",
   APP_BRANCH = "F", // v0.23q: author marker (F = Felix, S = Steven) and branch text, shown behind the version; APP_VERSION stays plain for online matches (VersionPublishingRules.md)
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "30.10.2026";
@@ -1826,7 +1826,7 @@ let queued = [],
   upQueue = [], // upgrades waiting for gold or for construction to finish: { towerId, id, from }
   queuedFor = null;
 const researchCopy = {
-  R00K: ["Watcher Owl", "Archer-Line +{owl} range"],
+  R00K: ["Watcher Owl", "Archer-Line +{owl} range, Bouncing Shot half"],
   R00J: ["Fire Arrows", "Archer-Line +10% damage per level."],
   R005: ["Heavy Weapons", "Footman-Line and Bombard-Line +5% damage."],
   R00M: ["Fire", "Unlocks the fire upgrade paths."],
@@ -4993,7 +4993,9 @@ function dispatch(input, { quiet = false, fromQueue = false } = {}) {
 // ---- send feedback: the pressed card pulses and a counter rises from it --------------
 // The counter adds up the creeps of one type sent in a burst and starts again at zero
 // once that type has not been sent for SEND_COUNT_RESET ms.
-const SEND_COUNT_RESET = 3000,
+// v0.28.021F: 1.2 s (was 3 s): a burst is quick presses or holding the card; single sends now and then (auto-spawns
+// every second or two included) start again at ×1 instead of counting up to ×50
+const SEND_COUNT_RESET = 1200,
   sendCounts = new Map();
 function sendFx(id, count, auto = false) {
   const now = performance.now(),

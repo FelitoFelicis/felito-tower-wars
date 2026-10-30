@@ -10370,3 +10370,9 @@ body.tool-upgrade #arena canvas {
 .unit-card > .frame-air {
   inset: -3.5px;
 }
+
+/* ---- v0.28.021F: the Pillar of Fire picture is narrow: shown 20 % larger on its button and on its cards ---- */
+.pillar-button img,
+[class*="perk-pillar"] .pick-book img {
+  transform: scale(1.2);
+}

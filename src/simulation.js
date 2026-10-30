@@ -1048,6 +1048,10 @@ function statsForRaw(game, player, item) {
     // v0.23b: the Archer tower itself (levels 1–6) reaches 3.5 fields (Watcher Owl still adds on top)
     if (item.shortName === "Archer" && (item.level || 1) <= 6)
       stats.range = ARCHER_RANGE * cu + (perkLevel(player, "owl") ? owlRange(perkLevel(player, "owl")) * cu : 0);
+    // v0.28.021F: Bouncing Shot (every level) reaches 3 fields (was 3.98); v0.28.021F: Watcher Owl adds half its range
+    // here, the only Bombard-Line tower it reaches
+    if (/^Bouncing Shot\b/.test(nameOf(item)))
+      stats.range = BOUNCING_RANGE * cu + (perkLevel(player, "owl") ? owlRange(perkLevel(player, "owl")) * OWL_BOUNCING * cu : 0);
   }
   return stats;
 }
@@ -1189,7 +1193,7 @@ export const PERKS = Object.freeze({
   monsun: { name: "Monsun", max: 5, element: "storm", text: "Active: pushes creeps back for {monsun} s", detail: "Active ability: Push creeps back for {monsun} s, lightning strikes flyers" },
   // v0.21: the former level-up upgrades (Warcraft researches) are ordinary perks now. "element" = needs that
   // element. v0.21g: every one of them needs its element now (before, six only wore the element's frame).
-  owl: { name: "Watcher Owl", max: 5, element: "storm", text: "Archer-Line +{owl} range" },
+  owl: { name: "Watcher Owl", max: 5, element: "storm", text: "Archer-Line +{owl} range, Bouncing Shot half" },
   carmor: { name: "Creep Armor", max: 20, element: "earth", text: "Creep HP +{carmorHp}, income +{carmorInc}. Lv 2+: 4th+ creeps +{carmorArmor} armor", detail: "Creep HP +{carmorHp} and income +{carmorInc}. From level 2 the creeps from the 4th place of every tier on get armor: {carmorArmor}" }, // v0.27oF
   leadership: { name: "Leadership", max: 20, element: "fire", text: "Creeps +{leadership} HP, creep income +{leadershipInc}" }, // v0.27aF: +1 % creep income per level
   alchemist: { name: "Poison Alchemist", max: 10, element: "plague", text: "Your poisons last {alchemistDur} longer, max stacks +{alchemistStacks}" }, // v0.27aF
@@ -1272,7 +1276,11 @@ export function towerPerkBuffs(game, index, id) {
   if (lv("militia") && item.isBuildable && item.attacks && footmanLine().has(item.id)) out.push({ id: "militia", level: 1, text: `+${MILITIA_DAMAGE} damage` }); // v0.22g1
   if (perkLevel(p, "gunpowder") && item.isBuildable && item.attacks && (isCannonTower(item) || lineSet("h02R").has(item.id))) out.push({ id: "gunpowder", level: perkLevel(p, "gunpowder"), text: `+${gunpowderTiles(perkLevel(p, "gunpowder"))} tiles splash` });
   if (perkLevel(p, "archery") && archerLine().has(item.id)) out.push({ id: "archery", level: perkLevel(p, "archery"), text: `+${5 * perkLevel(p, "archery")}% damage` });
-  if (lv("owl") && item.isBuildable && item.attacks && archerLine().has(item.id)) out.push({ id: "owl", level: lv("owl"), text: `+${Math.round(owlRange(lv("owl")) * 100) / 100} fields range` }); // v0.27zzlF: Watcher Owl was missing
+  if (lv("owl") && item.isBuildable && item.attacks && (archerLine().has(item.id) || /^Bouncing Shot\b/.test(nameOf(item)))) {
+    // v0.27zzlF: Watcher Owl was missing; v0.28.021F: Bouncing Shot gets half
+    const owl = owlRange(lv("owl")) * (archerLine().has(item.id) ? 1 : OWL_BOUNCING);
+    out.push({ id: "owl", level: lv("owl"), text: `+${Math.round(owl * 100) / 100} fields range` });
+  }
   if (loneActive(p) && item.isBuildable && item.attacks) out.push({ id: "lone", level: perkLevel(p, "lone"), text: `+${Math.round(loneSpeed(perkLevel(p, "lone")) * 100)}% attack speed` });
   if (item.isBuildable && item.attacks && p.backupOn && perkLevel(p, "backup") && archerLine().has(item.id)) out.push({ id: "backup", level: perkLevel(p, "backup"), text: `+${Math.round(backupSpeed(perkLevel(p, "backup")) * 100)}% attack speed` }); // v0.18h; v0.24q: Archer-Line attack speed
   if (item.isBuildable && item.attacks && p.tidesOn && perkLevel(p, "tides") && isMeleeTower(item)) out.push({ id: "tides", level: perkLevel(p, "tides"), text: `+${Math.round(tidesDamage(perkLevel(p, "tides")) * 100)}% damage` });
@@ -2386,7 +2394,7 @@ export const VOLTAGE = { bonus: 0.5 };
  * on the path just before the exit: 3 pulses in 0.9 s, radius 1.5 fields, up to +75 % in the centre, flyers half.
  * Damage per pulse = (8 + 6 × perk level) × send-tier factor (1 / 4 / 10 / 25 / 60 / 120) × (1 + 5 % per player level).
  */
-export const FIREBLOCK = { cooldown: [12, 9, 6], radius: 1.5, pulses: 3, delay: 0.3, step: 0.4, base: 8, perLevel: 6, scorch: 6, back: 1, backPerLevel: 0.25, radiusPerLevel: 0.12 }; // v0.21m: push back 1 field; v0.21y: +0.25 fields push and +0.12 fields radius per level; v0.24s: each further pulse `delay` s later and `step` fields further up the path
+export const FIREBLOCK = { cooldown: [12, 9, 6], radius: 1.5, pulses: 3, delay: 0.45, step: 0.8, /* v0.28.021F: pillars twice as far apart (0.4 → 0.8 fields), 50 % more time between them (0.3 → 0.45 s) */ base: 8, perLevel: 6, scorch: 6, back: 1, backPerLevel: 0.25, radiusPerLevel: 0.12 }; // v0.21m: push back 1 field; v0.21y: +0.25 fields push and +0.12 fields radius per level; v0.24s: each further pulse `delay` s later and `step` fields further up the path
 /** v0.24s: the point `fields` fields further up `path` (walked backwards from its end, starting at `from`). */
 function pathPointBack(game, path, from, fields) {
   const { cols, rows } = game.grid;
@@ -3160,6 +3168,9 @@ export const questChance = (p) => Math.max(QUEST_CHANCE.min, p?.questChance ?? Q
 export const BOSS_TRUE_SLOW = 0.2;
 /** v0.23b: range of the Archer tower, levels 1–6, in fields. */
 export const ARCHER_RANGE = 3.5;
+export const BOUNCING_RANGE = 3; // v0.28.021F
+/** v0.28.021F: share of the Watcher Owl range bonus a Bouncing Shot gets (the rest of the Bombard-Line gets none). */
+export const OWL_BOUNCING = 0.5;
 export const BANTER = {
   delay: 1, // rounds from accepting to the first wave (v0.17b: 1 instead of 2)
   waves: 5,
@@ -3223,6 +3234,14 @@ function tickQuestRound(game, p) {
   }
   if (k === BANTER.waves) game.waveQueue.push({ time: game.time + 0.5 * BANTER.count + 0.8, defender: p.id, number: n, type: "normal", model: q.model, flying: false, quest: st.id, boss: true, hpShare: q.hp });
   emit(game, "questWave", { player: p.id, id: st.id, wave: k, of: BANTER.waves });
+}
+/** v0.28.021F: a lane counts as pushed while at least `creeps` creeps sent by other players walk in it. */
+export const QUEST_HOLD = { creeps: 8, step: 1.5, max: 12 };
+function lanePushed(game, p) {
+  if (!p) return false;
+  let n = 0;
+  for (const c of p.creeps) if (!c.dead && c.hp > 0 && c.owner >= 0 && c.owner !== p.id && ++n >= QUEST_HOLD.creeps) return true;
+  return false;
 }
 /** A queued quest creep enters the lane. */
 function spawnQuestCreep(game, entry) {
@@ -8333,7 +8352,16 @@ function fixedTickInner(game) {
     const due = game.waveQueue.filter((w) => w.time <= game.time + EPS);
     if (due.length) {
       game.waveQueue = game.waveQueue.filter((w) => w.time > game.time + EPS);
-      for (const w of due) w.quest ? spawnQuestCreep(game, w) : w.aux ? spawnAuxCreep(game, w) : spawnWaveCreep(game, w); // v0.15: quest creeps; v0.26: auxiliaries
+      for (const w of due) {
+        // v0.28.021F: quest creeps wait while an enemy player is pushing that lane (at most QUEST_HOLD.max s)
+        if (w.quest && (w.held || 0) < QUEST_HOLD.max && lanePushed(game, game.players[w.defender])) {
+          w.held = (w.held || 0) + QUEST_HOLD.step;
+          w.time = game.time + QUEST_HOLD.step;
+          game.waveQueue.push(w);
+          continue;
+        }
+        w.quest ? spawnQuestCreep(game, w) : w.aux ? spawnAuxCreep(game, w) : spawnWaveCreep(game, w); // v0.15: quest creeps; v0.26: auxiliaries
+      }
     }
   }
   game.aiTurn = aiTurnOf(game); // v0.27zzlF: one bot decision per tick
@@ -8348,7 +8376,13 @@ function fixedTickInner(game) {
     // stock is independent, so the order does not matter
     for (const item of stockTierSends(p.tier)) {
       const stock = p.stock[item.id];
-      if (!stock || stock.count >= stockMaxOf(p, item) || stock.lockRound > game.round) continue;
+      if (!stock || stock.count >= stockMaxOf(p, item)) continue;
+      // v0.28.021F: while the card is locked (start delay, Arcane Block, the warm-up) the refill timer stands still,
+      // so a creep unlocks with the refill progress it had, not with one ready at once
+      if (stock.lockRound > game.round || game.warmup) {
+        if (stock.next < LOCKED_NEXT) stock.next += TICK;
+        continue;
+      }
       if (game.time + EPS >= stock.next) {
         stock.count++;
         stock.next = game.time + Math.max(TICK, stockRegenOf(p, item));

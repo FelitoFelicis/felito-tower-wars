@@ -1864,7 +1864,8 @@ export function mountArena({
               dur: clamp(d / (cell * 10), 0.07, 0.34) / (!firesCannonball(def) && (/arrow/i.test(def?.fields?.ua1m || "") || def?.attackType === "pierce") ? 1.3 : 1),
               ...style,
               marks: !!tower?.trueshot, // v0.28.004F: under the Marksman Aura the arrowhead glows white
-              arc: style.splash ? cell * 0.5 : 0,
+              // v0.28.021F: Bouncing Shot (glaives) flies a much flatter arc (was the cannonball's half field)
+              arc: style.splash ? cell * (def?.weapon === "mbounce" || /^Bouncing Shot/.test(String(def?.name || "")) ? 0.18 : 0.5) : 0,
               // v0.27zzgF: the Magic Tower's Arcane Missile: a larger, slightly slower orb with an arcane glow
               ...(e.empowered && /^Magic Tower/.test(String(def?.name || "").replace(/\|c\w{8}|\|r/g, "")) ? { missile: true, glow: true, color: 0xff7fe6, size: 6.4 } : {}),
             });
@@ -2769,8 +2770,7 @@ export function mountArena({
             ax = q.x + tc * 0.3,
             ay = q.y - tc * 0.42 - pulse * tc * 0.06,
             s = tc * 0.13;
-          hb.lineStyle(2, 0x6ee87a, 0.35 + 0.4 * pulse);
-          hb.strokeEllipse(q.x, q.y + tc * 0.12, tc * 0.86, tc * 0.36);
+          // v0.28.021F: no green circle at the tower's base any more, only the arrow
           hb.fillStyle(0x08300e, 0.95);
           hb.fillTriangle(ax - s * 1.25, ay + 0.15 * s, ax + s * 1.25, ay + 0.15 * s, ax, ay - s * 1.35);
           hb.fillRect(ax - s * 0.62, ay, s * 1.24, s * 1.35);
@@ -3080,11 +3080,7 @@ export function mountArena({
             glow.fillCircle(fx, fy + height * 0.03, height * (0.05 + 0.02 * fl));
           }
         }
-        if (c.golem) {
-          // v0.12: Arcane Golem: runes circling at its feet; v0.28.013F: no glowing sphere any more
-          g.lineStyle(2, 0xd8a8ff, 0.8);
-          g.strokeEllipse(q.x, q.y + cell * 0.2, cell * 0.8, cell * 0.28);
-        }
+        // v0.12: Arcane Golem: runes circling at its feet; v0.28.013F: no glowing sphere; v0.28.021F: no violet circle either
         // v0.24i: Spirit Wolves no longer wear the arcane veil sphere (their violet tint stays)
         // v0.17: no ring under neutral creeps any more; their grey clothes set them apart
         // Health bar only once a creep has lost health; drawn on top of everything on the board.
@@ -3602,14 +3598,29 @@ export function mountArena({
         return;
       }
       if (lastRow < 0) return;
-      const alpha = 0.42 + 0.1 * Math.sin(time * 0.0025); // calm pulse, never hectic
+      // v0.28.021F: one solid golden arrow per field of the row, white outline, lit from the left (3D), bobbing slowly
+      // downwards like a pointer (was see-through and pulsing)
+      const bob = Math.sin(time * 0.0022) * 0.07,
+        arrow = (x, y, k, grow, color, alpha) => {
+          g.fillStyle(color, alpha);
+          g.fillRect(x - k * (0.08 + grow), y - k * (0.33 + grow), k * (0.16 + grow * 2), k * (0.28 + grow));
+          g.fillTriangle(x - k * (0.24 + grow * 1.6), y - k * (0.07 + grow), x + k * (0.24 + grow * 1.6), y - k * (0.07 + grow), x, y + k * (0.3 + grow * 1.8));
+        };
       for (let col = 0; col < z.logicalCols; col++) {
-        const x = z.left + (col + 0.5) * z.cw,
-          y = z.top + (lastRow + 0.5) * ch,
-          k = Math.min(z.cw, ch);
-        g.fillStyle(0xffcf4a, alpha);
-        g.fillRect(x - k * 0.07, y - k * 0.32, k * 0.14, k * 0.26);
-        g.fillTriangle(x - k * 0.22, y - k * 0.07, x + k * 0.22, y - k * 0.07, x, y + k * 0.3);
+        const k = Math.min(z.cw, ch),
+          x = z.left + (col + 0.5) * z.cw,
+          y = z.top + (lastRow + 0.5) * ch + bob * k;
+        arrow(x + k * 0.035, y + k * 0.05, k, 0.02, 0x1a0e02, 0.35); // shadow
+        arrow(x, y, k, 0.04, 0xffffff, 0.95); // white outline
+        arrow(x, y, k, 0, 0xe0a224, 1); // body
+        // lit left half, shaded right half
+        g.fillStyle(0xffe58a, 1);
+        g.fillRect(x - k * 0.08, y - k * 0.33, k * 0.08, k * 0.28);
+        g.fillTriangle(x - k * 0.24, y - k * 0.07, x, y - k * 0.07, x, y + k * 0.3);
+        g.fillStyle(0xb7760e, 1);
+        g.fillTriangle(x + k * 0.24, y - k * 0.07, x + k * 0.05, y - k * 0.07, x, y + k * 0.3);
+        g.fillStyle(0xfff6d0, 0.9); // a glint on the shaft
+        g.fillRect(x - k * 0.06, y - k * 0.31, k * 0.025, k * 0.2);
       }
     }
     drawPathLength(g, game, player, cell) {
