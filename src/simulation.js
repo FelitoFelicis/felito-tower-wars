@@ -1122,7 +1122,8 @@ export const PERKS = Object.freeze({
   // v0.22za2: "text" is the short tooltip everywhere, "detail" the longer text of the card book's detail view
   // v0.09q: perk rework (availability in PERK_AVAILABILITY)
   recruit: { name: "Recruitment", max: 10, text: "Creeps recruit {recruit} faster" },
-  recruitflow: { name: "Recruitment Flow", max: 5, element: "water", text: "Creeps recruit {recruitflow} faster", detail: "Every creep (bosses excepted) recruits {recruitflow} faster; at level 5 twice as fast" }, // v0.27zzcF // v0.19h1: tooltip // v0.10i (artifact line), merged in v0.11c
+  recruitflow: { name: "Flow of Duty", // v0.27zziF: was Recruitment Flow
+    max: 5, element: "water", text: "Creeps recruit {recruitflow} faster", detail: "Every creep (bosses excepted) recruits {recruitflow} faster; at level 5 twice as fast" }, // v0.27zzcF // v0.19h1: tooltip // v0.10i (artifact line), merged in v0.11c
   feudal: { name: "Feudality", max: 10, text: "Creep income +{feudal}" }, // v0.18b: 2 / 3.5 / 5 / 6 / 7 %
   gunpowder: { name: "Blast Expert", max: 10, element: "fire", text: "Bombard-Line outer splash +{gunpowder} tiles" }, // v0.23y: Fire, renamed Blast Expert (was the neutral Gunpowder) // v0.22g1: only the low-damage outer ring // v0.21u: outer splash radius +0.25/0.45/0.60/0.72/0.82/0.90/0.96/1.00/1.03/1.05 tiles
   archery: { name: "Archery", max: 10, text: "Archer-Line +{archery} damage. Next Archer free", detail: "Archer-Line +{archery} damage. Next Archer is free" }, // v0.19h1: 5 / 10 / 15 / 20 / 25 %; v0.20a: every pick makes the next archer free
@@ -2595,14 +2596,14 @@ export function grantExp(game, playerIndex, amount) {
 export const PERK_AVAILABILITY = {
   // perks
   gunpowder: "2-5", // v0.21u
-  recruit: "2-5",
+  recruit: "2-3", // v0.27zziF (was 2-5)
   recruitflow: "2+", // v0.27zzcF: Recruitment Flow (Water)
-  feudal: "2-5",
-  archery: "2-5",
+  feudal: "2-3", // v0.27zziF (was 2-5)
+  archery: "2-4", // v0.27zziF (was 2-5)
   militia: "2", // v0.17h: level 2 only
   evolution: "2-3",
   gold: "3", // v0.15: only on level 3, and only for the poorest player (see goldPerkOpen)
-  novice: "3-6",
+  novice: "2-3", // v0.27zziF (was 3-6)
   volley: "2-5", // v0.19h1: once taken also offered up to level 15 (PERK_AVAILABILITY_OWNED)
   pillage: "6+",
   crowd: "6+",
@@ -2659,7 +2660,7 @@ export const PERK_AVAILABILITY = {
   frenzy: "2+", // Unholy Frenzy (v0.19a1)
   wolves: "2+", // Spirit Wolves (v0.19a1)
   firearrows: "2+", // Fire Arrows (v0.21c: from level 2)
-  ring: "2", // v0.26cF: Ring of Life (ContinousPick, skips 2)
+  ring: "2-3", // v0.26cF: Ring of Life (ContinousPick, skips 2); v0.27zziF: 2-3 (was 2)
   revenge: "12+", // v0.26cF: Revenge (skips 3)
   scouting: "2+", // v0.27bF
   amnesia: "9,12,15,20", // v0.26eF
@@ -4491,7 +4492,7 @@ const tipNum = (a, level, re, fallback = 0) => {
   return m ? Number(m[1]) : fallback;
 };
 const DEATH_KNIGHT = "h02C";
-const MANA_REGEN_AURA = 0.5; // v0.17p
+export const MANA_REGEN_AURA = 0.5; // v0.17p (v0.27zziF: exported for the Mana Aura tooltip)
 const EXECUTE_DAMAGE = { h01Y: 140, h00M: 450, h04I: 1250, h050: 3250 };
 const STOMP_LEVEL = { h02T: 3, h01T: 4, h01U: 5, h01V: 6 };
 const STOMP_DAMAGE = { 3: 50, 4: 200, 5: 575, 6: 1200 };
@@ -4871,10 +4872,8 @@ export const ULTIMATES = { // v0.23: exported for the Decay Attack tooltip
   h01L: { charge: 40, kind: "entangle", level: 1 },
   h00B: { charge: 40, kind: "entangle", level: 2 },
   h037: { charge: 40, kind: "entangle", level: 3 },
-  h021: { charge: 45, kind: "decay", pct: 8 },
-  h009: { charge: 45, kind: "decay", pct: 12 },
-  h038: { charge: 45, kind: "decay", pct: 18 },
-  h01Z: { charge: 45, kind: "decay", pct: 30 },
+  // v0.27zziF: Hall of Plague 2–4 lost the charged decay strike (8 / 12 / 18 %); every attack decays instead (DECAY)
+  // v0.27zziF: Terror Demon: no charged decay strike any more (30 %), every attack decays instead (DECAY)
   h00J: { charge: 60, kind: "penalty" }, // v0.27lF: Penalty Lap (was Shrink Ray)
   h020: { charge: 80, kind: "chain" },
   h010: { charge: 100, kind: "blizzard" },
@@ -4996,7 +4995,7 @@ function penaltyLap(game, p, c) {
  * missiles fly 3.60 fields/s; on impact every creep on that field (ground and air) takes 3.5 × the Mech's attack
  * damage (perks and damage auras count) as splash damage (Splash Resistance and armor count).
  */
-export const MISSILE_BARRAGE = { towerId: "h046", every: 12, count: 3, gap: 0.3, speed: 3.6, apart: 2, factor: 3.5 }; // v0.27mF: every 12 s (was 9), 3.5 × attack damage (was 4)
+export const MISSILE_BARRAGE = { towerId: "h046", every: 13.5, count: 3, gap: 0.3, speed: 3.6, apart: 2, factor: 1.3 }; // v0.27mF: every 12 s (was 9), 3.5 × attack damage (was 4); v0.27zziF: every 13.5 s, 1.3 × attack damage
 function tickBarrage(game, p, tower, stats) {
   if (tower.typeId !== MISSILE_BARRAGE.towerId || (tower.barrageReady || 0) > game.time + EPS) return;
   const cols = game.grid.cols,
@@ -5195,8 +5194,24 @@ function tickClouds(game, p) {
   }
   game.clouds = game.clouds.filter((cl) => cl.remaining > 0);
 }
+/**
+ * v0.27zziF: Decay (Hall of Plague 2–4): every attack destroys this share of the creep's max health;
+ * Tier Bosses take 50 % less, Mini Bosses 40 % less. Divine Shield blocks it, Water Shield absorbs it.
+ */
+export const DECAY = { h021: 0.02, h009: 0.03, h038: 0.04, h01Z: 0.05, h043: 0.06, boss: 0.5, mini: 0.6 }; // Terror Demon 5 %, Skull Mage 6 %
+function applyDecay(game, p, tower, target) {
+  const pct = DECAY[tower.typeId];
+  if (!pct || target.dead || target.hp <= 0 || divineShield(game, target)) return;
+  const f = nerfClass(target) === "boss" ? DECAY.boss : creepSkills(target).some((sk) => sk.type === "miniBoss") ? DECAY.mini : 1,
+    before = target.hp;
+  target.hp -= guardCut(game, target, target.maxHp * pct * f);
+  target.lastHit = tower.id;
+  const done = Math.max(0, Math.min(before, before - target.hp));
+  tower.dmg = (tower.dmg || 0) + done;
+  if (p.stats) (p.stats.towerDmg ||= {})[tower.typeId] = (p.stats.towerDmg[tower.typeId] || 0) + done;
+}
 /** v0.23: Decay Attack abilities that drain this share of the creep's remaining health per hit (Kel Thuzad). */
-export const DECAY_DRAIN = { A0BL: 0.06 };
+export const DECAY_DRAIN = {}; // v0.27zziF: Skull Mage drain (6 % of remaining health) became Decay (6 % of max health)
 function applyOnHit(game, player, tower, target) {
   for (const ability of unitAbilities(tower)) {
     const level = abilityLevel(player, tower, ability),
@@ -5374,6 +5389,7 @@ function attack(game, p, tower, dt, known = null) {
     splashHit = false;
   }
   applyOnHit(game, p, tower, target);
+  applyDecay(game, p, tower, target); // v0.27zziF
   applySkills(game, p, tower, item, target, damage, skills);
   chargedSpecial(game, p, tower, target);
   const shots = [target];
@@ -6544,6 +6560,130 @@ const MAZE_TEMPLATES = {
     },
   ],
 };
+/**
+ * v0.27zziF: Hall of Elements in the bot maze. From tier 2 the maze grows by 3 rows; each template gets an
+ * extension found offline (exhaustive search over one 2×2 hall plus up to 8 towers in rows 8–11): the hall sits in
+ * the middle of the new rows, one or two towers turn the route around it. A: route 33.8 → 37.8 (+3 for the new rows,
+ * +4 from the hall design); a full tower wall there gives +6 but needs 6 towers instead of hall + 2. Indexed like
+ * MAZE_TEMPLATES["6x9"]; `hall` = top-left field, `order` = towers after the hall, `curve` = route after each of
+ * them (on the 9-row scale like the template curves).
+ */
+const HALL_EXT = {
+  "6x9": [
+    { hall: "2,10", order: "1,9 4,11", curve: [36.83, 37.83] },
+    { hall: "2,10", order: "4,9 1,11", curve: [35.83, 36.83] },
+    { hall: "2,10", order: "1,9 4,11", curve: [35.83, 36.83] },
+    { hall: "3,10", order: "0,11 1,11 2,11 1,9", curve: [34.5, 35.5, 38.5, 40.5] },
+    { hall: "2,10", order: "4,9 1,11", curve: [36.5, 37.5] },
+    { hall: "2,10", order: "1,9 4,11", curve: [36.5, 37.5] },
+    { hall: "2,10", order: "1,9 4,11", curve: [36.5, 37.5] },
+  ],
+};
+// v0.27zziF: which bots put a hall into their maze: Easy, Normal and Hard always, Hardo in half of its matches
+// (rolled per match); Very Easy keeps its fun mazes (two of them have a hall)
+const HALL_MAZE = { easy: 1, normal: 1, hard: 1, insane: 0.5 };
+const HALL_ID = "h05L";
+/**
+ * v0.27zziF: early halls. Three quarters of the hall bots play a maze with the hall in it from tier 1 (found offline by
+ * simulated annealing: one 2×2 hall + 18 towers; the hall at the top reaches 33.5 like the best plain templates with
+ * 20 towers, a hall in the middle 31.5). The hall goes down once `step` towers of the order stand. The others
+ * build it when the maze grows (HALL_EXT).
+ */
+const HALL_EARLY = 0.75; // early halls won 69 % against no hall (35 Hard games; late halls 52 %)
+const HALL_TEMPLATES = {
+  "6x9": [
+    { weight: 2, hall: "1,0", step: 4, order: "3,0 4,0 5,0 0,4 1,4 2,4 3,3 4,2 1,2 5,8 4,8 3,8 2,7 1,6 3,5 4,6 5,4 0,8", curve: [10.17, 10.33, 11, 13.5, 14.5, 15.5, 16.5, 19.5, 21.5, 22.5, 23.5, 24.5, 25.5, 26.5, 28.5, 30.5, 32.5, 33.5] },
+    { weight: 1, hall: "3,2", step: 4, order: "2,4 1,4 0,4 5,8 4,8 5,0 4,0 3,0 2,0 1,1 1,2 3,8 2,7 1,6 3,5 4,6 0,8 4,5", curve: [10.17, 10.33, 11, 13.5, 14.5, 14.83, 15.5, 16.5, 17.83, 21.5, 23.5, 24.5, 25.5, 26.5, 28.5, 30.5, 31.5, 31.5] },
+  ],
+};
+/**
+ * v0.27zziF: late halls may move up: in templates D and F a hall on the top row costs no route (it covers two
+ * template towers). When the maze grows and those two towers are cheap, the bot sells them and builds the hall there,
+ * where the creeps come in packed, instead of at the bottom.
+ */
+const HALL_UPPER = { "6x9": { 4: "3,0", 6: "1,0" } };
+const HALL_SELL_MAX = 400; // gold the towers on the upper spot may have cost at most
+/** v0.27zziF: the hall extension of a template plan once the maze has grown (tier 2), mirrored like the plan. */
+function hallExt(game, p, maze) {
+  if (!maze?.hallExt || laneRows(game, p) < maze.rows + 3) return null;
+  const ext = HALL_EXT[game.grid.cols + "x" + maze.rows]?.[maze.hallExt.tpl];
+  if (!ext) return null;
+  const cols = game.grid.cols,
+    cell = (k, w = 1) => {
+      let [x, y] = k.split(",").map(Number);
+      if (maze.hallExt.mirror) x = cols - w - x;
+      return { x, y, key: x + "," + y };
+    },
+    hall = cell(ext.hall, 2);
+  return { hall, order: ext.order.split(" ").map((k) => cell(k)), curve: ext.curve, cells: [0, 1].flatMap((dy) => [0, 1].map((dx) => hall.x + dx + "," + (hall.y + dy))) };
+}
+const hasHall = (p) => p.towers.some((t) => obj(t.typeId)?.isHall);
+const hallCells = (h) => [0, 1].flatMap((dy) => [0, 1].map((dx) => h.x + dx + "," + (h.y + dy)));
+/** v0.27zziF: fields kept free for the planned hall while it is not built yet. */
+function hallReserved(game, p, maze) {
+  if (!maze || hasHall(p)) return null;
+  if (maze.hallAt) return new Set(hallCells(maze.hallAt)); // early hall: its fields stay free from the start
+  const ext = hallExt(game, p, maze);
+  return ext ? new Set(ext.cells) : null;
+}
+/** v0.27zziF: where the planned hall goes now (null = not yet), and which own towers must be sold for it. */
+function hallSpotNow(game, p, maze) {
+  if (!maze || hasHall(p)) return null;
+  if (maze.hallAt) {
+    const taken = takenCells(p),
+      built = maze.order.filter((c) => taken.has(c.key)).length;
+    return built >= (maze.hallStep || 0) ? { spot: maze.hallAt, sell: [] } : null;
+  }
+  const ext = hallExt(game, p, maze);
+  if (!ext) return null;
+  if (maze.hallUpper) {
+    const cells = new Set(hallCells(maze.hallUpper)),
+      on = p.towers.filter((t) => towerCells(t).some((c) => cells.has(c.x + "," + c.y)));
+    const cheap = on.every((t) => !obj(t.typeId)?.isHall && t.typeId !== ROCK_ID && !(t.buildRemaining > EPS) && towerSize(t) === 1 && cells.has(t.gridX + "," + t.gridY)),
+      spent = on.reduce((sum, t) => sum + (t.totalSpent || obj(t.typeId)?.cost || 0), 0);
+    if (cheap && spent <= HALL_SELL_MAX) return { spot: maze.hallUpper, sell: on, fallback: ext.hall };
+  }
+  return { spot: ext.hall, sell: [] };
+}
+/** v0.27zziF: the planned build order and route curve, with the hall extension's towers once the maze has grown. */
+function planOrder(game, p, maze) {
+  let ext = maze?.template && !maze.fun ? hallExt(game, p, maze) : null;
+  // the hall went elsewhere (moved up): the towers that turn the route around the bottom hall are not needed
+  const hall = ext && p.towers.find((t) => obj(t.typeId)?.isHall);
+  if (hall && (hall.gridX !== ext.hall.x || hall.gridY !== ext.hall.y)) ext = null;
+  if (!ext) return { order: maze.order, curve: maze.curve, keys: maze.keys };
+  return { order: maze.order.concat(ext.order), curve: maze.curve.concat(ext.curve), keys: new Set([...maze.keys, ...ext.order.map((c) => c.key), ...ext.cells]) };
+}
+/**
+ * v0.27zziF: build the planned hall (it is not part of the 1×1 build order, and the template never places 2×2
+ * buildings). On its planned fields if they are free, else on the 2×2 spot in the grown rows that keeps the route
+ * longest. Returns true when it was built.
+ */
+function buildPlannedHall(game, p, maze) {
+  const plan = hallSpotNow(game, p, maze);
+  if (!plan) return false;
+  const item = obj(HALL_ID);
+  if (!item || !available(game, p.id, "build", HALL_ID).ok) return false;
+  const ok = (x, y) => canBuild(game, p.id, x, y, HALL_ID).ok && !aiCondBlocks(game, p, x, y, HALL_ID) && previewBuild(game, p.id, x, y, HALL_ID).ok;
+  // moving up: sell the cheap towers on the upper spot first (their gold comes back at the sell rate)
+  if (plan.sell.length) {
+    for (const t of plan.sell) command(game, { type: "sell", player: p.id, towerId: t.id });
+    if (ok(plan.spot.x, plan.spot.y) && command(game, { type: "build", player: p.id, id: HALL_ID, gridX: plan.spot.x, gridY: plan.spot.y }).ok) return true;
+    plan.spot = plan.fallback; // should not happen (the spot costs no route); the bottom spot then
+  }
+  let spot = plan.spot && ok(plan.spot.x, plan.spot.y) ? plan.spot : null;
+  if (!spot && maze.hallAt) return false; // early hall: wait until its fields can take it
+  if (!spot) {
+    let best = -1;
+    for (let y = maze.rows - 1; y <= laneRows(game, p) - 2; y++)
+      for (let x = 0; x <= game.grid.cols - 2; x++) {
+        if (!ok(x, y)) continue;
+        const r = expectedRoute(game, p, [{ x, y }, { x: x + 1, y }, { x, y: y + 1 }, { x: x + 1, y: y + 1 }]);
+        if (r > best) (best = r), (spot = { x, y });
+      }
+  }
+  return !!spot && command(game, { type: "build", player: p.id, id: HALL_ID, gridX: spot.x, gridY: spot.y }).ok;
+}
 /** Average route over all portal fields (creeps appear above a random column), optional extra cells. */
 function expectedRoute(game, p, extra = null) {
   let sum = 0;
@@ -6649,13 +6789,32 @@ function templatePlan(game, forced = null) {
     tpl = list[list.length - 1];
   for (const t of list) if ((roll -= t.weight) < 0) { tpl = t; break; }
   if (forced !== null && list[forced]) tpl = list[forced]; // self-play hook (persona.mazeTpl)
+  const tplIndex = list.indexOf(tpl); // v0.27zziF: for the hall extension
   const mirror = random(game) < 0.5,
     order = tpl.order.split(" ").map((k) => {
       let [x, y] = k.split(",").map(Number);
       if (mirror) x = game.grid.cols - 1 - x;
       return { x, y, key: x + "," + y };
     });
-  return { cols: game.grid.cols, rows: baseRows(game), template: true, order, keys: new Set(order.map((c) => c.key)), curve: tpl.curve, gaps: [], wallOf: {}, cellsOf: [], extra: new Set(), size: order.length };
+  return { cols: game.grid.cols, rows: baseRows(game), template: true, tplIndex, mirror, order, keys: new Set(order.map((c) => c.key)), curve: tpl.curve, gaps: [], wallOf: {}, cellsOf: [], extra: new Set(), size: order.length };
+}
+/** v0.27zziF: an early-hall template (see HALL_TEMPLATES): the plain build order plus the hall's field and step. */
+function hallTemplatePlan(game) {
+  const list = HALL_TEMPLATES[game.grid.cols + "x" + baseRows(game)];
+  if (!list) return null;
+  let roll = random(game) * list.reduce((s, t) => s + t.weight, 0),
+    tpl = list[list.length - 1];
+  for (const t of list) if ((roll -= t.weight) < 0) { tpl = t; break; }
+  const cols = game.grid.cols,
+    mirror = random(game) < 0.5,
+    order = tpl.order.split(" ").map((k) => {
+      let [x, y] = k.split(",").map(Number);
+      if (mirror) x = cols - 1 - x;
+      return { x, y, key: x + "," + y };
+    });
+  let [hx, hy] = tpl.hall.split(",").map(Number);
+  if (mirror) hx = cols - 2 - hx;
+  return { cols, rows: baseRows(game), template: true, tplIndex: -1 - list.indexOf(tpl), mirror, hallAt: { x: hx, y: hy }, hallStep: tpl.step, order, keys: new Set(order.map((c) => c.key)), curve: tpl.curve, gaps: [], wallOf: {}, cellsOf: [], extra: new Set(), size: order.length };
 }
 /**
  * The bot's maze. On the arena a template (see above); elsewhere, and for very easy, horizontal
@@ -6679,8 +6838,28 @@ function mazePlan(game, p, level) {
   if (p.rules?.maze && game.grid.cols === 6 && baseRows(game) === 9) return (p.aiMaze = funMaze(game, p.rules.maze, p)); // v0.17: mission maze
   if (level === "veryEasy" && game.grid.cols === 6 && baseRows(game) === 9) return (p.aiMaze = funMaze(game, null, p));
   if (level !== "veryEasy" && (p.aiPersona?.mazeV2 ?? 1) > 0.5) {
+    // v0.27zziF: a hall in the maze (missions with their own tower rules keep theirs); persona.hallMaze and
+    // persona.hallEarly (self-play hooks) override the level's shares. Early: a hall template from tier 1;
+    // late: a plain template, the hall when the maze grows (or on the top row, see HALL_UPPER)
+    const share = p.aiPersona?.hallMaze ?? HALL_MAZE[level] ?? 0,
+      hall = share > 0 && !p.rules?.towers && !!HALL_EXT[game.grid.cols + "x" + baseRows(game)] && (share >= 1 || random(game) < share);
+    if (hall && p.aiPersona?.mazeTpl == null && random(game) < (p.aiPersona?.hallEarly ?? HALL_EARLY)) {
+      const early = hallTemplatePlan(game);
+      if (early) return (p.aiMaze = early);
+    }
     const plan = templatePlan(game, p.aiPersona?.mazeTpl ?? null);
-    if (plan) return (p.aiMaze = plan);
+    if (plan) {
+      if (hall && HALL_EXT[plan.cols + "x" + plan.rows]?.[plan.tplIndex]) {
+        plan.hallExt = { tpl: plan.tplIndex, mirror: plan.mirror };
+        const up = HALL_UPPER[plan.cols + "x" + plan.rows]?.[plan.tplIndex];
+        if (up) {
+          let [x, y] = up.split(",").map(Number);
+          if (plan.mirror) x = plan.cols - 2 - x;
+          plan.hallUpper = { x, y };
+        }
+      }
+      return (p.aiMaze = plan);
+    }
   }
   const { cols } = game.grid,
     rows = laneRows(game, p),
@@ -6736,14 +6915,16 @@ function takenCells(p) {
 function templateCandidates(game, p, maze, ctx) {
   if (ctx.tplCandidates) return ctx.tplCandidates;
   const taken = takenCells(p),
-    open = maze.order.filter((c) => !taken.has(c.key)),
-    built = maze.order.length - open.length,
+    plan = planOrder(game, p, maze), // v0.27zziF: with the hall extension's towers from tier 2
+    reserved = hallReserved(game, p, maze),
+    open = plan.order.filter((c) => !taken.has(c.key)),
+    built = plan.order.length - open.length,
     out = [];
   if (open.length) {
-    const before = built ? maze.curve[built - 1] : maze.curve[0] - 0.3;
+    const before = built ? plan.curve[built - 1] : plan.curve[0] - 0.3;
     let j = built;
-    while (j < maze.curve.length - 1 && maze.curve[j] <= before) j++;
-    const promise = Math.max(0, (maze.curve[j] - before) / (j - built + 1)) / Math.max(1, before);
+    while (j < plan.curve.length - 1 && plan.curve[j] <= before) j++;
+    const promise = Math.max(0, (plan.curve[j] - before) / (j - built + 1)) / Math.max(1, before);
     // v0.22l: Hardo's first towers may take any open cell of its plan (it prefers the middle, see templateSpot)
     open.slice(0, ctx.center ? 10 : 3).forEach((c, i) => out.push({ x: c.x, y: c.y, key: c.key, plan: true, rank: ctx.center ? 0 : i, promise }));
   }
@@ -6753,7 +6934,7 @@ function templateCandidates(game, p, maze, ctx) {
     for (let y = 0; y < laneRows(game, p); y++)
       for (let x = 0; x < game.grid.cols; x++) {
         const key = x + "," + y;
-        if (taken.has(key) || maze.keys.has(key)) continue;
+        if (taken.has(key) || plan.keys.has(key) || reserved?.has(key)) continue;
         if (expectedRoute(game, p, [{ x, y }]) + 1e-6 < now) continue;
         out.push({ x, y, key, plan: false, rank: 0, promise: 0 });
       }
@@ -6761,6 +6942,10 @@ function templateCandidates(game, p, maze, ctx) {
   return (ctx.tplCandidates = out);
 }
 function templateSpot(game, p, item, persona, air, ctx) {
+  if (ctx.hallNear === undefined) {
+    const h = p.towers.find((t) => obj(t.typeId)?.isHall);
+    ctx.hallNear = h ? (x, y) => x >= h.gridX - 2 && x <= h.gridX + 3 && y >= h.gridY - 2 && y <= h.gridY + 3 : null;
+  }
   const maze = ctx.maze,
     capNow = ctx.cap ? ctx.cap.ground : routesCapacity(game, p, spawnRoutes(game, p)),
     routeCache = (ctx.routeCache ||= new Map());
@@ -6788,6 +6973,8 @@ function templateSpot(game, p, item, persona, air, ctx) {
     }
     if (value <= 0) continue;
     value *= Math.max(0, 1 - (persona.mazeRank ?? 0.15) * c.rank); // keep to the build order
+    // v0.27zziF: free towers next to the hall get its auras (halls reach one field further)
+    if (!c.plan && ctx.hallNear?.(c.x, c.y)) value *= 1.15;
     // v0.22l: Hardo's first towers stand in the middle: they reach creeps from every portal column (side towers let
     // the first creeps slip past)
     if (ctx.center) {
@@ -6808,6 +6995,7 @@ function bestSpot(game, p, item, persona, air = false, ctx = {}) {
   if (maze?.template && size === 1 && ctx.strict) return templateSpot(game, p, item, persona, air, ctx);
   if (maze?.template && size > 1 && ctx.strict) return null; // halls do not fit the template
   const capNow = ctx.cap && !maze?.template ? ctx.cap.ground : groundCapacity(game, p, p.path),
+    reserved = maze ? hallReserved(game, p, maze) : null, // v0.27zziF
     gaps = new Set(maze ? maze.gaps : []),
     taken = new Set();
   for (const t of p.towers) {
@@ -6821,6 +7009,7 @@ function bestSpot(game, p, item, persona, air = false, ctx = {}) {
         const key = x + "," + y,
           wall = maze && size === 1 ? maze.wallOf[key] : undefined;
         if (gaps.has(key)) continue; // the gaps are the maze; never close one
+        if (reserved && [0, size - 1].some((dy) => [0, size - 1].some((dx) => reserved.has(x + dx + "," + (y + dy))))) continue; // v0.27zziF: the hall's fields
         if (restrict && wall === undefined && !maze.extra?.has?.(key)) continue;
         const preview = previewBuild(game, p.id, x, y, item.id);
         if (!preview.ok || !preview.path) continue;
@@ -7202,6 +7391,8 @@ function think(game, p) {
     if (game.incomeRemaining > p.aiWarmBuild) return;
   }
   p.aiDebug = { round: game.round, rate: Math.round(seen.rate), burst: Math.round(seen.burst), airBurst: Math.round(seen.airBurst), wave: waveSoon ? Math.round(wave.total) : 0, capG: Math.round(cap.ground), capA: Math.round(cap.air), gapG: Math.round(groundGap), gapA: Math.round(airGap), alarm };
+  // v0.27zziF: from tier 2 the planned Hall of Elements goes down as soon as its gold is there
+  if (!game.warmup && (planNow.hallExt || planNow.hallAt) && !hasHall(p) && p.gold >= (obj(HALL_ID)?.cost ?? Infinity) && buildPlannedHall(game, p, planNow)) return;
   if (defend) {
     const wantAir = airGap > 0 && airGap >= groundGap;
     const options = defenceOptions(game, p, persona, level, style, cap, wantAir, false, wantAir ? airNeed : groundNeed);
@@ -7308,7 +7499,7 @@ function think(game, p) {
   // Maze rush: with spare gold, lay the next template tower before it is needed.
   if ((persona.mazeRush ?? 0) > 0 && !early && random(game) < persona.mazeRush) { // v0.22l: Hardo does not rush the maze early
     const maze = mazePlan(game, p, level);
-    if (maze.template && maze.order.some((c) => !towerAt(p, c.x, c.y))) {
+    if (maze.template && planOrder(game, p, maze).order.some((c) => !towerAt(p, c.x, c.y))) {
       const opt = defenceOptions(game, p, persona, level, style, cap, false, true, groundNeed).find((o) => o.plan);
       if (opt && p.gold - opt.cost >= reserve && opt.run().ok) return;
     }

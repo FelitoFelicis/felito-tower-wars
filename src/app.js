@@ -162,6 +162,9 @@ import {
   ULTIMATES, // v0.23: Decay Attack tooltip
   DECAY_DRAIN, // v0.23
   owlRange, // v0.23: Watcher Owl shows its total range
+  unitSkillList, // v0.27zziF: Phoenix Stun values
+  MANA_REGEN_AURA, // v0.27zziF: Magic City's Mana Aura
+  DECAY, // v0.27zziF: Hall of Plague
 } from "./simulation.js";
 import { mountArena, artFor } from "./arena.js";
 // v0.23n: design variants (Meadow, Candy, Paws / Circle Tower Wars) removed; only the original look remains
@@ -191,7 +194,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.27zzh",
+const APP_VERSION = "0.27zzi",
   APP_BRANCH = "F", // v0.23q: author marker (F = Felix, S = Steven) and branch text, shown behind the version; APP_VERSION stays plain for online matches (VersionPublishingRules.md)
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "29.10.2026";
@@ -1838,7 +1841,7 @@ const REWORK_HINT = {
 };
 
 // The original names, except for the creeps and buildings renamed in this port.
-const namesEn = { Robogoblin: "Battle Mech", Peon: "Goblin", "Chaos Peon": "Trenchlin", Akolyte: "Goblin Zealot", Dragonspawn: "Crystal Lizard", "Frost Wyrm": "Bone Dragon", "Lord Garithos": "Dark Knight", "Witch Doctor": "Undoctor", "Centaur Warrior": "Satyr", "Forest Troll": "Centaur", "Grom Hellscream": "Bandit Leader", "Fel Raider": "Rouge Knight", Horse: "Pony", "Cairne Bloodhoof": "Minotaurus", Lumbermill: "EXP Generator", "Skeleton Grunt": "Skeleton Berserker", "Draenai Marauder": "Scaleworm", "Siege Golem": "Iron Golem", Abomination: "Zombie Ogre", "Demon Hunter": "Demon Knight", Faceless: "Dark Monk", Spellbreaker: "Witch Hunter", "Void Walker": "Banshee", "Kel Thuzad": "Lord Frostbite", "Pit Lord": "Terror Demon" }; // v0.27xF // v0.21h: two renames; v0.23d: Horse and Boar Scout keep their names
+const namesEn = { Robogoblin: "Battle Mech", Peon: "Goblin", "Chaos Peon": "Trenchlin", Akolyte: "Goblin Zealot", Dragonspawn: "Crystal Lizard", "Frost Wyrm": "Bone Dragon", "Lord Garithos": "Dark Knight", "Witch Doctor": "Undoctor", "Centaur Warrior": "Satyr", "Forest Troll": "Centaur", "Grom Hellscream": "Bandit Leader", "Fel Raider": "Rouge Knight", Horse: "Pony", "Cairne Bloodhoof": "Minotaurus", Lumbermill: "EXP Generator", "Skeleton Grunt": "Skeleton Berserker", "Draenai Marauder": "Scaleworm", "Siege Golem": "Iron Golem", Abomination: "Zombie Ogre", "Demon Hunter": "Demon Knight", Faceless: "Dark Monk", Spellbreaker: "Witch Hunter", "Void Walker": "Banshee", "Kel Thuzad": "Skull Mage", "Pit Lord": "Terror Demon", "Fire Lord": "Scorch Demon" }; // v0.27zziF: Fire Lord → Scorch Demon // v0.27xF // v0.21h: two renames; v0.23d: Horse and Boar Scout keep their names
 function itemName(item) {
   if (researchCopy[item?.id]) return t(researchCopy[item.id][0]);
   if (item?.id === "n00Y" && game && burningTreant(game.players[own])) return t("Burning Treant"); // v0.10w
@@ -2062,7 +2065,7 @@ const ABILITY_DESC = {
   Flameburst: "Every 8 s a fire explosion on the creep farthest along: 1.25 × attack damage as spell damage to every creep within 1.5 fields", // v0.27mF (was Flamestrike)
   "Mega Tsunami": "Ultimate: a huge wave crushes a whole row of creeps",
   "Penalty Lap": "Ultimate: sends the creep farthest along back to the start. Arcane Penalty: armor reversed, 20% slower until it breaches", // v0.27lF
-  "Missile Barrage": "Every 12 s fires 3 heavy missiles at path fields with creeps; each hits every creep on its field", // v0.27lF
+  "Missile Barrage": "Every 13.5 s fires 3 heavy missiles at path fields with creeps; each hits every creep on its field for 1.3× attack damage", // v0.27lF; v0.27zziF: 13.5 s, 1.3×
   "Void Armor": "Ignores 5 damage of every hit, but always takes at least 20%",
   "Tower Repair": "Repairs a tower over a few seconds",
   "Switch Weapon": "Switches between two attack modes",
@@ -2090,16 +2093,15 @@ const ABILITY_DESC = {
   "Multi Shot": "Shoots several arrows at once",
   "Frost Attack": "Slows creep for a few seconds. Does not stack.",
   "Immolation Aura": "Burns creeps around the tower; flying creeps take 50% less damage",
-  "Flash Execution": "Extra damage to creeps on low health", // Bash Tower line (the Death Knight's cull: abilityDesc)
+  Execute: "Extra damage to creeps on low health", // Bash Tower line (the Death Knight's cull: abilityDesc); v0.27zziF: was Flash Execution
   Feedback: "Extra damage to summoned creeps",
   Poison: "Slows and deals damage per second, can stack.",
   "Critical Hit": "Chance to deal double damage",
   "Frenzy Aura": "Towers nearby attack faster",
   "Bouncing Projectiles": "Shots bounce to further creeps",
   "Mana Regeneration Aura": "Towers nearby regain mana 50% faster", // v0.17p
-  "Firestorm Aura": "Burns all creeps in a wide area",
   "Frost Aura": "Slows ground creeps in a wide area",
-  "Slow Aura": "Slows flying creeps in a wide area",
+  "Cloud Aura": "Slows flying creeps in a wide area", // v0.27zziF: was Slow Aura
   "Super Stun": "Chance to stun and deal extra damage",
   Entangle: "Chance to root a creep and hurt it over time",
   "Damage Aura": "Towers nearby deal more damage",
@@ -2113,7 +2115,7 @@ const ABILITY_DESC = {
   "Trueshot Aura": "Archer-Line towers nearby deal more damage", // v0.17p; v0.24n: Archer-Line only
   Production: "Generates EXP every 4 seconds",
   Howl: "When creeps come within 1.5 fields: 25% slower and +20% damage from towers for 12 s (cooldown 20 s)", // v0.17p
-  "Terror Aura": "Creeps within 2 fields take 30% more damage from towers", // v0.27yF; v0.27zaF: 30 %
+  "Terror Aura": "Creeps nearby take 30% more damage from towers", // v0.27yF; v0.27zaF: 30 %; v0.27zziF: no range in aura tooltips
   "Phoenix Fire": "Burns creeps around the tower: 400 damage per second to ground and air", // v0.17p; v0.27nF: one aura (Firestorm merged)
   "Phoenix Stun": "Chance to stun and deal big extra damage",
   Stun: "Chance to stun and deal extra damage",
@@ -2138,7 +2140,7 @@ function abilityDesc(name, item) {
       mult = at("Ocr2");
     if (chance > 0 && chance < 1 && mult > 1) return `${Math.round(chance * 100)}% chance to deal ${Math.round(mult * 100)}% damage`;
   }
-  if (name === "Flash Execution" && item.id === "h02C") return "Creeps below 666 or 10% HP are instant kills."; // v0.22n2
+  if (name === "Execute" && item.id === "h02C") return "Creeps below 666 or 10% HP are instant kills."; // v0.22n2
   // v0.22n2: creep and tower abilities with their values
   const abil = (re, base) => (item.abilities || []).map((id) => catalog.abilities[id]).find((a) => a && (!base || a.baseId === base) && re.test(String(a.fields?.anam?.[0] ?? a.fields?.anam?.[1] ?? "").replace(/\|c[0-9a-fA-F]{8}|\|r/g, "")));
   const fv = (a, key, lvl = 1) => {
@@ -2197,6 +2199,57 @@ function abilityDesc(name, item) {
       slow = fv(a, "Spo2", lvl) || POISON_SLOW;
     if (a) return `Slows by ${pctN(slow)}% and deals ${num(dps)} damage per second, can stack.`;
   }
+  // v0.27zziF: Corrosive Aura (also the former Napalm Aura) and the Hall of Elements' Mana Aura (regeneration only) with values
+  if (name === "Corrosive Aura") {
+    const a = abil(/^Corrosive Aura$/, "AHad"),
+      lvl = Math.min(fv(a, "alev", 0) || 1, Math.max(1, item.level || 1)),
+      armor = -fv(a, "Had1", lvl),
+      r = fv(a, "aare", lvl);
+    if (armor > 0) return `Lowers the armor of creeps nearby by ${num(armor)}`;
+  }
+  if (name === "Mana Aura" && !(item.abilities || []).some((id) => catalog.abilities[id]?.baseId === "AHab") && (item.abilities || []).some((id) => catalog.abilities[id]?.baseId === "ANre"))
+    return `Towers nearby regain mana ${pctN(MANA_REGEN_AURA)}% faster`;
+  // v0.27zziF: Decay (Hall of Plague)
+  if (name === "Decay" && DECAY[item.id]) return `Attacks destroy ${pctN(DECAY[item.id])}% of the creep's max health (Tier Bosses ${pctN(DECAY[item.id] * DECAY.boss)}%, Mini Bosses ${pctN(DECAY[item.id] * DECAY.mini)}%)`;
+  // v0.27zziF: Immolation Aura with its values (Firestorm Aura is an Immolation Aura now)
+  if (name === "Immolation Aura") {
+    const a = abil(/^Immolation Aura$/, "AIcf"),
+      sk = a && unitSkillList(item.id).find((x) => x.id === a.id)?.skill;
+    if (sk?.type === "immolation" && sk.dps > 0)
+      return `Burns creeps nearby: ${num(sk.dps)} damage per second${sk.airOnly ? " (flying creeps only)" : sk.flyFactor < 1 ? `, flying creeps take ${pctN(sk.flyFactor)}%` : " to ground and air"}`;
+  }
+  // v0.27zziF: aura and stun values as the simulation reads them (auras without their range) (ability level = tower level, capped at the ability's levels)
+  if (/^(Frost|Cloud|Damage|Frenzy|Mana) Aura$/.test(name) || name === "Stun") {
+    const a = abil(new RegExp("^" + name + "$")),
+      lvl = Math.min(fv(a, "alev", 0) || 1, Math.max(1, item.level || 1)),
+      fields = (r) => num(Math.round((r / 128) * 10) / 10, { maximumFractionDigits: 1 }),
+      targets = String(a?.fields?.atar?.[lvl] ?? a?.fields?.atar?.[1] ?? ""),
+      who = /ground/.test(targets) && /air/.test(targets) ? "creeps" : /air/.test(targets) ? "flying creeps" : "ground creeps",
+      near = footprintOf(item.id) > 1 ? "two fields around it" : "neighbouring fields";
+    if (a && name === "Damage Aura") {
+      const bonus = fv(a, "Ear1", lvl);
+      if (bonus > 0) return `Towers nearby deal ${pctN(bonus)}% more damage`;
+    }
+    if (a && name === "Frenzy Aura") {
+      const speed = fv(a, "Oae2", lvl);
+      if (speed > 0) return `Towers nearby attack ${pctN(speed)}% faster`;
+    }
+    if (a && name === "Mana Aura") {
+      const mana = fv(a, "Hab1", lvl);
+      const regen = (item.abilities || []).some((id) => catalog.abilities[id]?.baseId === "ANre") ? `, and regain mana ${pctN(MANA_REGEN_AURA)}% faster` : "";
+      if (mana > 0) return `Towers nearby and this tower regain ${num(mana)} extra mana per second${regen}`;
+    }
+    if (a && (name === "Frost Aura" || name === "Cloud Aura")) {
+      const slow = -fv(a, "Oae1", lvl),
+        r = fv(a, "aare", lvl);
+      if (slow > 0 && a.airFactor > 0 && a.airFactor !== 1 && who === "creeps") return `Slows ground creeps by ${pctN(slow)}% and flying creeps by ${pctN(slow * a.airFactor)}% nearby`;
+      if (slow > 0) return `Slows ${who} nearby by ${pctN(slow)}%`;
+    }
+    if (a && name === "Stun") {
+      const sk = unitSkillList(item.id).find((x) => x.id === a.id)?.skill;
+      if (sk?.type === "bash") return `${pctN(sk.chance)}% chance to stun for ${num(sk.duration)} s (bosses ${num(sk.bossDuration)} s) and deal ${num(sk.bonus)} extra damage`;
+    }
+  }
   // v0.27zzgF: the Magic Tower's Arcane Missile with its real values
   if (name === "Arcane Missile" && /^Magic Tower/.test(String(item?.name || "").replace(/\|c\w{8}|\|r/g, "")))
     return `Every ${num(MAGIC_CHARGE_SECONDS)} s the next attack is an arcane missile: ${num(Math.round(magicEmpower(item) * 100) / 100)}× damage, +${Math.round(ARCANE_MISSILE_HEAVY * 100)}% against heavy and boss creeps`;
@@ -2240,7 +2293,7 @@ function valHtml(text) {
   return esc(text).replace(/(^|[^&#\w])([+−-]?\d+(?:[.,]\d+)?(?!\d|st\b|nd\b|rd\b|th\b)(?:\s?(?:%|s\b|fields?\b|gold\b|EXP\b|×))?)/g, (m, a, v, at, all) => `${a}<b class="val${kindOf(v, all.slice(Math.max(0, at - 32), at + a.length), all.slice(at + m.length, at + m.length + 30))}">${v}</b>`).replace(LINE_NAME_RE, '<span class="line-name">$1-Line</span>'); // v0.22g1: tower line names in white
 }
 /** v0.16k: typos in the map data, fixed for display. */
-const ABILITY_RENAME = { Invisibillity: "Invisibility", "Mana Regenration Aura": "Mana Regeneration Aura", "Scale Armor": "Armor", Evasion: "Dodge" }; // v0.22n2: Armor, Dodge
+const ABILITY_RENAME = { Invisibillity: "Invisibility", "Mana Regenration Aura": "Mana Regeneration Aura", "Scale Armor": "Armor", Evasion: "Dodge", "Flash Execution": "Execute" }; // v0.27zziF: Execute // v0.22n2: Armor, Dodge
 /** Readable ability names of a unit (internal helpers and colour codes left out). */
 function abilityNames(item) {
   const names = (item.abilities || [])
@@ -6363,7 +6416,8 @@ function comboEls(item) {
     };
   return [...need].sort((a, b) => pos(a) - pos(b));
 }
-const TREE_ROOTS = ["h003", "h000", "h02R", "h03V", "h01F", "h05L", "hWAL"];
+// v0.27zziF: EXP Generator and Wall share one section, "Pacifist", at the bottom of the list
+const TREE_ROOTS = ["h003", "h000", "h02R", "h03V", "h05L", ["Pacifist", "h01F", "hWAL"]];
 function techTree(kind) {
   const elColor = (item) => elementOf(item?.element)?.color || "",
     node = (item, ref = false) => {
@@ -6415,10 +6469,12 @@ function techTree(kind) {
         .join("");
       return `<div class="tt-branch"><div class="tt-chain${combos ? " tt-has-combos" : ""}">${chain.map((c) => node(c)).join(arrow)}${combos}</div>${below}</div>`;
     };
-    return TREE_ROOTS.map((id) => catalog.byId[id])
-      .filter(Boolean)
-      .map((root) => `<section class="tt-tree tt-towers"><h3>${esc(itemName(root))}</h3>${branch(root)}</section>`)
-      .join("");
+    return TREE_ROOTS.map((entry) => {
+      const [title, ...ids] = Array.isArray(entry) ? entry : [null, entry],
+        roots = ids.map((id) => catalog.byId[id]).filter(Boolean);
+      if (!roots.length) return "";
+      return `<section class="tt-tree tt-towers"><h3>${esc(title || itemName(roots[0]))}</h3>${roots.map((root) => branch(root)).join("")}</section>`;
+    }).join("");
   }
   if (kind === "send")
     return [1, 2, 3, 4, 5]
@@ -6477,8 +6533,8 @@ const levelsText = (spec) => t("Lv. {l}", { l: String(spec ?? "1+").replace(/-/g
  * v0.19e2: bottom lines of a perk card in the card book, in white: "Max Level 3" (not for powerups or
  * single-level perks) and "Available in Lv 2-5", then the element(s) as before.
  */
-const bookMeta = (max, spec, extra = "", cd = "", cont = false) => // v0.22j1: cont = ContinousPick
-  `<small class="book-meta">${cd ? `<span class="meta-line">${cd}</span>` : ""}${max > 1 ? `<span class="meta-line">${t("Max Lv. {n}", { n: max })}</span>` : ""}<span class="meta-line">${t("Available in Lv. {l}", { l: String(spec ?? "1+") })}</span>${cont ? `<span class="meta-line meta-cont">${t("Continous Pick")}</span>` : ""}${extra ? `<span class="meta-extra">${extra}</span>` : ""}</small>`;
+const bookMeta = (max, spec, extra = "", cd = "", cont = false) => // v0.22j1: cont = ContinousPick; v0.27zziF: internal only, no longer shown
+  `<small class="book-meta">${cd ? `<span class="meta-line">${cd}</span>` : ""}${max > 1 ? `<span class="meta-line">${t("Max Lv. {n}", { n: max })}</span>` : ""}<span class="meta-line">${t("Available in Lv. {l}", { l: String(spec ?? "1+") })}</span>${extra ? `<span class="meta-extra">${extra}</span>` : ""}</small>`;
 function perkBookCard(e, p, section = null) {
   if (e.type === "element") {
     const f = elementOf(e.id);

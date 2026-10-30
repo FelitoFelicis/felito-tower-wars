@@ -5172,6 +5172,10 @@ dialog.welcome-modal.hard-eyes .welcome-eyes {
   text-transform: uppercase;
   color: var(--gold, #f2c75c);
 }
+/* v0.27zziF: several lines in one section (Pacifist: EXP Generator and Wall) */
+.tt-towers > .tt-branch + .tt-branch {
+  margin-top: 8px;
+}
 .tt-chain {
   display: flex;
   align-items: center;
@@ -8511,6 +8515,9 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
 /* ---- v0.24s: Mobile Default and Mobile Large: the tower cards stay in one row and scroll sideways ----
    v0.27tF: now with the menu option "Scroll" (any layout); "Full" shows every blueprint, 5 per row */
 :root.creep-scroll .game-shell[data-page="build"] .cards.grid-build:not(.upgrade-mode) {
+  /* v0.27zziF: room above the row, so a selected card (lifted by 7 px) is not cut off at the top */
+  padding-top: 9px;
+  margin-top: -7px;
   grid-template-columns: none;
   grid-auto-flow: column;
   grid-auto-columns: calc((100% - 4 * 5px) / 5);
@@ -8887,9 +8894,10 @@ dialog.welcome-modal.insane-eyes .welcome-eyes { filter: hue-rotate(-85deg) satu
   filter: drop-shadow(0 2px 1px #000b);
 }
 .pick-card .pick-book img {
-  width: 64% !important;
-  height: 64% !important;
-  transform: translateY(-17%);
+  /* v0.27zziF: the spell icon larger on the book (was 64 %); the book keeps its size */
+  width: 84% !important;
+  height: 84% !important;
+  transform: translateY(-13%);
   filter: drop-shadow(0 1px 1px #0009);
 }
 .sum-place.place-last {

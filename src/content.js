@@ -130,12 +130,12 @@ export function configureContent(data) {
     const a = rawAbilities.get(id);
     if (a) rawAbilities.set(id, { ...a, ...(patch.props || {}), fields: { ...a.fields, ...(patch.fields || {}) } });
   }
-  // v0.22a: melee towers lose the "Splash Attack" ability; its share and radius become the
+  // v0.22a: melee towers lose the "Splash Attack" ability; its share and radius become the (v0.27zziF: all towers)
   // tower's own splash spec (shown and drawn like the Bombard splash)
   for (const [id, raw] of rawUnits) {
     const f = raw.fields,
       range = Number(f.ua1r) || 0;
-    if (!/^h/.test(id) || !(range > 0 && range <= 200)) continue;
+    if (!/^h/.test(id) || !(range > 0)) continue; // v0.27zziF: every tower (Terror Demon and Battle Mech, range 260, too)
     const ids = splitIds(f.uabi),
       cleave = ids.find((x) => rawAbilities.get(x)?.baseId === "ANca");
     if (!cleave) continue;
@@ -629,19 +629,38 @@ export const CUSTOM_ABILITIES = [
   // v0.27lF: display only (the effects run in simulation.js): Magic City's Penalty Lap, Battle Mech's Missile Barrage
   { id: "XA16", baseId: "Xinf", custom: true, fields: { anam: { 0: "Penalty Lap" }, aub1: { 1: "Sends the creep farthest along back to the start: Arcane Penalty, armor reversed, 20% slower until it breaches" } } },
   { id: "XA18", baseId: "Xinf", custom: true, fields: { anam: { 0: "Flameburst" }, aub1: { 1: "Every 8 s a fire explosion on the creep farthest along hits all creeps within 1.5 fields" } } }, // v0.27mF: Fire Lord
-  { id: "XA17", baseId: "Xinf", custom: true, fields: { anam: { 0: "Missile Barrage" }, aub1: { 1: "Every 12 s fires 3 heavy missiles at path fields with creeps, each hits all creeps on its field" } } },
+  { id: "XA17", baseId: "Xinf", custom: true, fields: { anam: { 0: "Missile Barrage" }, aub1: { 1: "Every 13.5 s fires 3 heavy missiles at path fields with creeps, each hits all creeps on its field for 1.3× attack damage" } } },
   { id: "XA15", baseId: "Ansk", custom: true, fields: { anam: { 0: "Scale Armor" }, aub1: { 1: "Ignores 2 damage from all attacks\nbut takes minimum 1 damage" }, Ssk3: { 1: 2 }, Ssk2: { 1: 1 } } },
   { id: "XA08", baseId: "Xslr", custom: true, resist: 0.4, fields: { anam: { 0: "Slow Resistance" }, aub1: { 1: "40% less slowed" } } }, // v0.21k: Warden, Eredar Warlock
   { id: "XA03", baseId: "Xinf", custom: true, fields: { anam: { 0: "Deathrattle" }, aub1: { 1: "Summons 3 Skeletons on death" } } }, // v0.17g: display only (the spawn runs through DEATH_PLANS)
   // v0.27yF: Terror Demon (was Pit Lord): Terror Aura replaces Howl. Creeps within 2 fields of the tower take 20 % more
   // damage from towers while they stay in range (no slow; several Terror Demons do not stack).
-  { id: "XA04", baseId: "Xter", custom: true, radius: 256, amp: 0.3, fields: { anam: { 0: "Terror Aura" }, aub1: { 1: "Creeps within 2 fields take 30% more damage from towers" } } }, // v0.27zaF: 20 → 30 %
+  { id: "XA04", baseId: "Xter", custom: true, radius: 256, amp: 0.3, fields: { anam: { 0: "Terror Aura" }, aub1: { 1: "Creeps nearby take 30% more damage from towers" } } }, // v0.27zaF: 20 → 30 %
   // v0.27zaF: Tree of Life: Entangle remade: every 6 s a random creep in range is entangled for 10 s (840 damage per second)
   { id: "XA19", baseId: "Xent", custom: true, interval: 6, duration: 10, dps: 840, fields: { anam: { 0: "Entangle" }, aub1: { 1: "Every 6 s entangles a random creep in range for 10 s, dealing 840 damage per second" } } },
   // v0.17p: Phoenix: Phoenix Fire as an immolation aura with full damage to ground and air
   // v0.27nF: the Phoenix's two immolation auras (Phoenix Fire 350/s in 192, Firestorm Aura 275/s in 320) merged into one:
   // 400/s in 320 to ground and air (about the same damage over the whole circle)
-  { id: "XA05", baseId: "AIcf", custom: true, fields: { anam: { 0: "Phoenix Fire" }, aare: { 1: 320 }, aub1: { 1: "Deals 400 damage per second\nRange 320\nTargets Ground & Air" } } },
+  // v0.27zziF: was "Phoenix Fire"
+  { id: "XA05", baseId: "AIcf", custom: true, fields: { anam: { 0: "Immolation Aura" }, aare: { 1: 320 }, aub1: { 1: "Deals 400 damage per second\nRange 320\nTargets Ground & Air" } } },
+  // v0.27zziF: Firestorm Aura was just another immolation aura: Hall of Fire 2–4, Scorch Demon and Battle Mech get an
+  // Immolation Aura with the same values (range 320, full damage to ground and air)
+  ...[["XA20", 15], ["XA21", 50], ["XA22", 125], ["XA23", 300]].map(([id, dps]) => ({ id, baseId: "AIcf", custom: true, fields: { anam: { 0: "Immolation Aura" }, aare: { 1: 320 }, aub1: { 1: `Deals ${dps} damage per second\nRange 320\nTargets Ground & Air` } } })),
+  // v0.27zziF: Hydra: Slow Aura (air, 33 % in 600) and Frost Aura (ground, 18 % in 550) merged into one Frost Aura for ground
+  // and air: 18 % on the ground, 33 % in the air (airFactor), range 600
+  { id: "XA24", baseId: "AOae", custom: true, airFactor: 0.33 / 0.18, fields: { anam: { 0: "Frost Aura" }, alev: { 0: 1 }, Oae1: { 1: -0.18 }, Oae2: { 1: 0 }, aare: { 1: 600 }, atar: { 1: "ground,air,enemies,vulnerable" }, abuf: { 1: "B008" } } },
+  // v0.27zziF: Magic City: its Mana Regeneration Aura is shown as part of its Mana Aura (one ability; effects unchanged:
+  // +10 mana per second and 50 % faster mana regeneration for the towers around it)
+  { id: "XA25", baseId: "ANre", custom: true, fields: { anam: { 0: "Mana Aura" }, aare: { 1: 600 }, atar: { 1: "friend,air" }, Arm1: { 1: 1 }, Arm2: { 1: 0 } } },
+  // v0.27zziF: Tree of Life: its Frost Aura read level 1 (4 %) of the halls' 7-level aura; now 20 % (Hall of Water 4: 16 %)
+  { id: "XA26", baseId: "AOae", custom: true, fields: { anam: { 0: "Frost Aura" }, alev: { 0: 1 }, Oae1: { 1: -0.2 }, Oae2: { 1: 0 }, aare: { 1: 550 }, atar: { 1: "ground,enemies,vulnerable" }, abuf: { 1: "B008" } } },
+  // v0.27zziF: Hall of Plague: Decay (every attack destroys 2 / 3 / 4 % of max health; effect runs in simulation.js)
+  { id: "XA27", baseId: "Xinf", custom: true, fields: { anam: { 0: "Decay" }, aub1: { 1: "Attacks destroy part of the creep's max health" } } },
+  // v0.27zziF: Bash Tower 3–6: Stun (chance, seconds, bosses half as long, extra damage on a stun)
+  ...[["XA28", 15, 1.5, 25], ["XA29", 17, 1.75, 80], ["XA30", 19, 2, 230], ["XA31", 21, 2.25, 570]].map(([id, chance, dur, bonus]) => ({
+    id, baseId: "AHbh", custom: true,
+    fields: { anam: { 0: "Stun" }, alev: { 0: 1 }, Hbh1: { 1: chance }, Hbh3: { 1: bonus }, adur: { 1: dur }, ahdu: { 1: dur / 2 }, aub1: { 1: `Chance of ${chance}% to stun for ${dur} seconds and deal ${bonus} extra damage` } },
+  })),
   // v0.18b: Earth Laser: Focus Fire. While the tower keeps hitting the same creep, its damage rises by 10 % every 0.25 s, up to 500 %.
   // v0.18e: Orc: buying one restocks one Goblin at once (display only; the restock runs in simulation.js)
   // v0.21z: display only: Treant EXP and Wisp, Meat Golem Enrage (the effects run in simulation.js)
@@ -678,18 +697,37 @@ const ABILITY_PATCH = {
   A02E: { fields: { aub1: { 1: "Shoots |c00FFFF004|r arrows simultaneously" } } },
   A03G: { fields: { aub1: { 1: "Shoots |c00FFFF005|r arrows simultaneously" } } },
   A05G: { fields: { aub1: { 1: "Shoots |c00FFFF006|r arrows simultaneously" } } },
+  // v0.27zziF: one name per ability (values stay per tower): Phoenix Stun → Stun, Critical Shot → Critical Hit,
+  // Napalm Aura → Corrosive Aura, Flames and Decay (Scorch Demon, a plain poison) → Poison,
+  // Mana Regeneration Aura (Hall of Elements) → Mana Aura
+  A09T: { fields: { anam: { 0: "Stun" } } },
+  A00R: { fields: { anam: { 0: "Critical Hit" } } },
+  A00I: { fields: { anam: { 0: "Critical Hit" } } },
+  A00U: { fields: { anam: { 0: "Corrosive Aura" } } },
+  A09A: { fields: { anam: { 0: "Poison" } } },
+  A06L: { fields: { anam: { 0: "Mana Aura" } } },
+  // v0.27zziF: Terror Demon and Skull Mage: Decay Attack → Poison (same values) + Decay; Slow Aura (air-only, storm towers) → Cloud Aura
+  A099: { fields: { anam: { 0: "Poison" } } },
+  A0BL: { fields: { anam: { 0: "Poison" } } },
+  ...Object.fromEntries(["A040", "A04H", "A05A", "A06E", "A05K"].map((id) => [id, { fields: { anam: { 0: "Cloud Aura" } } }])),
+  // v0.27zziF: Hall of Plague 2–4: "[Hall] Decay Attack" is a regular Poison (same values: 22 / 66 / 133 per s, 3 / 5 / 7 % slow)
+  A098: { fields: { anam: { 0: "Poison" } } },
+  A097: { fields: { anam: { 0: "Poison" } } },
+  A06F: { fields: { anam: { 0: "Poison" } } },
   // v0.27zaF: Naga Archer Stun: 15 % chance (was 9 %), 4 s (was 3 s)
   A09Y: { fields: { Hbh1: { 1: 15 }, adur: { 1: 4 }, aub1: { 1: "Chance of |c00FFFF0015%|r to stun \nfor |c00FFFF004.00|r seconds and \ndeal |c00FFFF00200|r extra damage" } } },
   A0D1: { fields: { Ssk3: { 1: 12 } } }, // v0.23: Druid's Scale Armor ignores 12 damage per hit (the value was missing, so it ignored nothing)
   A08K: { fields: { Ssk2: { 1: 3 } } }, // v0.23: Frost Wyrm and Lord Garithos take at least 3 damage per hit (was 1: the value was missing)
   // v0.23zb: Undoctor (was Witch Doctor): its curse works once per creep, −33 % rate of fire for 60 s (was −30 % for 90 s, again and again)
   A0D6: { fields: { Slo2: { 1: 0.33 }, adur: { 1: 60 }, aub1: { 1: "Once: decreases a tower's rate of fire\nby |c00FFFF0033%|r for |c00FFFF0060|r seconds" } } },
+  // v0.27zziF: Super Stun is a regular Stun (Hall of Storm 2–4, Magic City, Hydra; values unchanged)
+  ...Object.fromEntries(["A04A", "A04I", "A05S", "A05B", "A01Z"].map((id) => [id, { fields: { anam: { 0: "Stun" } } }])),
 };
 /**
  * v0.21m: the names this port gave its units, written over the Warcraft names in the catalog itself, so every
  * text (cards, tooltips, card book, messages, neutral waves) uses them: Peon → Goblin, Chaos Peon → Imp, …
  */
-export const UNIT_NAMES = Object.freeze({ "Glaive Tower": "Bouncing Shot", "Naga Guard": "Mermaid", Robogoblin: "Battle Mech", Peon: "Goblin", "Chaos Peon": "Trenchlin", Akolyte: "Goblin Zealot", Dragonspawn: "Crystal Lizard", "Frost Wyrm": "Bone Dragon", "Lord Garithos": "Dark Knight", "Witch Doctor": "Undoctor", "Centaur Warrior": "Satyr", "Forest Troll": "Centaur", "Grom Hellscream": "Bandit Leader", "Fel Raider": "Rouge Knight", Horse: "Pony", "Cairne Bloodhoof": "Minotaurus", Lumbermill: "EXP Generator", "Skeleton Grunt": "Skeleton Berserker", "Draenai Marauder": "Scaleworm", "Siege Golem": "Iron Golem", Abomination: "Zombie Ogre", "Demon Hunter": "Demon Knight", Faceless: "Dark Monk", Spellbreaker: "Witch Hunter", "Void Walker": "Banshee", "Kel Thuzad": "Lord Frostbite", "Pit Lord": "Terror Demon", "Arrow Tower": "Archer" }); // v0.27ztF: Arrow Tower → Archer (levels 4–6 of the Archer line) // v0.27zjF: Glaive Tower → Bouncing Shot; v0.27xF: Kel Thuzad → Lord Frostbite, Pit Lord tower → Terror Demon // v0.23a: Boar Scout → Boar; v0.23c: Horse → Boar; v0.23d: tier 1 is the Horse again, tier 2 stays Boar Scout
+export const UNIT_NAMES = Object.freeze({ "Glaive Tower": "Bouncing Shot", "Naga Guard": "Mermaid", Robogoblin: "Battle Mech", Peon: "Goblin", "Chaos Peon": "Trenchlin", Akolyte: "Goblin Zealot", Dragonspawn: "Crystal Lizard", "Frost Wyrm": "Bone Dragon", "Lord Garithos": "Dark Knight", "Witch Doctor": "Undoctor", "Centaur Warrior": "Satyr", "Forest Troll": "Centaur", "Grom Hellscream": "Bandit Leader", "Fel Raider": "Rouge Knight", Horse: "Pony", "Cairne Bloodhoof": "Minotaurus", Lumbermill: "EXP Generator", "Skeleton Grunt": "Skeleton Berserker", "Draenai Marauder": "Scaleworm", "Siege Golem": "Iron Golem", Abomination: "Zombie Ogre", "Demon Hunter": "Demon Knight", Faceless: "Dark Monk", Spellbreaker: "Witch Hunter", "Void Walker": "Banshee", "Kel Thuzad": "Skull Mage", "Pit Lord": "Terror Demon", "Fire Lord": "Scorch Demon", "Arrow Tower": "Archer" }); // v0.27ztF: Arrow Tower → Archer (levels 4–6 of the Archer line) // v0.27zjF: Glaive Tower → Bouncing Shot; v0.27xF: Kel Thuzad → Lord Frostbite, Pit Lord tower → Terror Demon // v0.23a: Boar Scout → Boar; v0.23c: Horse → Boar; v0.23d: tier 1 is the Horse again, tier 2 stays Boar Scout
 const unitName = (short) => UNIT_NAMES[short] || short;
 const renameFull = (full) => {
   const short = full.replace(/^\[[^\]]+\]\s*/, "").replace(/\s*\[[^\]]+\]/g, "");
@@ -706,9 +744,17 @@ const upgradeIds = (s) => splitIds(s).filter((id) => !REMOVED_UNITS.has(id));
 /** Per unit: map ability → replacement ("" removes it). */
 const UNIT_ABILITY_SWAP = {
   h024: { A09W: "" }, // Naga Archer: no Howl
-  h00G: { A01C: "XA19" }, // v0.27zaF: Tree of Life: timed Entangle (the old 15 % chance did nothing)
+  h00G: { A01C: "XA19", A05O: "XA26" }, // v0.27zaF: Tree of Life: timed Entangle (the old 15 % chance did nothing); v0.27zziF: Frost Aura 20 %
   h01Z: { A09W: "XA04" }, // Terror Demon (Pit Lord tower): Terror Aura (v0.27yF, was Howl)
   h020: { A0CI: "XA05", A059: "" }, // Phoenix: Phoenix Fire is an immolation aura; v0.27nF: Firestorm Aura merged into it
+  // v0.27zziF: Firestorm Aura → Immolation Aura (same values)
+  h01B: { A03X: "XA20" },
+  h008: { A04J: "XA21" },
+  h02X: { A03I: "XA22" },
+  h00I: { A09M: "XA23" },
+  h046: { A09M: "XA23" },
+  h03W: { A0D7: "", A0CP: "XA24" }, // v0.27zziF: Hydra: one Frost Aura for ground and air
+  h00J: { A06L: "XA25" }, // v0.27zziF: Magic City: one Mana Aura
   // v0.18b: Earth Laser: Focus Fire instead of Armor Disruption
   h03R: { A0BG: "XA06" },
   h03X: { A0BG: "XA06" },
@@ -725,7 +771,7 @@ const UNIT_ABILITY_SWAP = {
   n01D: { A09U: "XA01" },
 };
 /** Per unit: abilities added in front. */
-const UNIT_ABILITY_ADD = { h00J: ["XA16"], h046: ["XA17"], h00I: ["XA18"], n02P: ["XA08"], n01R: ["XA08"], n00Y: ["XA10", "XA09"], n01H: ["XA11", "XA12"], n00T: ["XA12"], n015: ["XA12"], n01T: ["XA12"], n02R: ["XA12", "XA13"], n02I: ["A03D"] }; // v0.23: Lord Garithos shows his Divine Shield // v0.22n2: Tier Boss // v0.21z: Treant EXP Bonus and Spawn Wisp, Meat Golem Enrage // v0.21k: Slow Resistance for Warden and Eredar Warlock
+const UNIT_ABILITY_ADD = { h01Y: ["XA28"], h00M: ["XA29"], h04I: ["XA30"], h050: ["XA31"], h021: ["XA27"], h009: ["XA27"], h038: ["XA27"], h01Z: ["XA27"], h043: ["XA27"], h00J: ["XA16"], h046: ["XA17"], h00I: ["XA18"], n02P: ["XA08"], n01R: ["XA08"], n00Y: ["XA10", "XA09"], n01H: ["XA11", "XA12"], n00T: ["XA12"], n015: ["XA12"], n01T: ["XA12"], n02R: ["XA12", "XA13"], n02I: ["A03D"] }; // v0.23: Lord Garithos shows his Divine Shield // v0.22n2: Tier Boss // v0.21z: Treant EXP Bonus and Spawn Wisp, Meat Golem Enrage // v0.21k: Slow Resistance for Warden and Eredar Warlock
 /**
  * v0.18a: tower damage buffs in percent of the average damage, rounded up to the next whole number.
  * The difference is added to the flat damage part, so the dice spread stays the same.
@@ -739,7 +785,13 @@ export const TOWER_DAMAGE_BUFF = {
   h05A: 0.08, h033: 0.08, h034: 0.08, h03I: 0.08,
   h02U: 0.12, h02V: 0.12, h035: 0.12, h036: 0.12, h03J: 0.12,
   // v0.24j: Disease Launcher +40 % – removed in v0.27zzhF (attack and clouds)
+  // v0.27zziF: Magic City and Skull Mage ×4 (they dealt about 1/10 of the other combination towers per gold)
+  h00J: 3, h043: 3,
+  h01I: 0.25, h007: 0.25, h039: 0.25, // v0.27zziF: Hall of Storm 2–4 +25 %
+  h046: -0.15, // v0.27zziF: Battle Mech −15 % (still about 1.8× the other combination towers after the Missile Barrage nerf)
 };
+/** v0.27zziF: fixed prices (upgrade cost of the tower itself): Death Knight 50,000 → 20,000, Naga Archer 35,000 → 20,000. */
+export const TOWER_COST = { h02C: 20000, h024: 20000 };
 function applyTowerDamageBuff(byId) {
   for (const [id, pct] of Object.entries(TOWER_DAMAGE_BUFF)) {
     const u = byId[id];
@@ -748,6 +800,7 @@ function applyTowerDamageBuff(byId) {
     u.damageBase += next - u.damage;
     u.damage = next;
   }
+  for (const [id, cost] of Object.entries(TOWER_COST)) if (byId[id]) byId[id].cost = cost; // v0.27zziF
   // v0.24p: pinned average damage (after the percentage buffs)
   for (const [id, dmg] of Object.entries(TOWER_DAMAGE_PIN)) {
     const u = byId[id];
@@ -757,7 +810,7 @@ function applyTowerDamageBuff(byId) {
   }
 }
 // v0.24p: fixed average damage per tower (Footman level 2: 11)
-export const TOWER_DAMAGE_PIN = { h02U: 11 };
+export const TOWER_DAMAGE_PIN = { h02U: 11, h01M: 77, h00A: 222, h032: 678 }; // v0.27zziF: Hall of Arcane 2–4 (was 65 / 195 / 555)
 /**
  * v0.27iF: start delay of every send in rounds (the lock shown on its card). Only sends from the 4th place of a tier
  * on wait; the first three open at once and a tier boss waits one round longer than the creep before it.
@@ -821,7 +874,7 @@ export const CREEP_TUNING = {
   // plants a Siege Plank once (simulation.js SIEGE_OGRE)
   n01G: { name: "[34] Siege Ogre", shortName: "Siege Ogre", count: 1, hp: 16000, armor: 3, bountyBase: 718, abilities: ["A08S", "A01A"], stockMax: 2, stockRegen: 17 }, // v0.22o2: was Spiritwalker → Shieldbearer; v0.24i: stock 5 → 2, restock 15 → 17 s
   n025: { income: 30 }, // v0.24j: Raven earns a little income (0.3 % of its price; flyers pay less than ground creeps)
-  n00L: { speed: 398.22, cost: 30, hp: 40, income: 3, stockMax: 8 }, // v0.27bF: 1.40 fields/s (398 × 0.45 / 128), HP 35 → 40, income 4 → 3, stock max 12 → 8; locked 5 rounds, opens with 2 (simulation.js START_LOCK); Wolf: 25 % faster, 300 → 375 (v0.08d); v0.24s: cost 30; v0.26bF: HP 32 → 35, 5 % faster (375 → 394)
+  n00L: { speed: 398.22, cost: 30, hp: 40, income: 3, stockMax: 8, stockRegen: 6 }, // v0.27zziF: restock 5 → 6 s; // v0.27bF: 1.40 fields/s (398 × 0.45 / 128), HP 35 → 40, income 4 → 3, stock max 12 → 8; locked 5 rounds, opens with 2 (simulation.js START_LOCK); Wolf: 25 % faster, 300 → 375 (v0.08d); v0.24s: cost 30; v0.26bF: HP 32 → 35, 5 % faster (375 → 394)
   n00S: { speed: 420, stockRegen: 13, income: 8, name: "[10] Wolfrider", shortName: "Wolfrider" }, // v0.24s: Raider → Wolfrider; Raider: 25 % faster (v0.07b); restock 12 → 13 s (v0.17o); income 9 → 8 (v0.17q)
   n012: { name: "[21] Giant Bat", shortName: "Giant Bat" }, // v0.23zq: the Zeppelin is the Giant Bat
   n025: { name: "[52] Raven", shortName: "Raven" }, // v0.23zo: the Gryphon Rider is the Raven
