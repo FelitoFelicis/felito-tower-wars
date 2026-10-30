@@ -6370,6 +6370,8 @@ function waveDefense(game, p) {
 // and otherwise invests in income sends. It saves for pushes now and then, prefers flyers
 // when the opponent has little anti-air, and plays every match a little differently: each
 // AI player rolls a personality from the game seed. Everything goes through `command`.
+/** v0.28.023F: seconds Very Easy waits after buying a tower or upgrade before the next one (about one a round; it bought 1.5–3 a round). */
+const VERY_EASY_BUILD_GAP = 15;
 const AI_SAFETY = { veryEasy: 0.6, easy: 0.85, normal: 1.2, hard: 1.45, insane: 1.45 }; // v0.16k: very easy 1.45 → 0.6
 // How the difficulty plays: share of decisions that follow the maze plan, how noisy tower
 // placement is, and persona multipliers. Very easy turtles: it overbuilds, sends little and late.
@@ -7714,12 +7716,18 @@ function think(game, p) {
   if (!game.warmup && (planNow.hallExt || planNow.hallAt) && !hasHall(p) && p.gold >= (obj(HALL_ID)?.cost ?? Infinity) && buildPlannedHall(game, p, planNow)) return;
   // v0.28.022F: while a push is going out, Hardo keeps its gold for it (match of 30.10. #4: upgrades ate the gold
   // between the sends, the push trickled out one Satyr a round and blocked every income send for 5 rounds)
+  // v0.28.023F: Very Easy buys a tower or upgrade at most once a round (about half as often as before); in between
+  // it keeps the gold for the next one instead of turning it into income sends (it would get much stronger)
+  if (defend && level === "veryEasy" && (p.aiBuildReady ?? 0) > game.time) return;
   if (defend && !(persona.adaptive && p.aiPush?.sending)) {
     const wantAir = airGap > 0 && airGap >= groundGap;
     const options = defenceOptions(game, p, persona, level, style, cap, wantAir, false, wantAir ? airNeed : groundNeed);
     const choice = options[0];
     if (choice && p.gold >= choice.cost) {
-      if (choice.run().ok) return;
+      if (choice.run().ok) {
+        if (level === "veryEasy") p.aiBuildReady = game.time + VERY_EASY_BUILD_GAP;
+        return;
+      }
     }
     // can't afford the best fix yet: save, unless the shortfall is small
     if (choice && groundGap + airGap > 40) return;
@@ -7845,11 +7853,14 @@ function think(game, p) {
     }
   }
   // Maze rush: with spare gold, lay the next template tower before it is needed.
-  if ((persona.mazeRush ?? 0) > 0 && !early && random(game) < persona.mazeRush) { // v0.22l: Hardo does not rush the maze early
+  if ((persona.mazeRush ?? 0) > 0 && !early && !(level === "veryEasy" && (p.aiBuildReady ?? 0) > game.time) && random(game) < persona.mazeRush) { // v0.22l: Hardo does not rush the maze early; v0.28.023F: Very Easy waits its build gap
     const maze = mazePlan(game, p, level);
     if (maze.template && planOrder(game, p, maze).order.some((c) => !towerAt(p, c.x, c.y))) {
       const opt = defenceOptions(game, p, persona, level, style, cap, false, true, groundNeed).find((o) => o.plan);
-      if (opt && p.gold - opt.cost >= reserve && opt.run().ok) return;
+      if (opt && p.gold - opt.cost >= reserve && opt.run().ok) {
+        if (level === "veryEasy") p.aiBuildReady = game.time + VERY_EASY_BUILD_GAP;
+        return;
+      }
     }
   }
   // v0.07l: a low opponent gets a finishing push as soon as one can break through
@@ -8230,8 +8241,10 @@ export function nextWave(game) {
   if (!game.waves) return null;
   let number = 1;
   while (waveRound(number) <= game.round) number++;
-  const inRounds = waveRound(number) - game.round;
-  return { ...waveInfo(number), seconds: game.incomeRemaining + (inRounds - 1) * game.incomeInterval };
+  const inRounds = waveRound(number) - game.round,
+    info = waveInfo(number);
+  // v0.28.023F: the HP shown and planned for match the wave's real HP (Very Easy training: 30 % less)
+  return { ...info, hp: info.hp * waveEase(game), seconds: game.incomeRemaining + (inRounds - 1) * game.incomeInterval };
 }
 /** The (first) creep a wave consists of; mixed waves: the ground or the air group. */
 export function waveModel(number, type, info = waveInfo(number)) {
@@ -8253,6 +8266,13 @@ function launchWave(game, number) {
       game.waveQueue.push({ time: game.time + gap * i, defender: defender.id, number, type: info.type, model: g.model, flying: g.flying, index: i, real: true });
   });
 }
+/** v0.28.023F: neutral waves have 30 % less HP in training matches where every AI opponent is Very Easy. */
+export const VERY_EASY_WAVE_HP = 0.7;
+function waveEase(game) {
+  if (!game.training || game.mission) return 1;
+  const bots = game.players.filter((q) => q.ai);
+  return bots.length && bots.every((q) => aiLevel(game, q) === "veryEasy") ? VERY_EASY_WAVE_HP : 1;
+}
 function spawnWaveCreep(game, entry, at = null, hpScale = 1, child = false) {
   const info = waveInfo(entry.number),
     spec = WAVE_TYPES[entry.type],
@@ -8264,7 +8284,7 @@ function spawnWaveCreep(game, entry, at = null, hpScale = 1, child = false) {
     position = at || pos(game, column, -1),
     real = !!entry.real, // v0.18a: neutral waves use the creep's own values
     speed = (real ? item.speed : 240 * (spec.speed || 1)) * movementMultiplier(game),
-    hp = (real ? item.hp : info.hp) * hpScale;
+    hp = (real ? item.hp : info.hp) * hpScale * waveEase(game);
   const creep = {
     id: "w" + game.nextId++,
     typeId: entry.model,

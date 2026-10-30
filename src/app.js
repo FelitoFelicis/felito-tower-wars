@@ -199,7 +199,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.28.022",
+const APP_VERSION = "0.28.023",
   APP_BRANCH = "F", // v0.23q: author marker (F = Felix, S = Steven) and branch text, shown behind the version; APP_VERSION stays plain for online matches (VersionPublishingRules.md)
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "30.10.2026";
@@ -2948,16 +2948,32 @@ function playHeroAnims(root) {
 }
 new MutationObserver(() => playHeroAnims($("modal"))).observe($("modal"), { childList: true, subtree: true });
 // v0.09f: a right click drops the tower blueprint you are placing (no browser menu in the game)
+// v0.28.022F: a right click puts the Sell / Upgrade tool away (normal cursor again); v0.28.023F: anywhere on the
+// screen and already on the button press (contextmenu alone could miss it), and the same right click never counts
+// as half of a double right click sell
+let toolOffAt = -1e9;
+const toolOffRecently = () => performance.now() - toolOffAt < 600;
+function toolOffByRightClick() {
+  setToolMode(null);
+  toolOffAt = performance.now();
+  tone("tap");
+}
+document.addEventListener(
+  "pointerdown",
+  (e) => {
+    if (e.button === 2 && toolMode && game && begun && !e.target.closest?.("dialog")) toolOffByRightClick();
+  },
+  true,
+);
 document.addEventListener("contextmenu", (e) => {
   if (!game || !begun || e.target.closest?.("dialog")) return;
-  if (!e.target.closest?.(".game-shell")) return;
-  e.preventDefault();
-  // v0.28.022F: a right click puts the Sell / Upgrade tool away (normal cursor again)
-  if (toolMode) {
-    setToolMode(null);
-    tone("tap");
+  if (toolMode || toolOffRecently()) {
+    e.preventDefault();
+    if (toolMode) toolOffByRightClick();
     return;
   }
+  if (!e.target.closest?.(".game-shell")) return;
+  e.preventDefault();
   if (volleyAim) setVolleyAim(false);
   if (performance.now() - queueCancelAt < 250) return; // v0.18a: the right click cancelled a pre-build; keep the picked card
   if (tab === "build" && (selected || drag)) {
@@ -5334,7 +5350,7 @@ function onTowerTap(tower, at = performance.now(), point = null) {
 /** v0.13: a double right click on one of your towers sells it. */
 let lastRightClick = { id: null, at: 0 };
 function onTowerRightClick(tower, at = performance.now()) {
-  if (!begun || view !== own || volleyAim || toolMode) return; // v0.28.022F: with a tool on, the right click only puts it away
+  if (!begun || view !== own || volleyAim || toolMode || toolOffRecently()) return; // v0.28.022F: with a tool on, the right click only puts it away
   const double = lastRightClick.id === tower.id && at - lastRightClick.at < 420;
   lastRightClick = { id: tower.id, at: double ? 0 : at };
   if (!double) return;
@@ -9973,7 +9989,7 @@ async function init() {
         tone("tap");
       },
       onCell,
-      onCellRight: (pos) => !toolMode && cancelQueuedAt(pos), // v0.18a: right click on a pre-build cancels it (v0.28.022F: not while a tool is on)
+      onCellRight: (pos) => !toolMode && !toolOffRecently() && cancelQueuedAt(pos), // v0.18a: right click on a pre-build cancels it (v0.28.022F: not while a tool is on)
       onTower: onTowerTap,
       onTowerRight: onTowerRightClick,
       popups: { numbers: popNumbers, notes: popNotes },
@@ -10035,6 +10051,7 @@ async function init() {
         e.preventDefault();
       } else if (k === "b") document.querySelector('[data-tab="build"]')?.click();
       else if (k === "s") document.querySelector('[data-tab="send"]')?.click();
+      else if (k === "escape" && toolMode) setToolMode(null); // v0.28.023F: Esc puts the Sell / Upgrade tool away too
       else if (k === "escape" && tab === "build" && selected) {
         selected = null;
         pending = null;

@@ -85,7 +85,7 @@ export function configureContent(data) {
     rawAbilities = mergeObjects(data.abilities);
   // v0.17b: own creep abilities (not in the map data): damage resistance against one tower line
   for (const a of CUSTOM_ABILITIES) rawAbilities.set(a.id, { ...a, fields: { ...a.fields } });
-  // v0.27F: Mud Golem as a tier 1 send card (mini boss): 200 gold, +10 income, 650 HP (v0.27cF), unlocks the upper half of tier 1
+  // v0.27F: Mud Golem as a tier 1 send card (mini boss): 200 gold (v0.28.023F: 150), +10 income, 650 HP (v0.27cF; v0.28.023F: 553), unlocks the upper half of tier 1
   {
     const escort = rawUnits.get("n01U"),
       shop = rawUnits.get(SHOPS[0]);
@@ -94,7 +94,7 @@ export function configureContent(data) {
         ...escort,
         id: MUD_GOLEM_ID,
         custom: true,
-        fields: { ...escort.fields, unam: "[05] Mud Golem", ugol: 200, upoi: 10, uhpm: 650, usma: 1, usrg: 1, usst: 0, uabi: "A01A,XA14,XA32", utyp: "ancient" },
+        fields: { ...escort.fields, unam: "[05] Mud Golem", ugol: 150, /* v0.28.023F: 200 → 150 */ upoi: 10, uhpm: 553 /* v0.28.023F: 650 → 553 (−15 %) */, usma: 1, usrg: 1, usst: 0, uabi: "A01A,XA14,XA32", utyp: "ancient" },
       });
       shop.fields.useu = (shop.fields.useu || "") + "," + MUD_GOLEM_ID;
     }
@@ -824,7 +824,7 @@ export const TOWER_DAMAGE_PIN = { h02U: 11, h01M: 77, h00A: 222, h032: 678, h00D
  * on wait; the first three open at once and a tier boss waits one round longer than the creep before it.
  */
 export const START_ROUNDS = {
-  n00L: 4, n00R: 5, n00M: 6, n00N: 8, n00P: 8, n00S: 9, // tier 1 (the Wolf opens through START_LOCK)
+  n00L: 4, n00R: 5, n00M: 5, n00N: 7, n00P: 7, n00S: 8, // tier 1 (the Wolf opens through START_LOCK; v0.28.023F: 6th–9th card one round sooner, were 6 / 8 / 8 / 9)
   n011: 1, n00V: 1, n010: 2, nTRO: 4, n02V: 4, n014: 4, // tier 2
   n03A: 1, n019: 2, n01A: 2, n01C: 3, n01G: 5, n01F: 6, // tier 3 (v0.27jF: Naga Siren 2 → 1, Shade 1 → 2)
   n00F: 1, n01L: 1, n01N: 2, n02M: 3, n02N: 4, n02O: 4, // tier 4

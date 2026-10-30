@@ -312,6 +312,8 @@ export function pipGeometry(z) {
 /** v0.21o: the shimmering tier aura round towers of level 4 and up (off on the user's request). */
 const TIER_AURA = false;
 const TOWER_SCALE = 0.95;
+/** v0.28.023F: the maze-growth arrows grow and fade out over this time when the hint ends. */
+const GROW_FADE_MS = 450;
 /** v0.27ziF: muzzle of a figure's weapon, in pixels of its picture (level variants use the base figure's). */
 // v0.27zzeF: the point every shooting figure fires from (still-picture pixels; level variants share their base figure's)
 const WEAPON_TIP = {
@@ -3589,44 +3591,72 @@ export function mountArena({
         before = seen.get(player.id);
       seen.set(player.id, rows);
       const scroll = z.scroll,
-        y0 = this.stage.scrollY || 0;
+        y0 = this.stage.scrollY || 0,
+        // v0.28.023F: when the hint ends the arrows grow and fade out (were removed at once)
+        fadeOut = () => {
+          const hint = this.growHint;
+          if (hint?.id === player.id && hint.row != null) this.growFade = { id: player.id, row: hint.row, start: time };
+          if (hint?.id === player.id) this.growHint = null;
+        },
+        drawFade = () => {
+          const f = this.growFade;
+          if (!f || f.id !== player.id) return;
+          const k = (time - f.start) / GROW_FADE_MS;
+          if (k >= 1 || k < 0) {
+            this.growFade = null;
+            return;
+          }
+          const ease = 1 - (1 - k) * (1 - k);
+          this.drawGrowArrows(g, z, f.row, time, 1 - ease, 1 + 0.55 * ease);
+        };
       if (player.ai || !scroll || !(scroll.hi > 0)) {
-        if (this.growHint?.id === player.id) this.growHint = null;
-        return;
+        fadeOut();
+        return drawFade();
       }
-      if (before != null && rows > before) this.growHint = { id: player.id, y0 };
+      if (before != null && rows > before) {
+        this.growHint = { id: player.id, y0 };
+        this.growFade = null;
+      }
       const hint = this.growHint;
-      if (!hint || hint.id !== player.id) return;
+      if (!hint || hint.id !== player.id) return drawFade();
       const ch = z.ch,
         viewBottom = z.top + z.bh + (z.frameV || 5) + 6 - scroll.hi + y0,
         lastRow = Math.min(rows - 1, Math.floor((viewBottom - z.top) / ch + 0.15) - 1);
       if (y0 > hint.y0 + ch * 0.3 || lastRow >= rows - 1) {
-        this.growHint = null;
-        return;
+        fadeOut();
+        return drawFade();
       }
       if (lastRow < 0) return;
-      // v0.28.021F: one solid golden arrow per field of the row, white outline, lit from the left (3D), bobbing slowly
-      // downwards like a pointer (was see-through and pulsing); v0.28.022F: outline and glint fully opaque, darker solid shadow
-      const bob = Math.sin(time * 0.0022) * 0.07,
-        arrow = (x, y, k, grow, color, alpha) => {
-          g.fillStyle(color, alpha);
+      hint.row = lastRow;
+      this.drawGrowArrows(g, z, lastRow, time, 1, 1);
+    }
+    /**
+     * v0.28.021F: one solid golden arrow per field of the row, white outline, lit from the left (3D), bobbing slowly
+     * downwards like a pointer (was see-through and pulsing); v0.28.022F: outline and glint fully opaque, darker solid
+     * shadow; v0.28.023F: `alpha` and `scale` for the fade-out.
+     */
+    drawGrowArrows(g, z, row, time, alpha, scale) {
+      const ch = z.ch,
+        bob = Math.sin(time * 0.0022) * 0.07,
+        arrow = (x, y, k, grow, color, a) => {
+          g.fillStyle(color, a * alpha);
           g.fillRect(x - k * (0.08 + grow), y - k * (0.33 + grow), k * (0.16 + grow * 2), k * (0.28 + grow));
           g.fillTriangle(x - k * (0.24 + grow * 1.6), y - k * (0.07 + grow), x + k * (0.24 + grow * 1.6), y - k * (0.07 + grow), x, y + k * (0.3 + grow * 1.8));
         };
       for (let col = 0; col < z.logicalCols; col++) {
-        const k = Math.min(z.cw, ch),
+        const k = Math.min(z.cw, ch) * scale,
           x = z.left + (col + 0.5) * z.cw,
-          y = z.top + (lastRow + 0.5) * ch + bob * k;
+          y = z.top + (row + 0.5) * ch + bob * k;
         arrow(x + k * 0.035, y + k * 0.05, k, 0.02, 0x1a0e02, 0.55); // shadow
         arrow(x, y, k, 0.04, 0xffffff, 1); // white outline
         arrow(x, y, k, 0, 0xe0a224, 1); // body
         // lit left half, shaded right half
-        g.fillStyle(0xffe58a, 1);
+        g.fillStyle(0xffe58a, alpha);
         g.fillRect(x - k * 0.08, y - k * 0.33, k * 0.08, k * 0.28);
         g.fillTriangle(x - k * 0.24, y - k * 0.07, x, y - k * 0.07, x, y + k * 0.3);
-        g.fillStyle(0xb7760e, 1);
+        g.fillStyle(0xb7760e, alpha);
         g.fillTriangle(x + k * 0.24, y - k * 0.07, x + k * 0.05, y - k * 0.07, x, y + k * 0.3);
-        g.fillStyle(0xfff6d0, 1); // a glint on the shaft
+        g.fillStyle(0xfff6d0, alpha); // a glint on the shaft
         g.fillRect(x - k * 0.06, y - k * 0.31, k * 0.025, k * 0.2);
       }
     }
@@ -3904,9 +3934,10 @@ export function mountArena({
       }
       // v0.27zzaF: Frost Strike: a field that freezes over (cracks and frost spread), then icicles shoot up and melt away
       for (let i = this.frostFx.length - 1; i >= 0; i--) {
+        // v0.28.023F: on the board clock (time is not defined in drawFx: Frost Strike threw "time is not defined")
         const fx = this.frostFx[i],
-          el = time - fx.start,
-          since = fx.strike == null ? 0 : time - fx.strike,
+          el = now - fx.start,
+          since = fx.strike == null ? 0 : now - fx.strike,
           hold = 420,
           fade = 380;
         if (fx.strike != null && since > hold + fade) {

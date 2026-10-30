@@ -10391,3 +10391,15 @@ body.tool-upgrade #arena canvas {
 :root.layout-wide .game-shell #cards-send .unit-card[data-kind="send"].price-big.framed .card-foot:not(.long) .card-note {
   font-size: 15px;
 }
+
+/* ---- v0.28.023F: perk overview (Abilities): every player's name in their player colour, lightened a little and
+   outlined so dark colours stay readable on the dark panel ---- */
+.abil-player .abil-head b {
+  color: color-mix(in srgb, var(--pc) 78%, #fff);
+  text-shadow:
+    -1px -1px 0 #050d13,
+    1px -1px 0 #050d13,
+    -1px 1px 0 #050d13,
+    1px 1px 0 #050d13,
+    0 2px 3px #000a;
+}
