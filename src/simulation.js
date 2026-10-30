@@ -3810,6 +3810,9 @@ function runCommand(game, input) {
     // v0.27F: the Mud Golem opens the rest of tier 1 (once)
     if (id === MINI_BOSS.id && !p.mudGolem) {
       p.mudGolem = true;
+      // v0.27.006: the creeps it opens start their delay now (rounds from the purchase, MUD_GOLEM_LOCKS)
+      if (!p.rules?.noStartDelay)
+        for (const [sid, rounds] of Object.entries(MUD_GOLEM_LOCKS)) if (obj(sid)) p.stock[sid] = { count: 0, next: LOCKED_NEXT, lockRound: game.round + rounds };
       gainExp(game, p, MINI_BOSS.exp, "bossSend");
       emit(game, "tier", { player: p.id, tier: 1, message: "Tier 1 creeps unlocked" });
     }
@@ -3927,6 +3930,11 @@ function stockTier(game, p, tier, now) {
 const FIRST_STOCK = Object.freeze({ n00E: 10, n007: 5, n00K: 2 });
 /** v0.27bF: tier-1 creeps locked for a fixed number of rounds at the start; when the lock opens they hold `stock` at once (Wolf: 5 rounds, 2). */
 export const START_LOCK = Object.freeze({ n00L: { rounds: 5, stock: 2 } });
+/**
+ * v0.27.006: tier-1 creeps 5–10 (hidden until the Mud Golem is recruited) start their delay with that purchase, in rounds:
+ * Skeleton 1, Orc, Necromancer and Flying Sheep 3, Wolfrider (Raider) 4. Their delays from the match start no longer matter.
+ */
+export const MUD_GOLEM_LOCKS = Object.freeze({ n00R: 1, n00M: 3, n00N: 3, n00P: 3, n00S: 4 });
 /** v0.15: placeholder restock time of a creep still locked by its start delay (JSON-safe). */
 const LOCKED_NEXT = 1e9;
 /** v0.15: rounds until a locked creep is ready (0 = not locked). */
@@ -4395,6 +4403,12 @@ function auraSources(game, p) {
     AURA_SOURCES.set(p, (hit = { tick: game.tick, creeps: p.creeps.length, towers: p.towers.length, list }));
   }
   return hit.list;
+}
+/** v0.27.006: radius of a tower type's strongest creep-slowing aura (Frost Aura), 0 if none (for the snowflake tiles). */
+export function frostAuraRadius(typeId) {
+  let r = 0;
+  for (const a of aurasOf({ typeId })) if (a.baseId === "AOae" && a.enemies && a.oae1 < 0) r = Math.max(r, a.radius || 0);
+  return r;
 }
 // v0.24m: auras of towers reach the towers on the neighbouring fields only (straight and diagonal, measured from
 // the footprint); auras on creeps keep their radius. v0.24n: halls (2×2, also the two-element towers) reach one

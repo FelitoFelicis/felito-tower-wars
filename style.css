@@ -9561,3 +9561,34 @@ body.showdown #arena::after {
   from { opacity: 0.4; }
   to { opacity: 1; }
 }
+/* v0.27.003: Desktop Wide: Sell and Upgrade tools next to the "?" button; the options button sits at the right end */
+.tool-button { display: none; }
+:root.layout-wide .bottom-nav .tool-button { display: grid; }
+:root.layout-wide .bottom-nav #menu-button { margin-left: auto; }
+.game-shell .tool-button.active {
+  background: linear-gradient(var(--orange-hi), var(--orange-lo));
+  border-color: #4a1d04;
+  box-shadow:
+    inset 0 2px 0 #ffffff70,
+    inset 0 -3px 0 #00000030,
+    0 3px 0 #4a1d04;
+}
+.tool-button img { filter: drop-shadow(0 1px 1px #0009); }
+body.tool-sell #arena canvas,
+body.tool-upgrade #arena canvas { cursor: pointer; }
+/* v0.27.004: the Upgrade tool shows the green upgrade arrow of the upgrade cards */
+.tool-up-arrow {
+  display: block;
+  width: 20px;
+  height: 22px;
+  background: #5fe06a;
+  clip-path: polygon(50% 0, 100% 50%, 68% 50%, 68% 100%, 32% 100%, 32% 50%, 0 50%);
+}
+.tool-button.active .tool-up-arrow { background: #8cff95; }
+/* v0.27.005: Desktop Wide: the gold value of the second own info window in the gold of the other player windows;
+   the maze value in the player windows grey like its "Maze" label */
+:root.layout-wide .wide-stats #ws-gold { color: #ffd36a; }
+:root.layout-wide .wp-worth { color: #a8bccb; }
+/* v0.27.005: Desktop Wide: at most 4 creeps per row in the send menu, so the creep pictures are larger */
+:root.layout-wide .command-deck #cards-send,
+:root.layout-wide .wide-send-row #cards-send { grid-template-columns: repeat(4, minmax(0, 1fr)); }

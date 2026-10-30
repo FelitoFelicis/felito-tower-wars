@@ -1,4 +1,4 @@
-import { getStats, attackInfo, divineShield, isHeavy, isMagicTower, isMeleeTower, towerAt, towerSize, footprintOf, STRIP, HELLFIRE, loneActive, zoneOf, hpBarScale, tierSends, laneRows, baseRows, MINI_BOSS } from "./simulation.js";
+import { getStats, attackInfo, divineShield, isHeavy, isMagicTower, isMeleeTower, towerAt, towerSize, footprintOf, STRIP, HELLFIRE, loneActive, zoneOf, hpBarScale, tierSends, laneRows, baseRows, MINI_BOSS, frostAuraRadius } from "./simulation.js";
 import { ART_MANIFEST, ANIM_MANIFEST, animUrl, keepsBlue, artFor, artUrl, towerTier, TEAM_COLORS, CLOTH_COLORS, recolorTeam, plateOf, activeArtSet, artSetFor, useArtSet, setArtKey, setArtMeta, setPropUrl, SET_ART } from "./art.js";
 // v0.23n: design variants removed: no per-figure motion profiles (motion.js) any more
 const towerIdle = () => ({ lean: 0, stretch: 1 }),
@@ -1640,6 +1640,50 @@ export function mountArena({
       this.drawTerrainFx(path, z, frozen, hills);
     }
     /**
+     * v0.27.006: Hall of Water: little snowflakes twinkle on every field its Frost Aura reaches (field centre inside the
+     * aura's radius), on the ground under towers and creeps.
+     */
+    drawSnow(player, z, time, catalog) {
+      const g = (this.snowFx ||= this.stage.graphics().setDepth(3.8));
+      g.clear();
+      const cols = z.logicalCols,
+        rows = z.logicalRows,
+        cell = z.cw,
+        cu = 128,
+        seen = new Set();
+      for (const t of player.towers) {
+        if (t.buildRemaining > 0 || !/hall of water/i.test(catalog.byId[t.typeId]?.name || "")) continue;
+        const r = frostAuraRadius(t.typeId) / cu;
+        if (!(r > 0)) continue;
+        const tx = t.x * cols,
+          ty = t.y * z.totalRows;
+        for (let gy = Math.max(0, Math.floor(ty - r)); gy <= Math.min(rows - 1, Math.ceil(ty + r)); gy++)
+          for (let gx = Math.max(0, Math.floor(tx - r)); gx <= Math.min(cols - 1, Math.ceil(tx + r)); gx++) {
+            const k = gx + gy * cols;
+            if (seen.has(k) || Math.hypot(gx + 0.5 - tx, gy + 0.5 - ty) > r) continue;
+            seen.add(k);
+            for (let n = 0; n < 2; n++) {
+              const hx = hash(gx, gy, 31 + n),
+                hy = hash(gx, gy, 47 + n),
+                ph = time * 0.0022 + hx * 6.28 + n * 2.1,
+                q = this.point((gx + 0.18 + 0.64 * hx) / cols, (gy + 0.18 + 0.64 * hy + 0.04 * Math.sin(ph * 0.5)) / z.totalRows),
+                size = cell * (0.06 + 0.035 * hash(gx, gy, 59 + n)),
+                a = 0.38 + 0.32 * (0.5 + 0.5 * Math.sin(ph)),
+                rot = ph * 0.15;
+              g.lineStyle(Math.max(1, cell * 0.018), 0xe8f7ff, a);
+              for (let s = 0; s < 3; s++) {
+                const ang = rot + (s * Math.PI) / 3,
+                  dx = Math.cos(ang) * size,
+                  dy = Math.sin(ang) * size;
+                g.lineBetween(q.x - dx, q.y - dy, q.x + dx, q.y + dy);
+              }
+              g.fillStyle(0xffffff, a * 0.9);
+              g.fillCircle(q.x, q.y, Math.max(0.8, size * 0.18));
+            }
+          }
+      }
+    }
+    /**
      * v0.22h1: path dressing. Frozen Ground: a glossy sheet of ice (water-blue wash, cracks, light streaks).
      * Hill Paths: every tile of an upward step turns into a muddy hill trail with boulders along its sides.
      */
@@ -2135,6 +2179,7 @@ export function mountArena({
         selected = z.passive ? null : getSelection(),
         preview = z.passive ? null : getPreview();
       this.drawPathTiles(player, z);
+      this.drawSnow(player, z, time, getCatalog()); // v0.27.006: Hall of Water frost aura
       // ---- ambient light: braziers, portal, castle, fireflies
       for (const b of this.braziers || []) {
         const flick = 0.75 + 0.25 * Math.sin(time * 0.013 + b.seed * 3) * Math.sin(time * 0.007 + b.seed);
@@ -2477,7 +2522,7 @@ export function mountArena({
           moving = !!activeArtSet() && !t.stone && artKey.startsWith("tower-"), // design variants: every figure moves its own way (motion.js)
           // v0.27zzaF: buildings (Hall of Elements, Magic City, EXP Generator, Farm, Wall) do not breathe
           still = t.stone || moving || /^tower-(hall|magic-city|exp-generator|farm|wall|lumbermill)(-v\d)?$/.test(artKey),
-          breathe = still ? 0 : Math.sin(time * 0.0032 + phase) * 0.014; // v0.18h: stones stand still
+          breathe = still ? 0 : Math.sin(time * 0.0032 + phase) * (def.isHall ? 0.007 : 0.014); // v0.18h: stones stand still; v0.27.003: halls breathe half as much
         // v0.09: every figure without its own frame animation acts out each attack (see attackPose)
         const pose = moving ? this.figureMotion(def, artKey, sprite, time, phase, building, q, tc) : !anim && !building ? this.attackPose(def, sprite, time) : null;
         // v0.27zzaF: the breathing only stretches the figure above its stone base (the bend hinge), never the base

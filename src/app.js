@@ -194,7 +194,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.27.002",
+const APP_VERSION = "0.27.007",
   APP_BRANCH = "F", // v0.23q: author marker (F = Felix, S = Steven) and branch text, shown behind the version; APP_VERSION stays plain for online matches (VersionPublishingRules.md)
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "29.10.2026";
@@ -2052,6 +2052,36 @@ function setHelpMode(on, announce = false) {
     tone("tap");
   }
 }
+// ---- v0.27.003: Desktop Wide: Sell and Upgrade tools in the bottom bar; while one is on, clicking an own tower sells /
+// upgrades it (one level per click, like the double tap: a tower with several upgrades opens its menu once) --------
+let toolMode = null;
+function setToolMode(mode, announce = false) {
+  toolMode = mode && toolMode !== mode ? mode : null;
+  for (const [id, m] of [["sell-tool", "sell"], ["upgrade-tool", "upgrade"]]) {
+    const b = $(id);
+    b?.classList.toggle("active", toolMode === m);
+    b?.setAttribute("aria-pressed", String(toolMode === m));
+  }
+  document.body.classList.toggle("tool-sell", toolMode === "sell");
+  document.body.classList.toggle("tool-upgrade", toolMode === "upgrade");
+  if (announce) {
+    toast(toolMode === "sell" ? "Sell: click your towers to sell them." : toolMode === "upgrade" ? "Upgrade: click your towers to upgrade them." : "Sell / Upgrade off.");
+    tone("tap");
+  }
+}
+function toolTap(tower) {
+  if (toolMode === "sell") {
+    upQueue = upQueue.filter((q) => q.towerId !== tower.id);
+    if (selectedTower === tower.id) selectedTower = null;
+    deckClosed = { at: 0, towerId: null };
+    $("tower-panel").hidden = true;
+    dispatch({ type: "sell", towerId: tower.id });
+    renderCards();
+    return;
+  }
+  deckClosed = { at: 0, towerId: null };
+  doubleUpgrade(tower, false);
+}
 // ---- v0.08b: tooltips for creeps and towers as a list of values ---------------------------
 const ARMOR_NAMES = { small: "light", medium: "medium", large: "heavy", fort: "fortified", hero: "hero", divine: "divine", none: "unarmoured", normal: "medium" };
 const HIDDEN_ABILITIES = new Set(["Aroa", "Aro1", "Aeth", "Aloc", "Aasl"]);
@@ -2545,7 +2575,7 @@ function hideTowerTip() {
   if (!helpFor) helpTip.hidden = true;
   buffTip.hidden = true; // v0.21g
 }
-document.addEventListener("pointerdown", hideTowerTip, true);
+document.addEventListener("pointerdown", (e) => (helpTip.contains(e.target) || buffTip.contains(e.target) ? null : hideTowerTip()), true); // v0.27.006: clicks inside the tooltips keep them
 function hideHelp() {
   helpFor = null;
   helpTip.hidden = true;
@@ -2568,6 +2598,21 @@ helpTip.addEventListener("pointerover", (e) => {
   const icon = e.target.closest?.(".tip-buffs .tip-icon");
   clearTimeout(tipGrace);
   if (!icon) return;
+  showBuffTip(icon);
+});
+// v0.27.006: a click (or tap) on a perk icon in a tooltip shows that perk's tooltip too and keeps the tower tooltip open
+helpTip.addEventListener("pointerdown", (e) => {
+  const icon = e.target.closest?.(".tip-buffs .tip-icon");
+  if (!icon) return;
+  e.preventDefault();
+  clearTimeout(tipGrace);
+  if (towerTipOn) {
+    clearTimeout(towerTipTimer);
+    towerTipTimer = setTimeout(hideTowerTip, 5000);
+  }
+  showBuffTip(icon);
+});
+function showBuffTip(icon) {
   buffTip.innerHTML =
     `<div class="tip-head"><b>${icon.dataset.buffName}</b><span class="tip-level">${esc(t("Lv. {n}", { n: icon.dataset.buffLevel }))}</span></div>` +
     `<div class="tip-text">${valHtml(icon.dataset.buffText)}</div>`;
@@ -2577,7 +2622,7 @@ helpTip.addEventListener("pointerover", (e) => {
     h = buffTip.offsetHeight;
   buffTip.style.left = Math.max(6, Math.min(innerWidth - w - 6, r.left + r.width / 2 - w / 2)) + "px";
   buffTip.style.top = (r.top - h - 6 >= 6 ? r.top - h - 6 : r.bottom + 6) + "px";
-});
+}
 helpTip.addEventListener("pointerout", (e) => {
   if (e.target.closest?.(".tip-buffs .tip-icon") && !e.target.closest(".tip-icon").contains(e.relatedTarget)) buffTip.hidden = true;
   if (!helpTip.contains(e.relatedTarget) && !(helpFor && helpFor.contains(e.relatedTarget))) graceHide();
@@ -2611,6 +2656,7 @@ document.addEventListener("pointerout", (e) => {
 });
 // Touch has no hover: in help mode a tap also shows the tip for a moment.
 document.addEventListener("pointerdown", (e) => {
+  if (helpTip.contains(e.target) || buffTip.contains(e.target)) return; // v0.27.006: taps on the tooltip's perk icons
   // v0.18b: a tap on an enemy's info window shows its values for a moment (also without help mode)
   if (!helpMode && e.pointerType === "touch" && begun) {
     const plate = e.target.closest?.("dialog") ? null : e.target.closest?.(".enemy-cell, .wide-player, .player-plate.rival:not(.multi), .player-plate.own");
@@ -4100,6 +4146,7 @@ function startLocal({ hotseat = false, ffa = false, seats = 4, mission = null, r
   view = 0;
   begun = true;
   setHelpMode(false); // v0.19a1
+  setToolMode(null); // v0.27.003
   shownResult = false;
   lastEvent = 0;
   game = createGame({
@@ -4454,7 +4501,7 @@ document.addEventListener(
   "pointerdown",
   (e) => {
     if (!upgradeTower()) return;
-    if (e.target.closest?.(".command-deck") || e.target.closest?.("dialog")) return;
+    if (e.target.closest?.(".command-deck") || e.target.closest?.("dialog") || e.target.closest?.(".help-tip")) return; // v0.27.006: tooltip clicks
     closeUpgradeDeck();
   },
   true,
@@ -4463,6 +4510,7 @@ document.addEventListener(
 let lastTowerTap = { id: null, at: 0 };
 function onTowerTap(tower, at = performance.now(), point = null) {
   if (volleyAim && view === own) return fireVolley(point?.fx ?? tower.x, point?.fy ?? tower.y);
+  if (toolMode && view === own && !game.players[own]?.out && !tower.stone) return toolTap(tower); // v0.27.003 (Quarry stones keep their own handling)
   // v0.17h: an own tower tapped outside Build switches to Build and selects it
   if (tab !== "build" && view === own) {
     setPage("build");
@@ -5872,9 +5920,11 @@ function currentPreview() {
   previewCache.key = key;
   previewCache.at = now;
   // v0.27zzcF: a free field but not enough gold: a grey pre-build that says in how many rounds the gold is there
-  const poor = result.ok && isPoor(afford);
-  let wait = "";
-  if (poor) {
+  // v0.27.005: a field blocked by creeps is a grey pre-build too ("Build when free"; tryQueue builds it once the field is free)
+  const blocked = !result.ok && /creep/i.test(result.reason || "") && (afford.ok || isPoor(afford)),
+    poor = (result.ok && isPoor(afford)) || blocked;
+  let wait = blocked ? t("Build when free") : "";
+  if (poor && !blocked) {
     const price = itemPrice(catalog.byId[selected]).gold,
       need = Math.max(0, price - (me.gold || 0)),
       inc = Math.max(0, me.income || 0),
@@ -7671,6 +7721,7 @@ function receiveNetwork(message, r, peerId) {
       applyColors();
       begun = true;
       setHelpMode(false); // v0.19a1
+      setToolMode(null); // v0.27.003
       shownResult = false;
       uiPauses.clear();
       selected = null;
@@ -8195,6 +8246,7 @@ function startHostedMatch(entries, players) {
   applyColors();
   begun = true;
   setHelpMode(false); // v0.19a1
+  setToolMode(null); // v0.27.003
   shownResult = false;
   game.paused = false;
   uiPauses.clear();
@@ -9189,6 +9241,8 @@ async function init() {
         }),
     );
     $("help-button").onclick = () => setHelpMode(!helpMode, true);
+    if ($("sell-tool")) $("sell-tool").onclick = () => setToolMode("sell", true); // v0.27.003
+    if ($("upgrade-tool")) $("upgrade-tool").onclick = () => setToolMode("upgrade", true);
     setHelpMode(helpMode);
     $("faction-button").onclick = () => setPage("research");
     // The "?" button made way for the options button; the rulebook lives in the options menu.
