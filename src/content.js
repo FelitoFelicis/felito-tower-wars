@@ -85,7 +85,7 @@ export function configureContent(data) {
     rawAbilities = mergeObjects(data.abilities);
   // v0.17b: own creep abilities (not in the map data): damage resistance against one tower line
   for (const a of CUSTOM_ABILITIES) rawAbilities.set(a.id, { ...a, fields: { ...a.fields } });
-  // v0.27F: Mud Golem as a tier 1 send card (mini boss): 200 gold (v0.28.023F: 150), +10 income, 650 HP (v0.27cF; v0.28.023F: 553), unlocks the upper half of tier 1
+  // v0.27F: Mud Golem as a tier 1 send card (mini boss): 200 gold (v0.28.023F: 150), +10 income, 650 HP (v0.27cF; v0.28.023F: 553; v0.28.025F: 600), unlocks the upper half of tier 1
   {
     const escort = rawUnits.get("n01U"),
       shop = rawUnits.get(SHOPS[0]);
@@ -94,7 +94,7 @@ export function configureContent(data) {
         ...escort,
         id: MUD_GOLEM_ID,
         custom: true,
-        fields: { ...escort.fields, unam: "[05] Mud Golem", ugol: 150, /* v0.28.023F: 200 → 150 */ upoi: 10, uhpm: 553 /* v0.28.023F: 650 → 553 (−15 %) */, usma: 1, usrg: 1, usst: 0, uabi: "A01A,XA14,XA32", utyp: "ancient" },
+        fields: { ...escort.fields, unam: "[05] Mud Golem", ugol: 150, /* v0.28.023F: 200 → 150 */ upoi: 10, uhpm: 600 /* v0.28.023F: 650 → 553 (−15 %); v0.28.025F: 600 */, usma: 1, usrg: 1, usst: 0, uabi: "A01A,XA14,XA32", utyp: "ancient" },
       });
       shop.fields.useu = (shop.fields.useu || "") + "," + MUD_GOLEM_ID;
     }
@@ -646,7 +646,8 @@ export const CUSTOM_ABILITIES = [
   // v0.27zziF: Firestorm Aura was just another immolation aura: Hall of Fire 2–4, Scorch Demon and Battle Mech get an
   // Immolation Aura with the same values (range 320, full damage to ground and air)
   // v0.27zzlF: Hall of Fire 2–4 (XA20–XA22): flying creeps take 50 % (the sim reads "Flying creeps take N%"); v0.27zzmF: Scorch Demon and Battle Mech (XA23) too
-  ...[["XA20", 15, 50], ["XA21", 50, 50], ["XA22", 125, 50], ["XA23", 300, 50]].map(([id, dps, fly]) => ({ id, baseId: "AIcf", custom: true, fields: { anam: { 0: "Immolation Aura" }, aare: { 1: 320 }, aub1: { 1: `Deals ${dps} damage per second\nRange 320\nTargets Ground & Air${fly < 100 ? `\nFlying creeps take ${fly}% damage` : ""}` } } })),
+  // v0.28.025F: Hall of Fire 2–4 radius 2.00 fields (320 → 256); Scorch Demon and Battle Mech keep 320
+  ...[["XA20", 15, 50, 256], ["XA21", 50, 50, 256], ["XA22", 125, 50, 256], ["XA23", 300, 50, 320]].map(([id, dps, fly, range]) => ({ id, baseId: "AIcf", custom: true, fields: { anam: { 0: "Immolation Aura" }, aare: { 1: range }, aub1: { 1: `Deals ${dps} damage per second\nRange ${range}\nTargets Ground & Air${fly < 100 ? `\nFlying creeps take ${fly}% damage` : ""}` } } })),
   // v0.27zziF: Hydra: Slow Aura (air, 33 % in 600) and Frost Aura (ground, 18 % in 550) merged into one Frost Aura for ground
   // and air: 18 % on the ground, 33 % in the air (airFactor), range 600
   { id: "XA24", baseId: "AOae", custom: true, airFactor: 0.33 / 0.18, fields: { anam: { 0: "Frost Aura" }, alev: { 0: 1 }, Oae1: { 1: -0.18 }, Oae2: { 1: 0 }, aare: { 1: 600 }, atar: { 1: "ground,air,enemies,vulnerable" }, abuf: { 1: "B008" } } },
@@ -773,7 +774,7 @@ const UNIT_ABILITY_SWAP = {
   n01D: { A09U: "XA01" },
 };
 /** Per unit: abilities added in front. */
-const UNIT_ABILITY_ADD = { h01Y: ["XA28"], h00M: ["XA29"], h04I: ["XA30"], h050: ["XA31"], h021: ["XA27"], h009: ["XA27"], h038: ["XA27"], h01Z: ["XA27"], h043: ["XA27"], h00J: ["XA16"], h046: ["XA17"], h00I: ["XA18"], n02P: ["XA08"], n01R: ["XA08"], n00Y: ["XA10", "XA09"], n01H: ["XA11", "XA12", "XA32"], n00T: ["XA12", "XA32"], n015: ["XA12", "XA32"], n01T: ["XA12", "XA32"], n02R: ["XA12", "XA13", "XA32"], n02I: ["A03D"] }; // v0.23: Lord Garithos shows his Divine Shield // v0.22n2: Tier Boss // v0.21z: Treant EXP Bonus and Spawn Wisp, Meat Golem Enrage // v0.21k: Slow Resistance for Warden and Eredar Warlock
+const UNIT_ABILITY_ADD = { h01Y: ["XA28"], h00M: ["XA29"], h04I: ["XA30"], h050: ["XA31"], h021: ["XA27"], h009: ["XA27"], h038: ["XA27"], h01Z: ["XA27"], h043: ["XA27"], h00J: ["XA16"], h046: ["XA17"], h00I: ["XA18"], n02P: ["XA08"], n01R: ["XA08"], n03A: ["XA32"], n00Y: ["XA10", "XA09"], n01H: ["XA11", "XA12", "XA32"], n00T: ["XA12", "XA32"], n015: ["XA12", "XA32"], n01T: ["XA12", "XA32"], n02R: ["XA12", "XA13", "XA32"], n02I: ["A03D"] }; // v0.23: Lord Garithos shows his Divine Shield // v0.22n2: Tier Boss // v0.21z: Treant EXP Bonus and Spawn Wisp, Meat Golem Enrage // v0.28.025F: Naga Siren Slow Resistance 30 % (XA32); v0.21k: Slow Resistance for Warden and Eredar Warlock
 /**
  * v0.18a: tower damage buffs in percent of the average damage, rounded up to the next whole number.
  * The difference is added to the flat damage part, so the dice spread stays the same.
@@ -891,7 +892,7 @@ export const CREEP_TUNING = {
   n02R: { cost: 150000, hp: 560000 }, // v0.23zm: Mountain Golem 100,000 → 150,000 gold, hit points +40 % (400,000 → 560,000)
   n01T: { cost: 120000, hp: 108000 }, // v0.23zh: Infernal Golem 60,000 → 120,000 gold, hit points +200 % (36,000 → 108,000)
   n01H: { hp: 46200 }, // Meat Golem: hit points +10 %, 42000 → 46200 (v0.21y); v0.21z: no death spawns, denies its first death and rises enraged (simulation.js ENRAGED_GOLEM)
-  n03A: { income: 45, hp: 4320 }, // v0.22zl: hit points +8 %, 4000 → 4320; // v0.21z: Naga Siren earns a low income (1800 gold: 2.5 %)
+  n03A: { income: 45, hp: 4752 }, // v0.28.025F: hit points +10 %, 4320 → 4752; v0.22zl: hit points +8 %, 4000 → 4320; // v0.21z: Naga Siren earns a low income (1800 gold: 2.5 %)
   n010: { hp: 1300 }, // Forest Troll: hit points −10 %, 1450 → 1300 (v0.16i: broke through 5–8× as often as other tier-2 creeps in self-play)
 };
 function applyCreepTuning(byId) {

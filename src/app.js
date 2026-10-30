@@ -199,7 +199,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.28.024",
+const APP_VERSION = "0.28.025",
   APP_BRANCH = "F", // v0.23q: author marker (F = Felix, S = Steven) and branch text, shown behind the version; APP_VERSION stays plain for online matches (VersionPublishingRules.md)
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "30.10.2026";
@@ -7348,7 +7348,7 @@ function heroWithElements(item) {
     // v0.24s: creeps that spawn others on death: square buttons to the spawned creeps' info, bottom right
     spawns = item.isSend || item.kind === "send" ? deathSpawnTypes(item.id).filter((id) => id !== item.id) : [];
   if (spawns.length && !els.length)
-    return `<div class="modal-hero-wrap">${img}<div class="spawn-links${spawns.length > 1 ? " many" : ""}" aria-label="${esc(t("Spawns on death"))}">${spawns.map((id) => `<button type="button" class="spawn-link" data-spawn="${id}" title="${esc(itemName(catalog.byId[id]))}"><img src="${headCrop(artUrl(artFor(catalog.byId[id])))}" alt="${esc(itemName(catalog.byId[id]))}"></button>`).join("")}</div></div>`;
+    return `<div class="modal-hero-wrap">${img}<div class="spawn-links${spawns.length > 1 ? " many" : ""}${spawns.length > 4 ? " lots" : ""}" aria-label="${esc(t("Spawns on death"))}">${spawns.map((id) => `<button type="button" class="spawn-link" data-spawn="${id}" title="${esc(itemName(catalog.byId[id]))}"><img src="${headCrop(artUrl(artFor(catalog.byId[id])))}" alt="${esc(itemName(catalog.byId[id]))}"></button>`).join("")}</div></div>`;
   if (!els.length) return img;
   const ar = ART_MANIFEST[key] ? ART_MANIFEST[key].w / ART_MANIFEST[key].h : 0; // v0.28.017F: element symbols keep their place when the animation replaces the picture
   return `<div class="modal-hero-wrap"${ar ? ` style="--hero-ar:${ar.toFixed(3)}"` : ""}>${img}<div class="hero-elements">${els.map((f) => `<span class="hero-el" style="--el:${f.color}" title="${esc(t(f.name))}"><img src="${iconUrl(ELEMENT_ICON[f.id])}" alt="${esc(t(f.name))}"></span>`).join("")}</div></div>`;

@@ -312,6 +312,8 @@ export function pipGeometry(z) {
 /** v0.21o: the shimmering tier aura round towers of level 4 and up (off on the user's request). */
 const TIER_AURA = false;
 const TOWER_SCALE = 0.95;
+/** v0.28.025F: size of the Naga Siren's death spawns relative to her. */
+const SIREN_SPAWN_SCALE = 0.65;
 /** v0.28.023F: the maze-growth arrows grow and fade out over this time when the hint ends. */
 const GROW_FADE_MS = 450;
 /** v0.27ziF: muzzle of a figure's weapon, in pixels of its picture (level variants use the base figure's). */
@@ -2829,7 +2831,9 @@ export function mountArena({
         const boss = !!(def.bossTier || c.waveBoss),
           flying = !!(c.flying ?? def.flying),
           neutral = c.owner < 0,
-          height = cell * (boss ? 1.3 * (c.waveBoss ? 1 : tierGrowth(def.tier || (def.bossTier || 2) - 1)) : (flying ? 0.82 : 0.78) * creepSize(catalog, def.id)) * (c.golem ? 1 + 0.07 * ((c.level || 1) - 1) : 1), // v0.17c: the Arcane Golem grows 7 % per perk level
+          // v0.28.025F: the Naga Siren's death spawns are little Naga Sirens (65 % of her size)
+          siren = /^\[murloc\]/i.test(def.name || ""),
+          height = cell * (boss ? 1.3 * (c.waveBoss ? 1 : tierGrowth(def.tier || (def.bossTier || 2) - 1)) : (flying ? 0.82 : 0.78) * (siren ? creepSize(catalog, "n03A") * SIREN_SPAWN_SCALE : creepSize(catalog, def.id))) * (c.golem ? 1 + 0.07 * ((c.level || 1) - 1) : 1), // v0.17c: the Arcane Golem grows 7 % per perk level
           s = (height / (walk?.figH ? (walk.figS || walk.figH) * 1.04 : m.h)) * (walk?.scale || 1) * (c.scale || 1), // v0.26: c.scale (Lesser Skeleton); v0.23j: walk.scale for figures that read too large // v0.23a: 8-way walks are scaled by their own figure size (wide figures a bit smaller)
           step = time * 0.016 + phase0;
         // design variants: each monster walks its own way (motion.js); its clock runs with its pace and stops when stunned

@@ -10211,7 +10211,7 @@ input[type="checkbox"]:checked::after {
 }
 
 /* ---- v0.28.018F: Training on Easy: the wolf's eyes glow yellow (an overlay over its red eyes) ---- */
-.mood-easy-wolf { background-image: url("assets/art/keyart-easy-eyes.webp?v=v028018"); }
+.mood-easy-wolf { background-image: url("assets/art/keyart-easy-eyes.webp?v=v028025"); } /* v0.28.025F: the yellow eyes about 30 % darker, a touch warmer */
 dialog.welcome-modal.easy-wolf .mood-easy-wolf { opacity: 1; }
 /* ---- v0.28.018F: Hardo note beside the greyed-out 1 in the enemy count (replaces "it's just you and Hardo") ---- */
 .segmented.ai-count .hardo-just {
@@ -10402,4 +10402,53 @@ body.tool-upgrade #arena canvas {
     -1px 1px 0 #050d13,
     1px 1px 0 #050d13,
     0 2px 3px #000a;
+}
+
+/* ---- v0.28.025F: creep info: the buttons to the spawned creeps further right and a little higher, clear of the
+   creep's picture, and without the gold frame (hover: a soft light rim instead) ---- */
+.modal-hero-wrap .spawn-links {
+  right: -38px;
+  bottom: 22px;
+}
+.spawn-link {
+  box-shadow: 0 3px 6px #0009;
+}
+.spawn-link:hover,
+.spawn-link:focus-visible {
+  box-shadow: inset 0 0 0 2px #ffffff40, 0 0 8px #ffffff40, 0 3px 6px #0009;
+}
+/* v0.28.025F: several spawned creeps: a two-column block right of the picture, higher up, inside the dialog (were one
+   column that ran up out of the dialog) */
+.modal-hero-wrap .spawn-links.many {
+  display: grid;
+  grid-template-columns: repeat(2, 36px);
+  gap: 8px;
+  right: -98px;
+  top: 6px;
+  bottom: auto;
+}
+.spawn-links.many .spawn-link {
+  width: 36px;
+  height: 36px;
+}
+/* five or more (Naga Siren): three columns, so they stay two rows high */
+.modal-hero-wrap .spawn-links.many.lots {
+  grid-template-columns: repeat(3, 32px);
+  gap: 6px;
+  right: -122px;
+}
+.spawn-links.many.lots .spawn-link {
+  width: 32px;
+  height: 32px;
+}
+@media (max-width: 420px) {
+  .modal-hero-wrap .spawn-links.many.lots {
+    grid-template-columns: repeat(3, 27px);
+    gap: 5px;
+    right: -100px;
+  }
+  .spawn-links.many.lots .spawn-link {
+    width: 27px;
+    height: 27px;
+  }
 }

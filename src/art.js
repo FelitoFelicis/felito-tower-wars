@@ -752,7 +752,7 @@ const RESEARCH_ART = {
 /** Monster figures of the original design; the first matching name wins. */
 const CREEP_PATTERNS = [
   // v0.23a (creep graphic overhaul): every creep uses a bestiary figure; a figure shared by two creeps gets a colour variant
-  [/\[murloc\]/i, "creep-n-sea-kraken"], // Naga Siren's death spawns
+  [/\[murloc\]/i, "creep-n-naga-siren"], // Naga Siren's death spawns: little Naga Sirens (v0.28.025F, were the Sea Kraken; arena.js draws them smaller)
   [/bone dragon/i, "creep-n-bone-dragon"], // v0.23zb: renamed creeps first, before older patterns
   [/crystal lizard/i, "creep-n-crystal-lizard"],
   [/dark knight/i, "creep-n-dark-knight"],
@@ -799,7 +799,7 @@ const CREEP_PATTERNS = [
   [/zombie/i, "creep-n-zombie"],
   [/scaleworm|marauder/i, "creep-n-scaleworm"], // v0.23zd: the Arcane Marauder is the Scaleworm
   [/rouge captain|rogue captain/i, "creep-n-rogue-captain"], // v0.23zb
-  [/naga|siren/i, "creep-n-naga-siren"], // v0.23zp: own graphics (her Murloc spawns keep the Sea Kraken)
+  [/naga|siren/i, "creep-n-naga-siren"], // v0.23zp: own graphics
   [/siege ogre|shieldbearer|spiritwalker/i, "creep-n-siege-ogre"], // v0.23zb
   [/shaman/i, "creep-n-shaman"],
   [/minotaurus|cairne|tauren/i, "creep-n-minotaurus"], // v0.23zf: Cairne Bloodhoof is the Minotaurus
