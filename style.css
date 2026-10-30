@@ -10037,3 +10037,54 @@ html dialog .segmented.ai-levels .hardo-level.active {
   font-size: 0.667em;
   margin-right: 1px;
 }
+
+/* ---- v0.28.016F: tutorial: cards not needed yet are greyed out; a golden arrow hovers above the objective ---- */
+.unit-card.tut-dim,
+[data-card].tut-dim {
+  opacity: 0.35;
+  filter: grayscale(1);
+  pointer-events: none;
+}
+.tut-arrow {
+  position: fixed;
+  z-index: 70;
+  width: 34px;
+  height: 41px;
+  margin-left: -17px;
+  margin-top: -41px;
+  pointer-events: none;
+  filter: drop-shadow(0 3px 4px #000a) drop-shadow(0 0 6px #ffd24a88);
+  animation: tut-arrow-hover 1.4s ease-in-out infinite;
+}
+.tut-arrow svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.tut-arrow[hidden] {
+  display: none;
+}
+@keyframes tut-arrow-hover {
+  0%, 100% { transform: translateY(-6px); }
+  50% { transform: translateY(0); }
+}
+
+/* ---- v0.28.016F: UI editor: the Auto Spawn frame rounded on all corners; moved elements may overlap the board ---- */
+html.ui-editing .ui-movable {
+  pointer-events: auto !important; /* also panels that let clicks through to the board */
+}
+html.ui-editing #side-dock.ui-movable {
+  border-radius: 12px;
+}
+html.ui-wide .mini-hud:has(.ui-moved),
+html.ui-wide.ui-editing .mini-hud {
+  overflow: visible;
+  z-index: 6;
+}
+html.ui-wide .command-deck:has(.ui-moved) {
+  z-index: 6;
+}
+html.ui-wide .ui-moved {
+  position: relative;
+  z-index: 7;
+}

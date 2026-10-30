@@ -30,6 +30,8 @@ import {
   ARCANE_MISSILE_HEAVY, // v0.27zzgF
   FIRE_ARROWS,
   grantExp,
+  placeFixedRocks,
+  ROCK_ID,
   targetOf,
   sendIncome,
   perkGold,
@@ -194,7 +196,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.28.015",
+const APP_VERSION = "0.28.016",
   APP_BRANCH = "F", // v0.23q: author marker (F = Felix, S = Steven) and branch text, shown behind the version; APP_VERSION stays plain for online matches (VersionPublishingRules.md)
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "30.10.2026";
@@ -3970,23 +3972,137 @@ function campaignTime(id, seconds) {
 const clockText = (sec) => `${String(Math.floor(sec / 60)).padStart(2, "0")}:${String(Math.floor(sec % 60)).padStart(2, "0")}`;
 /** A mission is open once the one before it is won (the first always is). */
 const missionOpen = (i, done = campaignDone()) => i === 0 || done.has(MISSIONS[i - 1].id) || done.has(MISSIONS[i].id);
-/* ---- v0.28.012F: Tutorial: a guided training match against one Very easy AI, step by step through the basics ---- */
+/* ---- v0.28.012F: Tutorial: a guided training match against one Very easy AI, step by step through the basics.
+   v0.28.016F: a row of 4 fixed rocks in row 3 shows how towers lengthen the path; cards not needed yet are greyed out;
+   a golden arrow marks the current objective; a level-up and a Mud Golem step; the enemy has 15 lives at the end. ---- */
 let tutorial = null;
-const tutorialMe = () => game?.players?.[own],
-  tutorialTowers = () => (tutorialMe()?.towers || []).length;
+const TUTORIAL_ROCKS = [
+    [0, 2],
+    [1, 2],
+    [2, 2],
+    [3, 2],
+  ],
+  tutorialMe = () => game?.players?.[own],
+  tutorialTowers = () => (tutorialMe()?.towers || []).filter((tw) => !tw.fixed).length,
+  tutorialFirstSend = () =>
+    catalog?.sends
+      ?.filter((u) => u.playable && u.tier === 1 && !u.bossTier && u.id !== MINI_BOSS.id)
+      .sort((a, b) => a.cost - b.cost)[0]?.id,
+  tutorialVisible = (el) => (el && el.offsetParent !== null && el.getBoundingClientRect().width > 0 ? el : null),
+  tutorialCard = (id) => [...document.querySelectorAll(`[data-card="${id}"]`)].find((el) => tutorialVisible(el)) || null;
+/** Screen box of a board cell or a point on your board (for the arrow). */
+function tutorialBoardBox(fx, fy) {
+  const z = arena?.geometry?.(),
+    box = $("arena")?.getBoundingClientRect();
+  if (!z || !box) return null;
+  const x = box.left + z.left + fx * z.bw,
+    y = box.top + z.top + fy * z.ny - (arena.scrollY?.() || 0);
+  return { left: x - z.cw / 2, top: y - z.ch / 2, width: z.cw, height: z.ch };
+}
+const TUTORIAL_SEND_TAB = () => tutorialVisible(document.querySelector('[data-tab="send"]'));
 const TUTORIAL_STEPS = [
-  { title: "Choose an element", text: "Welcome! First pick an element. Each element unlocks its own towers and perks. You get more picks when you level up.", next: true, start: (s) => (s.n = (tutorialMe()?.picks || []).length), done: (s) => (tutorialMe()?.picks || []).length < s.n },
+  {
+    title: "Choose an element",
+    text: "Welcome! First pick an element. Each element unlocks its own towers and perks. You get more picks when you level up.",
+    next: true,
+    start: (s) => (s.n = (tutorialMe()?.picks || []).length),
+    done: (s) => (tutorialMe()?.picks || []).length < s.n,
+  },
   { title: "Your field", text: "Creeps run from the top of your field to the bottom. Every creep that gets through costs you a life. Lose all lives and you lose the match." },
-  { title: "Build a tower", text: "Tap the Archer card below, then tap a free field to build it.", start: (s) => (s.n = tutorialTowers()), done: (s) => tutorialTowers() > s.n },
-  { title: "Build a maze", text: "Creeps always take the shortest way and walk around your towers. Build 3 more towers to make their path longer.", start: (s) => (s.n = tutorialTowers()), done: (s) => tutorialTowers() >= s.n + 3 },
-  { title: "Upgrade", text: "Tap one of your towers. The bar at the bottom shows its upgrades – tap one with the green arrow.", done: () => (tutorialMe()?.towers || []).some((tw) => tw.previousTypeId) },
-  { title: "Send creeps", text: "Switch to Send with the button at the bottom.", done: () => !!document.querySelector('[data-tab="send"].active') },
-  { title: "Raise your income", text: "Tap a creep card to send creeps to your enemy. Every creep you send raises your income for good.", start: (s) => (s.n = tutorialMe()?.income || 0), done: (s) => (tutorialMe()?.income || 0) > s.n },
+  {
+    title: "Build a tower",
+    text: "Tap the Archer blueprint below, then tap a free field to build it.",
+    start: (s) => (s.n = tutorialTowers()),
+    done: (s) => tutorialTowers() > s.n,
+    target: () => (selected === "h003" ? null : tutorialCard("h003")),
+  },
+  {
+    title: "Make the path longer",
+    text: "Creeps always take the shortest way around the rocks. Close the gap next to the rocks and build a wall of Archers one row lower – now the creeps must walk a longer way.",
+    start: (s) => (s.n = (tutorialMe()?.path || []).length),
+    done: (s) => (tutorialMe()?.path || []).length >= s.n + 2,
+    target: () => {
+      if (!game || !tutorialMe()) return null;
+      if (selected !== "h003") return tutorialCard("h003");
+      // the gap next to the rocks, then a wall one row lower that leaves the far side open: the path snakes
+      for (const [x, y] of [[4, 2], [5, 4], [4, 4], [3, 4], [2, 4], [1, 4]]) if (canBuild(game, own, x, y, "h003").ok) return tutorialBoardBox((x + 0.5) / game.grid.cols, (y + 0.5) / game.grid.rows);
+      return null;
+    },
+  },
+  {
+    title: "Upgrade",
+    text: "Tap one of your towers. Its upgrade bar opens – tap the upgrade with the green arrow (here is the gold for it).",
+    start: () => {
+      const p = tutorialMe();
+      if (p && p.gold < 40) p.gold = 40; // the tutorial pays for the first upgrade
+    },
+    done: () => (tutorialMe()?.towers || []).some((tw) => tw.previousTypeId),
+    target: () => {
+      const card = [...document.querySelectorAll("[data-upgrade]")].find((el) => tutorialVisible(el)); // the upgrade bar (deck or tower panel)
+      if (card) return card;
+      const tw = (tutorialMe()?.towers || []).find((x) => !x.fixed && x.typeId !== ROCK_ID);
+      return tw ? tutorialBoardBox(tw.x, tw.y) : null;
+    },
+  },
+  { title: "Send creeps", text: "Switch to Send with the button at the bottom.", skip: () => wideDeck(), done: () => !!document.querySelector('[data-tab="send"].active'), target: TUTORIAL_SEND_TAB },
+  {
+    title: "Raise your income",
+    text: "Tap a creep card to send creeps to your enemy. Every creep you send raises your income for good.",
+    start: (s) => (s.n = tutorialMe()?.income || 0),
+    done: (s) => (tutorialMe()?.income || 0) > s.n,
+    target: () => tutorialCard(tutorialFirstSend()) || TUTORIAL_SEND_TAB(),
+  },
   { title: "Income", text: "Your income is paid at the end of every round – the ring at the top counts down. More income means more gold for towers and creeps." },
-  { title: "Level up", text: "Kills, bosses and achievements give EXP. When the level button glows, tap it and pick a perk – your first pick is an element that unlocks new towers." },
-  { title: "Next tier", text: "In the Send menu, the last creep of a tier is its boss. Sending it unlocks the next, stronger tier of creeps." },
-  { title: "Ready", text: "Take all of your enemy's lives to win. Keep building, keep sending – good luck!", last: true },
+  {
+    title: "Level up",
+    text: "Kills, bosses and achievements give EXP. Every level-up gives you a reward point: tap the glowing level button and pick a reward.",
+    start: (s) => {
+      const p = tutorialMe();
+      if (p && !(p.picks || []).length) grantExp(game, own, Math.max(1, Math.ceil(p.expNext - p.exp) + 1)); // the tutorial hands out the EXP for one level
+      s.n = (tutorialMe()?.picks || []).length;
+    },
+    done: (s) => (tutorialMe()?.picks || []).length < s.n,
+    target: () => tutorialVisible($("level-button")),
+  },
+  {
+    title: "Bosses",
+    text: "The Mud Golem is a mini boss: tough, slow and worth a lot of income. Buy it in the Send menu – here is the gold for it. Bosses unlock the next creeps.",
+    start: (s) => {
+      const p = tutorialMe(),
+        cost = catalog?.byId[MINI_BOSS.id]?.cost || 200;
+      if (p && p.gold < cost) p.gold = cost; // the tutorial pays for the golem
+      s.mine = (g) => g.players.some((pl) => pl.creeps.some((c) => c.typeId === MINI_BOSS.id && c.owner === own)) || (g.sendQueue || []).some((q) => q.id === MINI_BOSS.id && q.owner === own);
+    },
+    done: (s) => !!game && s.mine(game),
+    target: () => tutorialCard(MINI_BOSS.id) || TUTORIAL_SEND_TAB(),
+  },
+  { title: "Next tier", text: "The last creep of every tier is its tier boss. Sending it unlocks the next, stronger tier of creeps." },
+  {
+    title: "Win the match",
+    text: "Your enemy has 15 lives left. Take them all to win – keep building, keep sending. Good luck!",
+    last: true,
+    start: () => {
+      const enemy = game?.players?.find((pl) => pl.id !== own);
+      if (enemy && enemy.lives > 15) enemy.lives = 15;
+    },
+  },
 ];
+/** Which blueprints and creep cards the current step needs (everything else is greyed out). */
+function tutorialAllowed(i) {
+  const step = TUTORIAL_STEPS[i];
+  if (!step || i >= TUTORIAL_STEPS.findIndex((s) => s.title === "Next tier")) return null; // from here on: everything
+  const send = [];
+  if (i >= TUTORIAL_STEPS.findIndex((s) => s.title === "Raise your income")) send.push(tutorialFirstSend());
+  if (i >= TUTORIAL_STEPS.findIndex((s) => s.title === "Bosses")) send.push(MINI_BOSS.id);
+  return new Set(["h003", ...send]);
+}
+function tutorialDim(i) {
+  const allowed = tutorialAllowed(i);
+  document.querySelectorAll("#cards [data-card], #cards-send [data-card]").forEach((el) => {
+    const dim = !!allowed && !allowed.has(el.dataset.card);
+    if (el.classList.contains("tut-dim") !== dim) el.classList.toggle("tut-dim", dim);
+  });
+}
 function tutorialStart() {
   const keep = { level: aiChoice, mix: aiMix, waves: wavesOn };
   aiChoice = "veryEasy";
@@ -3999,29 +4115,38 @@ function tutorialStart() {
     aiMix = keep.mix;
     wavesOn = keep.waves;
   }
+  placeFixedRocks(game, own, TUTORIAL_ROCKS); // v0.28.016F: a rock line in row 3; it cannot be selected or cleared
   tutorialStop();
-  tutorial = { game, step: -1, box: document.createElement("div"), timer: 0, ctx: {} };
+  tutorial = { game, step: -1, box: document.createElement("div"), arrow: document.createElement("div"), timer: 0, ctx: {} };
   tutorial.box.className = "tutorial-box";
   tutorial.box.setAttribute("role", "status");
-  document.body.append(tutorial.box);
+  tutorial.arrow.className = "tut-arrow";
+  tutorial.arrow.hidden = true;
+  tutorial.arrow.innerHTML = `<svg viewBox="0 0 40 48" aria-hidden="true"><defs><linearGradient id="tut-gold" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff2a8"/><stop offset=".55" stop-color="#ffc83a"/><stop offset="1" stop-color="#d9861a"/></linearGradient></defs><path d="M13 2h14v22h11L20 46 2 24h11z" fill="url(#tut-gold)" stroke="#5a3204" stroke-width="2.5" stroke-linejoin="round"/></svg>`;
+  document.body.append(tutorial.box, tutorial.arrow);
   tutorialGo(0);
-  tutorial.timer = setInterval(tutorialTick, 300);
+  tutorial.timer = setInterval(tutorialTick, 150);
 }
 function tutorialStop() {
   if (!tutorial) return;
   clearInterval(tutorial.timer);
   tutorial.box.remove();
+  tutorial.arrow.remove();
+  document.querySelectorAll(".tut-dim").forEach((el) => el.classList.remove("tut-dim"));
   tutorial = null;
 }
 function tutorialGo(i) {
-  const tu = tutorial,
-    step = TUTORIAL_STEPS[i];
+  const tu = tutorial;
   if (!tu) return;
+  while (TUTORIAL_STEPS[i]?.skip?.()) i++; // v0.28.016F: Desktop Wide has no Send button, the creep menu is always open
+  const step = TUTORIAL_STEPS[i];
   if (!step) return tutorialStop();
   tu.step = i;
   tu.ctx = {};
   step.start?.(tu.ctx);
-  tu.box.innerHTML = `<div class="tut-head"><b>${esc(t(step.title))}</b><small>${i + 1}/${TUTORIAL_STEPS.length}</small>${step.last ? "" : `<button type="button" class="tut-skip">${t("Skip")}</button>`}</div><p>${esc(t(step.text))}</p>${step.done && !step.next ? "" : `<div class="tut-actions"><button type="button" class="primary-button tut-next">${t(step.last ? "Finish" : "Next")}</button></div>`}`;
+  const shown = TUTORIAL_STEPS.filter((s) => !s.skip?.()),
+    nr = shown.indexOf(step) + 1;
+  tu.box.innerHTML = `<div class="tut-head"><b>${esc(t(step.title))}</b><small>${nr}/${shown.length}</small>${step.last ? "" : `<button type="button" class="tut-skip">${t("Skip")}</button>`}</div><p>${esc(t(step.text))}</p>${step.done && !step.next ? "" : `<div class="tut-actions"><button type="button" class="primary-button tut-next">${t(step.last ? "Finish" : "Next")}</button></div>`}`;
   const skip = tu.box.querySelector(".tut-skip");
   if (skip)
     skip.onclick = () => {
@@ -4037,6 +4162,7 @@ function tutorialGo(i) {
   tu.box.classList.remove("tut-pop");
   void tu.box.offsetWidth;
   tu.box.classList.add("tut-pop");
+  tutorialDim(i);
   tutorialPlace();
 }
 function tutorialPlace() {
@@ -4046,6 +4172,22 @@ function tutorialPlace() {
   if (box.classList.contains("tut-in-modal")) return void (box.style.top = "");
   const top = Math.min(Math.round(innerHeight * 0.35), header && header.offsetParent ? Math.round(header.getBoundingClientRect().bottom + 8) : 90);
   if (box.style.top !== top + "px") box.style.top = top + "px";
+}
+/** v0.28.016F: the golden arrow hovers above the current objective. */
+function tutorialArrow(step, hidden) {
+  const arrow = tutorial?.arrow;
+  if (!arrow) return;
+  const el = !hidden && step?.target ? step.target() : null,
+    r = el ? (el.getBoundingClientRect ? el.getBoundingClientRect() : el) : null;
+  if (!r || !(r.width > 0)) {
+    arrow.hidden = true;
+    return;
+  }
+  arrow.hidden = false;
+  const x = Math.round(r.left + r.width / 2),
+    y = Math.round(Math.max(4, r.top - 6));
+  arrow.style.left = x + "px";
+  arrow.style.top = y + "px";
 }
 function tutorialTick() {
   const tu = tutorial;
@@ -4061,7 +4203,9 @@ function tutorialTick() {
   const coach = $("coach");
   if (coach && !coach.hidden) coach.hidden = true; // the tutorial replaces the normal tips
   tutorialPlace();
+  tutorialDim(tu.step);
   const step = TUTORIAL_STEPS[tu.step];
+  tutorialArrow(step, open);
   if (step?.done && step.done(tu.ctx)) {
     tone("select");
     tutorialGo(tu.step + 1);
@@ -4076,10 +4220,8 @@ const UI_PREF = "felito.uiLayout",
     ["hud", "#wide-hud-row", true],
     ["stats", "#local-info-2", true],
     ["dock", "#side-dock", false],
-    ["sendTitle", "#wd-send-title", false],
-    ["send", "#wide-send-row", true],
-    ["buildTitle", "#wd-build-title", false],
-    ["build", ".cards-wrap", true],
+    ["send", "#wide-send-row", true, "#wd-send-title"], // v0.28.016F: the "Send · Tier" title moves with the creep cards
+    ["build", ".cards-wrap", true, "#wd-build-title"], // and "Build" with the blueprints
   ];
 let uiLayout = (() => {
     try {
@@ -4101,14 +4243,18 @@ function uiSave() {
 function uiApply() {
   const on = uiWideNow();
   document.documentElement.classList.toggle("ui-wide", on);
-  for (const [key, sel] of UI_ITEMS) {
+  for (const [key, sel, , follower] of UI_ITEMS) {
     const el = document.querySelector(sel);
     if (!el) continue;
     const v = on && uiLayout[key],
-      scaled = v && v.s && v.s !== 1;
+      scaled = v && v.s && v.s !== 1,
+      moved = !!(v && (v.x || v.y || scaled));
     el.style.translate = v && (v.x || v.y) ? `${v.x || 0}px ${v.y || 0}px` : "";
     el.style.scale = scaled ? String(v.s) : "";
     el.style.transformOrigin = scaled ? "0 0" : "";
+    el.classList.toggle("ui-moved", moved); // v0.28.016F: its side panel may then overlap the board (and the other side)
+    const title = follower && document.querySelector(follower);
+    if (title) title.style.translate = el.style.translate;
   }
 }
 function uiEdit(on) {
@@ -4203,7 +4349,10 @@ document.addEventListener(
   "pointerdown",
   (e) => {
     if (!uiEditing) return;
-    const el = e.target.closest?.(".ui-movable"),
+    // v0.28.016F: of all movable elements under the pointer the smallest wins (the minimap strip spans the whole side)
+    const el = e.target.classList?.contains("ui-handle")
+        ? e.target.closest(".ui-movable")
+        : [...new Set(document.elementsFromPoint(e.clientX, e.clientY).map((x) => x.closest?.(".ui-movable")).filter(Boolean))].sort((a, b) => a.offsetWidth * a.offsetHeight - b.offsetWidth * b.offsetHeight)[0],
       item = el && UI_ITEMS.find(([, sel]) => el.matches(sel));
     if (!item) return;
     e.preventDefault();
@@ -4983,6 +5132,7 @@ document.addEventListener(
 /** Tapping a tower opens its upgrade bar; tapping the same tower again shows its details. */
 let lastTowerTap = { id: null, at: 0 };
 function onTowerTap(tower, at = performance.now(), point = null) {
+  if (tower.fixed) return; // v0.28.016F: the tutorial rocks cannot be selected or cleared
   if (volleyAim && view === own) return fireVolley(point?.fx ?? tower.x, point?.fy ?? tower.y);
   if (toolMode && view === own && !game.players[own]?.out && !tower.stone) return toolTap(tower); // v0.27.003 (Quarry stones keep their own handling)
   // v0.17h: an own tower tapped outside Build switches to Build and selects it

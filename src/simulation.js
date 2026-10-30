@@ -565,6 +565,15 @@ const cellList = (text) =>
     .split(/\s+/)
     .filter(Boolean)
     .map((k) => k.split(",").map(Number));
+/** v0.28.016F: Tutorial: rocks placed for free that can be neither selected nor cleared. */
+export function placeFixedRocks(game, playerIndex, cells) {
+  const p = game.players[playerIndex];
+  if (!p) return;
+  for (const [x, y] of cells) {
+    const t = placeFree(game, p, ROCK_ID, x, y);
+    if (t) t.fixed = true;
+  }
+}
 /** A tower placed for free at the start (pre-built maze, rocks); skipped if it would block the path. */
 function placeFree(game, p, id, x, y) {
   if (!canBuild(game, p.id, x, y, id).ok) return null;
@@ -2705,6 +2714,8 @@ export const PERK_AVAILABILITY_OWNED = {
  * (Replaces the "owned → again from level 5" rule of Gunpowder, Recruitment, Feudality and Archery.)
  */
 export const PERK_CONTINUOUS = new Set(["gunpowder", "recruit", "feudal", "archery", "lone", "ring"]); // v0.26cF: Ring of Life // v0.22t2: Last Guardians
+/** v0.28.016F: ContinousPick ends once the perk has reached this level (then its normal availability counts again). */
+const PERK_CONTINUOUS_UNTIL = { feudal: 3, recruit: 3, archery: 3 };
 /** v0.19g1: an owned-perk extra range only counts if the perk was first taken below this level (none for now). */
 const PERK_OWNED_BEFORE = {};
 const perkAvailable = (o, level, p) => {
@@ -2715,7 +2726,7 @@ const perkAvailable = (o, level, p) => {
   const skip = PERK_SKIP_LEVELS[id] ?? PERK_SKIP_DEFAULT;
   if (o.type === "perk" && p?.perkTakenAt?.[id] != null && level - p.perkTakenAt[id] <= skip) return false; // v0.20c
   if (parseAvailability(PERK_AVAILABILITY[id] ?? "1+")(level)) return true;
-  if (o.type === "perk" && PERK_CONTINUOUS.has(id) && perkLevel(p, id) >= 1 && level >= firstAvailable(PERK_AVAILABILITY[id])) return true; // v0.22j1
+  if (o.type === "perk" && PERK_CONTINUOUS.has(id) && perkLevel(p, id) >= 1 && !(perkLevel(p, id) >= (PERK_CONTINUOUS_UNTIL[id] ?? Infinity)) && level >= firstAvailable(PERK_AVAILABILITY[id])) return true; // v0.22j1; v0.28.016F: up to level 3 for Feudality, Recruitment, Archery
   if (o.type === "perk" && PERK_OWNED_BEFORE[id] && !((p?.perkFirstAt?.[id] ?? Infinity) < PERK_OWNED_BEFORE[id])) return false;
   return o.type === "perk" && perkLevel(p, id) >= 1 && !!PERK_AVAILABILITY_OWNED[id] && parseAvailability(PERK_AVAILABILITY_OWNED[id])(level);
 };
@@ -4068,6 +4079,7 @@ function sellTower(game, p, towerId) {
   }
   const item = obj(t.typeId);
   // v0.28.004F: a tower still under construction can be sold too (same sell value as a finished one)
+  if (t.fixed) return { ok: false, reason: "This rock stays" }; // v0.28.016F: tutorial rocks
   if (t.typeId === ROCK_ID) {
     // v0.17: a rock is cleared for gold, not sold
     const price = t.stonePrice ?? game.mission?.rockCost ?? 40;
