@@ -855,7 +855,7 @@ export const CREEP_TUNING = {
   n011: { name: "[16] Skeleton Berserker", stockStart: 1 }, // v0.27iF: start delay in rounds
   n00V: { name: "[17] Flying Machine", cost: 500, hp: 450, count: 3, income: 20, bountyBase: 38, stockStart: 1 }, // v0.27hF: 3 per purchase, 450 HP each, bounty 57 → 38 each (same total)
   [TRENCH_ORC_ID]: { name: "[21] Trench Orc", shortName: "Trench Orc", cost: 1000, hp: 3000, income: 62, count: 1, speed: 180, stockMax: 8, stockRegen: 7.5, stockStart: 4, bountyBase: 199, bountyDice: 1, abilities: ["A01A", "XA02", "XA15"] }, // v0.27hF: speed like the Orc, start delay like the Giant Bat
-  n01Y: { armor: 4 }, // v0.24s: Dark Monk armor 4 (v0.27mF: linear 75, LINEAR_ARMOR)
+  n01Y: { armor: 4, hp: 12250 }, // v0.24s: Dark Monk armor 4 (v0.27mF: linear 75, LINEAR_ARMOR); v0.28.024F: HP −30 % (17,500 → 12,250, it had 3.5× the tier-5 HP per gold)
   n01D: { income: 60 }, // v0.21p: Ghoul earns income now (1500 gold: 4 %, like Demon Hound)
   // v0.21p: Naga Siren's death spawns +50 % hit points (they look like little Naga Sirens, art.js / arena.js)
   n02Z: { hp: 4050 }, // Mutant 2500 → 3750; v0.22zl: +8 %, 4050
@@ -875,7 +875,7 @@ export const CREEP_TUNING = {
   n00P: { hp: 85, speed: 138.56, stockRegen: 11 }, // Flying Sheep: hit points 80 → 85, speed 1.06 → 1.08 fields/s (v0.17b); restock 10 → 11 s (v0.17o)
   n00W: { speed: 227.55, hp: 175 }, // v0.24k: Boar Scout 0.84 → 0.80 fields/s, hit points 180 → 175
   n016: { hp: 675, speed: 170.66 }, // v0.24k: Zombie hit points −10 % (750 → 675); v0.24s: 0.60 fields/s
-  n01S: { hp: 6750 }, // v0.24k: Scarabaeus hit points −10 % (7500 → 6750)
+  n01S: { hp: 4050 }, // v0.24k: Scarabaeus hit points −10 % (7500 → 6750); v0.28.024F: −40 % (6750 → 4050, it had 3.4× the tier-5 HP per gold)
   n00U: { speed: 170.66 }, // v0.22n2: Imp 0.70 → 0.64 fields/s (game units before the arena's 45 %); v0.24k: Trenchlin 0.60 fields/s
   n00X: { speed: 284.44 }, // v0.22n2: Centaur Warrior 1.01 → 1.00 fields/s
   n019: { cost: 2000, hp: 2100, income: 40 }, // v0.22o2: Shade 1200 → 2000 gold, hit points with it 1250 → 2100; v0.22p2: income 24 → 40

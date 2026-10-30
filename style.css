@@ -7298,7 +7298,7 @@ p.room-opts { text-align: center; }
   pointer-events: none;
   transition: opacity 0.5s ease;
 }
-.mood-easy { background-image: url("assets/art/keyart-easy.webp?v=021z"); }
+.mood-easy { background-image: url("assets/art/keyart-easy.webp?v=v028024"); } /* v0.28.024F: closed eyes blended into the faces (were flat ovals) */
 .mood-hard { background-image: url("assets/art/keyart-hard.webp?v=v028018"); } /* v0.28.018F: the moon shows through the skull shadow's eyes and nose */
 .mood-hard-glow { background-image: url("assets/art/keyart-hard-glow.webp?v=021z"); }
 dialog.welcome-modal.easy-eyes .mood-easy,
