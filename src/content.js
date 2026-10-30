@@ -94,7 +94,7 @@ export function configureContent(data) {
         ...escort,
         id: MUD_GOLEM_ID,
         custom: true,
-        fields: { ...escort.fields, unam: "[05] Mud Golem", ugol: 200, upoi: 10, uhpm: 650, usma: 1, usrg: 1, usst: 0, uabi: "A01A,XA14", utyp: "ancient" },
+        fields: { ...escort.fields, unam: "[05] Mud Golem", ugol: 200, upoi: 10, uhpm: 650, usma: 1, usrg: 1, usst: 0, uabi: "A01A,XA14,XA32", utyp: "ancient" },
       });
       shop.fields.useu = (shop.fields.useu || "") + "," + MUD_GOLEM_ID;
     }
@@ -670,9 +670,10 @@ export const CUSTOM_ABILITIES = [
   { id: "XA11", baseId: "Xinf", custom: true, fields: { anam: { 0: "Enrage" }, aub1: { 1: "Denies its first death and rises enraged" } } },
   // v0.22n2: Tier Boss (every tier boss golem) replaces Scale Armor, Nerf Resistance and Magic Resistance: debuffs last
   // 50 % shorter, every tower attack does 1 / 5 / 10 / 20 / 30 less damage (never below 1; simulation.js TIER_BOSS)
-  { id: "XA12", baseId: "Xtbs", custom: true, fields: { anam: { 0: "Tier Boss" }, aub1: { 1: "Reduced damage from attacks, 50% less duration for debuffs, 30% slow resistance" } } },
+  { id: "XA12", baseId: "Xtbs", custom: true, fields: { anam: { 0: "Tier Boss" }, aub1: { 1: "Reduced damage from attacks, 50% less duration for debuffs" } } },
+  { id: "XA32", baseId: "Xslr", custom: true, resist: 0.3, fields: { anam: { 0: "Slow Resistance" }, aub1: { 1: "30% less slowed" } } }, // v0.28.014F: split off the Tier Boss ability
   // v0.27F: Mud Golem (tier 1 mini boss): half of the Rock Golem's Tier Boss resistances (simulation.js MINI_BOSS)
-  { id: "XA14", baseId: "Xmbs", custom: true, fields: { anam: { 0: "Mini Boss" }, aub1: { 1: "Half the resistances of a Tier Boss. Recruiting it unlocks the rest of tier 1" } } },
+  { id: "XA14", baseId: "Xmbs", custom: true, fields: { anam: { 0: "Mini Boss" }, aub1: { 1: "Same resistances as the Rock Golem. Recruiting it unlocks the rest of tier 1" } } },
   // v0.26cF: Mountain Golem: unlocks no tier; display only (the effect runs in simulation.js MOUNTAIN_GOLEM)
   { id: "XA13", baseId: "Xinf", custom: true, fields: { anam: { 0: "Oblivion Might" }, aub1: { 1: "Can be recruited again. Each one gives your tier 5 creeps +5% HP for good" } } },
   { id: "XA06", baseId: "Xfoc", custom: true, step: 0.09, interval: 0.25, max: 5, fields: { anam: { 0: "Focus Fire" }, aub1: { 1: "Damage +9% every 0.25 s while attacking the same target, up to 500%" } } },
@@ -772,7 +773,7 @@ const UNIT_ABILITY_SWAP = {
   n01D: { A09U: "XA01" },
 };
 /** Per unit: abilities added in front. */
-const UNIT_ABILITY_ADD = { h01Y: ["XA28"], h00M: ["XA29"], h04I: ["XA30"], h050: ["XA31"], h021: ["XA27"], h009: ["XA27"], h038: ["XA27"], h01Z: ["XA27"], h043: ["XA27"], h00J: ["XA16"], h046: ["XA17"], h00I: ["XA18"], n02P: ["XA08"], n01R: ["XA08"], n00Y: ["XA10", "XA09"], n01H: ["XA11", "XA12"], n00T: ["XA12"], n015: ["XA12"], n01T: ["XA12"], n02R: ["XA12", "XA13"], n02I: ["A03D"] }; // v0.23: Lord Garithos shows his Divine Shield // v0.22n2: Tier Boss // v0.21z: Treant EXP Bonus and Spawn Wisp, Meat Golem Enrage // v0.21k: Slow Resistance for Warden and Eredar Warlock
+const UNIT_ABILITY_ADD = { h01Y: ["XA28"], h00M: ["XA29"], h04I: ["XA30"], h050: ["XA31"], h021: ["XA27"], h009: ["XA27"], h038: ["XA27"], h01Z: ["XA27"], h043: ["XA27"], h00J: ["XA16"], h046: ["XA17"], h00I: ["XA18"], n02P: ["XA08"], n01R: ["XA08"], n00Y: ["XA10", "XA09"], n01H: ["XA11", "XA12", "XA32"], n00T: ["XA12", "XA32"], n015: ["XA12", "XA32"], n01T: ["XA12", "XA32"], n02R: ["XA12", "XA13", "XA32"], n02I: ["A03D"] }; // v0.23: Lord Garithos shows his Divine Shield // v0.22n2: Tier Boss // v0.21z: Treant EXP Bonus and Spawn Wisp, Meat Golem Enrage // v0.21k: Slow Resistance for Warden and Eredar Warlock
 /**
  * v0.18a: tower damage buffs in percent of the average damage, rounded up to the next whole number.
  * The difference is added to the flat damage part, so the dice spread stays the same.

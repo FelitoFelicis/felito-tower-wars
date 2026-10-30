@@ -4219,7 +4219,7 @@ dialog.with-flag .modal-header {
   margin-top: 4px;
 }
 
-/* v0.27uF: PvP in the default blue like Training; both carry the crossed swords (Recruitment) on the left */
+/* v0.28.008F: PvP default highlighted (gold), Training default (blue); both carry the crossed swords (Recruitment) */
 .welcome-mode {
   min-height: 62px;
   font-size: 24px;
@@ -4235,13 +4235,6 @@ dialog.with-flag .modal-header {
   object-fit: contain;
   filter: drop-shadow(0 2px 0 #0006);
   pointer-events: none;
-}
-.welcome-mode.alt {
-  background: linear-gradient(#5b9ad0, #24578a);
-  color: #fff;
-  box-shadow:
-    inset 0 2px 0 #ffffff55,
-    0 4px 0 #0f2c48;
 }
 .welcome-group-title {
   text-transform: uppercase;
@@ -9779,4 +9772,268 @@ html.menu-tint dialog .hero-tool {
   text-transform: uppercase;
   color: #ffffffd0;
   text-shadow: 0 1px 2px #000c;
+}
+
+/* v0.28.007F: main-menu Download (Add to Home Screen) button: 3x wider, default blue, with text */
+.welcome-options.welcome-install {
+  width: 120px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 0 8px;
+  border-color: #050d13;
+  background: linear-gradient(#3b78aa, #1f4a74);
+  box-shadow:
+    inset 0 2px 0 #ffffff45,
+    inset 0 -3px 0 #00000030,
+    0 3px 0 #050d13;
+  color: #fff;
+  font: 800 14px var(--font-display);
+  letter-spacing: 0.04em;
+  text-shadow: 0 2px 0 #0008;
+  text-transform: none;
+}
+.welcome-install .install-label { white-space: nowrap; }
+html.menu-tint dialog .welcome-options.welcome-install {
+  background: linear-gradient(color-mix(in srgb, var(--mc) 65%, #ffffff), color-mix(in srgb, var(--mc) 85%, #000000));
+  border-color: color-mix(in srgb, var(--mc) 30%, #000000);
+  color: var(--mc-ink);
+  box-shadow:
+    inset 0 1px 0 #fff8,
+    0 2px 0 color-mix(in srgb, var(--mc) 35%, #000000);
+}
+
+/* v0.28.008F: PvP and Training always exactly the same height (Training is blue, PvP gold) */
+.welcome-modal .welcome-mode {
+  box-sizing: border-box;
+  height: 62px;
+  min-height: 0;
+  padding-block: 0;
+}
+@media (max-height: 760px) {
+  .welcome-modal .welcome-mode {
+    height: 48px;
+  }
+}
+
+/* v0.28.010F: link in the Download dialog in the default gold; PvP and Training with the same font size */
+.modal-copy a.install-link {
+  color: var(--gold);
+}
+.welcome-modal .welcome-mode {
+  font-size: 22px;
+}
+
+/* v0.28.012F: colour picker in the PvP submenu (below name and icon); tutorial box */
+.pvp-color {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0 4px;
+}
+.tutorial-box {
+  position: fixed;
+  left: 50%;
+  top: 90px;
+  z-index: 60;
+  width: min(92vw, 420px);
+  transform: translateX(-50%);
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 2px solid #4a1d04;
+  background: linear-gradient(#173041f2, #0b1a26f2);
+  box-shadow: 0 6px 18px #000a, inset 0 1px 0 #ffffff22;
+  color: #fff;
+  font: 600 14px/1.35 var(--font-body);
+  pointer-events: auto;
+}
+.tutorial-box.tut-pop {
+  animation: tut-pop 0.35s ease-out;
+}
+@keyframes tut-pop {
+  from { opacity: 0; transform: translateX(-50%) translateY(-6px); }
+  to { opacity: 1; transform: translateX(-50%); }
+}
+.tutorial-box .tut-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.tutorial-box .tut-head b {
+  color: var(--gold);
+  font: 800 17px var(--font-display);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.tutorial-box .tut-head small {
+  color: #ffffffa0;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.tutorial-box p {
+  margin: 6px 0 10px;
+}
+.tutorial-box .tut-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.tutorial-box .tut-actions button {
+  width: auto;
+  min-height: 38px;
+  padding: 4px 14px;
+  font-size: 14px;
+}
+.tutorial-box.tut-in-modal {
+  top: calc(12px + env(safe-area-inset-top));
+}
+/* the box never blocks taps on the board, only its buttons are clickable */
+.tutorial-box { pointer-events: none; padding: 10px 12px; }
+.tutorial-box .tut-actions button { pointer-events: auto; min-height: 34px; font-size: 13px; }
+.tutorial-box p { margin: 4px 0 8px; }
+.tutorial-box { padding: 8px 12px 9px; font-size: 13px; background: linear-gradient(#173041e6, #0b1a26e6); }
+.tutorial-box .tut-head { align-items: center; }
+.tutorial-box .tut-head b { font-size: 15px; flex: 1; }
+.tutorial-box .tut-skip {
+  pointer-events: auto;
+  border: 0;
+  background: none;
+  padding: 2px 0 2px 8px;
+  color: #ffffffb0;
+  font: 700 12px var(--font-body);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.tutorial-box p { margin: 3px 0 0; }
+.tutorial-box .tut-actions { margin-top: 7px; }
+.tutorial-box .tut-skip { min-height: 0; min-width: 0; height: auto; width: auto; line-height: 1.2; box-shadow: none; }
+.tutorial-box .tut-head small { line-height: 1.2; }
+
+/* v0.28.013F: Desktop Wide UI editor */
+.ui-tool,
+.ui-edit-only {
+  display: none !important;
+}
+html.ui-wide .ui-tool {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  font: 800 16px var(--font-display);
+  letter-spacing: 0.04em;
+  color: #fff;
+}
+html.ui-wide.ui-editing .deck-tabs > :not(.ui-tool):not(.ui-edit-only) {
+  display: none !important;
+}
+html.ui-wide.ui-editing .ui-edit-only {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  flex: 1;
+  min-height: 44px;
+  font-size: 15px;
+}
+html.ui-wide.ui-editing .ui-tool {
+  flex: 1;
+  width: auto;
+  background: linear-gradient(var(--orange-hi), var(--orange-lo));
+  border-color: #4a1d04;
+}
+.ui-movable {
+  outline: 2px dashed #ffcf4a;
+  outline-offset: 2px;
+  cursor: move;
+  touch-action: none;
+  user-select: none;
+}
+.ui-movable > :not(.ui-handle),
+.ui-movable > :not(.ui-handle) * {
+  pointer-events: none !important;
+}
+.ui-handle {
+  position: absolute;
+  right: -9px;
+  bottom: -9px;
+  z-index: 50;
+  width: 18px;
+  height: 18px;
+  border: 2px solid #4a1d04;
+  border-radius: 5px;
+  background: linear-gradient(var(--orange-hi), var(--orange-lo));
+  box-shadow: 0 2px 0 #4a1d04;
+  cursor: nwse-resize;
+  pointer-events: auto;
+}
+.ui-code {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 2px solid #050d13;
+  background: #0b1a26;
+  color: #fff;
+  font: 600 12px/1.35 ui-monospace, monospace;
+  resize: none;
+  word-break: break-all;
+}
+html.ui-wide .ui-tool { text-transform: uppercase; }
+
+/* v0.28.014F: main-menu logo 15% larger (main menu and its submenus) */
+.welcome-modal .welcome-logo { scale: 1.15; transform-origin: 50% 0; margin-bottom: 2.5dvh; }
+
+/* ---- v0.28.015F: Training menu: difficulty colours, Hardo next to Hard, Mixed difficulty selector ---- */
+.segmented.ai-levels {
+  grid-template-columns: repeat(4, 1fr);
+}
+.segmented.ai-levels.with-hardo {
+  grid-template-columns: repeat(5, 1fr);
+}
+html dialog .segmented.ai-levels button.lvl-veryEasy.active {
+  background: linear-gradient(#c9f7a6, #66c94a);
+  color: #173d0c;
+  box-shadow: inset 0 1px 0 #fff8, 0 2px 0 #2f6a1e;
+}
+html dialog .segmented.ai-levels button.lvl-easy.active {
+  background: linear-gradient(#ffe48f, #e8a52e);
+  color: #4c3510;
+  box-shadow: inset 0 1px 0 #fff8, 0 2px 0 #6b4a0a;
+}
+html dialog .segmented.ai-levels button.lvl-normal.active {
+  background: linear-gradient(#ffb56b, #ec6a1c);
+  color: #4a1c04;
+  box-shadow: inset 0 1px 0 #fff8, 0 2px 0 #7a3006;
+}
+html dialog .segmented.ai-levels button.lvl-hard.active {
+  background: linear-gradient(#ff7f6e, #c8261b);
+  color: #fff;
+  text-shadow: 0 1px 0 #6a0f08;
+  box-shadow: inset 0 1px 0 #fff8, 0 2px 0 #6a0f08;
+}
+html dialog .segmented.ai-levels .hardo-level.active {
+  background: linear-gradient(#b67bff, #6a24c9);
+  color: #fff;
+  box-shadow: inset 0 1px 0 #fff8, 0 0 12px #a45cffaa;
+}
+.segmented.ai-levels.with-hardo .hardo-level {
+  font-size: 13px;
+  letter-spacing: 0.04em;
+}
+.welcome-inline .segmented.ai-mix {
+  grid-template-columns: repeat(3, 1fr);
+}
+.segmented.ai-mix button:disabled,
+.segmented.ai-mix button:disabled.active {
+  opacity: 0.45;
+  filter: grayscale(1);
+  cursor: default;
+}
+
+/* ---- v0.28.015F: the "T" in the player info windows smaller than the tier number (like the second own window) ---- */
+.plate-exp .plate-tier::before,
+.ec-level .ec-tier::before,
+:root.layout-wide .wp-tier::before {
+  font-size: 0.667em;
+  margin-right: 1px;
 }

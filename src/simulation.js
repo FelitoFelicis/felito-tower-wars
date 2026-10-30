@@ -681,7 +681,7 @@ function spawnAuxCreep(game, entry) {
  * Recruiting the Mud Golem swaps it for the fifth creep and unlocks the upper half of tier 1 (creeps 6–10 and the
  * Rock Golem). Mini Boss: half of the Rock Golem's Tier Boss resistances. Missions with their own send list keep tier 1 whole.
  */
-export const MINI_BOSS = Object.freeze({ id: MUD_GOLEM_ID, slot: 4, share: 0.5, exp: 125, aiRound: { veryEasy: 8, easy: 5, normal: 3, hard: 3, insane: 3 }, aiIncome: 50, aiSave: 9 }); // exp: half the Rock Golem's 250
+export const MINI_BOSS = Object.freeze({ id: MUD_GOLEM_ID, slot: 4, share: 1, exp: 125, aiRound: { veryEasy: 8, easy: 5, normal: 3, hard: 3, insane: 3 }, aiIncome: 50, aiSave: 9 }); // exp: half the Rock Golem's 250
 export const tierOneLocked = (p) => !!p && p.tier === 1 && !p.mudGolem && !p.rules?.sends;
 /** v0.27F: send cards not offered right now (tier 1 before the Mud Golem, or the Mud Golem afterwards). */
 export function sendHidden(p, s) {
@@ -1300,8 +1300,15 @@ export const pillarDamage = (p, level = perkLevel(p, "pillar")) =>
 /** Arcane Golem (Arcane): cooldown, knock-back in fields and hit point loss per collision by level. */
 // v0.24i: 2 % of its hit points per creep pushed back at every level (was 1 % → 0.7 %); the creep takes the matching damage
 // (10 × that loss, as before); knock-back at level 1 −10 % (1 → 0.9 fields)
-export const AGOLEM = { cooldown: 50, knock: [0.9, 1.25, 1.5, 1.75, 2], loss: [0.02, 0.02, 0.02, 0.02, 0.02], heavy: 3, damage: 10, reach: 0.45 };
-export const golemHp = (p, level = perkLevel(p, "agolem")) => Math.round(level * (p?.tier || 1) * (400 * ((p?.level || 1) * 0.2) + 1));
+export const AGOLEM = { cooldown: 60, knock: [0.9, 1.25, 1.5, 1.75, 2], loss: [0.02, 0.02, 0.02, 0.02, 0.02], heavy: 3, damage: 1, reach: 0.45, tierPush: [1.6, 1.5, 1.4], portalCharge: 10 }; // v0.28.013F: cooldown 50 → 60, damage 10 → 1
+export const golemHp = (p, level = perkLevel(p, "agolem")) => Math.round(1.5 * level * (p?.tier || 1) * (400 * ((p?.level || 1) * 0.2) + 1)); // v0.28.013F: +50 %
+/** v0.28.013F: the first three creeps of a tier are pushed further by the Arcane Golem. */
+function golemTierPush(c) {
+  const item = obj(c.typeId);
+  if (!item?.isSend || item.bossTier) return 1;
+  const at = tierSends(item.tier).filter((u) => !u.bossTier).findIndex((u) => u.id === item.id);
+  return AGOLEM.tierPush[at] ?? 1;
+}
 /** Monsun (Storm): cooldown, duration by level, lightning interval; push in fields per second (before the arena's 45 %). */
 export const MONSUN = { cooldown: 50, // v0.19j: +5 s; v0.24j: 45 → 50 s
   duration: [5, 6, 7, 8, 9], strike: 0.5, groundShare: 0.5, walk: 0.25 }; // v0.24j: levels 2+ 6 / 7 / 8 / 9 s (was 7 / 9 / 11 / 13); v0.19k: ground creeps walk at 25 % in the storm // v0.16g: +1 s per level
@@ -1926,7 +1933,7 @@ function tickGolems(game, p) {
       const loss = g.maxHp * AGOLEM.loss[i] * (heavyCreep(c) ? AGOLEM.heavy : 1);
       g.hp -= loss;
       if (!divineShield(game, c)) c.hp -= guardCut(game, c, loss * AGOLEM.damage * spellResist(c)); // v0.23: Magic Resistance
-      knockBack(game, c, AGOLEM.knock[i] * game.grid.cellUnits, p); // v0.19k: glides back
+      knockBack(game, c, AGOLEM.knock[i] * game.grid.cellUnits * golemTierPush(c), p); // v0.19k: glides back
       emit(game, "skill", { player: p.id, kind: "golemHit", x: c.x, y: c.y });
       if (c.hp <= 0) killCreep(game, p, c);
     }
@@ -1942,6 +1949,7 @@ function tickGolems(game, p) {
         c.hp = g.hp;
         c.maxHp = g.maxHp;
         c.golem = true;
+        p.golemReady = Math.max(p.golemReady || 0, game.time) + AGOLEM.portalCharge; // v0.28.013F
       }
       emit(game, "golemPortal", { player: p.id, x: g.x, y: g.y, lane: target?.id ?? -1 });
     }
@@ -4256,6 +4264,22 @@ function spawnCreep(game, ownerIndex, id, at = null, lane = null, noEscort = fal
     bornTick: game.tick,
     dead: false,
   };
+  if (!at && creepSkills(creep).some((sk) => sk.type === "tierBoss" || sk.type === "miniBoss")) {
+    // v0.28.013F: bosses and mini bosses drop onto the first field of the path and stand there for 0.5 s
+    let first = -1;
+    if (item.flying) {
+      creep.path[0] = pos(game, column, 0);
+      first = 0;
+    } else first = creep.path.findIndex((p) => p.gridY >= 0);
+    if (first >= 0) {
+      creep.x = creep.path[first].x;
+      creep.y = creep.path[first].y;
+      creep.pathIndex = first;
+      creep.landT = game.time;
+      creep.statuses.push({ abilityId: "landing", remaining: 0.5, slow: 0, dps: 0, stun: true, owner: ownerIndex });
+      emit(game, "bossLand", { player: target.id, x: creep.x, y: creep.y });
+    }
+  }
   if (item.mana) creep.mana = item.mana;
   target.creeps.push(creep);
   // BOSS Mob T1-T3: every boss arrives with three escorts (speed +12 / 0 / -12).
@@ -5588,7 +5612,7 @@ function creepTier(game, c) {
  */
 // v0.22n2: Tier Boss instead of Scale Armor, Magic and Nerf Resistance; +80 % speed (was 137 → 261, +90 %)
 export const ENRAGED_GOLEM = { id: "n01H", hp: 42000, speedBonus: 0.8, armor: 66, // v0.27mF: linear armor (old 7)
-  pause: 1.2, abilities: ["A01A", "XA12", "A043", "A0CD"] };
+  pause: 1.2, abilities: ["A01A", "XA12", "XA32", "A043", "A0CD"] };
 function enrageGolem(game, p, c) {
   const item = obj(c.typeId),
     hpScale = c.maxHp / (item.hp || c.maxHp),
@@ -5823,7 +5847,7 @@ function moveCreep(game, p, c, dt) {
   // This equals clamp(original speed with modifiers,24,1000)*modeMultiplier.
   const mobility = movementMultiplier(game);
   // v0.10r: Red Boots of the sender: ground creeps 25 % less slowed per level
-  const boots = (c.flying || c.owner < 0 ? 1 : bootsResist(game.players[c.owner])) * (1 - (creepSkills(c).find((sk) => sk.type === "slowResist")?.value || 0)) * (creepSkills(c).some((sk) => sk.type === "tierBoss") ? 1 - TIER_BOSS.slowResist : creepSkills(c).some((sk) => sk.type === "miniBoss") ? 1 - TIER_BOSS.slowResist * MINI_BOSS.share : 1); // v0.21k: Slow Resistance; v0.24s: tier bosses 30 %
+  const boots = (c.flying || c.owner < 0 ? 1 : bootsResist(game.players[c.owner])) * (1 - (creepSkills(c).find((sk) => sk.type === "slowResist")?.value || 0)); // v0.21k: Slow Resistance; v0.28.014F: bosses get their 30 % from their own Slow Resistance ability (XA32)
   const frozen = c.flying ? 1 : 1 - FROZEN_GROUND * perkLevel(p, "permafrost") * boots; // v0.10o: Frozen Ground (was Permafrost) of the defender
   const auraSpeed = aura.speed < 1 ? 1 - (1 - aura.speed) * boots : aura.speed; // v0.17n: Red Boots also soften aura slows
   // v0.18h: Backup Line mist / Low Tides water of the defender (Red Boots soften the slow part)

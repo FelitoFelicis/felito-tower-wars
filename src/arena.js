@@ -1800,6 +1800,17 @@ export function mountArena({
         if (seq <= this.lastEvent) continue;
         this.lastEvent = Math.max(this.lastEvent, seq);
         const lane = game.players[view];
+        if (e.type === "bossLand" && e.player === view) {
+          // v0.28.013F: a boss or mini boss lands on the first field of the path: dust and cracks when it hits the ground
+          (this.bossCracks ||= []).push({ x: e.x, y: e.y, lane: view, t0: performance.now() + 300, seed: 1 + Math.random() * 5 });
+          setTimeout(() => {
+            const q = this.point(e.x, e.y);
+            this.burst(q.x, q.y + cell * 0.15, 0x9d8f73, 18, 110, 3.2, 0.7, 60, false);
+            this.burst(q.x, q.y + cell * 0.2, 0xd2b48c, 10, 60, 4, 0.9, -15, false);
+            this.ring(q.x, q.y + cell * 0.15, cell * 0.1, cell * 0.9, 0xd2b48c, 0.5, 3);
+          }, 300);
+          continue;
+        }
         if (e.type === "shot" && e.player === view) {
           const tower = lane.towers.find((t) => t.id === e.towerId),
             def = catalog.byId[tower?.typeId],
@@ -1932,6 +1943,10 @@ export function mountArena({
           } else if (e.kind === "golemHit") {
             this.burst(q.x, q.y - cell * 0.2, 0xd8a8ff, 8, 90, 2.4, 0.4, 0, true);
             this.ring(q.x, q.y, cell * 0.1, cell * 0.5, 0xc07aff, 0.4, 3);
+            // v0.28.013F: the push itself: a white shockwave, dust thrown back and a small arrow
+            this.ring(q.x, q.y, cell * 0.15, cell * 0.85, 0xffffff, 0.5, 2);
+            this.burst(q.x, q.y + cell * 0.1, 0x8a6a5a, 12, 80, 3, 0.55, 40, false);
+            this.floatText(q.x, q.y - cell * 0.7, "\u21D1", "#e2c2ff", 18, 34, 0.8);
           } else if (e.kind === "enrage") {
             // v0.21z: the Meat Golem denies its death and rises enraged
             this.floatText(q.x, q.y - cell * 0.95, t("ENRAGED"), "#ff5a4a", 16, 40, 1.4);
@@ -2434,6 +2449,8 @@ export function mountArena({
         const pts = path.map((p) => this.point(p.x, p.y));
         this.chevrons(pl, pts, time, cell, 0x4a3018, preview?.ok ? 0.18 : 0.38, true);
       }
+      this.drawCracks(pl, view, z); // v0.28.013F
+      this.drawGrowHint(pl, game, player, z, time); // v0.28.011F
       this.drawPathLength(pl, game, player, cell);
       // ---- placement aids
       if (selected?.towerId) {
@@ -2897,7 +2914,7 @@ export function mountArena({
           if (zap != null && time - zap <= 150) sprite.setTint(Math.floor((time - zap) / 38) % 2 ? 0x101010 : 0xffffff).setTintFill(1); // v0.27zzeF: electrocuted: the figure flashes white and black like in cartoons
           else if (divineShield(game, c)) sprite.setTint(0xfff2b0);
           else if (statuses.some((st) => st.abilityId === "entangle")) sprite.setTint(0xa8ff9a);
-          else if (statuses.some((st) => st.stun)) sprite.setTint(0xfff3a0);
+          else if (statuses.some((st) => st.stun && st.abilityId !== "landing")) sprite.setTint(0xfff3a0);
           else if (statuses.some((st) => st.abilityId === "frost")) sprite.setTint(0xb4e0ff).setTintFill(0.4); // v0.27ztF: frost: a frosty pale-blue glaze over the figure (no sphere)
           else if (slowed) sprite.setTint(0x9fd8ff);
           else if (poisoned) sprite.setTint(0xc4f59a);
@@ -2925,7 +2942,7 @@ export function mountArena({
         else sprite.setBend(0);
         sprite
           .setOrigin(walk ? (walk.footX ?? m.w / 2 + walk.ox) / walk.fw : 0.5, walk ? (walk.footY ?? m.footY + walk.oy) / walk.fh : m.footY / m.h)
-          .setPosition(q.x, q.y + (ground ? cell * 0.2 + height * 0.04 : cell * 0.18) - lift - bob) // v0.23b: ground creeps stand in their shadow, feet slightly sunk
+          .setPosition(q.x, q.y + (ground ? cell * 0.2 + height * 0.04 : cell * 0.18) - lift - bob - (c.landT != null && game.time - c.landT < 0.3 ? ((0.3 - (game.time - c.landT)) / 0.3) ** 2 * cell * 3 : 0)) // v0.23b: ground creeps stand in their shadow, feet slightly sunk; v0.28.013F: bosses fall in
           .setScale(s * rage * face * (c.buff === "fat" ? 1.42 : 1) * (c.spiritWolf || c.fireWolf ? 1.08 : 1) * (gait ? gait.sx : 1), s * rage * flap * (c.buff === "fat" ? 1.06 : 1) * (c.spiritWolf || c.fireWolf ? 1.08 : 1) * (gait ? gait.sy : 1)) // v0.15: fat quest creeps; v0.19a1: Spirit Wolves a little larger
           .setRotation(gait ? gait.rot * face : flying || walk ? 0 : Math.sin(step) * 0.07)
           // v0.23e: the board is seen from the bottom: ground creeps sort with the towers by where their feet are
@@ -3058,9 +3075,7 @@ export function mountArena({
           }
         }
         if (c.golem) {
-          // v0.12: Arcane Golem: violet glow and runes circling at its feet
-          glow.fillStyle(0xb06aff, 0.16 + 0.06 * Math.sin(time * 0.008));
-          glow.fillCircle(q.x, q.y + cell * 0.18 - height * 0.45, height * 0.62);
+          // v0.12: Arcane Golem: runes circling at its feet; v0.28.013F: no glowing sphere any more
           g.lineStyle(2, 0xd8a8ff, 0.8);
           g.strokeEllipse(q.x, q.y + cell * 0.2, cell * 0.8, cell * 0.28);
         }
@@ -3072,7 +3087,7 @@ export function mountArena({
         // v0.27oF: creeps burning in an immolation aura: little flames flicker at their feet (drawn in drawFx)
         if (c.immo != null && game.time - c.immo < 0.25) (this.immoFx ||= []).push({ x: q.x, y: q.y + cell * 0.14 - (flying ? cell * 0.32 : 0), w: cell * (flying ? 0.3 : 0.38), seed: phase0 });
         // v0.27mF: stunned creeps: a ring of little grey hourglasses circling above the head, like in cartoons
-        if (statuses.some((st) => st.stun)) {
+        if (statuses.some((st) => st.stun && st.abilityId !== "landing")) {
           const hb = this.hpBars,
             headY = gait ? q.y + cell * 0.18 - lift - height : sprite.y - Math.abs(sprite.sy) * (walk?.figH ? walk.figH : (m.footY ?? m.h) * 0.92),
             cy = headY - cell * 0.06,
@@ -3524,6 +3539,73 @@ export function mountArena({
      * v0.27.008F: a path longer than the straight lane: a chequered finish line at the bottom of its last field and
      * the path length (fields on the lane) pressed into the dirt there.
      */
+    /** v0.28.013F: cracks where a boss landed; they fade out after 5 s. */
+    drawCracks(g, view, z) {
+      const list = this.bossCracks;
+      if (!list?.length) return;
+      const now = performance.now();
+      this.bossCracks = list.filter((c) => now - c.t0 < 5000);
+      for (const c of this.bossCracks) {
+        if (c.lane !== view || now < c.t0) continue;
+        const age = (now - c.t0) / 1000,
+          alpha = age < 3.5 ? 0.8 : 0.8 * Math.max(0, 1 - (age - 3.5) / 1.5),
+          q = this.point(c.x, c.y),
+          cell = z.cw,
+          cx = q.x,
+          cy = q.y + cell * 0.15;
+        g.fillStyle(0x2a1a0c, alpha * 0.35);
+        g.fillEllipse(cx, cy, cell * 0.75, cell * 0.32);
+        g.lineStyle(Math.max(1.5, cell * 0.035), 0x3a2814, alpha);
+        for (let k = 0; k < 7; k++) {
+          const a0 = c.seed + k * 0.9 + 0.3 * Math.sin(c.seed * (k + 1) * 12.9898);
+          let x = cx,
+            y = cy;
+          g.beginPath();
+          g.moveTo(x, y);
+          for (let w = 1; w <= 3; w++) {
+            const a = a0 + 0.45 * Math.sin(c.seed * (k + 3) * (w + 2) * 7.31),
+              len = cell * (0.11 + 0.05 * Math.abs(Math.sin(c.seed * (k + w) * 3.7)));
+            x += Math.cos(a) * len;
+            y += Math.sin(a) * len * 0.45;
+            g.lineTo(x, y);
+          }
+          g.strokePath();
+        }
+      }
+    }
+    /** v0.28.011F: the maze grew rows the player has not scrolled to yet: golden arrows on the last visible row. */
+    drawGrowHint(g, game, player, z, time) {
+      const rows = laneRows(game, player),
+        seen = (this.growSeen ||= new Map()),
+        before = seen.get(player.id);
+      seen.set(player.id, rows);
+      const scroll = z.scroll,
+        y0 = this.stage.scrollY || 0;
+      if (player.ai || !scroll || !(scroll.hi > 0)) {
+        if (this.growHint?.id === player.id) this.growHint = null;
+        return;
+      }
+      if (before != null && rows > before) this.growHint = { id: player.id, y0 };
+      const hint = this.growHint;
+      if (!hint || hint.id !== player.id) return;
+      const ch = z.ch,
+        viewBottom = z.top + z.bh + (z.frameV || 5) + 6 - scroll.hi + y0,
+        lastRow = Math.min(rows - 1, Math.floor((viewBottom - z.top) / ch + 0.15) - 1);
+      if (y0 > hint.y0 + ch * 0.3 || lastRow >= rows - 1) {
+        this.growHint = null;
+        return;
+      }
+      if (lastRow < 0) return;
+      const alpha = 0.42 + 0.1 * Math.sin(time * 0.0025); // calm pulse, never hectic
+      for (let col = 0; col < z.logicalCols; col++) {
+        const x = z.left + (col + 0.5) * z.cw,
+          y = z.top + (lastRow + 0.5) * ch,
+          k = Math.min(z.cw, ch);
+        g.fillStyle(0xffcf4a, alpha);
+        g.fillRect(x - k * 0.07, y - k * 0.32, k * 0.14, k * 0.26);
+        g.fillTriangle(x - k * 0.22, y - k * 0.07, x + k * 0.22, y - k * 0.07, x, y + k * 0.3);
+      }
+    }
     drawPathLength(g, game, player, cell) {
       const rows = laneRows(game, player),
         tiles = (player.path || []).filter((p) => p.gridY >= 0 && p.gridY < rows),
