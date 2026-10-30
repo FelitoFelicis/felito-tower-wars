@@ -859,6 +859,7 @@ export function mountArena({
       this.badgeAtlas();
       this.grout = this.stage.graphics().setDepth(4);
       this.pathLayer = this.stage.graphics().setDepth(5);
+      this.growG = this.stage.graphics().setDepth(4300); // v0.28.022F: maze-growth arrows above props, figures and creeps
       this.terrainFx = this.stage.graphics().setDepth(3.7); // v0.22h1: Frozen Ground ice and Hill Paths mud over the path tiles
       this.overlay = this.stage.graphics().setDepth(20);
       this.shadeG = this.stage.graphics().setDepth(4400);
@@ -2198,6 +2199,7 @@ export function mountArena({
         glow = this.glow;
       g.clear();
       pl.clear();
+      this.growG?.clear();
       glow.clear();
       this.bars.clear();
       this.hpBars.clear();
@@ -3087,7 +3089,9 @@ export function mountArena({
         // v0.25i: also when a Water Shield shield took the hit (the hit points stay full) and after small hits on
         // big creeps (below 0.1 % the bar stayed hidden)
         // v0.27oF: creeps burning in an immolation aura: little flames flicker at their feet (drawn in drawFx)
-        if (c.immo != null && game.time - c.immo < 0.25) (this.immoFx ||= []).push({ x: q.x, y: q.y + cell * 0.14 - (flying ? cell * 0.32 : 0), w: cell * (flying ? 0.3 : 0.38), seed: phase0 });
+        // v0.28.022F: the flames stand on the figure's feet (they floated about a tenth of a field above them) and keep
+        // closer to its body
+        if (c.immo != null && game.time - c.immo < 0.25) (this.immoFx ||= []).push({ x: sprite.x, y: sprite.y + cell * 0.02, w: cell * (flying ? 0.26 : 0.32), seed: phase0 });
         // v0.27mF: stunned creeps: a ring of little grey hourglasses circling above the head, like in cartoons
         if (statuses.some((st) => st.stun && st.abilityId !== "landing")) {
           const hb = this.hpBars,
@@ -3576,7 +3580,10 @@ export function mountArena({
       }
     }
     /** v0.28.011F: the maze grew rows the player has not scrolled to yet: golden arrows on the last visible row. */
-    drawGrowHint(g, game, player, z, time) {
+    drawGrowHint(pathG, game, player, z, time) {
+      // v0.28.022F: the arrows get their own layer above props, figures and creeps, so nothing shows through them
+      const g = this.growG;
+      g.clear();
       const rows = laneRows(game, player),
         seen = (this.growSeen ||= new Map()),
         before = seen.get(player.id);
@@ -3599,7 +3606,7 @@ export function mountArena({
       }
       if (lastRow < 0) return;
       // v0.28.021F: one solid golden arrow per field of the row, white outline, lit from the left (3D), bobbing slowly
-      // downwards like a pointer (was see-through and pulsing)
+      // downwards like a pointer (was see-through and pulsing); v0.28.022F: outline and glint fully opaque, darker solid shadow
       const bob = Math.sin(time * 0.0022) * 0.07,
         arrow = (x, y, k, grow, color, alpha) => {
           g.fillStyle(color, alpha);
@@ -3610,8 +3617,8 @@ export function mountArena({
         const k = Math.min(z.cw, ch),
           x = z.left + (col + 0.5) * z.cw,
           y = z.top + (lastRow + 0.5) * ch + bob * k;
-        arrow(x + k * 0.035, y + k * 0.05, k, 0.02, 0x1a0e02, 0.35); // shadow
-        arrow(x, y, k, 0.04, 0xffffff, 0.95); // white outline
+        arrow(x + k * 0.035, y + k * 0.05, k, 0.02, 0x1a0e02, 0.55); // shadow
+        arrow(x, y, k, 0.04, 0xffffff, 1); // white outline
         arrow(x, y, k, 0, 0xe0a224, 1); // body
         // lit left half, shaded right half
         g.fillStyle(0xffe58a, 1);
@@ -3619,7 +3626,7 @@ export function mountArena({
         g.fillTriangle(x - k * 0.24, y - k * 0.07, x, y - k * 0.07, x, y + k * 0.3);
         g.fillStyle(0xb7760e, 1);
         g.fillTriangle(x + k * 0.24, y - k * 0.07, x + k * 0.05, y - k * 0.07, x, y + k * 0.3);
-        g.fillStyle(0xfff6d0, 0.9); // a glint on the shaft
+        g.fillStyle(0xfff6d0, 1); // a glint on the shaft
         g.fillRect(x - k * 0.06, y - k * 0.31, k * 0.025, k * 0.2);
       }
     }
@@ -3737,16 +3744,16 @@ export function mountArena({
         for (let k = 0; k < 5; k++) {
           const ph = now * 0.012 + b.seed * 7 + k * 1.9,
             flick = 0.55 + 0.45 * Math.sin(ph) * Math.sin(ph * 0.63 + k),
-            fx = b.x + (k / 4 - 0.5) * b.w * 1.6 + Math.sin(ph * 0.5) * b.w * 0.06,
-            fh = b.w * (0.55 + 0.45 * flick),
-            fw = b.w * 0.24;
+            fx = b.x + (k / 4 - 0.5) * b.w * 1.05 + Math.sin(ph * 0.5) * b.w * 0.05, // v0.28.022F: narrower (was ×1.6)
+            fh = b.w * (0.5 + 0.4 * flick),
+            fw = b.w * 0.2;
           fa.fillStyle(0xff5a1a, 0.55 * flick);
           fa.fillTriangle(fx - fw, b.y, fx + fw, b.y, fx + Math.sin(ph) * fw * 0.5, b.y - fh);
           fa.fillStyle(0xffc84a, 0.7 * flick);
           fa.fillTriangle(fx - fw * 0.5, b.y, fx + fw * 0.5, b.y, fx + Math.sin(ph) * fw * 0.3, b.y - fh * 0.6);
         }
         fa.fillStyle(0xff7a2a, 0.25);
-        fa.fillEllipse(b.x, b.y, b.w * 1.9, b.w * 0.45);
+        fa.fillEllipse(b.x, b.y, b.w * 1.35, b.w * 0.36);
       }
       this.immoFx = [];
       // v0.27lF: Missile Barrage: missiles on a high arc, then blast columns rising from the field they hit

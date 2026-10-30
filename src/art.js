@@ -113,7 +113,7 @@ const BASE_ART = {
   "tower-archer-gold": { w: 306, h: 400, plateW: 251, plateCX: 140.5, plateCY: 283.5, plateTop: 220 }, // v0.27zqF: Archer level 3 = level 2 figure with gold metal
   "tower-archer-elite": { w: 331, h: 400, plateW: 247, plateCX: 142.5, plateCY: 284.0, plateTop: 220 },
   "tower-archmage": { w: 320, h: 400, plateW: 243, plateCX: 136.5, plateCY: 284.0, plateTop: 220 },
-  "tower-arrowtower": { w: 341, h: 400, plateW: 245, /* v0.27ztF: 282 → 245, the figure about 15 % larger */ plateCX: 156.0, plateCY: 281.5, plateTop: 220 },
+  "tower-arrowtower": { w: 341, h: 400, plateW: 282, /* v0.27ztF: 282 → 245 (15 % larger); v0.28.022F: back to 282 on request */ plateCX: 156.0, plateCY: 281.5, plateTop: 220 },
   "tower-bash": { w: 270, h: 400, plateW: 232, plateCX: 138.0, plateCY: 297.5, plateTop: 245 },
   "tower-birdhunter": { w: 295, h: 400, plateW: 227, plateCX: 128.5, plateCY: 299.5, plateTop: 248 },
   "tower-cannon": { w: 299, h: 400, plateW: 265, plateCX: 147.5, plateCY: 282.5, plateTop: 220 },

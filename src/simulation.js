@@ -7712,7 +7712,9 @@ function think(game, p) {
   p.aiDebug = { round: game.round, rate: Math.round(seen.rate), burst: Math.round(seen.burst), airBurst: Math.round(seen.airBurst), wave: waveSoon ? Math.round(wave.total) : 0, capG: Math.round(cap.ground), capA: Math.round(cap.air), gapG: Math.round(groundGap), gapA: Math.round(airGap), alarm };
   // v0.27zziF: from tier 2 the planned Hall of Elements goes down as soon as its gold is there
   if (!game.warmup && (planNow.hallExt || planNow.hallAt) && !hasHall(p) && p.gold >= (obj(HALL_ID)?.cost ?? Infinity) && buildPlannedHall(game, p, planNow)) return;
-  if (defend) {
+  // v0.28.022F: while a push is going out, Hardo keeps its gold for it (match of 30.10. #4: upgrades ate the gold
+  // between the sends, the push trickled out one Satyr a round and blocked every income send for 5 rounds)
+  if (defend && !(persona.adaptive && p.aiPush?.sending)) {
     const wantAir = airGap > 0 && airGap >= groundGap;
     const options = defenceOptions(game, p, persona, level, style, cap, wantAir, false, wantAir ? airNeed : groundNeed);
     const choice = options[0];
@@ -7779,9 +7781,24 @@ function think(game, p) {
         if (esc && command(game, { type: "send", player: p.id, id: esc.id }).ok) plan.escort = esc.id;
       }
       plan.sending = true;
+      let sentNow = 0;
       for (let i = 0; i < 4 && plan.left > 0; i++) {
         if (!command(game, { type: "send", player: p.id, id: plan.id }).ok) break;
         plan.left--;
+        sentNow++;
+      }
+      // v0.28.022F: a push that cannot send for 2 s (gold or stock short) is ended, so income sends go on
+      if (persona.adaptive && plan.left > 0) {
+        if (sentNow) plan.stall = null;
+        else {
+          plan.stall ??= game.tick;
+          if (game.tick - plan.stall > Math.round(2 / TICK)) {
+            if (plan.leaks0 != null) p.aiPushCheck = { tick: game.tick + Math.round(35 / TICK), leaks0: plan.leaks0, air: !!item.flying };
+            p.aiPushCool = game.round + 2;
+            p.aiPush = null;
+            return;
+          }
+        }
       }
       if (plan.left <= 0) {
         if (persona.adaptive || (persona.airLearn && item.flying)) p.aiPushCheck = { tick: game.tick + Math.round(35 / TICK), leaks0: plan.leaks0 ?? p.stats.leaks, air: !!item.flying };

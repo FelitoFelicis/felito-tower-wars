@@ -10376,3 +10376,18 @@ body.tool-upgrade #arena canvas {
 [class*="perk-pillar"] .pick-book img {
   transform: scale(1.2);
 }
+
+/* ---- v0.28.022F: Desktop Wide: short gold costs (cheap creeps, e.g. "250 +20") one step larger than the long ones
+   ("1,500 +70"); a tighter line height lets fitPrices grow them by the full 20 % (the bar height stopped them at 15 %) ---- */
+:root.layout-wide .game-shell #cards-send .unit-card[data-kind="send"] .card-foot .price,
+:root.layout-wide .game-shell #cards-send .unit-card[data-kind="send"] .card-foot .card-note,
+:root.layout-wide .game-shell #cards-send .unit-card[data-kind="send"].framed .card-foot .card-note {
+  line-height: 13px;
+}
+:root.layout-wide .game-shell #cards-send .unit-card[data-kind="send"].price-big .card-foot:not(.long) .price {
+  font-size: 16px;
+}
+:root.layout-wide .game-shell #cards-send .unit-card[data-kind="send"].price-big .card-foot:not(.long) .card-note,
+:root.layout-wide .game-shell #cards-send .unit-card[data-kind="send"].price-big.framed .card-foot:not(.long) .card-note {
+  font-size: 15px;
+}

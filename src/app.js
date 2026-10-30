@@ -199,7 +199,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.28.021",
+const APP_VERSION = "0.28.022",
   APP_BRANCH = "F", // v0.23q: author marker (F = Felix, S = Steven) and branch text, shown behind the version; APP_VERSION stays plain for online matches (VersionPublishingRules.md)
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "30.10.2026";
@@ -2952,6 +2952,12 @@ document.addEventListener("contextmenu", (e) => {
   if (!game || !begun || e.target.closest?.("dialog")) return;
   if (!e.target.closest?.(".game-shell")) return;
   e.preventDefault();
+  // v0.28.022F: a right click puts the Sell / Upgrade tool away (normal cursor again)
+  if (toolMode) {
+    setToolMode(null);
+    tone("tap");
+    return;
+  }
   if (volleyAim) setVolleyAim(false);
   if (performance.now() - queueCancelAt < 250) return; // v0.18a: the right click cancelled a pre-build; keep the picked card
   if (tab === "build" && (selected || drag)) {
@@ -5328,7 +5334,7 @@ function onTowerTap(tower, at = performance.now(), point = null) {
 /** v0.13: a double right click on one of your towers sells it. */
 let lastRightClick = { id: null, at: 0 };
 function onTowerRightClick(tower, at = performance.now()) {
-  if (!begun || view !== own || volleyAim) return;
+  if (!begun || view !== own || volleyAim || toolMode) return; // v0.28.022F: with a tool on, the right click only puts it away
   const double = lastRightClick.id === tower.id && at - lastRightClick.at < 420;
   lastRightClick = { id: tower.id, at: double ? 0 : at };
   if (!double) return;
@@ -5356,10 +5362,13 @@ function fitPrices(root) {
   for (const [card] of feet.filter(([, foot]) => foot.scrollWidth > foot.clientWidth + 1)) card.classList.remove("price-big");
   // v0.18b: gold cost and income up to 20 % larger where the card is wide enough
   let open = feet.map(([, foot]) => foot);
+  // v0.28.022F: Desktop Wide: the digits may reach into the bar's rim (their line box is taller than the glyphs), so
+  // short gold costs grow as far as the width allows (were held at 15 % by the bar height, smaller than long ones)
+  const slack = root.id === "cards-send" && wideDeck() ? 4 : 1;
   for (const z of [1.2, 1.15, 1.1, 1.05]) {
     if (!open.length) break;
     for (const foot of open) foot.style.setProperty("--pz", z);
-    open = open.filter((foot) => !(foot.scrollWidth <= foot.clientWidth + 1 && foot.scrollHeight <= foot.clientHeight + 1));
+    open = open.filter((foot) => !(foot.scrollWidth <= foot.clientWidth + 1 && foot.scrollHeight <= foot.clientHeight + slack));
   }
   for (const foot of open) foot.style.setProperty("--pz", 1);
 }
@@ -9964,7 +9973,7 @@ async function init() {
         tone("tap");
       },
       onCell,
-      onCellRight: (pos) => cancelQueuedAt(pos), // v0.18a: right click on a pre-build cancels it
+      onCellRight: (pos) => !toolMode && cancelQueuedAt(pos), // v0.18a: right click on a pre-build cancels it (v0.28.022F: not while a tool is on)
       onTower: onTowerTap,
       onTowerRight: onTowerRightClick,
       popups: { numbers: popNumbers, notes: popNotes },
