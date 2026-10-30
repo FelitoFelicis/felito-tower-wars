@@ -194,7 +194,7 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.27zzm",
+const APP_VERSION = "0.27.002",
   APP_BRANCH = "F", // v0.23q: author marker (F = Felix, S = Steven) and branch text, shown behind the version; APP_VERSION stays plain for online matches (VersionPublishingRules.md)
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
   APP_DATE = "29.10.2026";
@@ -7188,9 +7188,9 @@ function qmDialog() {
       q.mode === "rankedffa"
         ? `${t("Up to 8 players. The lobby waits up to 60 s, every new player adds 10 s.")} ${t("Minimize this window to play a training match while you wait.")}` // v0.25
         : duel
-          ? `${t("You'll be paired with the next free player for a ranked 1v1.")} ${rankedBotLevel(mine.r) ? `${t("If nobody is found within 30 s, you play a ranked match against an AI opponent.")} ` : ""}${t("Minimize this window to play a training match while you wait.")}`
+          ? `${t("You'll be paired with the next free player for a ranked 1v1.")} ${t("Minimize this window to play a training match while you wait.")}` // v0.27.001: the AI countdown is on the checkbox
           : t("You'll be paired with the next player who is searching. Minimize this window to play a training match while you wait.")
-    }</p>${duel && rankedBotLevel(mine.r) ? `<label class="qm-bots"><input type="checkbox" id="qm-bots"${rankedBots ? " checked" : ""}><span>${t("Allow an AI opponent")}</span></label>` : ""}<div id="network-status" class="network-status">${esc(q.status)}</div><div class="qm-presence" id="qm-presence"><span><b id="qm-queue">${q.counts ? Math.max(1, q.counts.queue) : "…"}</b>${t("in the queue")}</span><span><b id="qm-online">${q.counts ? qmOnline(q.counts) : "…"}</b>${t("Players online")}</span></div><div class="qm-actions"><button class="primary-button" id="qm-min">${t("Minimize")}</button><button class="secondary-button" id="qm-cancel">${t("Cancel")}</button></div>`,
+    }</p>${duel && rankedBotLevel(mine.r) ? `<label class="qm-bots"><input type="checkbox" id="qm-bots"${rankedBots ? " checked" : ""}><span>${t("Allow matching vs AI")} <em class="qm-bot-time" id="qm-bot-time">${qmBotTime(q)}</em></span></label>` : ""}<div id="network-status" class="network-status">${esc(q.status)}</div><div class="qm-presence" id="qm-presence"><span><b id="qm-queue">${q.counts ? Math.max(1, q.counts.queue) : "…"}</b>${t("in the queue")}</span><span><b id="qm-online">${q.counts ? qmOnline(q.counts) : "…"}</b>${t("Players online")}</span></div><div class="qm-actions"><button class="primary-button" id="qm-min">${t("Minimize")}</button><button class="secondary-button" id="qm-cancel">${t("Cancel")}</button></div>`,
   );
   // v0.18g: from the main menu, cancel and minimize return to the PvP page underneath
   const leave = closeModal;
@@ -7231,8 +7231,16 @@ function cancelQuickMatch() {
   presenceState(presenceBase);
   refreshQmPill();
 }
+/** v0.27.001: Ranked queue: the countdown to the AI match, behind the checkbox ("in 28 seconds"). */
+function qmBotTime(q) {
+  if (!q?.botAt) return "";
+  const left = Math.max(0, Math.ceil((q.botAt - Date.now()) / 1000));
+  return left > 0 ? t(left === 1 ? "in {n} second" : "in {n} seconds", { n: left }) : t("now");
+}
 /** The small "searching" bar while the Quick Match dialog is not on screen. */
 function refreshQmPill() {
+  const botTime = $("qm-bot-time");
+  if (botTime && qmSearch) setText(botTime, qmBotTime(qmSearch)); // v0.27.001
   let pill = $("qm-pill");
   if (!qmSearch || $("qm-cancel")) {
     pill?.remove();
@@ -7303,6 +7311,8 @@ async function quickMatch(mode = "quick") {
       startLocal({ rankedBot: level });
     };
     q.botTimer = setTimeout(q.startBot, RANKED_BOT_MS);
+    q.botAt = Date.now() + RANKED_BOT_MS; // v0.27.001: shown as a countdown on the checkbox
+    refreshQmPill();
   }
   try {
     const { findQuickMatch } = await import("./multiplayer.js");

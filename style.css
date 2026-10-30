@@ -9543,3 +9543,21 @@ body.showdown #arena::after {
     linear-gradient(rgba(60, 10, 80, 0.22), rgba(120, 0, 20, 0.26));
   transition: opacity 1.2s;
 }
+
+/* v0.27.001: Ranked queue: the countdown to the AI match in grey behind the checkbox */
+.qm-bots .qm-bot-time {
+  font-style: normal;
+  font-weight: 600;
+  color: #8b97a8;
+}
+/* v0.27.001: the Tips and "Allow matching vs AI" checkboxes 30 % larger */
+.tip-toggle input { width: 17px; height: 17px; border-radius: 3px; }
+.tip-toggle input:checked::after { width: 9px; height: 9px; }
+.qm-bots input { width: 23px; height: 23px; }
+/* v0.27.002: the level button's reward glow never fades out completely between its pulses */
+.level-button.ready::after,
+:root.layout-wide .wide-stats .level-button.ready::after { animation-name: level-glow; }
+@keyframes level-glow {
+  from { opacity: 0.4; }
+  to { opacity: 1; }
+}
