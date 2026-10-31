@@ -2485,12 +2485,11 @@ export const treasureGold = (game) => Math.max(1, game?.round || 0) * 30; // v0.
 /** v0.19e2: Gold Treasure income: +60, doubled while the player has less than 40 % of the highest income. */
 // v0.28.027F: +90 income when offered on level 8; offered only to the player with the lowest income, and only while
 // that income is at most half the highest one
-export const TREASURE = { income: 60, late: 90, lateLevel: 8, behind: 0.4, offer: 0.5 };
+// v0.28.028F: no more doubling for players far behind (was ×2 below 40 % of the top income)
+export const TREASURE = { income: 60, late: 90, lateLevel: 8, offer: 0.5 };
 const incomeOf = (q) => (q?.income || 0) + (q?.incomeDecimal || 0) / 100;
 export function treasureIncome(game, p, level = 0) {
-  const base = level >= TREASURE.lateLevel ? TREASURE.late : TREASURE.income,
-    top = Math.max(0, ...(game?.players || []).filter((q) => !q.out).map(incomeOf));
-  return p && top > 0 && incomeOf(p) < TREASURE.behind * top ? base * 2 : base;
+  return level >= TREASURE.lateLevel ? TREASURE.late : TREASURE.income;
 }
 function treasureOpen(game, p) {
   const live = game.players.filter((q) => !q.out),
