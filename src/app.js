@@ -87,6 +87,8 @@ import {
   BOOTS,
   EXHUME,
   exhumeSpeed, // v0.26cF
+  ANTICHARGE, // v0.28.026F
+  antichargeOf,
   RING,
   ringHp,
   revengeHp,
@@ -116,6 +118,9 @@ import {
   ENRAGED_GOLEM,
   burstDamage,
   TOWER_ACHIEVEMENTS,
+  UPGRADE_ACHIEVEMENT, // v0.28.026F
+  MAX_UPGRADE,
+  DIRTY_WORK,
   GLOBAL_ACHIEVEMENTS,
   collectorExp,
   RECRUITER_ACHIEVEMENTS,
@@ -167,6 +172,7 @@ import {
   ULTIMATES, // v0.23: Decay Attack tooltip
   DECAY_DRAIN, // v0.23
   owlRange, // v0.23: Watcher Owl shows its total range
+  owlSpeed, // v0.28.027F
   unitSkillList, // v0.27zziF: Phoenix Stun values
   MANA_REGEN_AURA, // v0.27zziF: Magic City's Mana Aura
   DECAY, // v0.27zziF: Hall of Plague
@@ -199,10 +205,10 @@ const SOUND_PREF = "felito.sound.enabled";
 const AI_PREF = "felito.ai.level";
 const PREVIEW_PREF = "felito.build.preview.v2";
 const TIPS_PREF = "felito.tips.enabled";
-const APP_VERSION = "0.28.025",
+const APP_VERSION = "0.28.027",
   APP_BRANCH = "F", // v0.23q: author marker (F = Felix, S = Steven) and branch text, shown behind the version; APP_VERSION stays plain for online matches (VersionPublishingRules.md)
   APP_NOTE = "", // v0.17q: saved version, shown below the version number
-  APP_DATE = "30.10.2026";
+  APP_DATE = "31.10.2026";
 // v0.18: the version also stands in the page title (browser tab and the artifact window in chats)
 try {
   document.title = `${currentDesign() === "original" ? "Felito" : "Circle"} Tower Wars · v${APP_VERSION}${APP_BRANCH}`; // design variants: the new looks are called Circle Tower Wars
@@ -610,7 +616,10 @@ function applyControlMode() {
 }
 applyControlMode();
 let tipsEnabled = pref(TIPS_PREF, "true") !== "false";
-let wavesOn = pref(WAVES_PREF, "true") !== "false";
+// v0.28.026F: neutral waves Off / Weak / Strong (Strong = the waves as before; was On / Off)
+const wavesMode = (v) => (v === false || v === "false" || v === "off" ? "off" : v === "weak" ? "weak" : "strong");
+const waveOpts = (mode) => ({ waves: mode !== "off", waveStrength: mode === "weak" ? "weak" : "strong" });
+let wavesChoice = wavesMode(pref(WAVES_PREF, "strong"));
 // v0.10c/f: number of AI enemies for Vs AI (1–7), chosen like the difficulty; 1 = classic duel.
 const AI_COUNT_PREF = "felito.aiCount";
 const AI_COUNTS = [1, 2, 3, 4, 5, 6, 7];
@@ -1826,7 +1835,7 @@ let queued = [],
   upQueue = [], // upgrades waiting for gold or for construction to finish: { towerId, id, from }
   queuedFor = null;
 const researchCopy = {
-  R00K: ["Watcher Owl", "Archer-Line +{owl} range, Bouncing Shot half"],
+  R00K: ["Watcher Owl", "Archer-Line +{owl} range and +{owlSpeed} attack speed"], // v0.28.027F
   R00J: ["Fire Arrows", "Archer-Line +10% damage per level."],
   R005: ["Heavy Weapons", "Footman-Line and Bombard-Line +5% damage."],
   R00M: ["Fire", "Unlocks the fire upgrade paths."],
@@ -1885,7 +1894,7 @@ function cardHint(item, current = false) {
   if (item.id === "R00K") {
     // v0.16g: the value of the next level instead of a list of all levels
     const lv = Math.min(OWL.range.length, lvNow);
-    return t(researchCopy.R00K[1], { owl: format(owlRange(lv)), lv }); // v0.23: total of all levels
+    return t(researchCopy.R00K[1], { owl: Math.round(owlRange(lv) * 100) + "%", owlSpeed: Math.round(owlSpeed(lv) * 100) + "%", lv }); // v0.28.027F
   }
   if (researchCopy[item.id]) return t(researchCopy[item.id][1]);
   if (item.kind === "send") return t("+{n} income", { n: formatInc(incomeFor(item)) });
@@ -2466,9 +2475,12 @@ function statTip(item, action, towerId = null, who = own, bare = false) {
     rows = [],
     after = [];
   const abilities = abilityNames(item),
-    abilityHtml = abilities.length
-      ? `<div class="tip-abilities"><span>${t("Abilities")}</span>${abilities.map((n) => `<p><b>${esc(t(n))}</b>${abilityDesc(n, item) ? ` – ${valHtml(t(abilityDesc(n, item)))}` : ""}</p>`).join("")}</div>`
-      : "";
+    charge = item.kind === "send" && game?.players?.[who] ? antichargeOf(game.players[who], item) : 0, // v0.28.026F: Anticharge on your creeps
+    chargeHtml = charge ? `<p><b>${t("Anticharge")}</b> – ${valHtml(t("+{n} magic resistance", { n: Math.round(charge * 100) + "%" }))}</p>` : "",
+    abilityHtml =
+      abilities.length || chargeHtml
+        ? `<div class="tip-abilities${item.kind === "send" ? " creep-abilities" : ""}">${item.kind === "send" ? "" : `<span>${t("Abilities")}</span>`}${abilities.map((n) => `<p><b>${esc(t(n))}</b>${abilityDesc(n, item) ? ` – ${valHtml(t(abilityDesc(n, item)))}` : ""}</p>`).join("")}${chargeHtml}</div>`
+        : "";
   if (item.kind === "send") {
     // v0.17: Income and Profit (v0.18h, was Value) first (green), then Hitpoints, Speed, Abilities, Stock (current / max)
     const unit = catalog.byId[item.spawnIds?.[0]] || item,
@@ -3116,69 +3128,103 @@ document.addEventListener("click", (e) => {
 /** v0.13b: one match = one key (online guests replace the `game` object with every state). */
 const gameKey = () => (game ? (room ? "net:" + room.code + ":" + game.seed : game) : null);
 /**
- * v0.13b: smooth creeps on the online guest. States arrive 3–8 times per second; between them the
- * guest moves every creep on with the speed it had between the last two states (at most 0.5 s).
+ * v0.28.026F: smooth creeps on the online guest with a playback buffer. The guest shows the match a short,
+ * adaptive moment behind the host (about one state gap plus jitter) and interpolates every creep between the
+ * two host states around that moment, timed by the host's simulation clock (`game.time`), not by when the
+ * packets arrived. States that arrive late, in bursts or after a host hiccup no longer freeze the creeps and
+ * then rush them down the path (was: extrapolation from arrival times, stopped after 0.3 s).
  */
-const guestMotion = { at: 0, base: new Map(), vel: new Map() };
+const guestMotion = { hist: new Map(), off: null, delay: 0.18, gaps: [], lastArrive: 0, lastT: null, seed: null, last: 0, play: null };
+const GUEST_JUMP = 1.5; // fields per second faster than this between two states = a jump (knockback, teleport): no gliding
 function guestReceived(next) {
-  const now = performance.now(),
-    gap = (now - guestMotion.at) / 1000,
-    base = new Map(),
-    vel = new Map();
+  const now = performance.now() / 1000,
+    T = Number(next.time) || 0;
+  if (guestMotion.seed !== next.seed || (guestMotion.lastT != null && T < guestMotion.lastT - 0.5)) {
+    // a new match (or a restored one): start over
+    guestMotion.hist.clear();
+    guestMotion.off = null;
+    guestMotion.gaps = [];
+    guestMotion.play = null;
+  }
+  guestMotion.seed = next.seed;
+  if (guestMotion.lastArrive) {
+    guestMotion.gaps.push(now - guestMotion.lastArrive);
+    if (guestMotion.gaps.length > 24) guestMotion.gaps.shift();
+  }
+  guestMotion.lastArrive = now;
+  guestMotion.lastT = T;
+  // host clock = wall clock + offset; the freshest (least delayed) packets set it, slow drift is followed
+  const off = T - now;
+  if (guestMotion.off == null || Math.abs(off - guestMotion.off) > 1.5) guestMotion.off = off;
+  else if (off > guestMotion.off) guestMotion.off += (off - guestMotion.off) * 0.5;
+  else guestMotion.off += (off - guestMotion.off) * 0.02;
+  // buffer: the larger recent state gaps plus a little, between 0.12 and 0.6 s
+  const gaps = [...guestMotion.gaps].sort((a, b) => a - b),
+    hi = gaps.length ? gaps[Math.min(gaps.length - 1, Math.floor(gaps.length * 0.9))] : 0.15;
+  guestMotion.target = Math.max(0.12, Math.min(0.6, hi + 0.05));
+  const seen = new Set();
   for (const p of next.players)
     for (const c of p.creeps) {
-      const key = p.id + ":" + c.id,
-        before = guestMotion.base.get(key);
-      base.set(key, { x: c.x, y: c.y });
-      if (before && gap > 0.04 && gap < 1.2) {
-        const vx = (c.x - before.x) / gap,
-          vy = (c.y - before.y) / gap;
-        // no smoothing across jumps (knock-backs, teleports, a lane change)
-        if (Math.hypot(vx, vy) < 1.5) vel.set(key, { vx, vy });
-      }
+      const key = p.id + ":" + c.id;
+      seen.add(key);
+      let h = guestMotion.hist.get(key);
+      if (!h) guestMotion.hist.set(key, (h = []));
+      if (h.length && T <= h[h.length - 1].t) h.length = 0; // out of order or the same time twice: keep the newest only
+      h.push({ t: T, x: c.x, y: c.y });
+      while (h.length > 2 && h[1].t < T - 1.5) h.shift();
     }
-  guestMotion.at = now;
-  guestMotion.base = base;
-  guestMotion.vel = vel;
+  for (const key of guestMotion.hist.keys()) if (!seen.has(key)) guestMotion.hist.delete(key);
 }
 function guestExtrapolate() {
-  if (!game || !isFollower() || !guestMotion.at) return;
-  // v0.28.014F: creeps no longer snap to every new host state: the shown position glides to the extrapolated one
-  // (small corrections), big jumps (knockback, teleports) still snap. Extrapolation stops after 0.3 s.
-  const now = performance.now(),
-    tau = Math.min(0.3, (now - guestMotion.at) / 1000),
-    dt = Math.min(0.1, Math.max(0, (now - (guestMotion.last || now)) / 1000)),
-    shown = guestMotion.shown || (guestMotion.shown = new Map()),
-    seen = new Set(),
-    k = 1 - Math.exp(-dt * 14);
+  if (!game || !isFollower() || guestMotion.off == null) return;
+  const now = performance.now() / 1000,
+    dt = Math.min(0.1, Math.max(0, now - (guestMotion.last || now)));
   guestMotion.last = now;
+  // the buffer length follows its target slowly (no visible speed-ups or slow-downs)
+  guestMotion.delay += Math.max(-dt * 0.15, Math.min(dt * 0.3, (guestMotion.target || 0.18) - guestMotion.delay));
+  let play = now + guestMotion.off - guestMotion.delay;
+  // never run backwards, never more than 0.35 s past the newest state (a paused or stalled host)
+  if (guestMotion.play != null && play < guestMotion.play && guestMotion.play - play < 1) play = guestMotion.play;
+  play = Math.min(play, (guestMotion.lastT ?? play) + 0.35);
+  guestMotion.play = play;
   for (const p of game.players)
     for (const c of p.creeps) {
       if (c.dead) continue;
-      const key = p.id + ":" + c.id,
-        b = guestMotion.base.get(key),
-        v = guestMotion.vel.get(key);
-      let x = c.x,
-        y = c.y;
-      if (b) {
-        x = b.x;
-        y = b.y;
-        if (v) {
-          x = Math.max(0, Math.min(1, b.x + v.vx * tau));
-          y = Math.max(-0.2, Math.min(1.2, b.y + v.vy * tau));
+      const h = guestMotion.hist.get(p.id + ":" + c.id);
+      if (!h?.length) continue;
+      let x, y;
+      if (play <= h[0].t) ({ x, y } = h[0]);
+      else {
+        let i = 1;
+        while (i < h.length && h[i].t < play) i++;
+        const a = h[i - 1],
+          b = h[i] || null;
+        if (b) {
+          const span = b.t - a.t,
+            jump = Math.hypot(b.x - a.x, b.y - a.y) > GUEST_JUMP * Math.max(span, 0.05);
+          const f = jump || span <= 0 ? (play >= b.t ? 1 : 0) : (play - a.t) / span;
+          x = a.x + (b.x - a.x) * f;
+          y = a.y + (b.y - a.y) * f;
+        } else {
+          // past the newest state: go on with the last speed for a moment
+          const z = h[h.length - 2];
+          x = a.x;
+          y = a.y;
+          if (z && a.t > z.t) {
+            const span = a.t - z.t,
+              vx = (a.x - z.x) / span,
+              vy = (a.y - z.y) / span;
+            if (Math.hypot(vx, vy) < GUEST_JUMP) {
+              const ahead = Math.min(0.25, play - a.t);
+              x = Math.max(0, Math.min(1, a.x + vx * ahead));
+              y = Math.max(-0.2, Math.min(1.2, a.y + vy * ahead));
+            }
+          }
         }
       }
-      const was = shown.get(key);
-      if (was && Math.hypot(x - was.x, y - was.y) < 0.12) {
-        x = was.x + (x - was.x) * k;
-        y = was.y + (y - was.y) * k;
-      }
-      shown.set(key, { x, y });
-      seen.add(key);
       c.x = x;
       c.y = y;
     }
-  if (shown.size > seen.size + 60) for (const key of [...shown.keys()]) if (!seen.has(key)) shown.delete(key);
 }
 let lastSentEvent = 0;
 const r4 = (v) => (typeof v === "number" ? Math.round(v * 1e4) / 1e4 : v);
@@ -3497,7 +3543,7 @@ function welcome() {
   }
   const saved = unusableSave ? null : localStorage.getItem(SAVE);
   showModal(
-    `<div class="welcome-eyes" aria-hidden="true"></div><div class="welcome-mood mood-easy" aria-hidden="true"></div><div class="welcome-mood mood-hard" aria-hidden="true"></div><div class="welcome-mood mood-hard-glow" aria-hidden="true"></div><div class="welcome-mood mood-easy-wolf" aria-hidden="true"></div><div class="welcome-art" aria-hidden="true"></div><button class="welcome-options" id="welcome-options" type="button" aria-label="${t("Options")}"><img src="${iconUrl("gear")}" alt=""></button><button class="welcome-options welcome-mute" id="welcome-mute" type="button" aria-pressed="${muted}" aria-label="${t(muted ? "Sound off" : "Sound on")}">${speakerSvg(muted)}</button>${standaloneApp() ? "" : `<button class="welcome-options welcome-install" id="welcome-install" type="button" aria-label="${t("Add to Home Screen")}" title="${t("Add to Home Screen")}"><span class="install-label">${t("Download")}</span>${installSvg()}</button>`}<span class="app-version">v${APP_VERSION}${APP_BRANCH} · ${APP_DATE}${APP_NOTE ? `<small class="app-version-note">${esc(APP_NOTE)}</small>` : ""}</span><img class="welcome-logo" src="${menuLogoUrl()}" alt="${gameName()}">${castMarkup()}<div class="welcome-panel" id="welcome-panel" data-view="home"><div class="welcome-home"><div class="welcome-modes"><button class="primary-button big welcome-mode" data-open="player"><img class="mode-icon" src="${iconUrl("attack")}" alt=""><span class="keep-case">${t("PvP")}</span></button><button class="secondary-button big welcome-mode" data-open="ai"><img class="mode-icon training-icon" src="${uiArt("assets/art/icon-training-shield.webp?v=v028018")}" alt="">${t("Training")}</button></div></div><section class="welcome-group" data-sub="ai" aria-label="${t("Training")}"><h3 class="welcome-group-title"><button class="welcome-back" type="button" data-back aria-label="${t("Back")}">${t("Back")}</button>${t("Training")}</h3><div class="segmented ai-levels${hardoUnlocked ? " with-hardo" : ""}" role="radiogroup" aria-label="${t("Difficulty")}">${Object.entries(AI_NAMES).map(([id, name]) => `<button role="radio" data-ai="${id}" aria-checked="${id === aiChoice}" class="lvl-${id}${id === aiChoice ? " active" : ""}${id === "insane" ? " hardo-level" : ""}"${id === "insane" && !hardoUnlocked ? " hidden" : ""}>${t(name)}</button>`).join("")}</div><div class="welcome-inline"><span class="modal-label">${t("Neutral waves")}</span><div class="segmented" role="radiogroup" aria-label="${t("Neutral waves")}">${[["on", "On"], ["off", "Off"]].map(([id, name]) => `<button role="radio" data-waves="${id}" aria-checked="${(id === "on") === wavesOn}" class="${(id === "on") === wavesOn ? "active" : ""}">${t(name)}</button>`).join("")}</div></div>${aiMixHtml()}<span class="modal-label">${t("Number of AI enemies")}</span><div class="segmented ai-count" role="radiogroup" aria-label="${t("Number of AI enemies")}">${aiCountHtml()}</div><button class="primary-button big" id="start-training">${t("Start")}</button><button class="secondary-button big campaign-open" id="start-campaign">${t("Campaign")} · ${campaignDone().size}/${MISSIONS.length}</button><button class="secondary-button big tutorial-open" id="start-tutorial">${t("Tutorial")}</button></section><section class="welcome-group" data-sub="player" aria-label="${t("PvP")}"><h3 class="welcome-group-title"><button class="welcome-back" type="button" data-back aria-label="${t("Back")}">${t("Back")}</button><span class="keep-case">${t("PvP")}</span></h3><label class="modal-label name-label pvp-name" for="player-name">${t("Player name")}</label><div class="name-row"><input id="player-name" class="name-input" maxlength="16" autocomplete="nickname" spellcheck="false" placeholder="${t("Your name")}" value="${esc(playerNameChoice)}"><button type="button" class="icon-pick" id="icon-pick" aria-label="${t("Choose your player icon")}" style="--pc:${iconColor()}"><img src="${iconSrc(iconChoice)}" alt=""></button></div><div class="pvp-color"><span class="modal-label">${t("Your color")}: <b id="color-name">${colorLabel()}</b></span><div class="color-picker" role="radiogroup" aria-label="${t("Your color")}">${Object.entries(TEAM_COLORS).map(([id, c]) => `<button role="radio" data-color="${id}" aria-checked="${id === colorPick}" aria-label="${t(c.name)}" title="${t(c.name)}" class="${id === colorPick ? "active" : ""}" style="--c:${c.css}"></button>`).join("")}</div></div><div class="welcome-row pvp-row"><button class="primary-button rank-button rank-ffa" id="start-ranked-ffa" title="${t("Up to 8 players · rated")}">${t("Ranked FFA")}<small>${t(leagueOf(readRating("ffa").r))} · ${readRating("ffa").r}</small>${medalHtml(readRating("ffa").r, iconColor(), "rank-medal", true)}</button><button class="primary-button rank-button" id="start-ranked" title="${t("1v1 · rated")}">${t("Ranked 1v1")}<small>${t(leagueOf(readRating().r))} · ${readRating().r}</small>${medalHtml(readRating().r, iconColor(), "rank-medal", true)}</button><button class="secondary-button" id="start-quick">${t("Quick Match")}</button><button class="secondary-button" id="start-online">${t("Play a friend")}</button></div></section></div>`,
+    `<div class="welcome-eyes" aria-hidden="true"></div><div class="welcome-mood mood-easy" aria-hidden="true"></div><div class="welcome-mood mood-hard" aria-hidden="true"></div><div class="welcome-mood mood-hard-glow" aria-hidden="true"></div><div class="welcome-mood mood-easy-wolf" aria-hidden="true"></div><div class="welcome-art" aria-hidden="true"></div><button class="welcome-options" id="welcome-options" type="button" aria-label="${t("Options")}"><img src="${iconUrl("gear")}" alt=""></button><button class="welcome-options welcome-mute" id="welcome-mute" type="button" aria-pressed="${muted}" aria-label="${t(muted ? "Sound off" : "Sound on")}">${speakerSvg(muted)}</button>${standaloneApp() ? "" : `<button class="welcome-options welcome-install" id="welcome-install" type="button" aria-label="${t("Add to Home Screen")}" title="${t("Add to Home Screen")}"><span class="install-label">${t("Download")}</span>${installSvg()}</button>`}<span class="app-version">v${APP_VERSION}${APP_BRANCH} · ${APP_DATE}${APP_NOTE ? `<small class="app-version-note">${esc(APP_NOTE)}</small>` : ""}</span><img class="welcome-logo" src="${menuLogoUrl()}" alt="${gameName()}">${castMarkup()}<div class="welcome-panel" id="welcome-panel" data-view="home"><div class="welcome-home"><div class="welcome-modes"><button class="primary-button big welcome-mode" data-open="player"><img class="mode-icon" src="${iconUrl("attack")}" alt=""><span class="keep-case">${t("PvP")}</span></button><button class="secondary-button big welcome-mode" data-open="ai"><img class="mode-icon training-icon" src="${uiArt("assets/art/icon-training-shield.webp?v=v028018")}" alt="">${t("Training")}</button></div></div><section class="welcome-group" data-sub="ai" aria-label="${t("Training")}"><h3 class="welcome-group-title"><button class="welcome-back" type="button" data-back aria-label="${t("Back")}">${t("Back")}</button>${t("Training")}</h3><div class="segmented ai-levels${hardoUnlocked ? " with-hardo" : ""}" role="radiogroup" aria-label="${t("Difficulty")}">${Object.entries(AI_NAMES).map(([id, name]) => `<button role="radio" data-ai="${id}" aria-checked="${id === aiChoice}" class="lvl-${id}${id === aiChoice ? " active" : ""}${id === "insane" ? " hardo-level" : ""}"${id === "insane" && !hardoUnlocked ? " hidden" : ""}>${t(name)}</button>`).join("")}</div><div class="welcome-inline"><span class="modal-label">${t("Neutral waves")}</span><div class="segmented" role="radiogroup" aria-label="${t("Neutral waves")}">${[["off", "Off"], ["weak", "Weak"], ["strong", "Strong"]].map(([id, name]) => `<button role="radio" data-waves="${id}" aria-checked="${id === wavesChoice}" class="${id === wavesChoice ? "active" : ""}">${t(name)}</button>`).join("")}</div></div>${aiMixHtml()}<span class="modal-label">${t("Number of AI enemies")}</span><div class="segmented ai-count" role="radiogroup" aria-label="${t("Number of AI enemies")}">${aiCountHtml()}</div><button class="primary-button big" id="start-training">${t("Start")}</button><button class="secondary-button big campaign-open" id="start-campaign">${t("Campaign")} · ${campaignDone().size}/${MISSIONS.length}</button><button class="secondary-button big tutorial-open" id="start-tutorial">${t("Tutorial")}</button></section><section class="welcome-group" data-sub="player" aria-label="${t("PvP")}"><h3 class="welcome-group-title"><button class="welcome-back" type="button" data-back aria-label="${t("Back")}">${t("Back")}</button><span class="keep-case">${t("PvP")}</span></h3><label class="modal-label name-label pvp-name" for="player-name">${t("Player name")}</label><div class="name-row"><input id="player-name" class="name-input" maxlength="16" autocomplete="nickname" spellcheck="false" placeholder="${t("Your name")}" value="${esc(playerNameChoice)}"><button type="button" class="icon-pick" id="icon-pick" aria-label="${t("Choose your player icon")}" style="--pc:${iconColor()}"><img src="${iconSrc(iconChoice)}" alt=""></button></div><div class="pvp-color"><span class="modal-label">${t("Your color")}: <b id="color-name">${colorLabel()}</b></span><div class="color-picker" role="radiogroup" aria-label="${t("Your color")}">${Object.entries(TEAM_COLORS).map(([id, c]) => `<button role="radio" data-color="${id}" aria-checked="${id === colorPick}" aria-label="${t(c.name)}" title="${t(c.name)}" class="${id === colorPick ? "active" : ""}" style="--c:${c.css}"></button>`).join("")}</div></div><div class="welcome-row pvp-row"><button class="primary-button rank-button rank-ffa" id="start-ranked-ffa" title="${t("Up to 8 players · rated")}">${t("Ranked FFA")}<small>${t(leagueOf(readRating("ffa").r))} · ${readRating("ffa").r}</small>${medalHtml(readRating("ffa").r, iconColor(), "rank-medal", true)}</button><button class="primary-button rank-button" id="start-ranked" title="${t("1v1 · rated")}">${t("Ranked 1v1")}<small>${t(leagueOf(readRating().r))} · ${readRating().r}</small>${medalHtml(readRating().r, iconColor(), "rank-medal", true)}</button><button class="secondary-button" id="start-quick">${t("Quick Match")}</button><button class="secondary-button" id="start-online">${t("Play a friend")}</button></div></section></div>`,
     { pauseGame: false, welcome: true },
   );
   $("modal-body")
@@ -3531,8 +3577,8 @@ function welcome() {
     .forEach(
       (b) =>
         (b.onclick = () => {
-          wavesOn = b.dataset.waves === "on";
-          savePref(WAVES_PREF, wavesOn);
+          wavesChoice = wavesMode(b.dataset.waves);
+          savePref(WAVES_PREF, wavesChoice);
           $("modal-body")
             .querySelectorAll("[data-waves]")
             .forEach((x) => {
@@ -4193,16 +4239,16 @@ function tutorialDim(i) {
   });
 }
 function tutorialStart() {
-  const keep = { level: aiChoice, mix: aiMix, waves: wavesOn };
+  const keep = { level: aiChoice, mix: aiMix, waves: wavesChoice };
   aiChoice = "veryEasy";
   aiMix = "off";
-  wavesOn = false;
+  wavesChoice = "off";
   try {
     startLocal();
   } finally {
     aiChoice = keep.level;
     aiMix = keep.mix;
-    wavesOn = keep.waves;
+    wavesChoice = keep.waves;
   }
   placeFixedRocks(game, own, TUTORIAL_ROCKS); // v0.28.016F: a rock line in row 3; it cannot be selected or cleared
   tutorialStop();
@@ -4735,7 +4781,7 @@ function recStart() {
     version: APP_VERSION,
     startedAt: new Date().toISOString(),
     seed: game.seed,
-    options: { mode: game.mode, faction: chosenFaction, aiLevel: game.aiLevel, aiLevels: game.players.map((q) => (q.ai ? q.aiLevel || game.aiLevel : null)), waves: game.waves, seats: game.players.length, training: !!game.training, hardo: game.players.find((q) => q.hardoStyle)?.hardoStyle || null }, // v0.25l: Hardo's style
+    options: { mode: game.mode, faction: chosenFaction, aiLevel: game.aiLevel, aiLevels: game.players.map((q) => (q.ai ? q.aiLevel || game.aiLevel : null)), waves: game.waves, waveStrength: game.waveStrength, seats: game.players.length, training: !!game.training, hardo: game.players.find((q) => q.hardoStyle)?.hardoStyle || null }, // v0.25l: Hardo's style
     status: "running",
     chunks: 0,
   };
@@ -4877,7 +4923,7 @@ function startLocal({ hotseat = false, ffa = false, seats = 4, mission = null, r
     ai: !hotseat,
     aiLevel: rankedBot || mission?.level || aiChoice,
     aiLevels: !hotseat && aiMix !== "off" && !mission && !rankedBot && aiChoice !== "insane" ? mixedLevels(ffa ? Math.min(8, Math.max(3, seats)) : 2, aiChoice, aiMix === "random" ? 2 : 1) : null,
-    waves: mission ? !!mission.waves : wavesOn,
+    ...(mission ? { waves: !!mission.waves } : waveOpts(rankedBot ? "strong" : wavesChoice)), // v0.28.026F: ranked always Strong
     seats: ffa ? Math.min(8, Math.max(3, seats)) : 2,
     mission, // v0.17: campaign
   });
@@ -5771,7 +5817,7 @@ const PERK_ART = {
   boots: () => elPerkArt("boots"),
   exhume: () => elPerkArt("exhume"),
   waterblock: () => uiArt("assets/art/perks/frostblock.webp?v=v028018"), // v0.28.018F: Frost Block shield
-  airblock: () => uiArt("assets/art/perks/stormblock.webp?v=v028020"), // v0.28.018F: Storm Block shield; v0.28.020F: cut out cleanly (white leftovers gone)
+  airblock: () => uiArt("assets/art/perks/stormblock.webp?v=v028026"), // v0.28.026F: shield in a whirlwind // v0.28.018F: Storm Block shield; v0.28.020F: cut out cleanly (white leftovers gone)
   meditation: () => uiArt("assets/art/perks/meditation.webp?v=v028017"), // v0.28.017F
   arcaneblock: () => uiArt("assets/art/perks/arcaneblock.webp?v=v028018"), // v0.28.017F
   supergrowth: () => elPerkArt("supergrowth"),
@@ -5791,7 +5837,7 @@ const PERK_ART = {
   melee: () => elPerkArt("melee"),
   heavy: () => elPerkArt("heavy"),
   bank: () => elPerkArt("bank"),
-  frenzy: () => elPerkArt("frenzy"),
+  frenzy: () => uiArt("assets/art/perks/frenzy.webp?v=v028027"), // v0.28.027F: plague lantern
   wolves: () => elPerkArt("wolves"),
   firearrows: () => elPerkArt("firearrows"),
   synthesizer: () => elPerkArt("synthesizer"),
@@ -5804,16 +5850,17 @@ const PERK_ART = {
   fort: () => uiArt("assets/art/perk-fort.webp?v=v022q2"), // v0.22q2: wall of stone and stakes
   agolem: () => elPerkArt("agolem"),
   monsun: () => elPerkArt("monsun"),
-  slave: () => elPerkArt("slave"),
+  slave: () => uiArt("assets/art/perks/slave.webp?v=v028027"), // v0.28.027F: white holes in the flames cut out
   guardian: () => elPerkArt("guardian"),
   quarry: () => elPerkArt("quarry"),
   backup: () => elPerkArt("backup"),
   tides: () => elPerkArt("tides"),
   sanction: () => elPerkArt("sanction"),
-  alchemist: () => uiArt("assets/art/perks/alchemist-flask.webp?v=v028018"), // v0.28.018F: chained poison flask with a skull
+  alchemist: () => uiArt("assets/art/perks/alchemist-flask.webp?v=v028027"), // v0.28.027F: green poison flask with a skull
   ring: () => uiArt("assets/art/perks/ring.webp?v=v026c"), // v0.26cF: gold ring with an emerald heart
   revenge: () => uiArt("assets/art/perks/revenge.webp?v=v026c"), // v0.26cF: fire wolves
-  scouting: () => uiArt("assets/art/perks/scouting.webp?v=v028018"), // v0.28.018F: marching scouts in the wind
+  scouting: () => uiArt("assets/art/perks/scouting.webp?v=v028026"), // v0.28.026F: wind map scroll
+  anticharge: () => uiArt("assets/art/perks/anticharge.webp?v=v028026"), // v0.28.026F: charged storm orb // v0.28.018F: marching scouts in the wind
   amnesia: () => uiArt("assets/art/perks/amnesia.webp?v=v026e"), // v0.26eF: a scroll whose writing fades away
 };
 // v0.22h1: the perk icons load a moment after a match starts, so a reward dialog never waits for them
@@ -5870,10 +5917,11 @@ const perkVars = (level, q, lv, next) => {
   return {
     gold: format(perkGold(level, q, game)),
     treasure: format(treasureGold(game)),
-    treasureInc: format(treasureIncome(game, q)), // v0.19e2
+    treasureInc: format(treasureIncome(game, q, level)), // v0.19e2; v0.28.027F: +90 on level 8
     manufacture: pct(MANUFACTURE.discount[l3]),
     // v0.21: the former level-up upgrades
-    owl: format(owlRange(lv)), // v0.23: the total range of all levels, as the game sums it (was: only this level's step)
+    owl: pct(owlRange(lv)), // v0.28.027F: percent of the range (total for this level)
+    owlSpeed: pct(owlSpeed(lv)),
     carmorHp: pctOf(creepArmorHp(lv)), // v0.27oF: 8 %, then +6 % per level
     carmorArmor: "+" + format(creepArmorValue(Math.max(CREEP_ARMOR.armorFrom, lv))), // v0.27pF: smooth, steps of 0.2
     carmorInc: pctOf(CREEP_ARMOR.income * lv),
@@ -5937,6 +5985,7 @@ const perkVars = (level, q, lv, next) => {
     blockChainSlow: pct(WATERBLOCK.slow[l3] * WATERBLOCK.chainSlow),
     blockChainTime: format(WATERBLOCK.frost * WATERBLOCK.chainTime),
     airBlockCd: AIRBLOCK.cooldown[l3], // v0.20c
+    anticharge: pct(ANTICHARGE.resist[l3 + 1]), // v0.28.026F
     meditation: pct(meditationCut(q, Math.min(5, lv))), // v0.28.017F
     arcaneBlockCd: ARCANEBLOCK.cooldown[l3],
     arcaneBlockLock: ARCANEBLOCK.lock[l3],
@@ -7353,7 +7402,23 @@ function heroWithElements(item) {
   const ar = ART_MANIFEST[key] ? ART_MANIFEST[key].w / ART_MANIFEST[key].h : 0; // v0.28.017F: element symbols keep their place when the animation replaces the picture
   return `<div class="modal-hero-wrap"${ar ? ` style="--hero-ar:${ar.toFixed(3)}"` : ""}>${img}<div class="hero-elements">${els.map((f) => `<span class="hero-el" style="--el:${f.color}" title="${esc(t(f.name))}"><img src="${iconUrl(ELEMENT_ICON[f.id])}" alt="${esc(t(f.name))}"></span>`).join("")}</div></div>`;
 }
+// v0.28.026F: outside a match the card book shows plain values (was: the last match's perks still changed the creep stats)
+let bookGameCache = null;
+function bookScope(fn) {
+  if (begun || !game) return fn(false);
+  const was = { game, own, view };
+  game = bookGameCache ||= createGame({ seed: 42 });
+  own = view = 0;
+  try {
+    return fn(true);
+  } finally {
+    ({ game, own, view } = was);
+  }
+}
 function itemDetail(id, towerId, detailPlayer = own, back = null) {
+  return bookScope((plain) => itemDetailIn(id, towerId, plain ? 0 : detailPlayer, back));
+}
+function itemDetailIn(id, towerId, detailPlayer, back) {
   const item = catalog.byId[id],
     stats = item.kind === "research" ? null : getStats(game, detailPlayer, id),
     canAct = detailPlayer === own;
@@ -7666,7 +7731,7 @@ function achievementGroups() {
       note: "Every player can earn these once per match.",
       list: [
         { name: TOWER_ACHIEVEMENTS.element.name, text: "Build or upgrade your first element tower", exp: TOWER_ACHIEVEMENTS.element.exp, icon: "upgrade" },
-        { name: TOWER_ACHIEVEMENTS.maxed.name, text: "Upgrade a tower to its highest level for the first time", exp: TOWER_ACHIEVEMENTS.maxed.exp, icon: "upgrade" },
+        { name: UPGRADE_ACHIEVEMENT.name, text: "Upgrade a tower to level 2 / 3 / 4 / 5 / 6 / 7 for the first time", expList: Object.values(UPGRADE_ACHIEVEMENT.exp), icon: "upgrade" }, // v0.28.026F
       ],
     },
     {
@@ -7678,8 +7743,10 @@ function achievementGroups() {
         { name: "First Blood", text: "The first creep of the match that breaks through", exp: RULES.firstBloodWood, icon: "first-blood" },
         ...BLOOD_ACHIEVEMENTS.map((b) => ({ name: b.name, text: `Take ${b.lives} lives from your enemies`, exp: RULES.firstBloodWood * b.mult, icon: b.key })),
         { name: lab.name, text: `Make the creeps' path ${lab.fields} fields long or longer`, exp: lab.exp, icon: "hourglass" },
+        { name: MAX_UPGRADE.name, text: "The first tower of the match at its highest level", exp: MAX_UPGRADE.exp, icon: "upgrade" }, // v0.28.026F: was the personal Master Builder
+        { name: DIRTY_WORK.name, text: "Recruit the first Mud Golem of the match", exp: DIRTY_WORK.exp, icon: "build", img: uiArt(`assets/art/creep-p-mud-golem.webp?v=${ART_VERSION}`) }, // v0.28.026F
         ...R.map((r, i) => ({ name: "Creep Collector " + r, text: `Buy every creep of tier ${i + 1} at least once (the boss excepted)`, exp: collectorExp(i + 1), icon: "crown" })),
-        ...RECRUITER_ACHIEVEMENTS.map((x, i) => ({ name: "Recruiter " + R[i], text: `Spend ${num(x.gold)} gold on creeps (bosses don't count)`, exp: x.exp, icon: "coin" })),
+        ...RECRUITER_ACHIEVEMENTS.map((x, i) => ({ name: "Recruiter " + R[i], text: `Spend ${num(x.gold)} gold on creeps (bosses don't count)`, exp: x.exp, icon: "recruiter" })), // v0.28.026F: own coin
         ...BUILDER_ACHIEVEMENTS.map((b) => ({ name: b.name, text: `Own towers worth ${num(b.gold)} gold`, exp: b.exp, icon: "build" })),
         ...AIR_ACHIEVEMENTS.map((x) => ({ name: x.name, text: `Spend ${num(x.gold)} gold on flying creeps`, exp: x.exp, icon: "el-storm" })), // v0.27oF
         { name: QUEST_HUNTER.name, text: `Complete ${QUEST_HUNTER.quests} quests`, exp: QUEST_HUNTER.exp, icon: "crown" }, // v0.27oF
@@ -7693,13 +7760,16 @@ function achievementBook(query = "") {
       const list = g.list.filter((a) => !query || [a.name, a.text].join(" ").toLowerCase().includes(query));
       if (!list.length) return "";
       return `<section class="tt-tree perk-book achievement-book book-neutral"><h3>${esc(t(g.title))}</h3><p class="achievement-note">${esc(t(g.note))}</p><div class="pick-grid book-grid">${list
-        .map((a) => `<div class="pick-card book-card achievement-card"><img src="${iconUrl(a.icon)}" alt=""><b>${esc(t(a.name))}</b><span>${valHtml(t(a.text))}</span><em class="achievement-exp">+${format(a.exp)}${a.exp2 ? ` / +${format(a.exp2)}` : ""} EXP</em></div>`)
+        .map((a) => `<div class="pick-card book-card achievement-card"><img src="${a.img || iconUrl(a.icon)}" alt=""><b>${esc(t(a.name))}</b><span>${valHtml(t(a.text))}</span><em class="achievement-exp">+${a.expList ? a.expList.map(format).join(" / +") : format(a.exp)}${a.exp2 ? ` / +${format(a.exp2)}` : ""} EXP</em></div>`)
         .join("")}</div></section>`;
     })
     .join("");
 }
 let bookBack = null; // v0.22n2: where the card book's Back button leads (the menu it was opened from)
-function catalogModal({ filter: startFilter = "tower", focus = null, back } = {}) {
+function catalogModal(opts = {}) {
+  return bookScope(() => catalogModalIn(opts));
+}
+function catalogModalIn({ filter: startFilter = "tower", focus = null, back } = {}) {
   preloadPerkArt(); // v0.22u2: the icons are ready before the book shows them
   if (back !== undefined) bookBack = back;
   showModal(
@@ -7707,7 +7777,7 @@ function catalogModal({ filter: startFilter = "tower", focus = null, back } = {}
   );
   if (bookBack && $("sub-back")) $("sub-back").onclick = bookBack; // v0.22n2
   let filter = startFilter;
-  const draw = () => {
+  let draw = () => {
     if (bookBack && $("sub-back")) $("sub-back").onclick = bookBack; // v0.22r2: back to the menu again after a perk's details
     const q = $("catalog-search").value.toLowerCase();
     if (filter === "achievement") {
@@ -7750,6 +7820,8 @@ function catalogModal({ filter: startFilter = "tower", focus = null, back } = {}
       .querySelectorAll("[data-card]")
       .forEach((b) => (b.onclick = () => itemDetail(b.dataset.card, undefined, own, () => catalogModal({ filter, focus: b.dataset.card }))));
   };
+  const drawIn = draw;
+  draw = () => bookScope(drawIn); // v0.28.026F
   $("catalog-search").oninput = draw;
   // v0.18b: opened from a tower's info: jump to that tower in the tech tree and mark it
   const showFocus = () => {
@@ -7867,9 +7939,17 @@ function audioModal(back) {
 }
 function graphicModal(back) {
   showModal(
-    `${subHeader(t("Graphics"))}<div id="menu-design">${designRow(t)}</div><div id="menu-controls">${controlsRow()}</div><button class="secondary-button opt-wide" id="menu-tiles">${tilesText()}</button><button class="secondary-button opt-wide" id="menu-creepmenu">${creepMenuText()}</button><button class="secondary-button opt-wide" id="menu-popups">${popupsText()}</button>`, // v0.23c: Tiles and Minimap side by side at the bottom
+    `${subHeader(t("Graphics"))}<div id="menu-design">${designRow(t)}</div><div id="menu-controls">${controlsRow()}</div><button class="secondary-button opt-wide" id="menu-tiles">${tilesText()}</button><button class="secondary-button opt-wide" id="menu-creepmenu">${creepMenuText()}</button><button class="secondary-button opt-wide" id="menu-popups">${popupsText()}</button><button class="secondary-button opt-wide" id="menu-minimap">${minimapText()}</button>`, // v0.23c: Tiles and Minimap side by side at the bottom; v0.28.027F: Minimap here again
   );
   $("sub-back").onclick = back;
+  $("menu-minimap").onclick = () => {
+    const modes = MINIMAP_CHOICES.map(([m]) => m);
+    minimapMode = modes[(modes.indexOf(minimapMode) + 1) % modes.length];
+    savePref(MINIMAP_PREF, minimapMode);
+    $("menu-minimap").textContent = minimapText();
+    arena?.refresh?.();
+    tone("select");
+  };
   $("menu-controls").onclick = (e) => {
     const m = e.target.closest?.("[data-ctl]")?.dataset.ctl;
     if (!m || m === layoutChoice()) return;
@@ -8007,18 +8087,10 @@ function updateNetStats(now, force = false) {
 function gameplayModal(back) {
   const online = onlineSection();
   showModal(
-    `${subHeader(t("Gameplay"))}<button class="secondary-button" id="menu-tips">${t("Tips")}: ${onOff(tipsEnabled)}</button><button class="secondary-button" id="menu-preview">${t("Build with preview")}: ${onOff(buildPreview)}</button><button class="secondary-button" id="menu-dbl">${dblText()}</button><button class="secondary-button" id="menu-predator">${predatorText()}</button><button class="secondary-button" id="menu-minimap">${minimapText()}</button>${online.html}`, // v0.27zzF: Minimap moved here from Graphics
+    `${subHeader(t("Gameplay"))}<button class="secondary-button" id="menu-tips">${t("Tips")}: ${onOff(tipsEnabled)}</button><button class="secondary-button" id="menu-preview">${t("Build with preview")}: ${onOff(buildPreview)}</button><button class="secondary-button" id="menu-dbl">${dblText()}</button><button class="secondary-button" id="menu-predator">${predatorText()}</button>${online.html}`, // v0.28.027F: Minimap back in Graphics (v0.27zzF had moved it here)
   );
   online.wire();
   $("sub-back").onclick = back;
-  $("menu-minimap").onclick = () => {
-    const modes = MINIMAP_CHOICES.map(([m]) => m);
-    minimapMode = modes[(modes.indexOf(minimapMode) + 1) % modes.length];
-    savePref(MINIMAP_PREF, minimapMode);
-    $("menu-minimap").textContent = minimapText();
-    arena?.refresh?.();
-    tone("select");
-  };
   $("menu-tips").onclick = () => {
     setTips(!tipsEnabled);
     $("menu-tips").textContent = `${t("Tips")}: ${onOff(tipsEnabled)}`;
@@ -8639,7 +8711,7 @@ function receiveNetwork(message, r, peerId) {
     // v0.19: the host tells every guest its seat
     if (Number.isInteger(message.you) && message.you > 0 && message.you < FFA_LOBBY_MAX) lobbySeat = message.you;
     if (message.room === "friend" || isQuickKind(message.room)) roomKind = message.room; // v0.19b1; v0.23b: ranked; v0.25: rankedffa
-    if (message.opts && typeof message.opts === "object") roomOpts = { waves: message.opts.waves !== false, rotation: message.opts.rotation !== false, mode: message.opts.mode === "teams" ? "teams" : "ffa", gold: message.opts.gold === "own" ? "own" : "shared" }; // v0.20
+    if (message.opts && typeof message.opts === "object") roomOpts = { waves: wavesMode(message.opts.waves), rotation: message.opts.rotation !== false, mode: message.opts.mode === "teams" ? "teams" : "ffa", gold: message.opts.gold === "own" ? "own" : "shared" }; // v0.20
     if (ROOM_LIVES.includes(message.lives) || TEAM_LIVES.includes(message.lives)) roomLives = message.lives;
     if (lobby) lobby.lockUntil = performance.now() + Math.max(0, Number(message.lock) || 0); // v0.25: Ranked FFA start lock
     else lobby = { done: false, lockUntil: performance.now() + Math.max(0, Number(message.lock) || 0) };
@@ -8709,7 +8781,7 @@ let kickedNote = "", // v0.19c1: why the host closed our link
   roomKind = null, // v0.19b1: "quick" (Quick Match) or "friend" (Play a friend)
   roomLives = 25,
   // v0.20: the host's room options: neutral waves, target rotation, free-for-all or teams, shared or own gold
-  roomOpts = { waves: true, rotation: true, mode: "ffa", gold: "shared" };
+  roomOpts = { waves: "strong", rotation: true, mode: "ffa", gold: "shared" };
 const roomLivesList = () => (roomOpts.mode === "teams" ? TEAM_LIVES : ROOM_LIVES);
 const lobbyTeams = () => roomKind === "friend" && roomOpts.mode === "teams";
 /** v0.20: the room options of a friend room: switches for the host, a short line for guests. */
@@ -8721,10 +8793,10 @@ function roomOptions(host) {
         .map(([v, name]) => `<button type="button" role="radio" data-roomopt="${key}" data-val="${v}" aria-checked="${String(o[key]) === v}" class="${String(o[key]) === v ? "active" : ""}">${t(name)}</button>`)
         .join("")}</div></div>`;
   if (!host) {
-    const parts = [t(o.mode === "teams" ? "Teams" : "Free for all"), t("Lives") + ": " + roomLives, t("Neutral waves") + ": " + t(o.waves ? "On" : "Off"), o.mode === "teams" ? t("Gold") + ": " + t(o.gold === "shared" ? "Shared" : "Own") : t("Rotation") + ": " + t(o.rotation ? "On" : "Off")];
+    const parts = [t(o.mode === "teams" ? "Teams" : "Free for all"), t("Lives") + ": " + roomLives, t("Neutral waves") + ": " + t({ off: "Off", weak: "Weak", strong: "Strong" }[o.waves] || "Strong"), o.mode === "teams" ? t("Gold") + ": " + t(o.gold === "shared" ? "Shared" : "Own") : t("Rotation") + ": " + t(o.rotation ? "On" : "Off")];
     return `<p class="modal-note room-opts">${parts.map(esc).join(" · ")}</p>`;
   }
-  return `<div class="room-opts">${seg("mode", "Mode", [["ffa", "FFA"], ["teams", "Teams"]])}${livesPicker(host)}${seg("waves", "Neutral waves", [["true", "On"], ["false", "Off"]])}${
+  return `<div class="room-opts">${seg("mode", "Mode", [["ffa", "FFA"], ["teams", "Teams"]])}${livesPicker(host)}${seg("waves", "Neutral waves", [["off", "Off"], ["weak", "Weak"], ["strong", "Strong"]])}${
     o.mode === "teams" ? seg("gold", "Gold", [["shared", "Shared"], ["own", "Own"]]) : seg("rotation", "Rotation", [["true", "On"], ["false", "Off"]])
   }</div>`;
 }
@@ -8734,7 +8806,7 @@ function wireRoomOptions() {
       (b.onclick = () => {
         const key = b.dataset.roomopt,
           v = b.dataset.val;
-        roomOpts[key] = key === "waves" || key === "rotation" ? v === "true" : v;
+        roomOpts[key] = key === "rotation" ? v === "true" : key === "waves" ? wavesMode(v) : v;
         if (!roomLivesList().includes(roomLives)) roomLives = roomLivesList()[1]; // v0.21d: the middle option (25 free for all, 40 teams)
         tone("select");
         if (lobby && !lobby.done) {
@@ -9162,12 +9234,13 @@ function startHostedMatch(entries, players) {
     mode: chosenMode,
     factions: entries.map((e) => e.faction),
     ai: false,
-    waves: roomKind === "friend" ? roomOpts.waves : wavesOn, // v0.20: the friend room's switch
+    ...waveOpts(roomKind === "friend" ? roomOpts.waves : roomKind === "ranked" || roomKind === "rankedffa" ? "strong" : wavesChoice), // v0.20: the friend room's switch; v0.28.026F: ranked always Strong
     rotation: roomKind === "friend" ? roomOpts.rotation : true,
     teams: lobbyTeams() ? { members: entries.map((e) => e.team | 0), gold: roomOpts.gold } : null,
     seats: entries.length,
     lives: roomKind === "friend" ? roomLives : null, // v0.19b1: the host's choice in a friend room
   });
+  game.incomeRemaining += 1; // v0.28.026F: online matches warm up 1 s longer
   entries.forEach((e, i) => {
     // v0.13: names and v0.18a: colours travel in the game state
     game.players[i].name = players[i].name || `Player ${i + 1}`;
@@ -9552,9 +9625,18 @@ document.addEventListener("visibilitychange", () => {
   }
 });
 /** v0.16: cartoon countdown of the first round (setup), one pop per second. */
-let warmupShown = 0;
+let warmupShown = 0,
+  warmupHidden = false;
 function warmupCountdown() {
   const n = game && begun && game.warmup && game.running !== false ? Math.ceil(game.incomeRemaining - 1e-6) : 0;
+  // v0.28.026F: no countdown while the element splat is on screen; it pops in again once the splat is gone
+  const hide = !!n && !!document.querySelector(".element-splat");
+  if (hide !== warmupHidden) {
+    warmupHidden = hide;
+    const was = $("warmup-count");
+    if (was) was.style.visibility = hide ? "hidden" : "";
+    if (!hide) warmupShown = 0;
+  }
   if (n === warmupShown) return;
   warmupShown = n;
   let el = $("warmup-count");
@@ -9565,6 +9647,7 @@ function warmupCountdown() {
     $("arena").append(el);
   }
   el.textContent = n;
+  el.style.visibility = hide ? "hidden" : "";
   // v0.18d: every number in your own player colour (each player sees their own)
   const css = TEAM_COLORS[seatColors()[own]]?.css || "#ffe27a",
     rgb = parseInt(css.slice(1), 16),
@@ -9654,7 +9737,8 @@ function tick(dt) {
       if (e.type === "expGen" && e.player === own && e.exp > 0) hudPop("#own-level", `+${resourceNumber(e.exp)} EXP`, "exp"); // v0.19d2: EXP generators every 4 s (v0.24oF)
       if (e.type === "achievement" && e.player === own && e.exp) hudPop("#own-level", `+${e.exp} EXP`, "exp");
       // v0.19d2: every achievement of another player, minor ones too: "Name achieved Labyrinth +100 EXP"
-      if (e.type === "achievement" && e.player !== own && e.exp) toast(t("{who} achieved {name} +{exp} EXP", { who: seatTag(e.player), name: t(e.name || e.achievement), exp: format(e.exp) }), "level");
+      if (e.type === "miniAchievement" && e.player === own && e.exp) hudPop("#own-level", `+${e.exp} EXP`, "exp"); // v0.28.026F: first 10 towers
+      if (e.type === "achievement" && e.player !== own && e.exp && !/^upgrade\d/.test(e.achievement || "")) toast(t("{who} achieved {name} +{exp} EXP", { who: seatTag(e.player), name: t(e.name || e.achievement), exp: format(e.exp) }), "level");
       if (e.type === "achievement" && e.player === own && e.name) toast(t("Achievement: {name}", { name: t(e.name) }) + ` · +${e.exp} EXP`, "tier"); // v0.15
       if (e.type === "firstBlood") firstBlood(e);
       if (e.type === "showdown") showdownSplat(); // v0.27zzlF: ranked 1v1 after round 120

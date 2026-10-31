@@ -471,6 +471,10 @@
   color: #fff;
   font-weight: 800;
 }
+/* v0.28.026F: creep tooltips: no "Abilities" heading, ability names in gold */
+.help-tip .creep-abilities p b {
+  color: var(--gold);
+}
 .help-tip.stats {
   max-width: min(290px, calc(100vw - 12px));
 }

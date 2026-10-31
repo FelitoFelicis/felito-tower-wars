@@ -810,7 +810,7 @@ class Link {
     this.outbound = tokenBucket(now, 80, 60);
     this.inbound = tokenBucket(now, 120, 90);
     this.outboundBytes = tokenBucket(now, 4 * 1024 * 1024, 2 * 1024 * 1024);
-    this.inboundBytes = tokenBucket(now, 4 * 1024 * 1024, 2 * 1024 * 1024);
+    this.inboundBytes = tokenBucket(now, 8 * 1024 * 1024, 4 * 1024 * 1024); // v0.28.026F: larger rooms send bigger states (was 4 MB / 2 MB/s)
     this.zip = false; // v0.23: both sides compress data on the direct channel
     this.outChain = Promise.resolve();
     this.inChain = Promise.resolve();

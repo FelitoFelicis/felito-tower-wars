@@ -355,6 +355,8 @@ const WEAPON_TIP = {
   "tower-storm": [230, 82], // the staff crystal
   "tower-lich": [45, 125], // the green flame in the left hand (Death Coil)
 };
+// v0.28.027F: the staff crystal of the arcane casters in every attack frame (attack-sheet pixels, frames 0–9), for the arcane pulse
+const CRYSTAL_AT = {"tower-arcane":[[107,146],[106,145],[107,143],[106,141],[106,140],[106,142],[107,144],[106,145],[107,146],[107,146]],"tower-arcane-v2":[[109,164],[108,162],[104,159],[111,156],[104,156],[104,158],[104,159],[104,159],[104,159],[108,164]],"tower-arcane-v3":[[106,166],[106,164],[107,162],[106,159],[107,159],[106,160],[106,162],[106,164],[106,165],[106,166]],"tower-magic-elite":[[326,80],[328,79],[328,76],[328,72],[327,78],[327,74],[326,77],[326,79],[327,79],[327,81]],"tower-magic-elite-v1":[[328,81],[326,77],[328,75],[328,72],[327,77],[327,73],[328,76],[328,78],[326,78],[326,80]],"tower-magic-grand":[[94,91],[94,89],[95,86],[95,90],[95,90],[94,85],[95,87],[95,89],[95,90],[94,91]],"tower-magic-grand-v1":[[94,91],[94,89],[95,86],[94,90],[94,90],[94,85],[95,87],[94,89],[94,90],[94,91]]};
 const tipOf = (artKey) => WEAPON_TIP[artKey] || WEAPON_TIP[artKey.replace(/-v\d$/, "")] || null;
 const LEVEL_SCALE = [0.92, 0.92, 0.925, 0.93, 0.965, 1, 1.04, 1.08, 1.12, 1.16];
 const levelScale = (level) => LEVEL_SCALE[Math.max(1, Math.min(9, level | 0))];
@@ -1831,6 +1833,9 @@ export function mountArena({
               sprite.setData("atkTarget", e.targetId).setData("holdWin", win);
             }
             sprite.setData("recoil", time + 120).setData("atk", time);
+            // v0.28.027F: the Hall of Arcane's staff crystal pulses with every attack, the Magic Tower's with its spell (Arcane Missile)
+            const nm = String(def?.name || "").replace(/\|c\w{8}|\|r/g, "");
+            if (!e.bounce && (/^Hall of Arcane/.test(nm) || (e.empowered && /^Magic Tower/.test(nm)))) sprite.setData("pulse", time).setData("pulseMs", e.empowered ? 820 : 560);
             sprite.setData("aimX", e.to.x < (tower || e.from).x ? -1 : 1);
           }
           // v0.27ziF: figures with a known weapon shoot from its muzzle
@@ -2095,6 +2100,12 @@ export function mountArena({
             this.burst(q.x, q.y - cell * 0.35, 0xb48cff, 6, 45, 2.2, 0.55, -30, true);
             this.floatText(q.x, q.y - cell * 0.45, `+${n} EXP`, "#d2b0ff", 15, 44, 1.2);
           }
+        } else if ((e.type === "achievement" || e.type === "miniAchievement") && e.player === view && e.towerId != null && e.exp > 0) {
+          // v0.28.026F: tower achievements (and the first 10 towers) pop their EXP over the tower, like the EXP generator
+          const q = this.point(e.x, e.y),
+            mini = e.type === "miniAchievement";
+          this.burst(q.x, q.y - cell * 0.35, 0xb48cff, mini ? 5 : 9, mini ? 40 : 55, 2.2, 0.55, -30, true);
+          this.floatText(q.x, q.y - cell * 0.5, `+${Math.round(e.exp * 100) / 100} EXP`, "#d2b0ff", mini ? 14 : 17, mini ? 40 : 48, mini ? 1.1 : 1.4);
         } else if (e.type === "kill" && e.player === view) {
           (this.killed ||= new Map()).set(`${view}:c:${e.creepId}`, time); // v0.23a (creep graphic overhaul): death animation
           const q = this.point(e.x, e.y),
@@ -2463,7 +2474,7 @@ export function mountArena({
         this.chevrons(pl, pts, time, cell, 0x4a3018, preview?.ok ? 0.18 : 0.38, true);
       }
       this.drawCracks(pl, view, z); // v0.28.013F
-      this.drawGrowHint(pl, game, player, z, time); // v0.28.011F
+      this.drawGrowHint(pl, game, player, z, time, own); // v0.28.011F; v0.28.026F: only on your own field
       this.drawPathLength(pl, game, player, cell);
       // ---- placement aids
       if (selected?.towerId) {
@@ -2568,6 +2579,7 @@ export function mountArena({
         else sprite.setBend(0);
         const cx = q.x,
           cy = q.y + tc * 0.1;
+        let shownFrame = 0; // v0.28.027F
         if (anim) {
           // Attack swing from the shot event; frame 0 is the still pose.
           const atk = sprite.getData("atk");
@@ -2587,6 +2599,7 @@ export function mountArena({
             if (k < anim.frames) frame = k;
           }
           this.showFrame(sprite, skin, frame);
+          shownFrame = frame;
         } else if (sprite.texture.key !== skin) sprite.setTexture(skin);
         sprite
           .setOrigin(anim ? (m.plateCX + anim.ox) / anim.fw : m.plateCX / m.w, anim ? (m.plateCY + anim.oy) / anim.fh : m.plateCY / m.h)
@@ -2598,6 +2611,27 @@ export function mountArena({
         if (t.curse && t.curse.until > game.time) sprite.setTint(0xd2b0ff).setTintMode(TINT.MULTIPLY);
         else if (t.stone === "large") sprite.setTint(0xb8ae9e).setTintMode(TINT.MULTIPLY); // v0.18h: large stones a shade darker
         else sprite.clearTint();
+        // v0.28.027F: arcane pulse on the staff crystal (Hall of Arcane attacks, Magic Tower spells): swells and fades twice
+        const pulseAt = sprite.getData("pulse"),
+          crystal = anim && CRYSTAL_AT[artKey];
+        if (pulseAt != null && crystal && !building) {
+          const k = (time - pulseAt) / (sprite.getData("pulseMs") || 560);
+          if (k >= 0 && k < 1) {
+            const p = crystal[shownFrame] || crystal[0],
+              sxs = base * pop,
+              px = cx + (p[0] - (m.plateCX + anim.ox)) * sxs,
+              py = cy - recoil * tc * 0.03 + (p[1] - (m.plateCY + anim.oy)) * sxs,
+              env = Math.sin(Math.PI * k),
+              a = env * (0.7 + 0.3 * Math.sin(k * Math.PI * 4 - Math.PI / 2) * -1),
+              r = tc * (0.09 + 0.07 * env);
+            glow.fillStyle(0xd94fc4, 0.16 * a);
+            glow.fillCircle(px, py, r * 2.4);
+            glow.fillStyle(0xff7fe6, 0.32 * a);
+            glow.fillCircle(px, py, r * 1.4);
+            glow.fillStyle(0xffd6f6, 0.6 * a);
+            glow.fillCircle(px, py, r * 0.6);
+          } else if (k >= 1) sprite.setData("pulse", null);
+        }
         // v0.17p: Marksman Aura buff (was Trueshot Aura): a small, transparent crosshair; v0.28.004F: on the front of the base
         if (t.trueshot && !building) {
           const hx = cx,
@@ -3586,7 +3620,7 @@ export function mountArena({
       }
     }
     /** v0.28.011F: the maze grew rows the player has not scrolled to yet: golden arrows on the last visible row. */
-    drawGrowHint(pathG, game, player, z, time) {
+    drawGrowHint(pathG, game, player, z, time, own = player.id) {
       // v0.28.022F: the arrows get their own layer above props, figures and creeps, so nothing shows through them
       const g = this.growG;
       g.clear();
@@ -3613,7 +3647,7 @@ export function mountArena({
           const ease = 1 - (1 - k) * (1 - k);
           this.drawGrowArrows(g, z, f.row, time, 1 - ease, 1 + 0.55 * ease);
         };
-      if (player.ai || !scroll || !(scroll.hi > 0)) {
+      if (player.ai || player.id !== own || !scroll || !(scroll.hi > 0)) {
         fadeOut();
         return drawFade();
       }

@@ -359,6 +359,7 @@ export function createGame({
   ai = true,
   aiLevel = "normal",
   waves = false,
+  waveStrength = "strong", // v0.28.026F: "weak" neutral waves lose strength in the late game
   lives = null,
   aiLevels = null,
   incomeInterval = RULES.incomeInterval,
@@ -385,6 +386,7 @@ export function createGame({
     mode: normalizedMode,
     aiLevel: Object.hasOwn(AI_LEVELS, aiLevel) ? aiLevel : "normal",
     waves: !!waves,
+    waveStrength: waveStrength === "weak" ? "weak" : "strong",
     rotation: rotation !== false,
     wave: 0,
     waveQueue: [],
@@ -995,7 +997,8 @@ function statsForRaw(game, player, item) {
   if (item.isBuildable && item.attacks) {
     if (pk("melee") && isMeleeTower(item)) attackSpeed += MELEE_PROTOCOL * pk("melee");
     if (pk("autoloader") && isBombardLine(item)) attackSpeed += AUTOLOADER * pk("autoloader"); // v0.22g1
-    if (pk("stormfeathers") && archerLine().has(item.id)) attackSpeed += STORMFEATHERS * pk("stormfeathers"); // v0.22h1
+    if (pk("stormfeathers") && archerLine().has(item.id)) attackSpeed += STORMFEATHERS * pk("stormfeathers"); // v0.22h1 (perk removed in v0.28.027F)
+    if (pk("owl") && archerLine().has(item.id)) attackSpeed += owlSpeed(pk("owl")); // v0.28.027F: Watcher Owl +5 % per level
     // v0.24q: Backup Line: Archer-Line attack speed while the top rows stay free of towers
     if (player.backupOn && pk("backup") && archerLine().has(item.id)) attackSpeed += backupSpeed(pk("backup"));
     if (pk("militia") && footmanLine().has(item.id)) stats.damageBonus += MILITIA_DAMAGE; // v0.22g1
@@ -1012,8 +1015,6 @@ function statsForRaw(game, player, item) {
   }
   stats.speed *= 1 + speedPercent;
   stats.hp *= 1 + hpPercent;
-  // v0.13: Watcher Owl: archer-line towers reach +0.5 / +0.33 / +0.25 fields further per level
-  if (item.isBuildable && item.attacks && perkLevel(player, "owl") && archerLine().has(item.id)) stats.range += owlRange(perkLevel(player, "owl")) * (game?.grid?.cellUnits || 128);
   // v0.12: Heavy Nobility: heavy creeps get more hit points
   if (perkLevel(player, "nobility") && isHeavy(item)) stats.hp *= 1 + NOBILITY.hp * perkLevel(player, "nobility");
   if (item.isSend && (item.bossTier || item.id === MINI_BOSS.id) && perkLevel(player, "golem")) stats.hp *= 1 + GOLEM.hp; // v0.10n; v0.27kF: also mini bosses
@@ -1047,12 +1048,14 @@ function statsForRaw(game, player, item) {
     } else if (lineSet("h02R").has(item.id)) stats.range -= BOMBARD_RANGE_CUT * cu;
     // v0.23b: the Archer tower itself (levels 1–6) reaches 3.5 fields (Watcher Owl still adds on top)
     if (item.shortName === "Archer" && (item.level || 1) <= 6)
-      stats.range = ARCHER_RANGE * cu + (perkLevel(player, "owl") ? owlRange(perkLevel(player, "owl")) * cu : 0);
+      stats.range = ARCHER_RANGE * cu;
     // v0.28.021F: Bouncing Shot (every level) reaches 3 fields (was 3.98); v0.28.021F: Watcher Owl adds half its range
     // here, the only Bombard-Line tower it reaches
     if (/^Bouncing Shot\b/.test(nameOf(item)))
-      stats.range = BOUNCING_RANGE * cu + (perkLevel(player, "owl") ? owlRange(perkLevel(player, "owl")) * OWL_BOUNCING * cu : 0);
+      stats.range = BOUNCING_RANGE * cu;
   }
+  // v0.28.027F: Watcher Owl: Archer-Line range +20 / 30 / 40 / 45 / 50 % (was +0.5 / +0.33 / … fields, Bouncing Shot half)
+  if (item.isBuildable && item.attacks && perkLevel(player, "owl") && archerLine().has(item.id)) stats.range *= 1 + owlRange(perkLevel(player, "owl"));
   return stats;
 }
 const INCOME_EXCLUDED = new Set(["n00Y", "n01H", "n01R", "n01T", "n02P", "n02Q", "n02R"]); // v0.21p: Ghoul has income now
@@ -1135,10 +1138,10 @@ function newTower(game, p, id, gx, gy) {
 export const PERKS = Object.freeze({
   // v0.22za2: "text" is the short tooltip everywhere, "detail" the longer text of the card book's detail view
   // v0.09q: perk rework (availability in PERK_AVAILABILITY)
-  recruit: { name: "Recruitment", max: 10, text: "Creeps recruit {recruit} faster" },
+  recruit: { name: "Recruitment", max: 10, element: ["xwater"], text: "Creeps recruit {recruit} faster" },
   recruitflow: { name: "Flow of Duty", // v0.27zziF: was Recruitment Flow
     max: 5, element: "water", text: "Creeps recruit {recruitflow} faster", detail: "Every creep (bosses excepted) recruits {recruitflow} faster; at level 5 twice as fast" }, // v0.27zzcF // v0.19h1: tooltip // v0.10i (artifact line), merged in v0.11c
-  feudal: { name: "Feudality", max: 10, text: "Creep income +{feudal}" }, // v0.18b: 2 / 3.5 / 5 / 6 / 7 %
+  feudal: { name: "Feudality", max: 10, element: ["xarcane"], text: "Creep income +{feudal}" }, // v0.18b: 2 / 3.5 / 5 / 6 / 7 %
   gunpowder: { name: "Blast Expert", max: 10, element: "fire", text: "Bombard-Line outer splash +{gunpowder} tiles" }, // v0.23y: Fire, renamed Blast Expert (was the neutral Gunpowder) // v0.22g1: only the low-damage outer ring // v0.21u: outer splash radius +0.25/0.45/0.60/0.72/0.82/0.90/0.96/1.00/1.03/1.05 tiles
   archery: { name: "Archery", max: 10, text: "Archer-Line +{archery} damage. Next Archer free", detail: "Archer-Line +{archery} damage. Next Archer is free" }, // v0.19h1: 5 / 10 / 15 / 20 / 25 %; v0.20a: every pick makes the next archer free
   militia: { name: "Militia", max: 1, powerup: true, text: "2 free Footman. Footman-Line +1 damage", detail: "Spawn 2 Footman on random fields. Footman-Line +1 damage" }, // v0.22g1: +1 damage // v0.17h: once per player; v0.19e2: powerup
@@ -1158,6 +1161,7 @@ export const PERKS = Object.freeze({
   exhume: { name: "Exhumination", max: 3, element: "plague", text: "Undead creeps cost {exhume} less and recruit {exhumeSpeed} faster" }, // v0.26cF: recruit 10 % faster per level // v0.20c: 10 % faster instead of 20 % slower // v0.10r; v0.19j: tooltip (they still restock 20% slower)
   fireblock: { name: "Fire Block", max: 3, element: "fire", text: "Every {fireBlockCd} s first breach is pushed back {fireBlockBack} fields and explodes 3× for {fireBlock}", detail: "Every {fireBlockCd} s the first breach is pushed back {fireBlockBack} fields and explodes at once: {fireBlock} damage 3 times" }, // v0.19j
   airblock: { name: "Storm Block", max: 3, element: "storm", text: "Every {airBlockCd} s first flying breach is pushed back {airBlockBack} fields, struck for {airBlock} and stunned {airBlockStun} s", detail: "Every {airBlockCd} s the first flying breach is pushed back {airBlockBack} fields, struck by lightning for {airBlock} damage and stunned {airBlockStun} s. Each block cuts your Monsun cooldown by {airBlockMonsun} s" }, // v0.20c; v0.24s: Monsun cooldown per block
+  anticharge: { name: "Anticharge", max: 3, element: "storm", text: "Your creeps from position 5 of their tier gain {anticharge} magic resistance", detail: "Your creeps from position 5 of their tier on gain {anticharge} magic resistance. A creep with magic resistance of its own: the higher value grows by the lower one (e.g. 30 % own resistance with a 25 % buff: 30 % × 1.25 = 37.5 %). Magic resistance never exceeds 90 %" }, // v0.28.026F
   meditation: { name: "Meditation", max: 5, element: "arcane", unpopular: 0.5, text: "Active abilities cool down {meditation} faster", detail: "The cooldowns of your active abilities (Arrow Volley, Pillar of Fire, Arcane Burst, Frost Bolt, Monsun, Arcane Golem, Infested Ground) run {meditation} faster" }, // v0.28.017F
   arcaneblock: { name: "Arcane Block", max: 3, element: "arcane", text: "Every {arcaneBlockCd} s a breach is denied: the creep becomes your arcane clone{arcaneBlockText}", detail: "Every {arcaneBlockCd} s the first creep that breaks through is stopped. Its owner cannot recruit that creep type for {arcaneBlockLock} rounds; the creep turns into your arcane clone (its health stays{arcaneBlockBuff}){arcaneBlockDetail}" }, // v0.28.017F
   supergrowth: { name: "Supergrowth", max: 3, element: "earth", text: "Buying strong ground creeps gives their type up to +{growth} HP", detail: "Each purchase of a ground creep from the stronger half of its tier gives that creep type +{growth} HP, less for weaker ones" }, // v0.20f
@@ -1193,7 +1197,7 @@ export const PERKS = Object.freeze({
   monsun: { name: "Monsun", max: 5, element: "storm", text: "Active: pushes creeps back for {monsun} s", detail: "Active ability: Push creeps back for {monsun} s, lightning strikes flyers" },
   // v0.21: the former level-up upgrades (Warcraft researches) are ordinary perks now. "element" = needs that
   // element. v0.21g: every one of them needs its element now (before, six only wore the element's frame).
-  owl: { name: "Watcher Owl", max: 5, element: "storm", text: "Archer-Line +{owl} range, Bouncing Shot half" },
+  owl: { name: "Watcher Owl", max: 5, element: "storm", text: "Archer-Line +{owl} range and +{owlSpeed} attack speed" }, // v0.28.027F
   carmor: { name: "Creep Armor", max: 20, element: "earth", text: "Creep HP +{carmorHp}, income +{carmorInc}. Lv 2+: 4th+ creeps +{carmorArmor} armor", detail: "Creep HP +{carmorHp} and income +{carmorInc}. From level 2 the creeps from the 4th place of every tier on get armor: {carmorArmor}" }, // v0.27oF
   leadership: { name: "Leadership", max: 20, element: "fire", text: "Creeps +{leadership} HP, creep income +{leadershipInc}" }, // v0.27aF: +1 % creep income per level
   alchemist: { name: "Poison Alchemist", max: 10, element: "plague", text: "Your poisons last {alchemistDur} longer, max stacks +{alchemistStacks}" }, // v0.27aF
@@ -1276,11 +1280,8 @@ export function towerPerkBuffs(game, index, id) {
   if (lv("militia") && item.isBuildable && item.attacks && footmanLine().has(item.id)) out.push({ id: "militia", level: 1, text: `+${MILITIA_DAMAGE} damage` }); // v0.22g1
   if (perkLevel(p, "gunpowder") && item.isBuildable && item.attacks && (isCannonTower(item) || lineSet("h02R").has(item.id))) out.push({ id: "gunpowder", level: perkLevel(p, "gunpowder"), text: `+${gunpowderTiles(perkLevel(p, "gunpowder"))} tiles splash` });
   if (perkLevel(p, "archery") && archerLine().has(item.id)) out.push({ id: "archery", level: perkLevel(p, "archery"), text: `+${5 * perkLevel(p, "archery")}% damage` });
-  if (lv("owl") && item.isBuildable && item.attacks && (archerLine().has(item.id) || /^Bouncing Shot\b/.test(nameOf(item)))) {
-    // v0.27zzlF: Watcher Owl was missing; v0.28.021F: Bouncing Shot gets half
-    const owl = owlRange(lv("owl")) * (archerLine().has(item.id) ? 1 : OWL_BOUNCING);
-    out.push({ id: "owl", level: lv("owl"), text: `+${Math.round(owl * 100) / 100} fields range` });
-  }
+  if (lv("owl") && item.isBuildable && item.attacks && archerLine().has(item.id))
+    out.push({ id: "owl", level: lv("owl"), text: `+${Math.round(owlRange(lv("owl")) * 100)}% range, +${Math.round(owlSpeed(lv("owl")) * 100)}% attack speed` }); // v0.28.027F
   if (loneActive(p) && item.isBuildable && item.attacks) out.push({ id: "lone", level: perkLevel(p, "lone"), text: `+${Math.round(loneSpeed(perkLevel(p, "lone")) * 100)}% attack speed` });
   if (item.isBuildable && item.attacks && p.backupOn && perkLevel(p, "backup") && archerLine().has(item.id)) out.push({ id: "backup", level: perkLevel(p, "backup"), text: `+${Math.round(backupSpeed(perkLevel(p, "backup")) * 100)}% attack speed` }); // v0.18h; v0.24q: Archer-Line attack speed
   if (item.isBuildable && item.attacks && p.tidesOn && perkLevel(p, "tides") && isMeleeTower(item)) out.push({ id: "tides", level: perkLevel(p, "tides"), text: `+${Math.round(tidesDamage(perkLevel(p, "tides")) * 100)}% damage` });
@@ -1291,8 +1292,10 @@ export function towerPerkBuffs(game, index, id) {
 export const loneWeight = (id) => (id === WALL_ID ? LONE.wall : obj(id)?.attacks ? 1 : LONE.support);
 export const loneCount = (p) => (p?.towers || []).reduce((n, t) => n + loneWeight(t.typeId), 0);
 /** v0.13: Watcher Owl (research R00K): extra range of archer-line towers per level, in fields. */
-export const OWL = { range: [0.5, 0.33, 0.25, 0.2, 0.17] }; // v0.19a1: five levels
-export const owlRange = (level) => OWL.range.slice(0, Math.max(0, Math.min(OWL.range.length, level))).reduce((a, b) => a + b, 0);
+// v0.28.027F: Watcher Owl: Archer-Line range +20 / 30 / 40 / 45 / 50 % (totals per level) and +5 % attack speed per level
+export const OWL = { range: [0.2, 0.3, 0.4, 0.45, 0.5], speed: 0.05 };
+export const owlRange = (level) => (level > 0 ? OWL.range[Math.min(OWL.range.length, level) - 1] : 0);
+export const owlSpeed = (level) => OWL.speed * Math.max(0, Math.min(OWL.range.length, level));
 /** Creep Manufacture (Water): discount of the 4th creep of each tier by level, restock bonus. */
 export const MANUFACTURE = { discount: [0.15, 0.25, 0.33], restock: 1.15 }; // v0.20d: 8th creep, recruits 15 % faster
 /** v0.20d: Creep Synthesizer (Water): the 4th creep of every tier. */
@@ -1337,8 +1340,8 @@ export const monsunDamage = (p, level = perkLevel(p, "monsun")) => 30 + 20 * lev
 /** v0.20c: perks that sit out more than one level after a pick (Supergrowth: two). */
 /** v0.26dF: levels a perk sits out after a pick when PERK_SKIP_LEVELS has no value for it. */
 const PERK_SKIP_DEFAULT = 2;
-const PERK_SKIP_LEVELS = { meditation: 3, arcaneblock: 3, carmor: 3, breeding: 3, novice: 3, wolves: 3, mind: 3, exhume: 3, ring: 3, revenge: 3, backup: 3, tides: 3, supergrowth: 2, hellfire: 2, frostbolt: 2, clones: 2, infested: 2, lone: 2, bank: 3, monsun: 2 }; // v0.28.004F: Ring of Life skips 3 (was 2); v0.26cF: Spirit Wolves, Obsession, Exhumination, Revenge skip 3 // v0.24q: Backup Line, Low Tides skip 3 // v0.24j: Monsun skips 2 // v0.24i: Magic Bank skips 3 // v0.23zi: Spartans skip 2 // v0.23w: Frost Bolt, Clones // v0.21x: Lava Floor skips 2
-const PERK_SKIP = new Set(["pillar", "agolem", "monsun", "slave", "guardian", "mind", "tailwind", "carmor", "owl", "autoloader", "hills"]); // v0.22g1: Autoloader // v0.19a1: Mind Control, Tailwind, Creep Armor, Watcher Owl
+const PERK_SKIP_LEVELS = { owl: 3, anticharge: 3, meditation: 3, arcaneblock: 3, carmor: 3, breeding: 3, novice: 3, wolves: 3, mind: 3, exhume: 3, ring: 3, revenge: 3, backup: 3, tides: 3, supergrowth: 2, hellfire: 2, frostbolt: 2, clones: 2, infested: 2, lone: 2, bank: 3, monsun: 2 }; // v0.28.004F: Ring of Life skips 3 (was 2); v0.26cF: Spirit Wolves, Obsession, Exhumination, Revenge skip 3 // v0.24q: Backup Line, Low Tides skip 3 // v0.24j: Monsun skips 2 // v0.24i: Magic Bank skips 3 // v0.23zi: Spartans skip 2 // v0.23w: Frost Bolt, Clones // v0.21x: Lava Floor skips 2
+const PERK_SKIP = new Set(["pillar", "agolem", "monsun", "slave", "guardian", "mind", "tailwind", "carmor", "autoloader", "hills"]); // v0.22g1: Autoloader // v0.19a1: Mind Control, Tailwind, Creep Armor, Watcher Owl
 /**
  * v0.19a1: reworked level-up upgrades (research perks). Their effects live here instead of the map
  * data: max level, Melee Protocol (+10 % melee attack speed, v0.22g1), Unholy Frenzy (+2 % for all towers),
@@ -1441,10 +1444,34 @@ function tickGuardian(game, p) {
   p.guardReady = game.time + GUARDIAN.cooldown;
   emit(game, "skill", { player: best.defender, kind: "guardOn", creepId: best.id, x: best.x, y: best.y });
 }
+/** v0.28.026F: Anticharge (Storm): creeps from position 5 of their tier gain 25 / 40 / 50 % magic resistance. */
+export const ANTICHARGE = Object.freeze({ resist: [0, 0.25, 0.4, 0.5], from: 5 });
+export const MAGIC_RESIST_CAP = 0.9;
+/**
+ * v0.28.026F: a magic resistance buff on a creep with resistance of its own: the higher of the two grows by the lower
+ * one (30 % own + 25 % buff → 30 % × 1.25 = 37.5 %); never above 90 %. Used for every magic resistance buff.
+ */
+export function stackMagicResist(base, buff) {
+  base = Math.max(0, base || 0);
+  buff = Math.max(0, buff || 0);
+  const v = base > 0 && buff > 0 ? Math.max(base, buff) * (1 + Math.min(base, buff)) : base + buff;
+  return Math.min(MAGIC_RESIST_CAP, v);
+}
+/** v0.28.026F: position of a send in its tier (1 = cheapest), 0 = not a tier send. */
+export const tierPosition = (item) => (item?.isSend && item.tier ? tierSends(item.tier).findIndex((x) => x.id === item.id) + 1 : 0);
+/** v0.28.026F: the Anticharge buff a player's perk gives to this send (0 = none). */
+export function antichargeOf(p, item) {
+  const level = Math.min(3, perkLevel(p, "anticharge"));
+  return level && tierPosition(item) >= ANTICHARGE.from ? ANTICHARGE.resist[level] : 0;
+}
+/** v0.28.026F: a creep's whole magic resistance: its own (Magic Resistance ability) and buffs (Anticharge). */
+function magicResistOf(c, cs = creepSkills(c)) {
+  const own = cs.find((sk) => sk.type === "magicResist")?.reduce || 0;
+  return stackMagicResist(own, c.magicBuff || 0);
+}
 /** v0.23: Magic Resistance also cuts perk spell damage (Arcane Burst, Pillar of Fire, Fire Block, Monsun, Air Block, Arcane Golem); applied before the shield, like tower magic. */
 function spellResist(c) {
-  const resist = creepSkills(c).find((sk) => sk.type === "magicResist");
-  return resist ? 1 - resist.reduce : 1;
+  return 1 - magicResistOf(c); // v0.28.026F: with buffs (Anticharge)
 }
 /** Damage after a River Guardian shield took its share (magic is reduced first). */
 function guardCut(game, c, damage, magic = false) {
@@ -2456,12 +2483,23 @@ function fireBlock(game, p, c) {
 export const WATERBLOCK = { cooldown: [15, 13, 11], back: [6, 8, 10], backAir: [3, 5, 6], frost: 5, slow: [0.75, 0.85, 0.9], chain: [2, 4, 6], chainSlow: 0.5, chainTime: 0.7 }; // v0.22h1: ground 4 + 2 × level fields, flyers 3 / 5 / 6, frozen 75 / 85 / 90 % slower; v0.28.020F: the first 2 / 4 / 6 creeps it passes freeze too (half the slow, 70 % of the time)
 export const treasureGold = (game) => Math.max(1, game?.round || 0) * 30; // v0.19e2: +20 % (was 25 per round)
 /** v0.19e2: Gold Treasure income: +60, doubled while the player has less than 40 % of the highest income. */
-export const TREASURE = { income: 60, behind: 0.4 };
-export function treasureIncome(game, p) {
-  const inc = (q) => (q?.income || 0) + (q?.incomeDecimal || 0) / 100,
-    top = Math.max(0, ...(game?.players || []).filter((q) => !q.out).map(inc));
-  return p && top > 0 && inc(p) < TREASURE.behind * top ? TREASURE.income * 2 : TREASURE.income;
+// v0.28.027F: +90 income when offered on level 8; offered only to the player with the lowest income, and only while
+// that income is at most half the highest one
+export const TREASURE = { income: 60, late: 90, lateLevel: 8, behind: 0.4, offer: 0.5 };
+const incomeOf = (q) => (q?.income || 0) + (q?.incomeDecimal || 0) / 100;
+export function treasureIncome(game, p, level = 0) {
+  const base = level >= TREASURE.lateLevel ? TREASURE.late : TREASURE.income,
+    top = Math.max(0, ...(game?.players || []).filter((q) => !q.out).map(incomeOf));
+  return p && top > 0 && incomeOf(p) < TREASURE.behind * top ? base * 2 : base;
 }
+function treasureOpen(game, p) {
+  const live = game.players.filter((q) => !q.out),
+    mine = incomeOf(p);
+  return live.length > 1 && live.every((q) => incomeOf(q) >= mine - 1e-6) && mine <= TREASURE.offer * Math.max(...live.map(incomeOf)) + 1e-6;
+}
+/** v0.28.027F: Upgrade Tower is offered only to players with at most 7 towers (rocks and walls not counted). */
+export const EVOLUTION_MAX_TOWERS = 7;
+const ownTowerCount = (p) => p.towers.filter((t) => t.typeId !== ROCK_ID && t.typeId !== WALL_ID && !t.stone).length;
 /** v0.20c: Air Block (Storm): the first flying breach every 15 / 13 / 11 s is struck by lightning, pushed back and stunned. */
 export const AIRBLOCK = { cooldown: [15, 13, 11], back: [3, 5, 7], stun: [2, 3, 4], monsun: [6, 8, 10], base: 25, perLevel: 20 }; // v0.24s: Monsun cooldown cut 6 / 8 / 10 s
 export const airBlockDamage = (p, level = Math.min(3, perkLevel(p, "airblock"))) =>
@@ -2730,6 +2768,24 @@ export function expNeeded(level) {
 }
 /** v0.27bF: a breach gives at least this share of the EXP the sender's current level needs in total (2000 / 8000 → at least 80). */
 export const BREACH_EXP_MIN = 0.01;
+/**
+ * v0.28.027F: breach EXP fades: from a player's 4th breach on, every breach adds a −5 % stack that lasts 6 s
+ * (at most −50 %); 30 s without a breach start the count over at full EXP.
+ */
+export const BREACH_FADE = Object.freeze({ free: 3, step: 0.05, last: 6, max: 0.5, reset: 30 });
+function breachFade(game, p) {
+  const f = (p.breachFade ||= { count: 0, last: -Infinity, stacks: [] }),
+    now = game.time;
+  if (now - f.last > BREACH_FADE.reset) {
+    f.count = 0;
+    f.stacks = [];
+  }
+  f.last = now;
+  f.count++;
+  f.stacks = f.stacks.filter((until) => until > now);
+  if (f.count > BREACH_FADE.free) f.stacks.push(now + BREACH_FADE.last);
+  return 1 - Math.min(BREACH_FADE.max, BREACH_FADE.step * f.stacks.length);
+}
 function gainExp(game, p, amount, source = "other", floor = 0) {
   if (!(amount > 0)) return;
   amount *= 1 + NOVICE[Math.min(3, perkLevel(p, "novice"))] + SCHOLAR.exp * Math.min(10, perkLevel(p, "scholar")); // v0.21e: up to level 10 // v0.19g1: Novice 20 / 35 / 50 / 60 / 70 %; v0.20d: Scholar +10 % per level
@@ -2768,7 +2824,7 @@ export const PERK_AVAILABILITY = {
   feudal: "2-3", // v0.27zziF (was 2-5)
   archery: "2-4", // v0.27zziF (was 2-5)
   militia: "2", // v0.17h: level 2 only
-  evolution: "2-3",
+  evolution: "2", // v0.28.027F (was 2-3)
   gold: "3", // v0.15: only on level 3, and only for the poorest player (see goldPerkOpen)
   novice: "2-3", // v0.27zziF (was 3-6)
   volley: "2-5", // v0.19h1: once taken also offered up to level 15 (PERK_AVAILABILITY_OWNED)
@@ -2777,7 +2833,7 @@ export const PERK_AVAILABILITY = {
   golem: "3+",
   permafrost: "3+",
   hills: "2+", // v0.24q: from level 2; v0.22h1: skips the next level (PERK_SKIP)
-  stormfeathers: "2+", // v0.22h1
+  stormfeathers: "0", // v0.22h1; v0.28.027F: removed (never offered)
   wings: "3+",
   hellfire: "2-8", // v0.19b1: Lava Floor; v0.21j: levels 2–8
   burst: "3+",
@@ -2785,13 +2841,14 @@ export const PERK_AVAILABILITY = {
   clones: "6+", // v0.23w: skips the next two levels (PERK_SKIP_LEVELS)
   infested: "6+", // v0.23x: skips the next two levels (PERK_SKIP_LEVELS)
   pocks: "3+",
-  treasure: "6,9", // v0.19k→l: also on level 6
+  treasure: "4,8", // v0.28.027F (was 6,9)
   voltage: "6+", // v0.21b: open from level 6 so level 20 can be reached
   boots: "6+",
   exhume: "3+",
   waterblock: "3+",
   fireblock: "3+", // v0.19j
   airblock: "3+", // v0.20c
+  anticharge: "9+", // v0.28.026F: skips 3 (PERK_SKIP_LEVELS)
   meditation: "4+", // v0.28.017F
   arcaneblock: "3+", // v0.28.017F
   supergrowth: "10+", // v0.20c: sits out the next two levels after a pick (PERK_SKIP_LEVELS)
@@ -2817,7 +2874,7 @@ export const PERK_AVAILABILITY = {
   tides: "2-4",
   sanction: "2+",
   // research (needs the matching element)
-  owl: "3+", // Watcher Owl (v0.19a1: skips the next level)
+  owl: "2+", // Watcher Owl; v0.28.027F: from level 2, skips 3 (PERK_SKIP_LEVELS)
   carmor: "6+", // Creep Armor (v0.19a1: skips the next level)
   leadership: "3+", // Leadership (v0.19a1)
   tailwind: "6+", // Tailwind (v0.19a1: skips the next level)
@@ -2971,6 +3028,8 @@ function optionValid(game, p, o) {
   if (o.type === "perk" && o.id === "lone" && loneCount(p) > loneTowers(perkLevel(p, "lone") + 1) + 1e-6) return false; // v0.18h / v0.22g1: only while the next level's tower limit holds
   if (o.type === "perk" && o.id === "quarry" && freeCells(game, p, QUARRY.stones).length < QUARRY.stones) return false; // v0.18h
   if (o.type === "perk" && o.id === "gold" && !goldPerkOpen(game, p)) return false;
+  if (o.type === "perk" && o.id === "treasure" && !treasureOpen(game, p)) return false; // v0.28.027F
+  if (o.type === "perk" && o.id === "evolution" && ownTowerCount(p) > EVOLUTION_MAX_TOWERS) return false; // v0.28.027F
   if (o.type === "perk" && o.id === "scholar" && scholarTargets(p).length < SCHOLAR.upgrades) return false; // v0.20d
   if (o.type === "perk") return perkLevel(p, o.id) < (PERKS[o.id]?.max || 0) && (o.id !== "evolution" || evolutionTargets(game, p).length > 0);
   return true;
@@ -3072,7 +3131,7 @@ function applyOption(game, p, option, level) {
       const gold = treasureGold(game);
       p.gold += gold;
       p.stats.goldEarned += gold;
-      p.income += treasureIncome(game, p); // v0.19e2
+      p.income += treasureIncome(game, p, pick.level); // v0.19e2; v0.28.027F: +90 on level 8
     }
   }
 }
@@ -3614,21 +3673,43 @@ function completeTower(game, p, t) {
  * and the first tower upgraded to its last level. Each gives a little EXP.
  */
 export const TOWER_ACHIEVEMENTS = Object.freeze({
-  element: { name: "Elementalist", text: "Your first element tower", exp: 30 }, // v0.28.020F: 30 (was 25)
-  maxed: { name: "Master Builder", text: "Your first tower at its highest level", exp: 200 }, // v0.16: 200 EXP
+  element: { name: "Elementalist", text: "Your first element tower", exp: 45 }, // v0.28.026F: 45 (was 30)
 });
+/** v0.28.026F: Upgrade — personal, the first upgrade of a tower to level 2 / 3 / 4 / 5 / 6 / 7. */
+export const UPGRADE_ACHIEVEMENT = Object.freeze({ name: "Upgrade", exp: { 2: 20, 3: 40, 4: 60, 5: 100, 6: 175, 7: 300 } });
+/** v0.28.026F: Max Upgrade (was the personal Master Builder) — global, the first tower of the match at its highest level. */
+export const MAX_UPGRADE = Object.freeze({ name: "Max Upgrade", exp: 200 });
+/** v0.28.026F: local mini achievement (not listed): the first 10 towers a player builds give 10, 9, … 1 EXP. */
+export const FIRST_TOWERS_EXP = Object.freeze([10, 9, 8, 7, 6, 5, 4, 3, 2, 1]);
 function towerAchievements(game, p, t, item) {
   if (t.fromSale || t.summoned || item.support === "farm") return;
-  const got = (p.achieved ||= {});
-  const award = (key) => {
+  const got = (p.achieved ||= {}),
+    at = { towerId: t.id, x: t.x, y: t.y }; // v0.28.026F: tower achievements pop their EXP over the tower
+  const award = (key, a, extra = {}) => {
     got[key] = true;
-    const a = TOWER_ACHIEVEMENTS[key];
     gainExp(game, p, a.exp, "achievement");
-    emit(game, "achievement", { player: p.id, achievement: key, name: a.name, exp: a.exp });
+    emit(game, "achievement", { player: p.id, achievement: key, name: a.name, exp: a.exp, ...at, ...extra });
   };
-  if (!got.element && item.element && item.element !== "neutral") award("element");
-  if (!got.maxed && t.upgrading && (item.level || 1) > 1 && !(item.upgrades || []).some((id) => obj(id))) award("maxed");
+  if (!got.element && item.element && item.element !== "neutral") award("element", TOWER_ACHIEVEMENTS.element);
+  const lv = item.level || 1,
+    upExp = UPGRADE_ACHIEVEMENT.exp[lv];
+  if (t.upgrading && upExp && !got["upgrade" + lv]) award("upgrade" + lv, { name: UPGRADE_ACHIEVEMENT.name + " " + ROMAN_UP[lv], exp: upExp }, { level: lv });
+  // the first 10 towers built (not upgrades, rocks or walls): no notification, just the EXP over the tower
+  if (!t.upgrading && t.typeId !== ROCK_ID && t.typeId !== WALL_ID && (p.towersBuilt || 0) < FIRST_TOWERS_EXP.length) {
+    const exp = FIRST_TOWERS_EXP[p.towersBuilt || 0];
+    p.towersBuilt = (p.towersBuilt || 0) + 1;
+    gainExp(game, p, exp, "firstTowers");
+    emit(game, "miniAchievement", { player: p.id, kind: "firstTowers", n: p.towersBuilt, exp, ...at });
+  }
+  // Max Upgrade: global, only the first player in the match
+  const a = (game.achievements ||= { tiers: [], halls: 0, hallNextTime: 0 });
+  if (a.maxed === undefined && t.upgrading && lv > 1 && !(item.upgrades || []).some((id) => obj(id))) {
+    a.maxed = p.id;
+    gainExp(game, p, MAX_UPGRADE.exp, "achievement");
+    emit(game, "achievement", { player: p.id, achievement: "maxed", name: MAX_UPGRADE.name, exp: MAX_UPGRADE.exp, global: true, ...at });
+  }
 }
+const ROMAN_UP = ["", "I", "II", "III", "IV", "V", "VI", "VII"];
 /**
  * v0.16: achievements only the first player in a match gets: Labyrinth (a path of 30+ fields)
  * and Creep Collector I–V (every creep of a tier bought at least once, the boss excepted).
@@ -3660,12 +3741,14 @@ function collectorCheck(game, p, item) {
  * v0.18f: Recruiter I–V — global, only the first player to spend this much gold on non-boss creeps.
  */
 export const RECRUITER_ACHIEVEMENTS = Object.freeze([
-  { gold: 500, exp: 25 },
-  { gold: 2500, exp: 40 },
-  { gold: 10000, exp: 120 },
-  { gold: 100000, exp: 240 },
-  { gold: 1000000, exp: 360 },
+  { gold: 500, exp: 30 }, // v0.28.026F: 30 / 75 / 150 / 400 / 800 (were 25 / 40 / 120 / 240 / 360)
+  { gold: 2500, exp: 75 },
+  { gold: 10000, exp: 150 },
+  { gold: 100000, exp: 400 },
+  { gold: 1000000, exp: 800 },
 ]);
+/** v0.28.026F: Dirty Work — global, the first player to recruit the Mud Golem. */
+export const DIRTY_WORK = Object.freeze({ name: "Dirty Work", exp: 30 });
 /** v0.27oF: Airborne / Air Force — global, the first player to spend 5,000 / 50,000 gold on flying creeps. */
 export const AIR_ACHIEVEMENTS = Object.freeze([
   { name: "Airborne", gold: 5000, exp: 100 },
@@ -4006,6 +4089,12 @@ function runCommand(game, input) {
     // v0.27F: the Mud Golem opens the rest of tier 1 (once)
     if (id === MINI_BOSS.id && !p.mudGolem) {
       p.mudGolem = true;
+      const ach = (game.achievements ||= { tiers: [], halls: 0, hallNextTime: 0 });
+      if (ach.dirtyWork === undefined) {
+        ach.dirtyWork = p.id; // v0.28.026F: Dirty Work
+        gainExp(game, p, DIRTY_WORK.exp, "achievement");
+        emit(game, "achievement", { player: p.id, achievement: "dirtyWork", name: DIRTY_WORK.name, exp: DIRTY_WORK.exp, global: true });
+      }
       // v0.27.006: the creeps it opens start their delay now (rounds from the purchase, MUD_GOLEM_LOCKS)
       if (!p.rules?.noStartDelay)
         for (const [sid, rounds] of Object.entries(MUD_GOLEM_LOCKS)) if (obj(sid)) p.stock[sid] = { count: 0, next: LOCKED_NEXT, lockRound: game.round + rounds };
@@ -4452,6 +4541,8 @@ function spawnCreep(game, ownerIndex, id, at = null, lane = null, noEscort = fal
     }
   }
   if (item.mana) creep.mana = item.mana;
+  const buff = antichargeOf(owner, item);
+  if (buff) creep.magicBuff = buff; // v0.28.026F: Anticharge
   target.creeps.push(creep);
   // BOSS Mob T1-T3: every boss arrives with three escorts (speed +12 / 0 / -12).
   const escort = noEscort ? null : BOSS_MOBS[id]; // v0.23w: a cloned boss comes alone
@@ -4949,8 +5040,7 @@ function strike(game, p, tower, c, damage, attackType, spell = false, extraArmor
     else if (arrowHit && cs.some((sk) => sk.type === "miniBoss")) dealt = Math.max(1, dealt - TIER_BOSS.ignore.n00T * MINI_BOSS.share); // v0.27F: half the Rock Golem's
   }
   if (spell || attackType === "magic") {
-    const resist = cs.find((sk) => sk.type === "magicResist");
-    if (resist) dealt *= 1 - resist.reduce;
+    dealt *= 1 - magicResistOf(c, cs); // v0.28.026F: own resistance and buffs (Anticharge), at most 90 %
     if (c.magicVuln) dealt *= 1 + c.magicVuln; // v0.19a1: Spirit Wolves take 300 % more magic damage
   }
   if (tower) {
@@ -5928,7 +6018,8 @@ function touchdown(game, p, c) {
       emit(game, "pillage", { player: p.id, owner: sender.id, gold: loot, x: c.x, y: c.y });
     }
   }
-  gainExp(game, sender, (["n00S", "n01C"].includes(c.typeId) ? 30 : RULES.touchdownWood) * creepTierExp(c), "breach", BREACH_EXP_MIN * (sender.expNext || 0)); // v0.24oF: +10 % per tier above 1; v0.27bF: at least 1 % of the sender's current level step
+  const fade = breachFade(game, sender); // v0.28.027F: many breaches in a row give less EXP
+  gainExp(game, sender, (["n00S", "n01C"].includes(c.typeId) ? 30 : RULES.touchdownWood) * creepTierExp(c) * fade, "breach", BREACH_EXP_MIN * (sender.expNext || 0) * fade); // v0.24oF: +10 % per tier above 1; v0.27bF: at least 1 % of the sender's current level step
   if (["n01R", "n02P"].includes(c.typeId)) {
     const stolen = Math.trunc(p.income / 100);
     p.income -= stolen;
@@ -8244,7 +8335,7 @@ export function nextWave(game) {
   const inRounds = waveRound(number) - game.round,
     info = waveInfo(number);
   // v0.28.023F: the HP shown and planned for match the wave's real HP (Very Easy training: 30 % less)
-  return { ...info, hp: info.hp * waveEase(game), seconds: game.incomeRemaining + (inRounds - 1) * game.incomeInterval };
+  return { ...info, hp: info.hp * waveEase(game, number), seconds: game.incomeRemaining + (inRounds - 1) * game.incomeInterval };
 }
 /** The (first) creep a wave consists of; mixed waves: the ground or the air group. */
 export function waveModel(number, type, info = waveInfo(number)) {
@@ -8268,7 +8359,14 @@ function launchWave(game, number) {
 }
 /** v0.28.023F: neutral waves have 30 % less HP in training matches where every AI opponent is Very Easy. */
 export const VERY_EASY_WAVE_HP = 0.7;
-function waveEase(game) {
+// v0.28.026F: Weak neutral waves: full strength up to wave 5, then 4 % less HP per wave (at least 35 %)
+const WEAK_WAVES = Object.freeze({ from: 5, rate: 0.96, floor: 0.35 });
+export const weakWaveScale = (number) => Math.max(WEAK_WAVES.floor, Math.pow(WEAK_WAVES.rate, Math.max(0, number - WEAK_WAVES.from)));
+function waveEase(game, number = 0) {
+  const weak = game.waveStrength === "weak" && !game.mission ? weakWaveScale(number) : 1;
+  return weak * waveEaseBase(game);
+}
+function waveEaseBase(game) {
   if (!game.training || game.mission) return 1;
   const bots = game.players.filter((q) => q.ai);
   return bots.length && bots.every((q) => aiLevel(game, q) === "veryEasy") ? VERY_EASY_WAVE_HP : 1;
@@ -8284,7 +8382,7 @@ function spawnWaveCreep(game, entry, at = null, hpScale = 1, child = false) {
     position = at || pos(game, column, -1),
     real = !!entry.real, // v0.18a: neutral waves use the creep's own values
     speed = (real ? item.speed : 240 * (spec.speed || 1)) * movementMultiplier(game),
-    hp = (real ? item.hp : info.hp) * hpScale * waveEase(game);
+    hp = (real ? item.hp : info.hp) * hpScale * waveEase(game, entry.number);
   const creep = {
     id: "w" + game.nextId++,
     typeId: entry.model,
